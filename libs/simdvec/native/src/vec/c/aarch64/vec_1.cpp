@@ -48,7 +48,7 @@ EXPORT int vec_caps() {
 #endif
 }
 
-static inline int32_t dot7u_inner(int8_t* a, int8_t* b, const int32_t dims) {
+static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     // We have contention in the instruction pipeline on the accumulation
     // registers if we use too few.
     int32x4_t acc1 = vdupq_n_s32(0);
@@ -95,7 +95,7 @@ EXPORT int32_t dot7u(int8_t* a, int8_t* b, const int32_t dims) {
     return res;
 }
 
-EXPORT void dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, float_t* results) {
+EXPORT void dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     int32_t res = 0;
     if (dims > DOT7U_STRIDE_BYTES_LEN) {
         const int limit = dims & ~(DOT7U_STRIDE_BYTES_LEN - 1);
@@ -105,7 +105,7 @@ EXPORT void dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int
             for (; i < dims; i++) {
                 res += a[i] * b[i];
             }
-            results[c] = (float_t)res;
+            results[c] = (f32_t)res;
             a += dims;
         }
     } else {
@@ -114,7 +114,7 @@ EXPORT void dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int
             for (int32_t i = 0; i < dims; i++) {
                 res += a[i] * b[i];
             }
-            results[c] = (float_t)res;
+            results[c] = (f32_t)res;
             a += dims;
         }
     }

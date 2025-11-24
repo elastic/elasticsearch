@@ -153,7 +153,7 @@ EXPORT int32_t dot7u(int8_t* a, int8_t* b, const int32_t dims) {
     return res;
 }
 
-EXPORT void dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, float_t* results) {
+EXPORT void dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     int32_t res = 0;
     if (dims > STRIDE_BYTES_LEN) {
         const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
@@ -163,7 +163,7 @@ EXPORT void dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int
             for (; i < dims; i++) {
                 res += a[i] * b[i];
             }
-            results[c] = (float_t)res;
+            results[c] = (f32_t)res;
             a += dims;
         }
     } else {
@@ -172,7 +172,7 @@ EXPORT void dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int
             for (int32_t i = 0; i < dims; i++) {
                 res += a[i] * b[i];
             }
-            results[c] = (float_t)res;
+            results[c] = (f32_t)res;
             a += dims;
         }
     }

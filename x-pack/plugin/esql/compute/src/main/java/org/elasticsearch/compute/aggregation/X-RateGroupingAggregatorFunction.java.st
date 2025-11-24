@@ -86,7 +86,12 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
     private final boolean isRateOverTime;
     private final double dateFactor;
 
-    public Rate$Type$GroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, boolean isRateOverTime, double dateFactor) {
+    public Rate$Type$GroupingAggregatorFunction(
+        List<Integer> channels,
+        DriverContext driverContext,
+        boolean isRateOverTime,
+        double dateFactor
+    ) {
         this.channels = channels;
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
@@ -585,7 +590,13 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
                 }
                 final double rate;
                 if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                    rate = extrapolateRate(state, tsContext.rangeStartInMillis(group), tsContext.rangeEndInMillis(group), isRateOverTime, dateFactor);
+                    rate = extrapolateRate(
+                        state,
+                        tsContext.rangeStartInMillis(group),
+                        tsContext.rangeEndInMillis(group),
+                        isRateOverTime,
+                        dateFactor
+                    );
                 } else {
                     rate = computeRateWithoutExtrapolate(state, isRateOverTime, dateFactor);
                 }

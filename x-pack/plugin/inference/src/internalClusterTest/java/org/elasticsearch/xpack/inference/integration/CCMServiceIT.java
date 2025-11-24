@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.AUTH_TASK_ACTION;
+import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.EMPTY_AUTH_RESPONSE;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.assertChatCompletionEndpointExists;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.getEisEndpoints;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.removeEisPreconfiguredEndpoints;
@@ -165,13 +166,17 @@ public class CCMServiceIT extends CCMSingleNodeIT {
         waitForTask(AUTH_TASK_ACTION, admin());
         waitForAuthorizationToComplete(authorizationTaskExecutor);
 
+        assertHasRequestWithAuth();
+
+        assertChatCompletionEndpointExists(modelRegistry);
+    }
+
+    private void assertHasRequestWithAuth() throws Exception {
         assertBusy(() -> {
             var requests = webServer.requests();
             assertThat(requests.size(), is(1));
             assertThat(requests.get(0).getHeader(HttpHeaders.AUTHORIZATION), is("Bearer secret"));
         });
-
-        assertChatCompletionEndpointExists(modelRegistry);
     }
 
     private void forceClusterUpdate() {
@@ -184,6 +189,8 @@ public class CCMServiceIT extends CCMSingleNodeIT {
         assertCCMDisabled();
         waitForNoTask(AUTH_TASK_ACTION, admin());
 
+        webServer.clearRequests();
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMPTY_AUTH_RESPONSE));
         var listener = new TestPlainActionFuture<Void>();
         ccmService.get().storeConfiguration(new CCMModel(new SecureString("secret".toCharArray())), listener);
         listener.actionGet(TimeValue.THIRTY_SECONDS);
@@ -193,6 +200,8 @@ public class CCMServiceIT extends CCMSingleNodeIT {
 
         waitForTask(AUTH_TASK_ACTION, admin());
         waitForAuthorizationToComplete(authorizationTaskExecutor);
+
+        assertHasRequestWithAuth();
 
         disableCCM();
         assertCCMDisabled();

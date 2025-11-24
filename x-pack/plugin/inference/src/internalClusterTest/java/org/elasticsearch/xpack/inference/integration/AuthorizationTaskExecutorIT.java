@@ -198,15 +198,23 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     }
 
     private void restartPollingTaskAndWaitForAuthResponse() throws Exception {
-        restartPollingTaskAndWaitForAuthResponse(admin(), authorizationTaskExecutor);
+        restartPollingTaskAndWaitForAuthResponse(admin(), authorizationTaskExecutor, webServer);
     }
 
-    static void restartPollingTaskAndWaitForAuthResponse(AdminClient adminClient, AuthorizationTaskExecutor authTaskExecutor)
-        throws Exception {
+    static void restartPollingTaskAndWaitForAuthResponse(
+        AdminClient adminClient,
+        AuthorizationTaskExecutor authTaskExecutor,
+        MockWebServer mockWebServer
+    ) throws Exception {
         cancelAuthorizationTask(adminClient);
 
         // wait for the new task to be recreated and an authorization response to be processed
         waitForAuthorizationToComplete(authTaskExecutor);
+
+        assertBusy(() -> {
+            var requests = mockWebServer.requests();
+            assertThat(requests.size(), is(1));
+        });
     }
 
     static void waitForAuthorizationToComplete(AuthorizationTaskExecutor authTaskExecutor) throws Exception {
@@ -214,9 +222,6 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
             var newPoller = authTaskExecutor.getCurrentPollerTask();
             assertNotNull(newPoller);
             newPoller.waitForAuthorizationToComplete(TimeValue.THIRTY_SECONDS);
-
-            var requests = webServer.requests();
-            assertThat(requests.size(), is(1));
         });
     }
 

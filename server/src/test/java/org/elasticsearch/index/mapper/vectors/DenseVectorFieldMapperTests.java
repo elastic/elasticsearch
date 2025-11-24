@@ -2003,7 +2003,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                     + (quantizedFlatFormat.equals("int4_flat") ? 4 : 7)
                     + ", compressed="
                     + quantizedFlatFormat.equals("int4_flat")
-                    + ", flatVectorScorer=ESQuantizedFlatVectorsScorer("
+                    + ", flatVectorScorer=ESFlatVectorsScorer("
                     + "delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())"
                     + ", factory="
                     + (factory != null ? factory : "null")

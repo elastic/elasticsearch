@@ -1305,6 +1305,11 @@ public class EsqlCapabilities {
         DATE_TRUNC_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
 
         /**
+         * Support timezones in DATE_FORMAT.
+         */
+        DATE_FORMAT_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+
+        /**
          * (Re)Added EXPLAIN command
          */
         EXPLAIN(Build.current().isSnapshot()),
@@ -1571,7 +1576,7 @@ public class EsqlCapabilities {
         FIX_FILTER_ORDINALS,
 
         /**
-         * "time_zone" parameter in request body and in {@code SET "time_zone"="x"}
+         * "time_zone" parameter in request body and in {@code SET time_zone="x"}
          */
         GLOBAL_TIMEZONE_PARAMETER(Build.current().isSnapshot()),
 

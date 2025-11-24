@@ -334,7 +334,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public String toString() {
-        return String.format(Locale.ROOT, "format[%s] locale[%s]", format, locale());
+        return String.format(Locale.ROOT, "format[%s] zone[%s] locale[%s]", format, zone(), locale());
     }
 
 }

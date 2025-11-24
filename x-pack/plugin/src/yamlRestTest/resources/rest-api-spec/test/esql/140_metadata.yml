@@ -213,6 +213,9 @@ setup:
 
 ---
 "source meta field and dynamic false":
+  - requires:
+      cluster_features: [ "mapper.stored_fields_spec_merge_bug" ]
+      reason: "Test can only run on clusters with the bug fix"
   - do:
       indices.create:
         index: my-index2

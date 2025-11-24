@@ -9458,6 +9458,41 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(relation.indexPattern(), equalTo("base_conversion"));
     }
 
+    /**
+     * EsqlProject[[ubase{r}#8831, to_long{r}#8835]]
+     * \_Eval[[TOUNSIGNEDLONG(base{f}#8840) AS ubase#8831, TOLONGBASE(string{f}#8839,TOINTEGER(ubase{r}#8831)) AS to_long#8835]]
+     *                                                     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+     *  when base is not an integer, two argument to_long(string, base) is rewritten to ToLongBase(string, ToInteger(base))
+     *
+     *   \_Limit[10[INTEGER],false,false]
+     *     \_EsRelation[base_conversion][base{f}#8840, expect_long{f}#8841, group{f}#8838, n..]
+     */
+    public void testToLongSurrogateFoldsToLongBaseWithToInteger() {
+        LogicalPlan statement = parser.createStatement("""
+            FROM  base_conversion
+            | EVAL ubase = TO_UNSIGNED_LONG(base)
+            | EVAL to_long = TO_LONG(string, ubase)
+            | KEEP ubase, to_long
+            | LIMIT 10
+            """);
+        LogicalPlan analyze = baseConversionAnalyzer.analyze(statement);
+        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+
+        Project project = as(plan, Project.class);
+        Eval eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(2));
+        ToLongBase tolongbase = as(eval.fields().get(1).child(), ToLongBase.class);
+        ToInteger tointeger = as(tolongbase.children().get(1), ToInteger.class);
+        ReferenceAttribute ubase = as(tointeger.children().get(0), ReferenceAttribute.class);
+
+        Limit limit = asLimit(eval.child(), 10, false);
+        assertThat(limit.children(), hasSize(1));
+
+        EsRelation relation = as(limit.child(), EsRelation.class);
+        assertThat(relation.children(), hasSize(0));
+        assertThat(relation.indexPattern(), equalTo("base_conversion"));
+    }
+
     /*
      * Nested subqueries are not supported yet.
      */

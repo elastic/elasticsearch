@@ -287,27 +287,29 @@ public record LifecycleExecutionState(
         return Collections.unmodifiableMap(result);
     }
 
+    /**
+     * Truncates a potentially long JSON string to ensure it does not exceed {@link #MAXIMUM_STEP_INFO_STRING_LENGTH}. If truncation
+     * occurs, an explanation suffix is appended to the truncated string indicating <i>approximately</i> how many characters were removed.
+     * @param json the JSON string to potentially truncate
+     * @return the original JSON string if its length is within the limit, otherwise a truncated version with an explanation suffix - in
+     * correct JSON format
+     */
     public static String potentiallyTruncateLongJsonWithExplanation(String json) {
-        if (json == null) {
-            return null;
-        }
-        final boolean jsonWithinLimit = json.length() <= MAXIMUM_STEP_INFO_STRING_LENGTH;
-        final boolean jsonAlreadyTruncated = json.endsWith("chars truncated)\"}");
-        // already-truncated JSON will always be over the limit, since we add the extra `chars truncated` explanation at the end.
-        // hence another check to not 1) double-truncate needlessly 2) lose information (we'll truncate current number of truncated chars)
-        if (jsonWithinLimit || jsonAlreadyTruncated) {
+        if (json == null || json.length() <= MAXIMUM_STEP_INFO_STRING_LENGTH) {
             return json;
         }
-        assert json.startsWith("{\"") && json.endsWith("\"}") : "expected more specific JSON format";
         // we'll now do our best to truncate the JSON and have the result be valid JSON.
         // a long input JSON should generally only be possible with an exception turned into JSON that's well-formatted.
         // if we fail to produce valid JSON, we might return invalid JSON in REST API in niche cases, so this isn't catastrophic.
-        final int removedChars = json.length() - MAXIMUM_STEP_INFO_STRING_LENGTH;
-        // -2 to truncate characters within the JSON (before `"}`, which we add back in, so wouldn't actually be truncating anything),
-        // and to avoid invalid JSON if we truncate one character (result would be `"... (1 chars truncated)"}`,
-        // this adds a dangling double-quote).
-        // we don't aim to arrive at a string of exactly MAXIMUM_STEP_INFO_STRING_LENGTH, that's just the condition to apply truncation.
-        return Strings.cleanTruncate(json, MAXIMUM_STEP_INFO_STRING_LENGTH - 2) + "... (" + removedChars + " chars truncated)\"}";
+        assert json.startsWith("{\"") && json.endsWith("\"}") : "expected more specific JSON format, might produce invalid JSON";
+        final int roughNumberOfCharsTruncated = json.length() - MAXIMUM_STEP_INFO_STRING_LENGTH;
+        final String truncationExplanation = "... (~" + roughNumberOfCharsTruncated + " chars truncated)\"}";
+        // To ensure that the resulting string is always <= the max, we also need to remove the length of our suffix.
+        // This means that the actual number of characters removed is `truncationExplanation.length()` more than we say it is.
+        final String truncated = Strings.cleanTruncate(json, MAXIMUM_STEP_INFO_STRING_LENGTH - truncationExplanation.length())
+            + truncationExplanation;
+        assert truncated.length() <= MAXIMUM_STEP_INFO_STRING_LENGTH : "truncation didn't work";
+        return truncated;
     }
 
     public static class Builder {

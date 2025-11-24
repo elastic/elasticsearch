@@ -13,10 +13,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasLength;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class LifecycleExecutionStateTests extends ESTestCase {
 
@@ -34,11 +36,14 @@ public class LifecycleExecutionStateTests extends ESTestCase {
             + randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 100)
             + "\"}";
         LifecycleExecutionState newState = LifecycleExecutionState.builder(state).setStepInfo(longStepInfo).build();
-        // Length includes the post suffix (`... (X chars truncated)`)
-        assertThat(newState.stepInfo().length(), equalTo(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 25));
+        assertThat(newState.stepInfo().length(), equalTo(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH));
         assertThat(
-            newState.stepInfo().substring(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - 2, 1049),
-            equalTo("... (111 chars truncated)\"}")
+            newState.stepInfo()
+                .substring(
+                    LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - 28,
+                    LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH
+                ),
+            equalTo("... (~111 chars truncated)\"}")
         );
     }
 
@@ -159,8 +164,15 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         final int baseLength = Strings.format(jsonBaseFormat, "").length();
         final String value = randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - baseLength + 1);
         final String input = Strings.format(jsonBaseFormat, value);
-        final String expectedOutput = Strings.format(jsonBaseFormat, value.substring(0, value.length() - 1) + "... (1 chars truncated)");
-        assertEquals(expectedOutput, LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(input));
+
+        final String expectedSuffix = "... (~1 chars truncated)";
+        final String expectedOutput = Strings.format(
+            jsonBaseFormat,
+            value.substring(0, value.length() - expectedSuffix.length() - 1) + expectedSuffix
+        );
+        final String actualOutput = LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(input);
+        assertThat(actualOutput, hasLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH));
+        assertEquals(expectedOutput, actualOutput);
     }
 
     public void testPotentiallyTruncateLongJsonWithExplanationTwoCharsTruncated() {
@@ -168,18 +180,28 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         final int baseLength = Strings.format(jsonBaseFormat, "").length();
         final String value = randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - baseLength + 2);
         final String input = Strings.format(jsonBaseFormat, value);
-        final String expectedOutput = Strings.format(jsonBaseFormat, value.substring(0, value.length() - 2) + "... (2 chars truncated)");
-        assertEquals(expectedOutput, LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(input));
+
+        final String expectedSuffix = "... (~2 chars truncated)";
+        final String expectedOutput = Strings.format(
+            jsonBaseFormat,
+            value.substring(0, value.length() - expectedSuffix.length() - 2) + expectedSuffix
+        );
+        final String actualOutput = LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(input);
+        assertThat(actualOutput, hasLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH));
+        assertEquals(expectedOutput, actualOutput);
     }
 
-    public void testPotentiallyTruncateLongJsonWithExplanationEarlyReturn() {
-        List.of(
-            "",
-            "chars truncated)\"}",
-            randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH) + "chars truncated)\"}"
-        ).forEach(value -> {
-            assertSame(value, LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(value));
-        });
+    public void testPotentiallyTruncateLongJsonWithExplanationIsIdempotent() {
+        final String input = "{\"key\": \"" + randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH) + "\"}";
+
+        final String firstOutput = LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(input);
+
+        assertThat(firstOutput, hasLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH));
+        assertThat(firstOutput, not(equalTo(input)));
+
+        final String secondOutput = LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(firstOutput);
+
+        assertThat(secondOutput, sameInstance(firstOutput));
     }
 
     private LifecycleExecutionState mutate(LifecycleExecutionState toMutate) {

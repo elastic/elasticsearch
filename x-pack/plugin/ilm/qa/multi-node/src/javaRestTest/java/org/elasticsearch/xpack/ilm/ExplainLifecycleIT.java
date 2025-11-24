@@ -366,8 +366,8 @@ public class ExplainLifecycleIT extends IlmESRestTestCase {
         assertOK(client().performRequest(indexRequest));
 
         final String expectedReason = Strings.format(
-            "index.lifecycle.rollover_alias [%s... (122 chars truncated)",
-            longMissingAliasName.substring(0, longMissingAliasName.length() - 81)
+            "index.lifecycle.rollover_alias [%s... (~122 chars truncated)",
+            longMissingAliasName.substring(0, longMissingAliasName.length() - 107)
         );
         final Map<String, Object> expectedStepInfo = Map.of("type", "illegal_argument_exception", "reason", expectedReason);
         assertBusy(() -> {

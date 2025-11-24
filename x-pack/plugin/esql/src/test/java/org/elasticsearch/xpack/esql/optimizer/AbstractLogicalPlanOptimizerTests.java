@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -111,8 +112,8 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
         // Most tests use either "test" or "employees" as the index name, but for the same mapping
         mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        EsIndex employees = new EsIndex("employees", mapping, Map.of("employees", IndexMode.STANDARD));
+        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
+        EsIndex employees = EsIndexGenerator.esIndex("employees", mapping, Map.of("employees", IndexMode.STANDARD));
         analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
@@ -127,7 +128,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
         // Some tests use data from the airports index, so we load it here, and use it in the planAirports() function.
         mappingAirports = loadMapping("mapping-airports.json");
-        EsIndex airports = new EsIndex("airports", mappingAirports, Map.of("airports", IndexMode.STANDARD));
+        EsIndex airports = EsIndexGenerator.esIndex("airports", mappingAirports, Map.of("airports", IndexMode.STANDARD));
         analyzerAirports = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
@@ -142,7 +143,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
         // Some tests need additional types, so we load that index here and use it in the plan_types() function.
         mappingTypes = loadMapping("mapping-all-types.json");
-        EsIndex types = new EsIndex("types", mappingTypes, Map.of("types", IndexMode.STANDARD));
+        EsIndex types = EsIndexGenerator.esIndex("types", mappingTypes, Map.of("types", IndexMode.STANDARD));
         analyzerTypes = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
@@ -156,7 +157,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
         // Some tests use mappings from mapping-extra.json to be able to test more types so we load it here
         mappingExtra = loadMapping("mapping-extra.json");
-        EsIndex extra = new EsIndex("extra", mappingExtra, Map.of("extra", IndexMode.STANDARD));
+        EsIndex extra = EsIndexGenerator.esIndex("extra", mappingExtra, Map.of("extra", IndexMode.STANDARD));
         analyzerExtra = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
@@ -169,7 +170,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
 
         metricMapping = loadMapping("k8s-mappings.json");
-        var metricsIndex = new EsIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES));
+        var metricsIndex = EsIndexGenerator.esIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES));
         metricsAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
@@ -190,6 +191,8 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             "multi_index",
             multiIndexMapping,
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
             Set.of("partial_type_keyword")
         );
         multiIndexAnalyzer = new Analyzer(
@@ -204,7 +207,14 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
 
         var sampleDataMapping = loadMapping("mapping-sample_data.json");
-        var sampleDataIndex = new EsIndex("sample_data", sampleDataMapping, Map.of("sample_data", IndexMode.STANDARD));
+        var sampleDataIndex = new EsIndex(
+            "sample_data",
+            sampleDataMapping,
+            Map.of("sample_data", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of()
+        );
         sampleDataIndexAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,

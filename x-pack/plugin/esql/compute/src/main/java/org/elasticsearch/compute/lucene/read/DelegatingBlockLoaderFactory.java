@@ -190,9 +190,26 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
             (DoubleBlock) minima,
             (DoubleBlock) maxima,
             (DoubleBlock) sums,
-            (LongBlock) valueCounts,
+            (DoubleBlock) valueCounts,
             (DoubleBlock) zeroThresholds,
             (BytesRefBlock) encodedHistograms
+        );
+    }
+
+    @Override
+    public BlockLoader.Block buildTDigestBlockDirect(
+        BlockLoader.Block encodedDigests,
+        BlockLoader.Block minima,
+        BlockLoader.Block maxima,
+        BlockLoader.Block sums,
+        BlockLoader.Block valueCounts
+    ) {
+        return factory.newTDigestBlockFromDocValues(
+            (BytesRefBlock) encodedDigests,
+            (DoubleBlock) minima,
+            (DoubleBlock) maxima,
+            (DoubleBlock) sums,
+            (LongBlock) valueCounts
         );
     }
 }

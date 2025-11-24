@@ -84,6 +84,6 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest extends Elastic
 
     @Override
     public boolean isStreaming() {
-        return true;
+        return unifiedChatInput.stream();
     }
 }

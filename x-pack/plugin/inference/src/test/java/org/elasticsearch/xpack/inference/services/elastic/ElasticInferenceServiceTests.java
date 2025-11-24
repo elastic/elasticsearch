@@ -492,7 +492,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 thrownException.getMessage(),
                 is(
                     "Inference entity [model_id] does not support task type [chat_completion] "
-                        + "for inference, the task type must be one of [text_embedding, sparse_embedding, rerank]. "
+                        + "for inference, the task type must be one of [text_embedding, sparse_embedding, rerank, completion]. "
                         + "The task type for the inference entity is chat_completion, "
                         + "please use the _inference/chat_completion/model_id/_stream URL."
                 )
@@ -1133,7 +1133,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(responseJson));
             var model = new ElasticInferenceServiceCompletionModel(
                 "id",
-                TaskType.COMPLETION,
+                TaskType.CHAT_COMPLETION,
                 "elastic",
                 new ElasticInferenceServiceCompletionServiceSettings("model_id"),
                 EmptyTaskSettings.INSTANCE,

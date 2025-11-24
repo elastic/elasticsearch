@@ -6,9 +6,7 @@ Converts the input value to a long. If the input parameter is of a date type, it
 
 When given two arguments, a string value and a whole number base,
 the string is parsed as a long in the given base with Java's `Long.parseLong(string, radix)` function.
-{applies_to}`stack: ga 9.3`
-
 If parsing fails a warning is generated as described below and the result is null.
-
 Like the eql 'number' function, a leading '0x' prefix is allowed for base 16.
+{applies_to}`stack: ga 9.3`
 

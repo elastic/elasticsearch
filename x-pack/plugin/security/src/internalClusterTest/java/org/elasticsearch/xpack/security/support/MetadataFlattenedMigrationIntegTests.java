@@ -66,8 +66,9 @@ public class MetadataFlattenedMigrationIntegTests extends SecurityIntegTestCase 
         var roles = createRoles();
         final var nativeRoleStore = internalCluster().getInstance(NativeRolesStore.class);
 
-        try (ExecutorService executor = Executors.newSingleThreadExecutor()) {
-            final AtomicBoolean runUpdateRolesBackground = new AtomicBoolean(true);
+        final ExecutorService executor = Executors.newSingleThreadExecutor();
+        final AtomicBoolean runUpdateRolesBackground = new AtomicBoolean(true);
+        try {
             executor.submit(() -> {
                 while (runUpdateRolesBackground.get()) {
                     // Only update half the list so the other half can be verified as migrated
@@ -97,12 +98,10 @@ public class MetadataFlattenedMigrationIntegTests extends SecurityIntegTestCase 
             });
 
             resetMigration();
-            try {
-                waitForMigrationCompletion();
-            } finally {
-                runUpdateRolesBackground.set(false);
-                executor.shutdown();
-            }
+            waitForMigrationCompletion();
+        } finally {
+            runUpdateRolesBackground.set(false);
+            executor.shutdown();
         }
         assertAllRolesHaveMetadataFlattened();
     }
@@ -158,7 +157,7 @@ public class MetadataFlattenedMigrationIntegTests extends SecurityIntegTestCase 
 
     private int getCurrentMigrationVersion() {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
-        IndexMetadata indexMetadata = clusterService.state().metadata().getProject().index(INTERNAL_SECURITY_MAIN_INDEX_7);
+        IndexMetadata indexMetadata = clusterService.state().metadata().index(INTERNAL_SECURITY_MAIN_INDEX_7);
         if (indexMetadata == null || indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY) == null) {
             return 0;
         }

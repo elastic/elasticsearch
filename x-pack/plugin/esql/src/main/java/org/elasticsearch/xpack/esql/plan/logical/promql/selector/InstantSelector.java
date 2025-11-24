@@ -77,17 +77,6 @@ public class InstantSelector extends Selector {
         return super.equals(o);
     }
 
-    /**
-     * InstantSelector outputs three columns representing time series data:
-     * 1. labels - The metric name and all label key-value pairs
-     * 2. timestamp - The sample timestamp in milliseconds since epoch
-     * 3. value - The metric value
-     */
-    @Override
-    public List<Attribute> output() {
-        throw new UnsupportedOperationException("InstantSelector isn't supported as the root of the PromqlCommand yet");
-    }
-
     @Override
     public int hashCode() {
         return super.hashCode();

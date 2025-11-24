@@ -94,18 +94,6 @@ public class RangeSelector extends Selector {
         return Objects.equals(range, that.range);
     }
 
-    /**
-     * RangeSelector outputs three columns representing time series data:
-     * 0. range - the step instance for the given interval
-     * 1. labels - The metric name and all label key-value pairs
-     * 2. timestamp - The sample timestamp in milliseconds since epoch
-     * 3. value - The metric value
-     */
-    @Override
-    public List<Attribute> output() {
-        throw new UnsupportedOperationException("RangeSelector isn't supported as the root of the PromqlCommand yet");
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), range);

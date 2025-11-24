@@ -83,17 +83,6 @@ public class LiteralSelector extends Selector {
         return Objects.equals(literal, that.literal);
     }
 
-    /**
-     * LiteralSelector outputs three columns representing a scalar vector:
-     * 0. labels - Empty (no labels for scalar values)
-     * 1. timestamp - The evaluation timestamp
-     * 2. value - The literal scalar value
-     */
-    @Override
-    public List<Attribute> output() {
-        throw new UnsupportedOperationException("LiteralSelector isn't supported as the root of the PromqlCommand yet");
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), literal);

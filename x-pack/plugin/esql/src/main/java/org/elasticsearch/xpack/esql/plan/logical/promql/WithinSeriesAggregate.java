@@ -69,11 +69,6 @@ public class WithinSeriesAggregate extends PromqlFunctionCall implements Surroga
     }
 
     @Override
-    public List<Attribute> output() {
-        throw new UnsupportedOperationException("WithinSeriesAggregate isn't supported as the root of the PromqlCommand yet");
-    }
-
-    @Override
     public LogicalPlan surrogate() {
         LogicalPlan childPlan = child();
 

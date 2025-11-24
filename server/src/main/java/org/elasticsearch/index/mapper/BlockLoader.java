@@ -693,7 +693,7 @@ public interface BlockLoader {
 
         DoubleBuilder sums();
 
-        LongBuilder valueCounts();
+        DoubleBuilder valueCounts();
 
         DoubleBuilder zeroThresholds();
 

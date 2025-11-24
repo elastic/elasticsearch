@@ -30,44 +30,8 @@ public abstract class AbstractRollingUpgradeWithSecurityTestCase extends Paramet
     private static final String USER = "test_admin";
     private static final String PASS = "x-pack-test-password";
 
-    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
-
-    private static final ElasticsearchCluster cluster = buildCluster();
-
-    private static ElasticsearchCluster buildCluster() {
-        var cluster = ElasticsearchCluster.local()
-            .distribution(DistributionType.DEFAULT)
-            .version(getOldClusterVersion(), isOldClusterDetachedVersion())
-            .nodes(NODE_NUM)
-            .user(USER, PASS)
-            .setting("xpack.security.autoconfiguration.enabled", "false")
-            .setting("path.repo", new Supplier<>() {
-                @Override
-                @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
-                public String get() {
-                    return repoDirectory.getRoot().getPath();
-                }
-            });
-
-        // Avoid triggering bogus assertion when serialized parsed mappings don't match with original mappings, because _source key is
-        // inconsistent. Assume non-parseable versions (serverless) do not need this.
-        if (Version.tryParse(getOldClusterVersion()).map(v -> v.before(Version.fromString("8.18.0"))).orElse(false)) {
-            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
-            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
-        }
-        return cluster.build();
-    }
-
-    @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
-
     protected AbstractRollingUpgradeWithSecurityTestCase(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
-    }
-
-    @Override
-    protected ElasticsearchCluster getUpgradeCluster() {
-        return cluster;
     }
 
     protected Settings restClientSettings() {

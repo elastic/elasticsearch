@@ -12,6 +12,11 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -27,6 +32,16 @@ public class LogsUsageRollingUpgradeIT extends AbstractRollingUpgradeWithSecurit
 
     public LogsUsageRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    private static TemporaryFolder repoDirectory = new TemporaryFolder();
+    private static ElasticsearchCluster cluster = Clusters.buildCluster(repoDirectory);
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     public void testUsage() throws Exception {

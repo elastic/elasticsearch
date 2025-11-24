@@ -441,6 +441,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/171_knn_index_base64_encoded_vectors/Retrieve Base64 encoded vectors when exclude vectors from source is false}
   issue: https://github.com/elastic/elasticsearch/issues/138462
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=index/100_field_name_length_limit/Test field name length limit synthetic source}
+  issue: https://github.com/elastic/elasticsearch/issues/138471
 
 # Examples:
 #

@@ -13,8 +13,8 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 
 /**
  * Base class to check that a query than can be pushed down gives the same result
@@ -173,7 +174,7 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
         public TestQueryResponseCollection(List<String> queries) {
             this.responses = queries.stream().map(query -> {
                 try {
-                    return EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get();
+                    return client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).get();
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

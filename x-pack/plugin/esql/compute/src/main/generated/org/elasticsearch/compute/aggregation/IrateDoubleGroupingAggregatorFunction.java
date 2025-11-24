@@ -38,18 +38,21 @@ public final class IrateDoubleGroupingAggregatorFunction implements GroupingAggr
 
   private final boolean isDelta;
 
+  private final boolean isDateNanos;
+
   public IrateDoubleGroupingAggregatorFunction(List<Integer> channels,
       IrateDoubleAggregator.DoubleIrateGroupingState state, DriverContext driverContext,
-      boolean isDelta) {
+      boolean isDelta, boolean isDateNanos) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
     this.isDelta = isDelta;
+    this.isDateNanos = isDateNanos;
   }
 
   public static IrateDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, boolean isDelta) {
-    return new IrateDoubleGroupingAggregatorFunction(channels, IrateDoubleAggregator.initGrouping(driverContext, isDelta), driverContext, isDelta);
+      DriverContext driverContext, boolean isDelta, boolean isDateNanos) {
+    return new IrateDoubleGroupingAggregatorFunction(channels, IrateDoubleAggregator.initGrouping(driverContext, isDelta, isDateNanos), driverContext, isDelta, isDateNanos);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

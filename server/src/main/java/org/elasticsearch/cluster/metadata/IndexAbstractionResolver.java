@@ -49,9 +49,8 @@ public class IndexAbstractionResolver {
         final boolean includeDataStreams
     ) {
         final ResolvedIndexExpressions.Builder resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
-        boolean wildcardSeen = false;
         for (String originalIndexExpression : indices) {
-            wildcardSeen = resolveIndexAbstraction(
+            resolveIndexAbstraction(
                 resolvedExpressionsBuilder,
                 originalIndexExpression,
                 originalIndexExpression, // in the case of local resolution, the local expression is always the same as the original
@@ -60,8 +59,7 @@ public class IndexAbstractionResolver {
                 allAuthorizedAndAvailableBySelector,
                 isAuthorized,
                 includeDataStreams,
-                Set.of(),
-                wildcardSeen
+                Set.of()
             );
         }
         return resolvedExpressionsBuilder.build();
@@ -86,7 +84,6 @@ public class IndexAbstractionResolver {
         final String originProjectAlias = targetProjects.originProjectAlias();
         final Set<String> linkedProjectAliases = targetProjects.allProjectAliases();
         final ResolvedIndexExpressions.Builder resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
-        boolean wildcardSeen = false;
         for (String originalIndexExpression : indices) {
             final CrossProjectIndexExpressionsRewriter.IndexRewriteResult indexRewriteResult = CrossProjectIndexExpressionsRewriter
                 .rewriteIndexExpression(originalIndexExpression, originProjectAlias, linkedProjectAliases, projectRouting);
@@ -100,7 +97,7 @@ public class IndexAbstractionResolver {
                 continue;
             }
 
-            wildcardSeen = resolveIndexAbstraction(
+            resolveIndexAbstraction(
                 resolvedExpressionsBuilder,
                 originalIndexExpression,
                 localIndexExpression,
@@ -109,14 +106,13 @@ public class IndexAbstractionResolver {
                 allAuthorizedAndAvailableBySelector,
                 isAuthorized,
                 includeDataStreams,
-                indexRewriteResult.remoteExpressions(),
-                wildcardSeen
+                indexRewriteResult.remoteExpressions()
             );
         }
         return resolvedExpressionsBuilder.build();
     }
 
-    private boolean resolveIndexAbstraction(
+    private void resolveIndexAbstraction(
         final ResolvedIndexExpressions.Builder resolvedExpressionsBuilder,
         final String originalIndexExpression,
         final String localIndexExpression,
@@ -125,12 +121,11 @@ public class IndexAbstractionResolver {
         final Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
         final BiPredicate<String, IndexComponentSelector> isAuthorized,
         final boolean includeDataStreams,
-        final Set<String> remoteExpressions,
-        boolean wildcardSeen
+        final Set<String> remoteExpressions
     ) {
         String indexAbstraction;
         boolean minus = false;
-        if (localIndexExpression.charAt(0) == '-' && wildcardSeen) {
+        if (localIndexExpression.charAt(0) == '-') {
             indexAbstraction = localIndexExpression.substring(1);
             minus = true;
         } else {
@@ -150,7 +145,6 @@ public class IndexAbstractionResolver {
         indexAbstraction = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
 
         if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
-            wildcardSeen = true;
             final HashSet<String> resolvedIndices = new HashSet<>();
             for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selector)) {
                 if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
@@ -167,11 +161,14 @@ public class IndexAbstractionResolver {
                 }
             }
             if (resolvedIndices.isEmpty()) {
-                // es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
-                if (indicesOptions.allowNoIndices() == false) {
-                    throw new IndexNotFoundException(indexAbstraction);
+                // Ignore empty result for exclusions
+                if (minus == false) {
+                    // es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
+                    if (indicesOptions.allowNoIndices() == false) {
+                        throw new IndexNotFoundException(indexAbstraction);
+                    }
+                    resolvedExpressionsBuilder.addExpressions(originalIndexExpression, new HashSet<>(), SUCCESS, remoteExpressions);
                 }
-                resolvedExpressionsBuilder.addExpressions(originalIndexExpression, new HashSet<>(), SUCCESS, remoteExpressions);
             } else {
                 if (minus) {
                     resolvedExpressionsBuilder.excludeFromLocalExpressions(resolvedIndices);
@@ -219,7 +216,6 @@ public class IndexAbstractionResolver {
                 }
             }
         }
-        return wildcardSeen;
     }
 
     private static void resolveSelectorsAndCollect(

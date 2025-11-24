@@ -658,22 +658,51 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testExclusionDoesNotAffectFollowingExpressions() {
         final var userAvailableIndices = getUserAvailableIndices();
-        // Exclusion does not affect anything after it
-        var request = new SearchRequest(randomIndexExclusion(userAvailableIndices), "*");
+        final String indexExclusion = randomIndexExclusion(userAvailableIndices);
         final boolean expandToClosedIndices = randomBoolean();
         final boolean expandToHiddenIndices = randomBoolean();
-        request.indicesOptions(IndicesOptions.fromOptions(false, false, true, expandToClosedIndices, expandToHiddenIndices));
-        final var expectedIndices = Arrays.stream(userAvailableIndices)
-            .filter(name -> expandToClosedIndices || name.contains("closed") == false)
-            .filter(name -> expandToHiddenIndices || name.startsWith(".") == false && name.contains("hidden") == false)
-            .toArray(String[]::new);
 
-        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
-        assertThat(indices, containsInAnyOrder(expectedIndices));
-        assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
-        ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
-        assertThat(actual, is(notNullValue()));
-        assertThat(actual.expressions(), contains(resolvedIndexExpression("*", Set.of(expectedIndices), SUCCESS)));
+        {
+            // Exclusion does not affect anything after it
+            var request = new SearchRequest(indexExclusion, "*");
+            request.indicesOptions(IndicesOptions.fromOptions(false, false, true, expandToClosedIndices, expandToHiddenIndices));
+            final var expectedIndices = Arrays.stream(userAvailableIndices)
+                .filter(name -> expandToClosedIndices || name.contains("closed") == false)
+                .filter(name -> expandToHiddenIndices || name.startsWith(".") == false && name.contains("hidden") == false)
+                .toArray(String[]::new);
+
+            List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
+            assertThat(indices, containsInAnyOrder(expectedIndices));
+            assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
+            ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
+            assertThat(actual, is(notNullValue()));
+
+            assertThat(actual.expressions(), contains(resolvedIndexExpression("*", Set.of(expectedIndices), SUCCESS)));
+        }
+
+        {
+            // Exclusion excludes from prior wildcard but still included by the later wildcard
+            var request = new SearchRequest("*", indexExclusion, "*");
+            request.indicesOptions(IndicesOptions.fromOptions(false, false, true, expandToClosedIndices, expandToHiddenIndices));
+            final var expectedIndices = Arrays.stream(userAvailableIndices)
+                .filter(name -> expandToClosedIndices || name.contains("closed") == false)
+                .filter(name -> expandToHiddenIndices || name.startsWith(".") == false && name.contains("hidden") == false)
+                .toArray(String[]::new);
+
+            List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
+            assertThat(Set.copyOf(indices), containsInAnyOrder(expectedIndices));
+            assertThat(Set.copyOf(List.of(request.indices())), containsInAnyOrder(expectedIndices));
+            ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
+            assertThat(actual, is(notNullValue()));
+
+            assertThat(actual.expressions(), contains(resolvedIndexExpression("*", Arrays.stream(expectedIndices).filter(name -> {
+                if (indexExclusion.endsWith("*")) {
+                    return Regex.simpleMatch(indexExclusion.substring(1), name) == false;
+                } else {
+                    return name.equals(indexExclusion.substring(1)) == false;
+                }
+            }).collect(Collectors.toSet()), SUCCESS), resolvedIndexExpression("*", Set.of(expectedIndices), SUCCESS)));
+        }
     }
 
     public void testExclusionWithoutPriorWildcards() {

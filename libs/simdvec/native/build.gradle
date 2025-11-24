@@ -51,8 +51,6 @@ model {
         cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=armv8-a"]) }
       }
       target("amd64") {
-        // cCompiler.executable = "/usr/bin/gcc"
-        // cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c11", "-march=core-avx2", "-Wno-incompatible-pointer-types"]) }
         cppCompiler.executable = "/usr/bin/g++"
         cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=core-avx2"]) }
       }
@@ -61,7 +59,7 @@ model {
       eachPlatform { toolchain ->
         def platform = toolchain.getPlatform()
         if (platform.name == "x64") {
-          cCompiler.withArguments { args -> args.addAll(["/O2", "/LD", "-march=core-avx2"]) }
+          cppCompiler.withArguments { args -> args.addAll(["/O2", "/LD", "-march=core-avx2"]) }
         }
       }
     }
@@ -71,7 +69,6 @@ model {
       }
 
       target("amd64") {
-        // cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c11", "-march=core-avx2"]) }
         cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=core-avx2"]) }
       }
     }

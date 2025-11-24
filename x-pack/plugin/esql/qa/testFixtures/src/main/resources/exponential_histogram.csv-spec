@@ -53,6 +53,7 @@ min:double | max:double | median:double | p75:double | sum:double | avg:double
 2.4E-4     | 3.190723   | 6.469E-4      | 0.2608237  | 36.198484  | 0.008197
 ;
 
+
 allAggsGroupedFiltered
 required_capability: exponential_histogram_pre_tech_preview_v4
 
@@ -71,11 +72,28 @@ FROM exp_histo_sample
 ;
 
 instance:keyword | min:double | max:double | median:double | p75:double | sum:double | avg:double
-instance-0       | 2.4E-4     | NULL   | NULL     | 0.2608237  | NULL   | NULL
-instance-1       | NULL    | NULL   | NULL      | NULL     | 36.198484 | NULL
-instance-2       | NULL    | NULL  | 6.469E-4      | NULL     | NULL       | 0.008197
+instance-0       | 2.4E-4     | null       | null          | 0.2608237  | null       | null
+instance-1       | null       | 3.190723   | null          | null       | 36.198484  | null
+instance-2       | null       | null       | 6.469E-4      | null       | null       | 0.008197
 ;
 
+
+allAggsGroupedEmptyGroups
+required_capability: exponential_histogram_pre_tech_preview_v4
+
+FROM exp_histo_sample 
+ | STATS min = MIN(responseTime) WHERE instance == "idontexist",
+         max = MAX(responseTime) WHERE instance == "idontexist",
+         median = MEDIAN(responseTime) WHERE instance == "idontexist",
+         p75 = PERCENTILE(responseTime,75) WHERE instance == "idontexist",
+         sum = SUM(responseTime) WHERE instance == "idontexist",
+         avg = AVG(responseTime) WHERE instance == "idontexist"
+ | KEEP min, max, median, p75, sum, avg
+;
+
+min:double | max:double | median:double | p75:double | sum:double | avg:double
+null       | null       | null          | null       | null       | null
+;
 
 allAggsInlineGrouped
 required_capability: exponential_histogram_pre_tech_preview_v4

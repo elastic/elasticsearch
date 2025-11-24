@@ -14,6 +14,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -205,7 +206,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        @Nullable Supplier<ProjectMetadata> projectMetadataSupplier
     ) {
         this(
             () -> clusterService.state().getMinTransportVersion(),
@@ -218,7 +220,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             idFieldMapper,
             scriptCompiler,
             bitSetProducer,
-            mapperMetrics
+            mapperMetrics,
+            projectMetadataSupplier
         );
     }
 
@@ -234,7 +237,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        @Nullable Supplier<ProjectMetadata> projectMetadataSupplier
     ) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
@@ -253,9 +257,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             idFieldMapper,
             bitSetProducer,
             mapperRegistry.getVectorsFormatProviders(),
-            mapperRegistry.getNamespaceValidator()
+            mapperRegistry.getNamespaceValidator(),
+            projectMetadataSupplier == null ? null : projectMetadataSupplier.get()
         );
         this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
+
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
@@ -267,6 +273,35 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         );
         this.bitSetProducer = bitSetProducer;
         this.mapperMetrics = mapperMetrics;
+    }
+
+    public MapperService(
+        Supplier<TransportVersion> clusterTransportVersion,
+        IndexSettings indexSettings,
+        IndexAnalyzers indexAnalyzers,
+        XContentParserConfiguration parserConfiguration,
+        SimilarityService similarityService,
+        MapperRegistry mapperRegistry,
+        Supplier<SearchExecutionContext> searchExecutionContextSupplier,
+        IdFieldMapper idFieldMapper,
+        ScriptCompiler scriptCompiler,
+        Function<Query, BitSetProducer> bitSetProducer,
+        MapperMetrics mapperMetrics
+    ) {
+        this(
+            clusterTransportVersion,
+            indexSettings,
+            indexAnalyzers,
+            parserConfiguration,
+            similarityService,
+            mapperRegistry,
+            searchExecutionContextSupplier,
+            idFieldMapper,
+            scriptCompiler,
+            bitSetProducer,
+            mapperMetrics,
+            null
+        );
     }
 
     public boolean hasNested() {

@@ -120,7 +120,8 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         IndexOptions indexOptions = new DenseVectorFieldMapper.Int8HnswIndexOptions(
             randomIntBetween(1, 100),
             randomIntBetween(1, 10_000),
-            null, ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled() && randomBoolean(),
+            null,
+            ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled() && randomBoolean(),
             null
         );
         assertAcked(

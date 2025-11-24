@@ -20,7 +20,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.VectorData;
@@ -60,8 +59,6 @@ public class DirectIOIT extends ESIntegTestCase {
         } catch (IOException e) {
             SUPPORTED = false;
         }
-
-        assumeTrue("Generic format supporting direct IO not enabled", ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled());
     }
 
     static DirectIODirectory open(Path path) throws IOException {

@@ -31,8 +31,8 @@ import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconf
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_MULTILINGUAL_EMBED_MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_RERANK_ENDPOINT_ID_V1;
-import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_RERANK_MODEL_ID_V1;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_RERANK_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_RERANK_MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DENSE_TEXT_EMBEDDINGS_DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.GP_LLM_V2_MODEL_ID;
@@ -57,7 +57,7 @@ public class PreconfiguredEndpointModelAdapterTests extends ESTestCase {
             null
         );
     private static final ElasticInferenceServiceRerankServiceSettings RERANK_SETTINGS = new ElasticInferenceServiceRerankServiceSettings(
-        DEFAULT_RERANK_MODEL_ID_V1
+        DEFAULT_RERANK_MODEL_ID
     );
     private static final ElasticInferenceServiceComponents EIS_COMPONENTS = new ElasticInferenceServiceComponents("");
 
@@ -66,7 +66,7 @@ public class PreconfiguredEndpointModelAdapterTests extends ESTestCase {
             DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
             GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID,
             DEFAULT_ELSER_ENDPOINT_ID_V2,
-            DEFAULT_RERANK_ENDPOINT_ID_V1,
+            DEFAULT_RERANK_ENDPOINT_ID,
             DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID
         );
         var models = PreconfiguredEndpointModelAdapter.getModels(endpointIds, EIS_COMPONENTS);
@@ -125,7 +125,7 @@ public class PreconfiguredEndpointModelAdapterTests extends ESTestCase {
                 ),
                 new ElasticInferenceServiceModel(
                     new ModelConfigurations(
-                        DEFAULT_RERANK_ENDPOINT_ID_V1,
+                        DEFAULT_RERANK_ENDPOINT_ID,
                         TaskType.RERANK,
                         ElasticInferenceService.NAME,
                         RERANK_SETTINGS,

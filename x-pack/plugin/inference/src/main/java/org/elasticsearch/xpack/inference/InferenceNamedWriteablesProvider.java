@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.inference.services.custom.response.RerankResponse
 import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandInternalServiceSettings;
@@ -877,6 +878,15 @@ public class InferenceNamedWriteablesProvider {
                 ServiceSettings.class,
                 ElasticInferenceServiceRerankServiceSettings.NAME,
                 ElasticInferenceServiceRerankServiceSettings::new
+            )
+        );
+
+        // Dense Text Embeddings
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.NAME,
+                ElasticInferenceServiceDenseTextEmbeddingsServiceSettings::new
             )
         );
     }

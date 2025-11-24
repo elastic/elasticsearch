@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 
@@ -93,14 +91,7 @@ public class LiteralSelector extends Selector {
      */
     @Override
     public List<Attribute> output() {
-        if (output == null) {
-            output = List.of(
-                new ReferenceAttribute(source(), "promql$labels", DataType.KEYWORD),
-                new ReferenceAttribute(source(), "promql$timestamp", DataType.DATETIME),
-                new ReferenceAttribute(source(), "promql$value", DataType.DOUBLE)
-            );
-        }
-        return output;
+        throw new UnsupportedOperationException("LiteralSelector isn't supported as the root of the PromqlCommand yet");
     }
 
     @Override

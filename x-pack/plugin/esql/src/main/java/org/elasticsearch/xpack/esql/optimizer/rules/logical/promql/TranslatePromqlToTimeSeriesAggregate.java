@@ -19,8 +19,8 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesA
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
@@ -55,8 +54,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static java.util.Arrays.asList;
 
 /**
  * Translates PromQL logical plans into ESQL TimeSeriesAggregate nodes.
@@ -183,18 +180,12 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
         } else if (functionCall instanceof AcrossSeriesAggregate acrossAggregate) {
             List<NamedExpression> aggs = new ArrayList<>();
             List<Expression> groupings = new ArrayList<>(acrossAggregate.groupings().size());
-            Alias tbucket = createStepBucketAlias(promqlCommand);
+            Alias tbucket = createStepBucketAlias(promqlCommand, acrossAggregate);
             initAggregatesAndGroupings(acrossAggregate, target, aggs, groupings, tbucket.toAttribute());
 
             LogicalPlan p = childResult.plan;
             p = new Eval(tbucket.source(), p, List.of(tbucket));
             p = new TimeSeriesAggregate(acrossAggregate.source(), p, groupings, aggs, null);
-            // sort the data ascending by time bucket
-            p = new OrderBy(
-                acrossAggregate.source(),
-                p,
-                asList(new Order(acrossAggregate.source(), tbucket.toAttribute(), Order.OrderDirection.ASC, Order.NullsPosition.FIRST))
-            );
             result = new MapResult(p, extras);
         } else {
             throw new QlIllegalArgumentException("Unsupported PromQL function call: {}", functionCall);
@@ -210,31 +201,30 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
         List<Expression> groupings,
         Attribute stepBucket
     ) {
+        // main aggregation
         Function esqlFunction = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
             acrossAggregate.functionName(),
             acrossAggregate.source(),
-            List.of(target)
+            // to double conversion of the metric to ensure a consistent output type
+            // TODO it's probably more efficient to wrap the function in the ToDouble
+            // but for some reason this doesn't work if you have and inner and outer aggregation
+            List.of(new ToDouble(target.source(), target))
         );
 
-        aggs.add(new Alias(acrossAggregate.source(), acrossAggregate.sourceText(), esqlFunction));
+        aggs.add(new Alias(acrossAggregate.source(), acrossAggregate.sourceText(), esqlFunction, acrossAggregate.valueId()));
 
-        // add groupings
-        for (Expression grouping : acrossAggregate.groupings()) {
-            NamedExpression named;
-            if (grouping instanceof NamedExpression ne) {
-                named = ne;
-            } else {
-                named = new Alias(grouping.source(), grouping.sourceText(), grouping);
-            }
-            aggs.add(named);
-            groupings.add(named.toAttribute());
-        }
-
+        // timestamp/step
         aggs.add(stepBucket);
         groupings.add(stepBucket);
+
+        // additional groupings (by)
+        for (NamedExpression grouping : acrossAggregate.groupings()) {
+            aggs.add(grouping);
+            groupings.add(grouping.toAttribute());
+        }
     }
 
-    private static Alias createStepBucketAlias(PromqlCommand promqlCommand) {
+    private static Alias createStepBucketAlias(PromqlCommand promqlCommand, AcrossSeriesAggregate acrossAggregate) {
         Expression timeBucketSize;
         if (promqlCommand.isRangeQuery()) {
             timeBucketSize = promqlCommand.step();
@@ -250,7 +240,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
             null,
             ConfigurationAware.CONFIGURATION_MARKER
         );
-        return new Alias(b.source(), "TBUCKET", b);
+        return new Alias(b.source(), "step", b, acrossAggregate.stepId());
     }
 
     /**

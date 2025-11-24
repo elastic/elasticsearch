@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -65,6 +66,11 @@ public class WithinSeriesAggregate extends PromqlFunctionCall implements Surroga
     @Override
     public WithinSeriesAggregate replaceChild(LogicalPlan newChild) {
         return new WithinSeriesAggregate(source(), newChild, functionName(), parameters());
+    }
+
+    @Override
+    public List<Attribute> output() {
+        throw new UnsupportedOperationException("WithinSeriesAggregate isn't supported as the root of the PromqlCommand yet");
     }
 
     @Override

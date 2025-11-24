@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -74,10 +75,15 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DA
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
+// FIXME(gal, NOCOMMIT) remove, for debugging only
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTests {
     public SubstituteRoundToTests(String name, Configuration config) {
         super(name, config);
@@ -797,6 +803,106 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         lastBucket.add(null);
         lastBucket.add(p4);
         return List.of(firstBucket, List.of(p2, p3, p2), List.of(p3, p4, p3), lastBucket);
+    }
+
+    public void testForkWithStatsCountStarDateTrunc() {
+        String query = """
+            from test
+            | fork (stats x = count(*), y = max(long) by hd = date_trunc(1 day, date))
+                   (stats x = count(*), y = min(long) by hd = date_trunc(2 day, date))
+            """;
+        PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+
+        LimitExec limit = as(plan, LimitExec.class);
+        MergeExec merge = as(limit.child(), MergeExec.class);
+
+        List<PhysicalPlan> mergeChildren = merge.children();
+        assertThat(mergeChildren, hasSize(2));
+
+        PhysicalPlan firstBranch = mergeChildren.get(0);
+        ProjectExec firstProject = as(firstBranch, ProjectExec.class);
+        EvalExec firstEval = as(firstProject.child(), EvalExec.class);
+        LimitExec firstLimit = as(firstEval.child(), LimitExec.class);
+        AggregateExec firstFinalAgg = as(firstLimit.child(), AggregateExec.class);
+        assertThat(firstFinalAgg.getMode(), is(FINAL));
+        var firstGroupings = firstFinalAgg.groupings();
+        assertThat(firstGroupings, hasSize(1));
+        NamedExpression firstGrouping = as(firstGroupings.getFirst(), NamedExpression.class);
+        assertThat(firstGrouping.name(), is("hd"));
+        assertThat(firstGrouping.dataType(), is(DataType.DATETIME));
+        assertThat(Expressions.names(firstFinalAgg.aggregates()), is(List.of("x", "y", "hd")));
+
+        ExchangeExec firstExchange = as(firstFinalAgg.child(), ExchangeExec.class);
+        assertThat(firstExchange.inBetweenAggs(), is(true));
+        AggregateExec firstInitialAgg = as(firstExchange.child(), AggregateExec.class);
+        FieldExtractExec firstFieldExtract = as(firstInitialAgg.child(), FieldExtractExec.class);
+        EvalExec firstDateTruncEval = as(firstFieldExtract.child(), EvalExec.class);
+        as(firstDateTruncEval.child(), EsQueryExec.class);
+
+        PhysicalPlan secondBranch = mergeChildren.get(1);
+        ProjectExec secondProject = as(secondBranch, ProjectExec.class);
+        EvalExec secondEval = as(secondProject.child(), EvalExec.class);
+        LimitExec secondLimit = as(secondEval.child(), LimitExec.class);
+        AggregateExec secondFinalAgg = as(secondLimit.child(), AggregateExec.class);
+        assertThat(secondFinalAgg.getMode(), is(FINAL));
+        var secondGroupings = secondFinalAgg.groupings();
+        assertThat(secondGroupings, hasSize(1));
+        NamedExpression secondGrouping = as(secondGroupings.getFirst(), NamedExpression.class);
+        assertThat(secondGrouping.name(), is("hd"));
+        assertThat(secondGrouping.dataType(), is(DataType.DATETIME));
+        assertThat(Expressions.names(secondFinalAgg.aggregates()), is(List.of("x", "y", "hd")));
+
+        ExchangeExec secondExchange = as(secondFinalAgg.child(), ExchangeExec.class);
+        assertThat(secondExchange.inBetweenAggs(), is(true));
+        AggregateExec secondInitialAgg = as(secondExchange.child(), AggregateExec.class);
+        FieldExtractExec secondFieldExtract = as(secondInitialAgg.child(), FieldExtractExec.class);
+        EvalExec secondDateTruncEval = as(secondFieldExtract.child(), EvalExec.class);
+        FieldExtractExec secondDateFieldExtract = as(secondDateTruncEval.child(), FieldExtractExec.class);
+        as(secondDateFieldExtract.child(), EsQueryExec.class);
+    }
+
+    public void testSubqueryWithCountStarAndDateTrunc() {
+        String query = """
+            from test, (from test | stats cnt = count(*) by x = date_trunc(1 day, date))
+            | keep x, cnt, date
+            """;
+        PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+
+        ProjectExec project = as(plan, ProjectExec.class);
+        LimitExec limit = as(project.child(), LimitExec.class);
+        MergeExec merge = as(limit.child(), MergeExec.class);
+
+        List<PhysicalPlan> mergeChildren = merge.children();
+        assertThat(mergeChildren, hasSize(2));
+
+        PhysicalPlan leftBranch = mergeChildren.get(0);
+        ProjectExec leftProject = as(leftBranch, ProjectExec.class);
+        EvalExec leftEval = as(leftProject.child(), EvalExec.class);
+        LimitExec leftLimit = as(leftEval.child(), LimitExec.class);
+        ExchangeExec leftExchange = as(leftLimit.child(), ExchangeExec.class);
+        ProjectExec leftInnerProject = as(leftExchange.child(), ProjectExec.class);
+        FieldExtractExec leftFieldExtract = as(leftInnerProject.child(), FieldExtractExec.class);
+        as(leftFieldExtract.child(), EsQueryExec.class);
+
+        PhysicalPlan rightBranch = mergeChildren.get(1);
+
+        ProjectExec subqueryProject = as(rightBranch, ProjectExec.class);
+        EvalExec subqueryEval = as(subqueryProject.child(), EvalExec.class);
+        LimitExec subqueryLimit = as(subqueryEval.child(), LimitExec.class);
+        AggregateExec finalAgg = as(subqueryLimit.child(), AggregateExec.class);
+        assertThat(finalAgg.getMode(), is(FINAL));
+        var groupings = finalAgg.groupings();
+        assertThat(groupings, hasSize(1));
+
+        ExchangeExec partialExchange = as(finalAgg.child(), ExchangeExec.class);
+        assertThat(partialExchange.inBetweenAggs(), is(true));
+
+        FilterExec filter = as(partialExchange.child(), FilterExec.class);
+        EsStatsQueryExec statsQueryExec = as(filter.child(), EsStatsQueryExec.class);
+
+        assertThat(statsQueryExec.stat(), is(instanceOf(EsStatsQueryExec.ByStat.class)));
+        EsStatsQueryExec.ByStat byStat = (EsStatsQueryExec.ByStat) statsQueryExec.stat();
+        assertThat(byStat.queryBuilderAndTags(), is(not(empty())));
     }
 
     private static SearchStats searchStats() {

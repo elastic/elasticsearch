@@ -1261,7 +1261,11 @@ public class EsqlFunctionRegistry {
      * Build a {@linkplain FunctionDefinition} for a ternary function that is configuration aware.
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected <T extends Function> FunctionDefinition def(Class<T> function, TernaryConfigurationAwareBuilder<T> ctorRef, String... names) {
+    protected static <T extends Function> FunctionDefinition def(
+        Class<T> function,
+        TernaryConfigurationAwareBuilder<T> ctorRef,
+        String... names
+    ) {
         FunctionBuilder builder = (source, children, cfg) -> {
             checkIsOptionalTriFunction(function, children.size());
             return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null, cfg);

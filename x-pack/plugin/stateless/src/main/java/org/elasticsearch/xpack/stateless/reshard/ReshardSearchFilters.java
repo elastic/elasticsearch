@@ -34,6 +34,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
@@ -46,9 +47,17 @@ import java.io.IOException;
 public class ReshardSearchFilters {
     /**
      * Wraps the provided {@link DirectoryReader} to filter out documents that do not belong to a shard,
-     * if the shard has been split but not yet cleaned up.
+     * if the shard has been split but not yet cleaned up, and the coordinating node's summary indicates
+     * that it is aware that a split shard is available for search.
+     * For source shards, if the target is available but the coordinating node was not aware then this
+     * reader will continue to supply the target's documents.
+     * Target shards generally filter out documents belonging to the source, because it is assumed that
+     * a request that includes the target must also include the source. But we do still want to turn off
+     * filtering if the target has already moved to DONE state, because at that point it no longer contains
+     * unowned documents and the filtering isn't free.
      * @param reader the reader to wrap
      * @param shardId the shard ID of the shard the reader belongs to
+     * @param summary the view of the shard routing table provided by the coordinating node
      * @param indexMetadata the index metadata to check for resharding state
      * @param mapperService the mapper service to check for nested documents
      * @return a wrapped directory reader, or the original reader if no filtering is needed
@@ -59,22 +68,11 @@ public class ReshardSearchFilters {
     public static DirectoryReader maybeWrapDirectoryReader(
         DirectoryReader reader,
         ShardId shardId,
+        SplitShardCountSummary summary,
         IndexMetadata indexMetadata,
         MapperService mapperService
     ) throws IOException {
-        IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
-        if (reshardingMetadata == null) {
-            return reader;
-        }
-
-        assert reshardingMetadata.isSplit();
-
-        if (reshardingMetadata.getSplit().isTargetShard(shardId.id()) == false) {
-            return reader;
-        }
-
-        IndexReshardingState.Split.TargetShardState state = reshardingMetadata.getSplit().getTargetShardState(shardId.id());
-        if (state != IndexReshardingState.Split.TargetShardState.HANDOFF && state != IndexReshardingState.Split.TargetShardState.SPLIT) {
+        if (shouldFilter(summary, indexMetadata, shardId) == false) {
             return reader;
         }
 
@@ -83,6 +81,53 @@ public class ReshardSearchFilters {
 
         // and this filter returns the documents that do not match the query, i.e. the documents that are owned by the shard
         return new QueryFilterDirectoryReader(reader, query);
+    }
+
+    // visible for testing
+    static boolean shouldFilter(SplitShardCountSummary summary, IndexMetadata indexMetadata, ShardId shardId) {
+        if (summary.equals(SplitShardCountSummary.UNSET)) {
+            // See ES-13108 to track injecting the summary at each call site that must provide it.
+            // In the meantime we default to not filtering if the summary is not provided. This
+            // isn't always correct, hence the ticket. The end state should be to remove this check.
+            return false;
+        }
+
+        // If the provided summary reports fewer shards than the current index metadata, then the request is stale and should
+        // not be filtered. This is true even if there is no ongoing split, because the request may predate a split that
+        // has since been completed and removed.
+        // Most of the time this will return false, e.g., when no resharding is taking place.
+        // It's expected to always return false when the shard is a target shard as well, because the request would not
+        // have included it if it summary predated the target shard entering SPLIT.
+        final var currentSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId.id());
+        if (summary.equals(currentSummary) == false) {
+            return false;
+        }
+
+        // But if the summaries are equal, that only means that we *may* have to filter.
+        // * When no resharding is in progress, the summaries will usually match, but we have no need to filter.
+        // * We do not want to filter source shards if their targets are not yet at SPLIT, since the source is still responsible
+        // for the target's documents.
+        // * We do not want to filter target shards that have moved to DONE, since they have already removed unowned documents.
+        IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+        if (reshardingMetadata == null) {
+            // no resharding is in progress, so no need to filter
+            return false;
+        }
+        assert reshardingMetadata.isSplit();
+
+        final var split = reshardingMetadata.getSplit();
+        boolean hasUnownedDocs = false;
+
+        if (split.isSourceShard(shardId.id())
+            && split.getSourceShardState(shardId.id()) != IndexReshardingState.Split.SourceShardState.DONE
+            && split.allTargetStatesAtLeast(shardId.id(), IndexReshardingState.Split.TargetShardState.SPLIT)) {
+            hasUnownedDocs = true;
+        } else if (split.isTargetShard(shardId.id())
+            && split.getTargetShardState(shardId.id()) == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                hasUnownedDocs = true;
+            }
+
+        return hasUnownedDocs;
     }
 
     /**

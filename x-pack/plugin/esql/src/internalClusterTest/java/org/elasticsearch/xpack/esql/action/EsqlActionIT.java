@@ -151,7 +151,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     public void testRowWithFilter() {
         long value = randomLongBetween(0, Long.MAX_VALUE);
-        try (EsqlQueryResponse response = run(syncEsqlQueryRequest().query("ROW " + value).filter(randomQueryFilter()))) {
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest("ROW " + value).filter(randomQueryFilter()))) {
             assertEquals(List.of(List.of(value)), getValuesList(response));
         }
     }
@@ -161,7 +161,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             VerificationException.class,
             containsString("Unknown column [x]"),
-            () -> run(syncEsqlQueryRequest().query("ROW " + value + " | EVAL x==NULL").filter(randomQueryFilter()))
+            () -> run(syncEsqlQueryRequest("ROW " + value + " | EVAL x==NULL").filter(randomQueryFilter()))
         );
     }
 
@@ -885,11 +885,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         long to = randomBoolean() ? Long.MAX_VALUE : randomLongBetween(from, from + 1000);
         QueryBuilder filter = new RangeQueryBuilder("val").from(from, true).to(to, true);
         try (
-            EsqlQueryResponse results = EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client())
-                .query(command)
-                .filter(filter)
-                .pragmas(randomPragmas())
-                .get()
+            EsqlQueryResponse results = client().execute(
+                EsqlQueryAction.INSTANCE,
+                syncEsqlQueryRequest(command).filter(filter).pragmas(randomPragmas())
+            ).get()
         ) {
             logger.info(results);
             OptionalDouble avg = docs.values().stream().filter(v -> from <= v && v <= to).mapToLong(n -> n).average();
@@ -1973,7 +1972,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             pragmaSettings.put("data_partitioning", "doc");
             pragmas = new QueryPragmas(pragmaSettings.build());
         }
-        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest().query("FROM test-script | SORT k1 | LIMIT " + numDocs).pragmas(pragmas))) {
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest("FROM test-script | SORT k1 | LIMIT " + numDocs).pragmas(pragmas))) {
             List<Object> k1Column = Iterators.toList(resp.column(0));
             assertThat(k1Column, equalTo(LongStream.range(0L, numDocs).boxed().toList()));
             List<Object> k2Column = Iterators.toList(resp.column(1));

@@ -71,7 +71,6 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
         private final FlatVectorsReader reader;
 
         ES93FlatVectorReader(FlatVectorsReader reader) {
-            super();
             this.reader = reader;
         }
 

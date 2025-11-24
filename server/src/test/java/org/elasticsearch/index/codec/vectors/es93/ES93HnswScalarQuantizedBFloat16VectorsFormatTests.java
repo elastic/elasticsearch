@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.vectors.es93;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BaseHnswBFloat16VectorsFormatTestCase;
@@ -35,8 +34,10 @@ public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswB
         return new ES93HnswScalarQuantizedVectorsFormat(
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
-            Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
+            null,
+            7,
+            false,
             random().nextBoolean()
         );
     }
@@ -46,8 +47,10 @@ public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswB
         return new ES93HnswScalarQuantizedVectorsFormat(
             maxConn,
             beamWidth,
-            Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
+            null,
+            7,
+            false,
             random().nextBoolean()
         );
     }
@@ -57,8 +60,10 @@ public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswB
         return new ES93HnswScalarQuantizedVectorsFormat(
             maxConn,
             beamWidth,
-            Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
+            null,
+            7,
+            false,
             random().nextBoolean(),
             numMergeWorkers,
             service
@@ -67,7 +72,7 @@ public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswB
 
     @Override
     public void testSingleVectorCase() throws Exception {
-        throw new AssumptionViolatedException("The new quantizer caps scores at 1.0");
+        throw new AssumptionViolatedException("Scalar quantization changes the score significantly for MAXIMUM_INNER_PRODUCT");
     }
 
     public void testSimpleOffHeapSize() throws IOException {

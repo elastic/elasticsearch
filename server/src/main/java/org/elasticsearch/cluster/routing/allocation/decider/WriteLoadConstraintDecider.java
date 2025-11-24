@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,34 +34,29 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
 
     public static final String NAME = "write_load";
 
-    private final FrequencyCappedAction logInterventionMessage;
+    private final FrequencyCappedAction logCanRemainMessage;
+    private final FrequencyCappedAction logCanAllocateMessage;
     private final WriteLoadConstraintSettings writeLoadConstraintSettings;
 
     public WriteLoadConstraintDecider(ClusterSettings clusterSettings) {
         this.writeLoadConstraintSettings = new WriteLoadConstraintSettings(clusterSettings);
-        logInterventionMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
-        clusterSettings.initializeAndWatch(
-            WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_MINIMUM_LOGGING_INTERVAL,
-            logInterventionMessage::setMinInterval
-        );
+        logCanRemainMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
+        logCanAllocateMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
+        clusterSettings.initializeAndWatch(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_MINIMUM_LOGGING_INTERVAL, timeValue -> {
+            logCanRemainMessage.setMinInterval(timeValue);
+            logCanAllocateMessage.setMinInterval(timeValue);
+        });
     }
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled().disabled()) {
-            return Decision.single(Decision.Type.YES, NAME, "Decider is disabled");
+            return allocation.decision(Decision.YES, NAME, "Decider is disabled");
         }
 
         // Never reject allocation of an unassigned shard
         if (shardRouting.assignedToNode() == false) {
-            return Decision.single(Decision.Type.YES, NAME, "Shard is unassigned. Decider takes no action.");
-        }
-
-        // Check whether the shard being relocated has any write load estimate. If it does not, then this decider has no opinion.
-        var allShardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
-        var shardWriteLoad = allShardWriteLoads.get(shardRouting.shardId());
-        if (shardWriteLoad == null || shardWriteLoad == 0) {
-            return Decision.single(Decision.Type.YES, NAME, "Shard has no estimated write load. Decider takes no action.");
+            return allocation.decision(Decision.YES, NAME, "Shard is unassigned. Decider takes no action.");
         }
 
         var allNodeUsageStats = allocation.clusterInfo().getNodeUsageStatsForThreadPools();
@@ -68,7 +64,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         if (nodeUsageStatsForThreadPools == null) {
             // No node-level thread pool usage stats were reported for this node. Let's assume this is OK and that the simulator will handle
             // setting a node-level write load for this node after this shard is assigned.
-            return Decision.single(Decision.Type.YES, NAME, "The node has no write load estimate. Decider takes no action.");
+            return allocation.decision(Decision.YES, NAME, "The node has no write load estimate. Decider takes no action.");
         }
 
         assert nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().isEmpty() == false;
@@ -77,63 +73,67 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         var nodeWriteThreadPoolLoadThreshold = writeLoadConstraintSettings.getHighUtilizationThreshold();
         if (nodeWriteThreadPoolStats.averageThreadPoolUtilization() >= nodeWriteThreadPoolLoadThreshold) {
             // The node's write thread pool usage stats already show high utilization above the threshold for accepting new shards.
-            String explain = Strings.format(
-                "Node [%s] with write thread pool utilization [%.2f] already exceeds the high utilization threshold of [%f]. Cannot "
-                    + "allocate shard [%s] to node without risking increased write latencies.",
-                node.nodeId(),
-                nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
-                nodeWriteThreadPoolLoadThreshold,
-                shardRouting.shardId()
-            );
-            if (logger.isDebugEnabled()) {
-                logInterventionMessage.maybeExecute(() -> logger.debug(explain));
+            if (logger.isDebugEnabled() || allocation.debugDecision()) {
+                final String explain = Strings.format(
+                    "Node [%s] with write thread pool utilization [%.2f] already exceeds the high utilization threshold of [%f]. Cannot "
+                        + "allocate shard [%s] to node without risking increased write latencies.",
+                    node.nodeId(),
+                    nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
+                    nodeWriteThreadPoolLoadThreshold,
+                    shardRouting.shardId()
+                );
+                if (logger.isDebugEnabled()) {
+                    logCanAllocateMessage.maybeExecute(() -> logger.debug(explain));
+                }
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
+            } else {
+                return Decision.NOT_PREFERRED;
             }
-            return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
         }
 
+        var allShardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
+        var shardWriteLoad = allShardWriteLoads.getOrDefault(shardRouting.shardId(), 0.0);
         var newWriteThreadPoolUtilization = calculateShardMovementChange(nodeWriteThreadPoolStats, shardWriteLoad);
         if (newWriteThreadPoolUtilization >= nodeWriteThreadPoolLoadThreshold) {
             // The node's write thread pool usage would be raised above the high utilization threshold with assignment of the new shard.
             // This could lead to a hot spot on this node and is undesirable.
-            String explain = Strings.format(
-                "The high utilization threshold of [%f] would be exceeded on node [%s] with utilization [%.2f] if shard [%s] with "
-                    + "estimated additional utilisation [%.5f] (write load [%.5f] / threads [%d]) were assigned to it. Cannot allocate "
-                    + "shard to node without risking increased write latencies.",
-                nodeWriteThreadPoolLoadThreshold,
-                node.nodeId(),
-                nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
-                shardRouting.shardId(),
-                shardWriteLoad / nodeWriteThreadPoolStats.totalThreadPoolThreads(),
-                shardWriteLoad,
-                nodeWriteThreadPoolStats.totalThreadPoolThreads()
-            );
-            if (logger.isDebugEnabled()) {
-                logInterventionMessage.maybeExecute(() -> logger.debug(explain));
+            if (logger.isDebugEnabled() || allocation.debugDecision()) {
+                final String explain = Strings.format(
+                    "The high utilization threshold of [%f] would be exceeded on node [%s] with utilization [%.2f] if shard [%s] with "
+                        + "estimated additional utilisation [%.5f] (write load [%.5f] / threads [%d]) were assigned to it. Cannot allocate "
+                        + "shard to node without risking increased write latencies.",
+                    nodeWriteThreadPoolLoadThreshold,
+                    node.nodeId(),
+                    nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
+                    shardRouting.shardId(),
+                    shardWriteLoad / nodeWriteThreadPoolStats.totalThreadPoolThreads(),
+                    shardWriteLoad,
+                    nodeWriteThreadPoolStats.totalThreadPoolThreads()
+                );
+                if (logger.isDebugEnabled()) {
+                    logCanAllocateMessage.maybeExecute(() -> logger.debug(explain));
+                }
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
+            } else {
+                return Decision.NOT_PREFERRED;
             }
-            return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
         }
 
-        String explanation = Strings.format(
+        return allocation.decision(
+            Decision.YES,
+            NAME,
             "Shard [%s] in index [%s] can be assigned to node [%s]. The node's utilization would become [%s]",
             shardRouting.shardId(),
             shardRouting.index(),
             node.nodeId(),
             newWriteThreadPoolUtilization
         );
-        return allocation.decision(Decision.YES, NAME, explanation);
     }
 
     @Override
     public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled().notFullyEnabled()) {
-            return Decision.single(Decision.Type.YES, NAME, "canRemain() is not enabled");
-        }
-
-        // Check whether the shard being relocated has any write load estimate. If it does not, then this decider has no opinion.
-        var allShardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
-        var shardWriteLoad = allShardWriteLoads.get(shardRouting.shardId());
-        if (shardWriteLoad == null || shardWriteLoad == 0) {
-            return Decision.single(Decision.Type.YES, NAME, "Shard has no estimated write load. Decider takes no action.");
+            return allocation.decision(Decision.YES, NAME, "canRemain() is not enabled");
         }
 
         var allNodeUsageStats = allocation.clusterInfo().getNodeUsageStatsForThreadPools();
@@ -141,7 +141,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         if (nodeUsageStatsForThreadPools == null) {
             // No node-level thread pool usage stats were reported for this node. Let's assume this is OK and that the simulator will handle
             // setting a node-level write load for this node after this shard is assigned.
-            return Decision.single(Decision.Type.YES, NAME, "The node has no write load estimate. Decider takes no action.");
+            return allocation.decision(Decision.YES, NAME, "The node has no write load estimate. Decider takes no action.");
         }
 
         assert nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().isEmpty() == false;
@@ -149,27 +149,40 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         var nodeWriteThreadPoolStats = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
         var nodeWriteThreadPoolQueueLatencyThreshold = writeLoadConstraintSettings.getQueueLatencyThreshold();
         if (nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis() >= nodeWriteThreadPoolQueueLatencyThreshold.millis()) {
-            String explain = Strings.format(
-                "Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s]. This node is hot-spotting. "
-                    + "Current thread pool utilization [%f]. Moving shard(s) away.",
-                node.nodeId(),
-                nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
-                nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
-                nodeWriteThreadPoolStats.averageThreadPoolUtilization()
-            );
-            if (logger.isDebugEnabled()) {
-                logInterventionMessage.maybeExecute(() -> logger.debug(explain));
+            if (logger.isDebugEnabled() || allocation.debugDecision()) {
+                final Double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
+                final String explain = Strings.format(
+                    """
+                        Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s]. This node is \
+                        hot-spotting. Current thread pool utilization [%f]. Shard write load [%s]. Moving shard(s) away.""",
+                    node.nodeId(),
+                    nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
+                    nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
+                    nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
+                    shardWriteLoad == null ? "unknown" : shardWriteLoad
+                );
+                if (logger.isDebugEnabled()) {
+                    logCanRemainMessage.maybeExecute(() -> logger.debug(explain));
+                }
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
+            } else {
+                return Decision.NOT_PREFERRED;
             }
-            return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
         }
 
-        String explanation = Strings.format(
+        return allocation.decision(
+            Decision.YES,
+            NAME,
             "Node [%s]'s queue latency of [%d] does not exceed the threshold of [%s]",
             node.nodeId(),
             nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
             nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2)
         );
-        return allocation.decision(Decision.YES, NAME, explanation);
+    }
+
+    @Nullable
+    private Double getShardWriteLoad(RoutingAllocation allocation, ShardRouting shardRouting) {
+        return allocation.clusterInfo().getShardWriteLoads().get(shardRouting.shardId());
     }
 
     /**
@@ -177,7 +190,6 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
      * Returns the percent thread pool utilization change.
      */
     private float calculateShardMovementChange(ThreadPoolUsageStats nodeWriteThreadPoolStats, double shardWriteLoad) {
-        assert shardWriteLoad > 0;
         return ShardMovementWriteLoadSimulator.updateNodeUtilizationWithShardMovements(
             nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
             (float) shardWriteLoad,

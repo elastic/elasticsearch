@@ -180,6 +180,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     }).toList();
                     TestCaseSupplier.TypedData nulledData = oc.getData().get(finalNullPosition);
                     return new TestCaseSupplier.TestCase(
+                        oc.getSource(),
+                        oc.getConfiguration(),
                         data,
                         evaluatorToString.evaluatorToString(finalNullPosition, nulledData, oc.evaluatorToString()),
                         expectedType.expectedType(finalNullPosition, nulledData.type(), oc),
@@ -212,6 +214,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 )
                                 .toList();
                             return new TestCaseSupplier.TestCase(
+                                oc.getSource(),
+                                oc.getConfiguration(),
                                 data,
                                 equalTo("LiteralsEvaluator[lit=null]"),
                                 expectedType.expectedType(finalNullPosition, DataType.NULL, oc),

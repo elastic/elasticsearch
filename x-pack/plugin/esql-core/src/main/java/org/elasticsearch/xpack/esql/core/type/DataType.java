@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.core.type;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -339,6 +340,14 @@ public enum DataType implements Writeable {
             .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
             .supportedSince(DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION)
     ),
+
+    EXPONENTIAL_HISTOGRAM(
+        builder().esType("exponential_histogram")
+            .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
+            .docValues()
+            .underConstruction()
+    ),
+
     /**
      * Fields with this type are dense vectors, represented as an array of float values.
      */
@@ -748,7 +757,7 @@ public enum DataType implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (supportedVersion.supportedOn(out.getTransportVersion()) == false) {
+        if (supportedVersion.supportedOn(out.getTransportVersion(), Build.current().isSnapshot()) == false) {
             /*
              * TODO when we implement version aware planning flip this to an IllegalStateException
              * so we throw a 500 error. It'll be our bug then. Right now it's a sign that the user
@@ -975,8 +984,13 @@ public enum DataType implements Writeable {
         }
     }
 
-    private static class DataTypesTransportVersions {
+    public static class DataTypesTransportVersions {
 
+        /**
+         * The first transport version after the PR that introduced geotile/geohash/geohex, resp.
+         * after 9.1. We didn't require transport versions at that point in time, as geotile/hash/hex require
+         * using specific functions to even occur in query plans.
+         */
         public static final TransportVersion INDEX_SOURCE = TransportVersion.fromName("index_source");
 
         public static final TransportVersion ESQL_DENSE_VECTOR_CREATED_VERSION = TransportVersion.fromName(

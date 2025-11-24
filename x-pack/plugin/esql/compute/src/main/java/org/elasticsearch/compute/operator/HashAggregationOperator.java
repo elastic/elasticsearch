@@ -237,7 +237,7 @@ public class HashAggregationOperator implements Operator {
             blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
             System.arraycopy(keys, 0, blocks, 0, keys.length);
             int offset = keys.length;
-            var evaluationContext = evaluationContext(keys);
+            var evaluationContext = evaluationContext(blockHash, keys);
             for (int i = 0; i < aggregators.size(); i++) {
                 var aggregator = aggregators.get(i);
                 aggregator.evaluate(blocks, offset, selected, evaluationContext);
@@ -257,7 +257,7 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    protected GroupingAggregatorEvaluationContext evaluationContext(Block[] keys) {
+    protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash, Block[] keys) {
         return new GroupingAggregatorEvaluationContext(driverContext);
     }
 

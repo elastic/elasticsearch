@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
@@ -35,6 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.test.ReadableMatchers.matchesBytesRef;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DayNameTests extends AbstractConfigurationFunctionTestCase {
@@ -46,20 +46,29 @@ public class DayNameTests extends AbstractConfigurationFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        suppliers.addAll(generateTest("2019-03-11T00:00:00.00Z", "Monday"));
-        suppliers.addAll(generateTest("2022-07-26T23:59:59.99Z", "Tuesday"));
-        suppliers.addAll(generateTest("2017-10-11T23:12:32.12Z", "Wednesday"));
-        suppliers.addAll(generateTest("2023-01-05T07:39:01.28Z", "Thursday"));
-        suppliers.addAll(generateTest("2023-02-17T10:25:33.38Z", "Friday"));
-        suppliers.addAll(generateTest("2013-06-15T22:55:33.82Z", "Saturday"));
-        suppliers.addAll(generateTest("2024-08-18T01:01:29.49Z", "Sunday"));
+
+        // UTC, English
+        suppliers.addAll(generateTest("2019-03-11T00:00:00.00Z", "Monday", "Z", "en"));
+        suppliers.addAll(generateTest("2022-07-26T23:59:59.99Z", "Tuesday", "Z", "en"));
+        suppliers.addAll(generateTest("2017-10-11T23:12:32.12Z", "Wednesday", "Z", "en"));
+        suppliers.addAll(generateTest("2023-01-05T07:39:01.28Z", "Thursday", "Z", "en"));
+        suppliers.addAll(generateTest("2023-02-17T10:25:33.38Z", "Friday", "Z", "en"));
+        suppliers.addAll(generateTest("2013-06-15T22:55:33.82Z", "Saturday", "Z", "en"));
+        suppliers.addAll(generateTest("2024-08-18T01:01:29.49Z", "Sunday", "Z", "en"));
+
+        // Other timezones and locales
+        suppliers.addAll(generateTest("2019-03-11T22:00:00.00Z", "Tuesday", "+05:00", "en"));
+        suppliers.addAll(generateTest("2019-03-11T00:00:00.00Z", "Sunday", "America/New_York", "en"));
+        suppliers.addAll(generateTest("2019-03-11T00:00:00.00Z", "lunes", "Z", "es"));
+        suppliers.addAll(generateTest("2019-03-11T00:00:00.00Z", "domingo", "America/New_York", "es"));
 
         suppliers.add(
             new TestCaseSupplier(
+                "Null",
                 List.of(DataType.DATETIME),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(null, DataType.DATETIME, "date")),
-                    Matchers.startsWith("DayNameMillisEvaluator[val=Attribute[channel=0], zoneId=Z, locale=en_US]"),
+                    Matchers.startsWith("DayNameMillisEvaluator[val=Attribute[channel=0], zoneId="),
                     DataType.KEYWORD,
                     equalTo(null)
                 )
@@ -69,25 +78,29 @@ public class DayNameTests extends AbstractConfigurationFunctionTestCase {
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
-    private static List<TestCaseSupplier> generateTest(String dateTime, String expectedWeekDay) {
+    private static List<TestCaseSupplier> generateTest(String dateTime, String expectedWeekDay, String zoneIdString, String localeTag) {
+        ZoneId zoneId = ZoneId.of(zoneIdString);
+        Locale locale = Locale.forLanguageTag(localeTag);
         return List.of(
             new TestCaseSupplier(
+                dateTime + " (millis) - " + zoneId + ", " + locale,
                 List.of(DataType.DATETIME),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(toMillis(dateTime), DataType.DATETIME, "date")),
-                    Matchers.startsWith("DayNameMillisEvaluator[val=Attribute[channel=0], zoneId=Z, locale=en_US]"),
+                    Matchers.startsWith("DayNameMillisEvaluator[val=Attribute[channel=0], zoneId=" + zoneId + ", locale=" + locale + "]"),
                     DataType.KEYWORD,
-                    equalTo(new BytesRef(expectedWeekDay))
-                )
+                    matchesBytesRef(expectedWeekDay)
+                ).withConfiguration(TestCaseSupplier.TEST_SOURCE, configurationForTimezoneAndLocale(zoneId, locale))
             ),
             new TestCaseSupplier(
+                dateTime + " (nanos) - " + zoneId + ", " + locale,
                 List.of(DataType.DATE_NANOS),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(toNanos(dateTime), DataType.DATE_NANOS, "date")),
-                    Matchers.is("DayNameNanosEvaluator[val=Attribute[channel=0], zoneId=Z, locale=en_US]"),
+                    Matchers.is("DayNameNanosEvaluator[val=Attribute[channel=0], zoneId=" + zoneId + ", locale=" + locale + "]"),
                     DataType.KEYWORD,
-                    equalTo(new BytesRef(expectedWeekDay))
-                )
+                    matchesBytesRef(expectedWeekDay)
+                ).withConfiguration(TestCaseSupplier.TEST_SOURCE, configurationForTimezoneAndLocale(zoneId, locale))
             )
         );
     }

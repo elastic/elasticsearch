@@ -249,6 +249,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             S3Repository.MAX_COPY_SIZE_BEFORE_MULTIPART.getDefault(Settings.EMPTY),
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
             S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
+            S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getDefault(Settings.EMPTY),
             repositoryMetadata,
             BigArrays.NON_RECYCLING_INSTANCE,
             new DeterministicTaskQueue().getThreadPool(),
@@ -1343,6 +1344,42 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertEquals(requestCount.get(), accessDeniedResponseCount.get() + invalidAccessKeyIdResponseCount.getAndSet(0));
         assertEquals(Math.min(maxRetries, denyAccessAfterAttempt) + 1, requestCount.get());
         assertEquals(denyAccessAfterAttempt <= maxRetries ? 1 : 0, accessDeniedResponseCount.get());
+    }
+
+    public void testUploadNotFoundInCompareAndExchange() {
+        final var blobContainerPath = BlobPath.EMPTY.add(getTestName());
+        final var statefulBlobContainer = createBlobContainer(1, null, null, null, null, null, blobContainerPath);
+
+        @SuppressForbidden(reason = "use a http server")
+        class RejectsUploadPartRequests extends S3HttpHandler {
+            RejectsUploadPartRequests() {
+                super("bucket");
+            }
+
+            @Override
+            public void handle(HttpExchange exchange) throws IOException {
+                if (parseRequest(exchange).isUploadPartRequest()) {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                } else {
+                    super.handle(exchange);
+                }
+            }
+        }
+
+        httpServer.createContext("/", new RejectsUploadPartRequests());
+
+        safeAwait(
+            l -> statefulBlobContainer.compareAndExchangeRegister(
+                randomPurpose(),
+                "not_found_register",
+                BytesArray.EMPTY,
+                new BytesArray(new byte[1]),
+                l.map(result -> {
+                    assertFalse(result.isPresent());
+                    return null;
+                })
+            )
+        );
     }
 
     private static String getBase16MD5Digest(BytesReference bytesReference) {

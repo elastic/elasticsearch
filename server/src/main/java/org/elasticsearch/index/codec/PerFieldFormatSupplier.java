@@ -41,6 +41,7 @@ import java.util.Set;
 public class PerFieldFormatSupplier {
 
     private static final Set<String> INCLUDE_META_FIELDS;
+    private static final Set<String> EXCLUDE_MAPPER_TYPES;
 
     static {
         // TODO: should we just allow all fields to use tsdb doc values codec?
@@ -53,6 +54,7 @@ public class PerFieldFormatSupplier {
         // Don't the include _recovery_source_size and _recovery_source fields, since their values can be trimmed away in
         // RecoverySourcePruneMergePolicy, which leads to inconsistencies between merge stats and actual values.
         INCLUDE_META_FIELDS = Collections.unmodifiableSet(includeMetaField);
+        EXCLUDE_MAPPER_TYPES = Set.of("geo_shape");
     }
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
@@ -69,14 +71,21 @@ public class PerFieldFormatSupplier {
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays) {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
+        this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
+    }
 
+    private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
+        // we migrated to using a new postings format for the standard indices with Lucene 10.3
         if (mapperService != null
-            && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_3_0)
-            && mapperService.getIndexSettings().getMode().useDefaultPostingsFormat()) {
-            defaultPostingsFormat = Elasticsearch92Lucene103Codec.DEFAULT_POSTINGS_FORMAT;
+            && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_3_0)) {
+            if (IndexSettings.USE_ES_812_POSTINGS_FORMAT.get(mapperService.getIndexSettings().getSettings())) {
+                return es812PostingsFormat;
+            } else {
+                return Elasticsearch92Lucene103Codec.DEFAULT_POSTINGS_FORMAT;
+            }
         } else {
-            // our own posting format using PFOR
-            defaultPostingsFormat = es812PostingsFormat;
+            // our own posting format using PFOR, used for logsdb and tsdb indices by default
+            return es812PostingsFormat;
         }
     }
 
@@ -138,13 +147,25 @@ public class PerFieldFormatSupplier {
             return false;
         }
 
+        if (excludeMapperTypes(field)) {
+            return false;
+        }
+
         return mapperService != null
-            && (isTimeSeriesModeIndex() || isLogsModeIndex())
+            && mapperService.getIndexSettings().useTimeSeriesDocValuesFormat()
             && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
     }
 
     private boolean excludeFields(String fieldName) {
         return fieldName.startsWith("_") && INCLUDE_META_FIELDS.contains(fieldName) == false;
+    }
+
+    private boolean excludeMapperTypes(String fieldName) {
+        var typeName = getMapperType(fieldName);
+        if (typeName == null) {
+            return false;
+        }
+        return EXCLUDE_MAPPER_TYPES.contains(getMapperType(fieldName));
     }
 
     private boolean isTimeSeriesModeIndex() {
@@ -155,4 +176,13 @@ public class PerFieldFormatSupplier {
         return mapperService != null && IndexMode.LOGSDB == mapperService.getIndexSettings().getMode();
     }
 
+    String getMapperType(final String field) {
+        if (mapperService != null) {
+            Mapper mapper = mapperService.mappingLookup().getMapper(field);
+            if (mapper != null) {
+                return mapper.typeName();
+            }
+        }
+        return null;
+    }
 }

@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferNonNullAggConstraint;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PushExpressionsToFieldLoad;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundTo;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceTopNWithLimitAndSort;
@@ -40,20 +42,12 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
 
     private final LogicalVerifier verifier = LogicalVerifier.LOCAL_INSTANCE;
 
-    private static final List<Batch<LogicalPlan>> RULES = arrayAsArrayList(
-        new Batch<>(
-            "Local rewrite",
-            Limiter.ONCE,
-            new IgnoreNullMetrics(),
-            new ReplaceTopNWithLimitAndSort(),
-            new ReplaceFieldWithConstantOrNull(),
-            new InferIsNotNull(),
-            new InferNonNullAggConstraint(),
-            new ReplaceDateTruncBucketWithRoundTo()
-        ),
-        localOperators(),
-        localCleanup()
-    );
+    private static final List<Batch<LogicalPlan>> RULES;
+
+    static {
+
+        RULES = arrayAsArrayList(localRewrites(), localOperators(), localCleanup());
+    }
 
     public LocalLogicalPlanOptimizer(LocalLogicalOptimizerContext localLogicalOptimizerContext) {
         super(localLogicalOptimizerContext);
@@ -62,6 +56,25 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
     @Override
     protected List<Batch<LogicalPlan>> batches() {
         return RULES;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Batch<LogicalPlan> localRewrites() {
+        List<Rule<?, LogicalPlan>> rules = new ArrayList<>(
+            List.of(
+                new IgnoreNullMetrics(),
+                new ReplaceTopNWithLimitAndSort(),
+                new ReplaceFieldWithConstantOrNull(),
+                new InferIsNotNull(),
+                new InferNonNullAggConstraint(),
+                new ReplaceDateTruncBucketWithRoundTo()
+            )
+        );
+        if (EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled()) {
+            rules.add(new PushExpressionsToFieldLoad());
+        }
+
+        return new Batch<>("Local rewrite", Limiter.ONCE, rules.toArray(Rule[]::new));
     }
 
     @SuppressWarnings("unchecked")

@@ -46,6 +46,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -840,9 +841,10 @@ public final class DateFieldMapper extends FieldMapper {
                 }
                 for (LeafReaderContext ctx : leaves) {
                     DocValuesSkipper skipper = ctx.reader().getDocValuesSkipper(name());
-                    assert skipper != null : "no skipper for field:" + name() + " and reader:" + reader;
-                    minValue = Long.min(minValue, skipper.minValue());
-                    maxValue = Long.max(maxValue, skipper.maxValue());
+                    if (skipper != null) {
+                        minValue = Long.min(minValue, skipper.minValue());
+                        maxValue = Long.max(maxValue, skipper.maxValue());
+                    }
                 }
                 return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context, name());
             }
@@ -892,7 +894,7 @@ public final class DateFieldMapper extends FieldMapper {
                     ++fromInclusive;
                 }
                 // we set the time range filter from during rewrite, because this may be the only time we ever parse it,
-                // in case the shard if filtered out and does not run the query phase or all its docs are within the bounds.
+                // in case the shard gets filtered out and does not run the query phase or all its docs are within the bounds.
                 context.setTimeRangeFilterFromMillis(fieldName, fromInclusive, resolution);
             }
 
@@ -927,7 +929,7 @@ public final class DateFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return new BlockDocValuesReader.LongsBlockLoader(name());
+                return new LongsBlockLoader(name());
             }
 
             // Multi fields don't have fallback synthetic source.

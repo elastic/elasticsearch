@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -51,6 +52,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.TimeProvider;
@@ -98,15 +100,16 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -170,6 +173,59 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)
             )
         );
+    }
+
+    public void testNoInfiniteLoopBetweenHotspotMitigationAndBalancing() {
+        // This test demonstrates that the computer does not get stuck in an infinite loop when moveShards and balancer moving against
+        // each other. This is done by configuring two shards each on its own node.
+        // - Shard 0 with no write load on node-0 with node load 0.92 and queue latency 15s
+        // - Shard 1 with some write load on node-1 with no node load nor queue latency
+        // 1. MoveShard will want to move shard 0 off node-0 to node-1 for hot-spot mitigation.
+        // 2. Balance will want to move shard 0 back to node-0 to spread the index. Balancer always picks shard 0 because it has
+        // no write load thus write load decider says YES
+        // The computation should stop after one round of moveShards + balance because hot-spot is considered mitigated after
+        // a single shard movement and breaks the loop.
+        final var initialState = createInitialClusterState(2, 2, 0);
+        final var index = initialState.metadata().getProject(ProjectId.DEFAULT).index(TEST_INDEX).getIndex();
+        final RoutingNodes routingNodes = initialState.getRoutingNodes().mutableCopy();
+        final var changes = mock(RoutingChangesObserver.class);
+        for (var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
+            var shardRouting = iterator.next();
+            routingNodes.startShard(
+                iterator.initialize(shardRouting.shardId().id() == 0 ? "node-0" : "node-1", null, 0L, changes),
+                changes,
+                0L
+            );
+        }
+        final var clusterState = rebuildRoutingTable(initialState, routingNodes);
+
+        final var clusterInfo = ClusterInfo.builder()
+            .shardWriteLoads(Map.of(new ShardId(index, 1), 0.004379))
+            .nodeUsageStatsForThreadPools(
+                Map.of(
+                    "node-0",
+                    new NodeUsageStatsForThreadPools(
+                        "node-0",
+                        Map.of("write", new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(4, 0.92f, 15732))
+
+                    ),
+                    "node-1",
+                    new NodeUsageStatsForThreadPools(
+                        "node-1",
+                        Map.of("write", new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(4, 0.0f, 0))
+                    )
+                )
+            )
+            .build();
+
+        final var settings = Settings.builder().put(WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(), "enabled").build();
+        final var routingAllocation = routingAllocationWithDecidersOf(clusterState, clusterInfo, settings);
+        final var input = new DesiredBalanceInput(42, routingAllocation, List.of());
+        final var computer = createDesiredBalanceComputer(new BalancedShardsAllocator(settings));
+        var balance = computer.compute(DesiredBalance.BECOME_MASTER_INITIAL, input, queue(), ignored -> true);
+        // This is an unusual edge case that will result in both shards being moved to the non-hot-spotting node
+        assertThat(balance.getAssignment(new ShardId(index, 0)).nodeIds(), equalTo(Set.of("node-1")));
+        assertThat(balance.getAssignment(new ShardId(index, 1)).nodeIds(), equalTo(Set.of("node-1")));
     }
 
     public void testIgnoresOutOfScopePrimaries() {
@@ -449,7 +505,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
         });
@@ -581,11 +637,11 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     allocation.routingNodes().getRelocatingShardCount(),
                     equalTo(0)
                 );
-                assertThat(allocation.routingNodes().node("node-2").started(), arrayWithSize(2));
+                assertThat(Iterators.toList(allocation.routingNodes().node("node-2").started().iterator()), hasSize(2));
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
         });
@@ -650,7 +706,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
         });
@@ -1406,7 +1462,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
         }, TEST_ONLY_EXPLAINER);
@@ -1953,7 +2009,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
         });

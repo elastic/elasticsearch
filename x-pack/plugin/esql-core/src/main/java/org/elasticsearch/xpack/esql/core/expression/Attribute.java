@@ -74,7 +74,9 @@ public abstract class Attribute extends NamedExpression {
     /**
      * Changing this will break bwc with 8.15, see {@link FieldAttribute#fieldName()}.
      */
-    protected static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
+    public static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
+
+    public static final String SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR = "$";
 
     private static final TransportVersion ESQL_QUALIFIERS_IN_ATTRIBUTES = TransportVersion.fromName("esql_qualifiers_in_attributes");
 
@@ -116,7 +118,7 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public static String rawTemporaryName(String... parts) {
-        var name = String.join("$", parts);
+        var name = String.join(SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR, parts);
         return name.isEmpty() || name.startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX) ? name : SYNTHETIC_ATTRIBUTE_NAME_PREFIX + name;
     }
 

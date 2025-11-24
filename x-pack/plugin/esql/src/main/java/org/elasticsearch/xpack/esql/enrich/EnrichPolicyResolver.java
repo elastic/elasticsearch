@@ -447,7 +447,7 @@ public class EnrichPolicyResolver {
                     }
                     try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
-                        indexResolver.resolveAsMergedMapping(
+                        indexResolver.resolveIndices(
                             indexName,
                             IndexResolver.ALL_FIELDS,
                             null,
@@ -456,9 +456,12 @@ public class EnrichPolicyResolver {
                             false,
                             false,
                             refs.acquire(indexResult -> {
-                                if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {
+                                if (indexResult.isValid() && indexResult.get().concreteQualifiedIndices().size() == 1) {
                                     EsIndex esIndex = indexResult.get();
-                                    var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteIndices(), 0));
+                                    var concreteIndices = Map.of(
+                                        request.clusterAlias,
+                                        Iterables.get(esIndex.concreteQualifiedIndices(), 0)
+                                    );
                                     var resolved = new ResolvedEnrichPolicy(
                                         p.getMatchField(),
                                         p.getType(),

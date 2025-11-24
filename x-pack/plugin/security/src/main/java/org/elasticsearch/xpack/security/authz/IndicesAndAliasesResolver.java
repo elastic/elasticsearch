@@ -35,6 +35,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.transport.LinkedProjectConfig;
 import org.elasticsearch.transport.LinkedProjectConfigService;
@@ -69,17 +70,20 @@ class IndicesAndAliasesResolver {
     private final IndexAbstractionResolver indexAbstractionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final ProjectRoutingResolver crossProjectRoutingResolver;
 
     IndicesAndAliasesResolver(
         Settings settings,
         LinkedProjectConfigService linkedProjectConfigService,
         IndexNameExpressionResolver resolver,
-        CrossProjectModeDecider crossProjectModeDecider
+        CrossProjectModeDecider crossProjectModeDecider,
+        ProjectRoutingResolver crossProjectRoutingResolver
     ) {
         this.nameExpressionResolver = resolver;
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
         this.remoteClusterResolver = new RemoteClusterResolver(settings, linkedProjectConfigService);
         this.crossProjectModeDecider = crossProjectModeDecider;
+        this.crossProjectRoutingResolver = crossProjectRoutingResolver;
     }
 
     /**
@@ -335,10 +339,12 @@ class IndicesAndAliasesResolver {
             String allIndicesPatternSelector = null;
             if (indicesRequest.indices() != null && indicesRequest.indices().length > 0) {
                 // Always parse selectors, but do so lazily so that we don't spend a lot of time splitting strings each resolution
-                isAllIndices = IndexNameExpressionResolver.isAllIndices(
-                    indicesList(indicesRequest.indices()),
-                    (expr) -> IndexNameExpressionResolver.splitSelectorExpression(expr).v1()
-                );
+                isAllIndices = IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()), (expr) -> {
+                    var unprefixed = crossProjectModeDecider.resolvesCrossProject(replaceable)
+                        ? RemoteClusterAware.splitIndexName(expr)[1]
+                        : expr;
+                    return IndexNameExpressionResolver.splitSelectorExpression(unprefixed).v1();
+                });
                 if (isAllIndices) {
                     // This parses the single all-indices expression for a second time in this conditional branch, but this is better than
                     // parsing a potentially big list of indices on every request.
@@ -359,6 +365,7 @@ class IndicesAndAliasesResolver {
                 if (indicesOptions.expandWildcardExpressions()) {
                     var localExpressions = new HashSet<String>();
 
+                    // TODO: We can skip the local resolution when CPS enabled and projects filtered to empty
                     IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(allIndicesPatternSelector);
                     for (String authorizedIndex : authorizedIndices.all(selector)) {
                         if (IndexAbstractionResolver.isIndexVisible(
@@ -381,21 +388,35 @@ class IndicesAndAliasesResolver {
                         ? indicesRequest.indices()[0]
                         : Metadata.ALL;
 
+                    boolean shouldExcludeLocalResolution = false;
                     Set<String> remoteIndices = Collections.emptySet();
                     if (crossProjectModeDecider.resolvesCrossProject(replaceable)) {
-                        remoteIndices = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
+                        final var resolvedProjects = crossProjectRoutingResolver.resolve(
+                            replaceable.getProjectRouting(),
+                            authorizedProjects
+                        );
+                        final var rewritten = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
                             indexExpression,
-                            authorizedProjects.originProjectAlias(),
-                            authorizedProjects.allProjectAliases()
-                        ).remoteExpressions();
+                            resolvedProjects.originProjectAlias(),
+                            resolvedProjects.allProjectAliases(),
+                            replaceable.getProjectRouting()
+                        );
+                        remoteIndices = rewritten.remoteExpressions();
+                        if (resolvedProjects.originProject() == null || rewritten.localExpression() == null) {
+                            shouldExcludeLocalResolution = true;
+                        }
                     }
 
-                    resolvedExpressionsBuilder.addExpressions(
-                        indexExpression,
-                        localExpressions,
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        remoteIndices
-                    );
+                    if (shouldExcludeLocalResolution) {
+                        resolvedExpressionsBuilder.addRemoteExpressions(indexExpression, remoteIndices);
+                    } else {
+                        resolvedExpressionsBuilder.addExpressions(
+                            indexExpression,
+                            localExpressions,
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                            remoteIndices
+                        );
+                    }
                     var resolved = resolvedExpressionsBuilder.build();
 
                     if (crossProjectModeDecider.crossProjectEnabled()) {
@@ -411,13 +432,14 @@ class IndicesAndAliasesResolver {
                 // we honour allow_no_indices like es core does.
             } else {
                 assert indicesRequest.indices() != null : "indices() cannot be null when resolving non-all-index expressions";
-                // TODO: consider short-circuit when authorizedProjects.linkedProjects is empty or is filtered to empty
                 if (crossProjectModeDecider.resolvesCrossProject(replaceable)
                     // a none expression should not go through cross-project resolution -- fall back to local resolution logic
                     && false == IndexNameExpressionResolver.isNoneExpression(replaceable.indices())) {
                     assert replaceable.allowsRemoteIndices() : "cross-project request [" + indicesRequest + "] must allow remote indices";
-                    assert authorizedProjects.crossProject()
-                        : "cross-project request [" + indicesRequest + "] must have cross-project target set";
+                    assert authorizedProjects != TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED
+                        : "resolving cross-project request but authorized project is local only";
+
+                    final var resolvedProjects = crossProjectRoutingResolver.resolve(replaceable.getProjectRouting(), authorizedProjects);
 
                     final ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
                         Arrays.asList(replaceable.indices()),
@@ -425,8 +447,9 @@ class IndicesAndAliasesResolver {
                         projectMetadata,
                         authorizedIndices::all,
                         authorizedIndices::check,
-                        authorizedProjects,
-                        indicesRequest.includeDataStreams()
+                        resolvedProjects,
+                        indicesRequest.includeDataStreams(),
+                        replaceable.getProjectRouting()
                     );
                     setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());

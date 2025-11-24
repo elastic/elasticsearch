@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,7 +28,9 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.InferenceFeatures.INFERENCE_CCM_ENABLEMENT_SERVICE;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature.CCM_FORBIDDEN_EXCEPTION;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature.CCM_UNSUPPORTED_UNTIL_UPGRADED_EXCEPTION;
 
 public class TransportDeleteCCMConfigurationAction extends TransportMasterNodeAction<
     DeleteCCMConfigurationAction.Request,
@@ -36,6 +39,7 @@ public class TransportDeleteCCMConfigurationAction extends TransportMasterNodeAc
     private final CCMFeature ccmFeature;
     private final CCMService ccmService;
     private final ProjectResolver projectResolver;
+    private final FeatureService featureService;
 
     @Inject
     public TransportDeleteCCMConfigurationAction(
@@ -45,7 +49,8 @@ public class TransportDeleteCCMConfigurationAction extends TransportMasterNodeAc
         ActionFilters actionFilters,
         CCMService ccmService,
         ProjectResolver projectResolver,
-        CCMFeature ccmFeature
+        CCMFeature ccmFeature,
+        FeatureService featureService
     ) {
         super(
             DeleteCCMConfigurationAction.NAME,
@@ -60,6 +65,7 @@ public class TransportDeleteCCMConfigurationAction extends TransportMasterNodeAc
         this.ccmService = Objects.requireNonNull(ccmService);
         this.projectResolver = Objects.requireNonNull(projectResolver);
         this.ccmFeature = Objects.requireNonNull(ccmFeature);
+        this.featureService = Objects.requireNonNull(featureService);
     }
 
     @Override
@@ -74,7 +80,10 @@ public class TransportDeleteCCMConfigurationAction extends TransportMasterNodeAc
             return;
         }
 
-        // TODO check that all nodes in the cluster support the feature
+        if (state.clusterRecovered() == false || featureService.clusterHasFeature(state, INFERENCE_CCM_ENABLEMENT_SERVICE) == false) {
+            listener.onFailure(CCM_UNSUPPORTED_UNTIL_UPGRADED_EXCEPTION);
+            return;
+        }
 
         var disabledListener = listener.<Void>delegateFailureIgnoreResponseAndWrap(
             delegate -> delegate.onResponse(new CCMEnabledActionResponse(false))

@@ -25,7 +25,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.assertStatusOkOrCreated;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.PERIODIC_AUTHORIZATION_ENABLED;
-import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings.CCM_SUPPORTED_ENVIRONMENT;
 import static org.hamcrest.Matchers.is;
 
 public class AuthorizationTaskExecutorUpgradeIT extends ParameterizedRollingUpgradeTestCase {
@@ -47,7 +46,6 @@ public class AuthorizationTaskExecutorUpgradeIT extends ParameterizedRollingUpgr
         // We need a url set for the authorization task to be created, but we don't actually care if we get a valid response
         // just that the task will be created upon upgrade
         .setting(ELASTIC_INFERENCE_SERVICE_URL.getKey(), "http://localhost:12345")
-        .setting(CCM_SUPPORTED_ENVIRONMENT.getKey(), "false")
         .build();
 
     private static final String GET_METHOD = "GET";

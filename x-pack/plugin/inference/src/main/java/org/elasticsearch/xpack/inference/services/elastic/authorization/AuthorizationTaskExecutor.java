@@ -170,8 +170,9 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
             return true;
         }
 
-        return clusterCanSupportFeature(state) == false || running.get() == false || authorizationTaskExists(state)
-        // TODO write some integration tests for this
+        return clusterCanSupportFeature(state) == false
+            || running.get() == false
+            || authorizationTaskExists(state)
             || ccmSupportedButNotYetConfigured();
     }
 
@@ -271,6 +272,11 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         );
     }
 
+    /**
+     * This action is used to broadcast to all the nodes that the authorization task executor should start or stop.
+     * This is specifically useful for CCM, since whether to do the polling depends on the CCM
+     * configuration to exist first.
+     */
     public static class Action extends BroadcastMessageAction<Message> {
         public static final String NAME = "cluster:internal/xpack/inference/update_authorization_task";
         public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);

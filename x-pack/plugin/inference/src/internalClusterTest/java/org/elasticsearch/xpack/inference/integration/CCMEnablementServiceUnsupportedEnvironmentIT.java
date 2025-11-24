@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -18,23 +19,17 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMEnablementService;
-import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureFlag;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.util.Collection;
 
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature.CCM_FORBIDDEN_EXCEPTION;
 import static org.hamcrest.Matchers.is;
 
-public class CCMEnablementServiceIT extends ESSingleNodeTestCase {
+public class CCMEnablementServiceUnsupportedEnvironmentIT extends ESSingleNodeTestCase {
 
     private CCMEnablementService ccmEnablementService;
-
-    @BeforeClass
-    public static void classSetup() {
-        assumeTrue("CCM is behind a feature flag and snapshot only right now", CCMFeatureFlag.FEATURE_FLAG.isEnabled());
-    }
 
     @Before
     public void createComponents() {
@@ -49,7 +44,7 @@ public class CCMEnablementServiceIT extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         return Settings.builder()
-            .put(CCMSettings.CCM_SUPPORTED_ENVIRONMENT.getKey(), true)
+            .put(CCMSettings.CCM_SUPPORTED_ENVIRONMENT.getKey(), false)
             // Disable the authorization task so we don't get errors about inconsistent state while we're
             // changing enablement
             .put(ElasticInferenceServiceSettings.AUTHORIZATION_ENABLED.getKey(), false)
@@ -61,27 +56,15 @@ public class CCMEnablementServiceIT extends ESSingleNodeTestCase {
         return pluginList(ReindexPlugin.class, LocalStateInferencePlugin.class);
     }
 
-    public void testSetEnabled() {
+    public void testSetEnabledReturnsFailure_WhenEnvironmentIsNotSupported() {
         assertEnablementState(false);
 
-        setEnablementState(true);
-        assertEnablementState(true);
-    }
-
-    public void testIsEnabled() {
-        assertEnablementState(false);
-
-        setEnablementState(true);
-        assertEnablementState(true);
-
-        setEnablementState(false);
-        assertEnablementState(false);
-    }
-
-    private void setEnablementState(boolean enabled) {
         var listener = new TestPlainActionFuture<AcknowledgedResponse>();
-        ccmEnablementService.setEnabled(ProjectId.DEFAULT, enabled, listener);
-        assertThat(listener.actionGet(TimeValue.THIRTY_SECONDS), is(AcknowledgedResponse.TRUE));
+        ccmEnablementService.setEnabled(ProjectId.DEFAULT, true, listener);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.THIRTY_SECONDS));
+        assertThat(exception, is(CCM_FORBIDDEN_EXCEPTION));
+        assertEnablementState(false);
     }
 
     private void assertEnablementState(boolean expectedEnabled) {

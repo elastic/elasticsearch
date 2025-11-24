@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
+import org.apache.http.HttpHeaders;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
@@ -42,6 +43,7 @@ import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExe
 import static org.elasticsearch.xpack.inference.integration.ModelRegistryIT.buildElserModelConfig;
 import static org.elasticsearch.xpack.inference.registry.ModelRegistryTests.assertStoreModel;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 
 public class CCMServiceIT extends CCMSingleNodeIT {
     private static final AtomicReference<CCMService> ccmService = new AtomicReference<>();
@@ -148,6 +150,7 @@ public class CCMServiceIT extends CCMSingleNodeIT {
         var eisEndpoints = getEisEndpoints(modelRegistry);
         assertThat(eisEndpoints, empty());
 
+        webServer.clearRequests();
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE));
         var listener = new TestPlainActionFuture<Void>();
         ccmService.get().storeConfiguration(new CCMModel(new SecureString("secret".toCharArray())), listener);
@@ -158,6 +161,12 @@ public class CCMServiceIT extends CCMSingleNodeIT {
 
         waitForTask(AUTH_TASK_ACTION, admin());
         waitForAuthorizationToComplete(authorizationTaskExecutor);
+
+        assertBusy(() -> {
+            var requests = webServer.requests();
+            assertThat(requests.size(), is(1));
+            assertThat(requests.get(0).getHeader(HttpHeaders.AUTHORIZATION), is("Bearer secret"));
+        });
 
         assertChatCompletionEndpointExists(modelRegistry);
     }

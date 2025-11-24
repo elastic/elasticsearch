@@ -62,7 +62,7 @@ public class CCMAuthenticationApplierFactory {
 
             var consistencyListener = ccmModelListener.delegateResponse((delegate, e) -> {
                 if (e instanceof ResourceNotFoundException) {
-                    logger.atWarn()
+                    logger.atDebug()
                         .withThrowable(e)
                         .log("CCM cluster state indicates CCM is enabled but no configuration was found using the cache");
                     listener.onFailure(
@@ -70,6 +70,7 @@ public class CCMAuthenticationApplierFactory {
                             "Cloud connected mode configuration is in an inconsistent state. "
                                 + "Please try configuring it again using PUT {}",
                             RestStatus.BAD_REQUEST,
+                            e,
                             INFERENCE_CCM_PATH
                         )
                     );

@@ -418,7 +418,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         context.setSize(size);
         return context;
     }
-    
+
     private SearchExecutionContext createSearchExecutionContext() {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))

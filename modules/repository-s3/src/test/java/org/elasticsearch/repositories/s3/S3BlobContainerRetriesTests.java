@@ -1350,7 +1350,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final var blobContainerPath = BlobPath.EMPTY.add(getTestName());
         final var statefulBlobContainer = createBlobContainer(1, null, null, null, null, null, blobContainerPath);
 
-        httpServer.createContext("/", new S3HttpHandler("bucket") {
+        @SuppressForbidden(reason = "use a http server")
+        class RejectsUploadPartRequests extends S3HttpHandler {
+            RejectsUploadPartRequests() {
+                super("bucket");
+            }
+
             @Override
             public void handle(HttpExchange exchange) throws IOException {
                 if (parseRequest(exchange).isUploadPartRequest()) {
@@ -1359,7 +1364,9 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     super.handle(exchange);
                 }
             }
-        });
+        }
+
+        httpServer.createContext("/", new RejectsUploadPartRequests());
 
         safeAwait(
             l -> statefulBlobContainer.compareAndExchangeRegister(

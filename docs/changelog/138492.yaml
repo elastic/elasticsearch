@@ -1,0 +1,5 @@
+pr: 138492
+summary: Enable bfloat16 and on-disk rescoring for dense vectors
+area: Vector Search
+type: feature
+issues: []

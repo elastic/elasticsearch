@@ -413,13 +413,29 @@ public class S3HttpHandlerTests extends ESTestCase {
     }
 
     public void testPreventObjectOverwrite() throws InterruptedException {
+        ensureExactlyOneSuccess(new S3HttpHandler("bucket", "path"), null);
+    }
+
+    public void testConditionalOverwrite() throws InterruptedException {
         final var handler = new S3HttpHandler("bucket", "path");
 
+        final var originalBody = new BytesArray(randomAlphaOfLength(50).getBytes(StandardCharsets.UTF_8));
+        final var originalETag = S3HttpHandler.getEtagFromContents(originalBody);
+        assertEquals(RestStatus.OK, handleRequest(handler, "PUT", "/bucket/path/blob", originalBody).status());
+        assertEquals(
+            new TestHttpResponse(RestStatus.OK, originalBody, addETag(originalETag, TestHttpExchange.EMPTY_HEADERS)),
+            handleRequest(handler, "GET", "/bucket/path/blob")
+        );
+
+        ensureExactlyOneSuccess(handler, originalETag);
+    }
+
+    private static void ensureExactlyOneSuccess(S3HttpHandler handler, String originalETag) throws InterruptedException {
         var tasks = List.of(
-            createPutObjectTask(handler),
-            createPutObjectTask(handler),
-            createMultipartUploadTask(handler),
-            createMultipartUploadTask(handler)
+            createPutObjectTask(handler, originalETag),
+            createPutObjectTask(handler, originalETag),
+            createMultipartUploadTask(handler, originalETag),
+            createMultipartUploadTask(handler, originalETag)
         );
 
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -450,13 +466,14 @@ public class S3HttpHandlerTests extends ESTestCase {
         );
     }
 
-    private static TestWriteTask createPutObjectTask(S3HttpHandler handler) {
+    private static TestWriteTask createPutObjectTask(S3HttpHandler handler, @Nullable String originalETag) {
         return new TestWriteTask(
-            (task) -> task.status = handleRequest(handler, "PUT", "/bucket/path/blob", task.body, ifNoneMatchHeader()).status()
+            (task) -> task.status = handleRequest(handler, "PUT", "/bucket/path/blob", task.body, conditionalWriteHeader(originalETag))
+                .status()
         );
     }
 
-    private static TestWriteTask createMultipartUploadTask(S3HttpHandler handler) {
+    private static TestWriteTask createMultipartUploadTask(S3HttpHandler handler, @Nullable String originalETag) {
         final var multipartUploadTask = new TestWriteTask(
             (task) -> task.status = handleRequest(
                 handler,
@@ -470,7 +487,7 @@ public class S3HttpHandlerTests extends ESTestCase {
                           <PartNumber>1</PartNumber>
                        </Part>
                     </CompleteMultipartUpload>""", task.etag)),
-                ifNoneMatchHeader()
+                conditionalWriteHeader(originalETag)
             ).status()
         );
 
@@ -599,9 +616,13 @@ public class S3HttpHandlerTests extends ESTestCase {
         return headers;
     }
 
-    private static Headers ifNoneMatchHeader() {
+    private static Headers conditionalWriteHeader(@Nullable String originalEtag) {
         var headers = new Headers();
-        headers.put("If-None-Match", List.of("*"));
+        if (originalEtag == null) {
+            headers.put("If-None-Match", List.of("*"));
+        } else {
+            headers.put("If-Match", List.of(originalEtag));
+        }
         return headers;
     }
 

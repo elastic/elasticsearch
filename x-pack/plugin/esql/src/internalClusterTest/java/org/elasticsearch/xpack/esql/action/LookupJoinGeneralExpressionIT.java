@@ -224,7 +224,7 @@ public class LookupJoinGeneralExpressionIT extends AbstractEsqlIntegTestCase {
     }
 
     private EsqlQueryResponse runQuery(String query) {
-        return run(syncEsqlQueryRequest().query(query));
+        return run(syncEsqlQueryRequest(query));
     }
 
     /**

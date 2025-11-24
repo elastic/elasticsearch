@@ -291,6 +291,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             return matchFields;
         }
 
+        public PhysicalPlan getRightPreJoinPlan() {
+            return rightPreJoinPlan;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);

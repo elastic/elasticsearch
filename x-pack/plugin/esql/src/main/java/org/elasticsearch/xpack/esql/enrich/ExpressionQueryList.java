@@ -25,6 +25,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -65,6 +66,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoin
     private final SearchExecutionContext context;
     private final AliasFilter aliasFilter;
     private final LucenePushdownPredicates lucenePushdownPredicates;
+    private final Set<NameId> rightSideFieldNameIds;
     private List<Expression> postJoinFilter;
     private int inputPagePositionCount = -1;
 
@@ -82,8 +84,21 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoin
             SearchContextStats.from(List.of(context)),
             new EsqlFlags(clusterService.getClusterSettings())
         );
+        this.rightSideFieldNameIds = collectRightSideFieldNameIds(rightPreJoinPlan);
         postJoinFilter = new ArrayList<>();
         buildPreJoinFilter(rightPreJoinPlan, clusterService);
+    }
+
+    private static Set<NameId> collectRightSideFieldNameIds(PhysicalPlan rightPreJoinPlan) {
+        Set<NameId> rightSideFieldNameIds = new HashSet<>();
+        if (rightPreJoinPlan != null) {
+            rightPreJoinPlan.forEachDown(EsSourceExec.class, esSourceExec -> {
+                for (Attribute attr : esSourceExec.output()) {
+                    rightSideFieldNameIds.add(attr.id());
+                }
+            });
+        }
+        return rightSideFieldNameIds;
     }
 
     /**
@@ -155,17 +170,12 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoin
         this.inputPagePositionCount = inputPage.getPositionCount();
         List<Expression> expressions = Predicates.splitAnd(joinOnConditions);
 
-        // Build set of left-side field names for categorization
-        Set<String> leftSideFieldNames = new HashSet<>();
-        for (MatchConfig matchField : matchFields) {
-            leftSideFieldNames.add(matchField.fieldName());
-        }
-
         // Split expressions into left-only, right-only, and mixed
+        // Anything not in right-side fields is left-side
         List<Expression> leftOnlyExpressions = new ArrayList<>();
         List<Expression> rightOnlyExpressions = new ArrayList<>();
         List<Expression> mixedExpressions = new ArrayList<>();
-        splitExpressionsBySide(expressions, leftSideFieldNames, leftOnlyExpressions, rightOnlyExpressions, mixedExpressions);
+        splitExpressionsBySide(expressions, leftOnlyExpressions, rightOnlyExpressions, mixedExpressions);
 
         // Process mixed expressions - try as left-right binary comparison first
         // If that fails, add to post-join filter
@@ -191,7 +201,6 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoin
 
     private void splitExpressionsBySide(
         List<Expression> expressions,
-        Set<String> leftSideFieldNames,
         List<Expression> leftOnlyExpressions,
         List<Expression> rightOnlyExpressions,
         List<Expression> mixedExpressions
@@ -204,10 +213,11 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoin
             boolean hasRightSide = false;
 
             for (Attribute attr : allAttributes) {
-                if (leftSideFieldNames.contains(attr.name())) {
-                    hasLeftSide = true;
-                } else {
+                NameId nameId = attr.id();
+                if (rightSideFieldNameIds.contains(nameId)) {
                     hasRightSide = true;
+                } else {
+                    hasLeftSide = true;
                 }
             }
 
@@ -222,19 +232,13 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoin
     }
 
     private boolean applyAsRightSidePushableFilter(Expression filter, List<MatchConfig> matchFields) {
-        // First check if this filter only references right-side attributes
-        // Right-side attributes are those NOT in matchFields (which are left-side fields)
-        Set<String> leftSideFieldNames = new HashSet<>();
-        for (MatchConfig matchField : matchFields) {
-            leftSideFieldNames.add(matchField.fieldName());
-        }
         // Check if any attribute in the filter expression tree is from the left side
         // We need to traverse the entire expression tree, not just top-level references,
         // because some functions may have attributes nested in their children
         List<Attribute> allAttributes = new ArrayList<>();
         filter.forEachDown(Attribute.class, allAttributes::add);
         for (Attribute attr : allAttributes) {
-            if (leftSideFieldNames.contains(attr.name())) {
+            if (rightSideFieldNameIds.contains(attr.id()) == false) {
                 // This filter references a left-side attribute, so it cannot be pushed to Lucene
                 return false;
             }
@@ -257,6 +261,35 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoin
         return false;
     }
 
+    /**
+     * Reorients a binary comparison so that the left side is from the input page and the right side is from the lookup index.
+     * Returns the comparison as-is if already correctly oriented, or a swapped version if needed.
+     * Returns null if both attributes are from the same side (can't be reoriented).
+     */
+    private EsqlBinaryComparison reorientBinaryComparison(EsqlBinaryComparison binaryComparison) {
+        if (binaryComparison.left() instanceof Attribute leftAttr && binaryComparison.right() instanceof Attribute rightAttr) {
+            // Determine which attribute is from the right side (lookup index)
+            boolean leftIsRightSide = rightSideFieldNameIds.contains(leftAttr.id());
+            boolean rightIsRightSide = rightSideFieldNameIds.contains(rightAttr.id());
+
+            // We need exactly one attribute from the right side and one from the left side
+            if (leftIsRightSide == rightIsRightSide) {
+                // Both are from the same side, can't process as left-right comparison
+                return null;
+            }
+
+            if (rightIsRightSide) {
+                // Original orientation is correct: left is from input, right is from lookup
+                return binaryComparison;
+            } else {
+                // Need to swap: original left is from lookup, original right is from input
+                // Swap the comparison and flip the operator if needed
+                return (EsqlBinaryComparison) binaryComparison.swapLeftAndRight();
+            }
+        }
+        return null;
+    }
+
     private boolean applyAsLeftRightBinaryComparison(
         Expression expr,
         List<MatchConfig> matchFields,
@@ -264,13 +297,22 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoin
         ClusterService clusterService,
         Warnings warnings
     ) {
-        if (expr instanceof EsqlBinaryComparison binaryComparison
-            && binaryComparison.left() instanceof Attribute leftAttribute
-            && binaryComparison.right() instanceof Attribute rightAttribute) {
-            // the left side comes from the page that was sent to the lookup node
-            // the right side is the field from the lookup index
-            // check if the left side is in the matchFields
-            // if it is its corresponding page is the corresponding number in inputPage
+        if (expr instanceof EsqlBinaryComparison binaryComparison) {
+            // Reorient the comparison so that left is from input page and right is from lookup index
+            EsqlBinaryComparison orientedComparison = reorientBinaryComparison(binaryComparison);
+            if (orientedComparison == null) {
+                // Can't reorient (both attributes from same side)
+                return false;
+            }
+
+            // After reorientation, left is from input page and right is from lookup index
+            Attribute leftAttribute = (Attribute) orientedComparison.left();
+            Attribute rightAttribute = (Attribute) orientedComparison.right();
+
+            // The left side comes from the page that was sent to the lookup node
+            // The right side is the field from the lookup index
+            // Check if the left side is in the matchFields
+            // If it is its corresponding page is the corresponding number in inputPage
             Block block = null;
             DataType dataType = null;
             for (int i = 0; i < matchFields.size(); i++) {
@@ -285,7 +327,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoin
                 // special handle Equals operator
                 // TermQuery is faster than BinaryComparisonQueryList, as it does less work per row
                 // so here we reuse the existing logic from field based join to build a termQueryList for Equals
-                if (binaryComparison instanceof Equals) {
+                if (orientedComparison instanceof Equals) {
                     QueryList termQueryForEquals = termQueryList(rightFieldType, context, aliasFilter, block, dataType).onlySingleValues(
                         warnings,
                         "LOOKUP JOIN encountered multi-value"
@@ -297,7 +339,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoin
                             rightFieldType,
                             context,
                             block,
-                            binaryComparison,
+                            orientedComparison,
                             clusterService,
                             aliasFilter,
                             warnings

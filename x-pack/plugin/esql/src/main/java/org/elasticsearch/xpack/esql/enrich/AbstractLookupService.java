@@ -79,13 +79,15 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -94,7 +96,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -586,38 +587,46 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             List<Expression> postJoinFilterExpressions = postJoinFilterable.getPostJoinFilter();
             if (postJoinFilterExpressions.isEmpty() == false) {
                 LookupFromIndexService.TransportRequest lookupRequest = (LookupFromIndexService.TransportRequest) request;
-                // Build a map of matchField names for quick lookup
-                Map<String, MatchConfig> matchFieldsByName = new HashMap<>();
-                for (MatchConfig matchField : lookupRequest.getMatchFields()) {
-                    matchFieldsByName.put(matchField.fieldName(), matchField);
-                }
-                // Build a set of extractFields names to avoid adding duplicates
-                Set<String> extractFieldNames = new HashSet<>();
+                // Build a set of extractFields NameIDs to avoid adding duplicates
+                Set<NameId> extractFieldNameIds = new HashSet<>();
                 for (NamedExpression extractField : request.extractFields) {
-                    extractFieldNames.add(extractField.name());
+                    extractFieldNameIds.add(extractField.id());
                 }
-                // Extract FieldAttributes from post-join filter expressions and check if they are in matchFields
-                Map<String, TypedAttribute> fieldsToBroadcast = new HashMap<>();
+                // Collect right-side field NameIDs from EsRelation in rightPreJoinPlan
+                Set<NameId> rightSideFieldNameIds = new HashSet<>();
+                if (lookupRequest.getRightPreJoinPlan() instanceof FragmentExec fragmentExec) {
+                    fragmentExec.fragment().forEachDown(EsRelation.class, esRelation -> {
+                        for (Attribute attr : esRelation.output()) {
+                            rightSideFieldNameIds.add(attr.id());
+                        }
+                    });
+                }
+
+                // Track which NameIDs we've already added to avoid duplicates
+                Set<NameId> addedNameIds = new HashSet<>();
+                // Traverse filter expressions and match attributes to MatchConfigs by NameID
+                // Exclude right-side fields and fields already in extractFields
                 for (Expression filterExpr : postJoinFilterExpressions) {
                     for (Attribute attr : filterExpr.references()) {
-                        if (attr instanceof TypedAttribute typedAttribute) {
-                            String fieldName = attr.name();
-                            // Check if this field is in matchFields (left-side field with a channel)
-                            if (matchFieldsByName.containsKey(fieldName)) {
-                                fieldsToBroadcast.put(fieldName, typedAttribute);
+                        NameId nameId = attr.id();
+                        // Skip if right-side field, already in extractFields, or already found a match for
+                        if (rightSideFieldNameIds.contains(nameId)
+                            || extractFieldNameIds.contains(nameId)
+                            || addedNameIds.contains(nameId)) {
+                            continue;
+                        }
+                        // Find the corresponding MatchConfig for this attribute
+                        // we do match by just name
+                        // we made sure the same attribute is not on the right side with the checks above
+                        for (MatchConfig matchField : lookupRequest.getMatchFields()) {
+                            if (attr.name().equals(matchField.fieldName())) {
+                                builder.append(attr);
+                                allLeftFieldsToBroadcast.add(matchField);
+                                addedNameIds.add(nameId);
+                                break;
                             }
                         }
-                    }
-                }
-                // Add matching fields to layout and broadcast list, but skip if already in extractFields
-                for (Map.Entry<String, TypedAttribute> entry : fieldsToBroadcast.entrySet()) {
-                    String fieldName = entry.getKey();
-                    TypedAttribute typedAttribute = entry.getValue();
-                    MatchConfig matchField = matchFieldsByName.get(fieldName);
-                    // Only add if not already in extractFields to avoid duplicates
-                    if (extractFieldNames.contains(fieldName) == false) {
-                        builder.append(typedAttribute);
-                        allLeftFieldsToBroadcast.add(matchField);
+
                     }
                 }
             }

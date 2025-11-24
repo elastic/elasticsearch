@@ -1305,9 +1305,9 @@ public class EsqlCapabilities {
         DATE_TRUNC_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
 
         /**
-         * Support timezones in DATE_FORMAT.
+         * Support timezones in DATE_FORMAT and DATE_PARSE.
          */
-        DATE_FORMAT_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        DATE_FORMAT_DATE_PARSE_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
 
         /**
          * (Re)Added EXPLAIN command

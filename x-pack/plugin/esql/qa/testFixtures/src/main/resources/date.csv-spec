@@ -602,7 +602,7 @@ emp_no:integer  |  birth_date:datetime       | birth_month:keyword
 ;
 
 dateFormatTimezone
-required_capability: date_format_timezone_support
+required_capability: date_format_date_parse_timezone_support
 set time_zone="Europe/Rome"\;
 from employees | where emp_no == 10049 or emp_no == 10050 | sort emp_no 
 | eval formatted = date_format(birth_date) | keep emp_no, birth_date, formatted;
@@ -613,7 +613,7 @@ emp_no:integer  |  birth_date:datetime       | formatted:keyword
 ;
 
 dateFormatTimezoneRow
-required_capability: date_format_timezone_support
+required_capability: date_format_date_parse_timezone_support
 set time_zone="Europe/Rome"\;
 ROW
   date = date_format("2020-02-01T00:00:00.000+01:00"::date),

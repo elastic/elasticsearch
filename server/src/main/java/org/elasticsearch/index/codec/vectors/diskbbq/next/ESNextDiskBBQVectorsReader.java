@@ -324,6 +324,20 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         final NeighborQueue currentParentQueue = new NeighborQueue(maxChildrenSize, true);
         final int bufferSize = (int) Math.min(Math.max(centroidRatio * numCentroids, 1), numCentroids);
         final int numCentroidsFiltered = acceptCentroids == null ? numCentroids : acceptCentroids.cardinality();
+        if (numCentroidsFiltered == 0) {
+            // TODO maybe this makes CentroidIterator polymorphic?
+            return new CentroidIterator() {
+                @Override
+                public boolean hasNext() {
+                    return false;
+                }
+
+                @Override
+                public CentroidOffsetAndLength nextPostingListOffsetAndLength() {
+                    return null;
+                }
+            };
+        }
         final float[] scores = new float[ES92Int7VectorsScorer.BULK_SIZE];
         final NeighborQueue neighborQueue;
         if (acceptCentroids != null && numCentroidsFiltered <= bufferSize) {
@@ -527,7 +541,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
     @Override
     public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
-        return Map.of();
+        // TODO: override if adding new files
+        return super.getOffHeapByteSize(fieldInfo);
     }
 
     private static class MemorySegmentPostingsVisitor implements PostingVisitor {

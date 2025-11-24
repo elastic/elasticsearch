@@ -19,6 +19,6 @@ public class ES93TSDBDefaultCompressionLucene103Codec extends TSDBCodecWithSynth
     }
 
     ES93TSDBDefaultCompressionLucene103Codec(Lucene103Codec delegate, BigArrays bigArrays, boolean bloomFilterEnabled) {
-        super("ES93TSDefaultCompressionLucene103Codec", delegate, bigArrays, bloomFilterEnabled);
+        super("ES93TSDBDefaultCompressionLucene103Codec", delegate, bigArrays, bloomFilterEnabled);
     }
 }

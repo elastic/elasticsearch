@@ -20,6 +20,6 @@ public class ES93TSDBLuceneDefaultCodec extends TSDBCodecWithSyntheticId {
     }
 
     ES93TSDBLuceneDefaultCodec(Codec delegate, BigArrays bigArrays, boolean bloomFilterEnabled) {
-        super("ES93TSLuceneDefaultCodec", delegate, bigArrays, bloomFilterEnabled);
+        super("ES93TSDBLuceneDefaultCodec", delegate, bigArrays, bloomFilterEnabled);
     }
 }

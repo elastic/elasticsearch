@@ -18,6 +18,6 @@ public class ES93TSDBZSTDCompressionLucene103Codec extends TSDBCodecWithSyntheti
     }
 
     ES93TSDBZSTDCompressionLucene103Codec(Elasticsearch92Lucene103Codec delegate, BigArrays bigArrays, boolean bloomFilterEnabled) {
-        super("ES93TSZSTDCompressionLucene103Codec", delegate, bigArrays, bloomFilterEnabled);
+        super("ES93TSDBZSTDCompressionLucene103Codec", delegate, bigArrays, bloomFilterEnabled);
     }
 }

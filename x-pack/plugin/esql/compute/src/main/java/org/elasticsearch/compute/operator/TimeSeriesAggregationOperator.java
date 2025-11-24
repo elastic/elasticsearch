@@ -109,14 +109,64 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         return largestWindow;
     }
 
-    /**
+    /*
      * Expands window buckets to ensure all required time buckets are present for time-series aggregations.
-     * This is equivalent when sliding the window over the raw input.
-     * <p>
-     * For example, if the window is 10 minutes and the bucket size is 2 minutes:
-     * If we see a bucket at 12:00, we need to ensure buckets exist for the previous 10 minutes.
-     * 02:00 -> [12:00, 13:59) // bucket=2m
-     * 00:04 -> [04:00, 05:59), [06:00, 07:59), [08:00, 09:59), [10:00, 11:59), [12:00, 13:59) // window=10m
+     * This is equivalent to sliding the window over the raw input.
+     *
+     * For example, given these two data points:
+     * ```
+     * |_tsid| cluster| host | timestamp            | metric |
+     * | t1  | prod   | h1   | 2025-04-15T01:12:00Z | 100    |
+     * | t2  | prod   | h2   | 2025-04-15T01:14:00Z | 200    |
+     * ```
+     * Without expanding, the within time-series aggregation yields:
+     * ```
+     * _tsid | VALUES(cluster) | BUCKET                 | SUM_OVER_TIME |
+     * t1    | prod            | 2025-04-15T01:12:00Z   | 100           |
+     * t2    | prod            | 2025-04-15T01:14:00Z   | 200           |
+     * ```
+     * And the final result is:
+     * ```
+     * cluster | bucket                 | SUM  |
+     * prod    | 2025-04-15T01:12:00Z   | 100  |
+     * prod    | 2025-04-15T01:14:00Z   | 200  |
+     * ```
+     *
+     * While `bucket=5s` and no window:
+     * ```
+     * TS ...
+     * | WHERE TRANGE('2025-04-15T01:10:00Z', '2025-04-15T01:15:00Z')
+     * | STATS sum(sum_over_time(metric)) BY host, TBUCKET(5s)
+     * ```
+     * Yields:
+     * ```
+     * cluster | bucket                 | SUM  |
+     * prod    | 2025-04-15T01:10:00Z   | 300  |
+     * ```
+     *
+     * The correct result should be as if we slide over the raw input:
+     * ```
+     * cluster | bucket                 | SUM  |
+     * prod    | 2025-04-15T01:10:00Z   | 300  |
+     * prod    | 2025-04-15T01:11:00Z   | 300  |
+     * prod    | 2025-04-15T01:12:00Z   | 300  |
+     * prod    | 2025-04-15T01:13:00Z   | 200  |
+     * prod    | 2025-04-15T01:14:00Z   | 200  |
+     * ```
+     *
+     * In order to achieve this, we need to fill in the missing buckets between (timestamp-window, timestamp)
+     * during the aggregation phase, so that the within time-series aggregation produces:
+     * ```
+     * _tsid |VALUES(cluster)  | BUCKET                 | SUM_OVER_TIME |
+     * t1    | prod            | 2025-04-15T01:10:00Z   | 100           |
+     * t1    | prod            | 2025-04-15T01:11:00Z   | 100           |
+     * t1    | prod            | 2025-04-15T01:12:00Z   | 100           |
+     * t2    | prod            | 2025-04-15T01:10:00Z   | 200           |
+     * t2    | prod            | 2025-04-15T01:11:00Z   | 200           |
+     * t2    | prod            | 2025-04-15T01:12:00Z   | 200           |
+     * t2    | prod            | 2025-04-15T01:13:00Z   | 200           |
+     * t2    | prod            | 2025-04-15T01:14:00Z   | 200           |
+     * ```
      */
     private void expandWindowBuckets() {
         for (GroupingAggregator aggregator : aggregators) {
@@ -139,6 +189,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             long endTimestamp = tsBlockHash.getLongKeyFromGroup(groupId);
             long bucket = timeBucket.nextRoundingValue(endTimestamp - timeResolution.convert(largestWindowMillis()));
             bucket = Math.max(bucket, tsBlockHash.getMinLongKey());
+            // Fill the missing buckets between (timestamp-window, timestamp)
             while (bucket < endTimestamp) {
                 if (tsBlockHash.addGroup(tsid, bucket) >= 0) {
                     expandingGroups.addGroup(Math.toIntExact(groupId));

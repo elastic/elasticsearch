@@ -79,8 +79,16 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.BeforeClass;
 
@@ -95,6 +103,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
@@ -118,7 +127,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.DOWN;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
+import static org.elasticsearch.xpack.esql.planner.PlannerUtils.breakPlanBetweenCoordinatorAndDataNode;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -1868,6 +1879,71 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(limit.child(), Filter.class);
         var fullTextFunction = as(filter.condition(), SingleFieldFullTextFunction.class);
         assertThat(Expressions.name(fullTextFunction.field()), equalTo("text"));
+    }
+
+    private static PhysicalPlan physicalPlan(LogicalPlan logicalPlan, Analyzer analyzer) {
+        var mapper = new Mapper();
+        return mapper.map(new Versioned<>(logicalPlan, analyzer.context().minimumVersion()));
+    }
+
+    public void testReductionPlanForTopNWithPushedDownFunctions() {
+        var query = String.format(Locale.ROOT, """
+                FROM test_all
+                | EVAL score = V_DOT_PRODUCT(dense_vector, [1.0, 2.0, 3.0])
+                | SORT score DESC
+                | LIMIT 10
+                | KEEP text, score
+            """);
+        var logicalPlan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+        var physicalPlan = physicalPlan(logicalPlan, allTypesAnalyzer);
+        var coordAndDataNodePlans = breakPlanBetweenCoordinatorAndDataNode(physicalPlan, TEST_CFG);
+
+        var coordPlan = coordAndDataNodePlans.v1();
+        var coordProjectExec = as(coordPlan, ProjectExec.class);
+        assertThat(coordProjectExec.projections().stream().map(NamedExpression::name).toList(), containsInAnyOrder("text", "score"));
+        var coordTopN = as(coordProjectExec.child(), TopNExec.class);
+        var orderAttr = as(coordTopN.order().getFirst().child(), ReferenceAttribute.class);
+        assertThat(orderAttr.name(), equalTo("score"));
+
+        var reductionPlan = ((PlannerUtils.TopNReduction) PlannerUtils.reductionPlan(coordAndDataNodePlans.v2())).plan();
+        var topN = as(reductionPlan, TopNExec.class);
+        var eval = as(topN.child(), EvalExec.class);
+        var alias = eval.fields().get(0);
+        assertThat(alias.name(), equalTo("score"));
+        var fieldAttr = as(alias.child(), FieldAttribute.class);
+        assertThat(fieldAttr.name(), startsWith("$$dense_vector$V_DOT_PRODUCT$"));
+        var esSourceExec = as(eval.child(), EsSourceExec.class);
+        assertTrue(esSourceExec.outputSet().stream().anyMatch(a -> a == fieldAttr));
+    }
+
+    public void testReductionPlanForTopNWithPushedDownFunctionsInOrder() {
+        var query = String.format(Locale.ROOT, """
+                FROM test_all
+                | EVAL fieldLength = LENGTH(text)
+                | SORT fieldLength DESC
+                | LIMIT 10
+                | KEEP text, fieldLength
+            """);
+        var logicalPlan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+        var physicalPlan = physicalPlan(logicalPlan, allTypesAnalyzer);
+        var coordAndDataNodePlans = breakPlanBetweenCoordinatorAndDataNode(physicalPlan, TEST_CFG);
+
+        var coordPlan = coordAndDataNodePlans.v1();
+        var coordProjectExec = as(coordPlan, ProjectExec.class);
+        assertThat(coordProjectExec.projections().stream().map(NamedExpression::name).toList(), containsInAnyOrder("text", "fieldLength"));
+        var coordTopN = as(coordProjectExec.child(), TopNExec.class);
+        var orderAttr = as(coordTopN.order().getFirst().child(), ReferenceAttribute.class);
+        assertThat(orderAttr.name(), equalTo("fieldLength"));
+
+        var reductionPlan = ((PlannerUtils.TopNReduction) PlannerUtils.reductionPlan(coordAndDataNodePlans.v2())).plan();
+        var topN = as(reductionPlan, TopNExec.class);
+        var eval = as(topN.child(), EvalExec.class);
+        var alias = eval.fields().get(0);
+        assertThat(alias.name(), equalTo("fieldLength"));
+        var fieldAttr = as(alias.child(), FieldAttribute.class);
+        assertThat(fieldAttr.name(), startsWith("$$text$LENGTH$"));
+        var esSourceExec = as(eval.child(), EsSourceExec.class);
+        assertTrue(esSourceExec.outputSet().stream().anyMatch(a -> a == fieldAttr));
     }
 
     private IsNotNull isNotNull(Expression field) {

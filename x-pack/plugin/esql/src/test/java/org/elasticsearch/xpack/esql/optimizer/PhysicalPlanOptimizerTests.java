@@ -8298,6 +8298,20 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(topN.limit(), equalTo(new Literal(Source.EMPTY, limit, DataType.INTEGER)));
     }
 
+    public void testReductionPlanForTopNWithPushedDownFunctions() {
+        int limit = between(1, 100);
+        var plan = physicalPlan(String.format(Locale.ROOT, """
+            FROM test_all
+            | EVAL score = V_DOT_PRODUCT(dense_vector, [1.0, 2.0, 3.0])
+            | sort score DESC
+            | LIMIT %d
+            """, limit), testAllMapping);
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+        var reductionPlan = ((PlannerUtils.TopNReduction) PlannerUtils.reductionPlan(plans.v2())).plan();
+        var topN = as(reductionPlan, TopNExec.class);
+        assertThat(topN.limit(), equalTo(new Literal(Source.EMPTY, limit, DataType.INTEGER)));
+    }
+
     public void testReductionPlanForAggs() {
         var plan = physicalPlan("""
             FROM test

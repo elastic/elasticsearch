@@ -148,22 +148,30 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
             );
         };
 
-        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn = (SimpleLinearRegressionWithTimeseries model) -> {
-            double slope = model.slope();
-            double intercept = model.intercept();
-            double lastTsSec = model.lastTimestamp() / 1000.0;
-            if (Double.isNaN(slope)) {
-                return Double.NaN;
-            }
-            return intercept + slope * (lastTsSec + timeDiffSeconds);
-        };
         final DataType type = field().dataType();
         final boolean isDateNanos = timestamp.dataType() == DataType.DATE_NANOS;
+        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn = getSimpleLinearModelFunction(isDateNanos, timeDiffSeconds);
         return switch (type) {
             case LONG -> new DerivLongAggregatorFunctionSupplier(fn, isDateNanos);
             case INTEGER -> new DerivIntAggregatorFunctionSupplier(fn, isDateNanos);
             case DOUBLE -> new DerivDoubleAggregatorFunctionSupplier(fn, isDateNanos);
             default -> throw new IllegalArgumentException("Unsupported data type for deriv aggregation: " + type);
+        };
+    }
+
+    private static SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction getSimpleLinearModelFunction(
+        boolean isDateNanos,
+        double timeDiffSeconds
+    ) {
+        final double timestampFactor = isDateNanos ? 1_000_000.0 : 1000.0;
+        return (SimpleLinearRegressionWithTimeseries model) -> {
+            double slope = model.slope();
+            double intercept = model.intercept();
+            double lastTsSec = model.lastTimestamp() / timestampFactor;
+            if (Double.isNaN(slope)) {
+                return Double.NaN;
+            }
+            return intercept + slope * (lastTsSec + timeDiffSeconds);
         };
     }
 }

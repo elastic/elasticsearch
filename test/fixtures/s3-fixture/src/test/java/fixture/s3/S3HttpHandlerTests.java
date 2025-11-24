@@ -488,6 +488,20 @@ public class S3HttpHandlerTests extends ESTestCase {
         return multipartUploadTask;
     }
 
+    public void testGetETagFromContents() {
+        // empty-string value from Wikipedia, see also org.elasticsearch.common.hash.MessageDigestsTests.testSha256
+        assertETag("", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+        assertETag("The quick brown fox jumps over the lazy dog", "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592");
+        assertETag("The quick brown fox jumps over the lazy cog", "e4c4d8f3bf76b692de791a173e05321150f7a345b46484fe427f6acc7ecc81be");
+    }
+
+    private static void assertETag(String input, String expectedHash) {
+        assertEquals(
+            "\"es-test-sha-256-" + expectedHash + '"',
+            S3HttpHandler.getEtagFromContents(new BytesArray(input.getBytes(StandardCharsets.UTF_8)))
+        );
+    }
+
     private static class TestWriteTask {
         final BytesReference body;
         final Runnable consumer;

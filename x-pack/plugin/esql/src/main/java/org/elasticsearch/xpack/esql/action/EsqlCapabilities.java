@@ -320,6 +320,11 @@ public class EsqlCapabilities {
         AGG_TOP_WITH_OUTPUT_FIELD,
 
         /**
+         * Fix for a bug when surrogating a {@code TOP}  with limit 1 and output field.
+         */
+        FIX_AGG_TOP_WITH_OUTPUT_FIELD_SURROGATE,
+
+        /**
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,
@@ -1558,7 +1563,7 @@ public class EsqlCapabilities {
          * When implementing changes on this type, we'll simply increment the version suffix at the end to prevent bwc tests from running.
          * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          */
-        EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V1(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+        EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V3(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
         /**
          * Create new block when filtering OrdinalBytesRefBlock
@@ -1646,7 +1651,7 @@ public class EsqlCapabilities {
         /**
          * Chunk function.
          */
-        CHUNK_FUNCTION(Build.current().isSnapshot()),
+        CHUNK_FUNCTION_V2(Build.current().isSnapshot()),
 
         /**
          * Support for vector similarity functtions pushdown

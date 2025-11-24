@@ -190,7 +190,7 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
             (DoubleBlock) minima,
             (DoubleBlock) maxima,
             (DoubleBlock) sums,
-            (LongBlock) valueCounts,
+            (DoubleBlock) valueCounts,
             (DoubleBlock) zeroThresholds,
             (BytesRefBlock) encodedHistograms
         );

@@ -387,6 +387,7 @@ public abstract class SearchContext implements Releasable {
 
     /**
      * Checks if the accumulated bytes are greater than the buffer size and if so, checks the circuit breaker.
+     * IMPORTANT: the caller is responsible for cleaning up the circuit breaker.
      * @param locallyAccumulatedBytes the number of bytes accumulated locally
      * @param label the label to use in the breaker
      * @return true if the circuit breaker is called and false otherwise

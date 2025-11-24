@@ -320,6 +320,19 @@ public class ExplainLifecycleIT extends IlmESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    /**
+     * Test that, when there is an ILM <code>previous_step_info</code> that has had truncation applied to it (due to it being too long),
+     * the truncation:
+     * <ul>
+     * <li>doesn't break the JSON returned in <code>/{index}/_ilm/explain</code></li>
+     * <li>truncates as expected</li>
+     * </ul>
+     * We test this by creating an ILM policy that rolls-over at 1 document, and an index pattern that has a non-existing rollover alias
+     * that has a very long name (to trip the truncation due to the rollover alias name being in the <code>previous_step_info</code>).
+     * <p>
+     * We then index a document, wait for attempted rollover, and assert that we get valid JSON and expected truncated message
+     * in <code>/{index}/_ilm/explain</code>.
+     */
     public void testTruncatedPreviousStepInfoDoesNotBreakExplainJson() throws Exception {
         final String policyName = "policy-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 

@@ -290,6 +290,8 @@ public record LifecycleExecutionState(
     /**
      * Truncates a potentially long JSON string to ensure it does not exceed {@link #MAXIMUM_STEP_INFO_STRING_LENGTH}. If truncation
      * occurs, an explanation suffix is appended to the truncated string indicating <i>approximately</i> how many characters were removed.
+     * We return an approximation because we're valuing code simplicity over accuracy in this area.
+     *
      * @param json the JSON string to potentially truncate
      * @return the original JSON string if its length is within the limit, otherwise a truncated version with an explanation suffix - in
      * correct JSON format

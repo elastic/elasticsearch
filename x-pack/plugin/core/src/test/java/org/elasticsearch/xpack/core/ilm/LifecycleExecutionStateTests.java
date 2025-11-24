@@ -15,6 +15,7 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasLength;
 import static org.hamcrest.Matchers.not;
@@ -36,15 +37,8 @@ public class LifecycleExecutionStateTests extends ESTestCase {
             + randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 100)
             + "\"}";
         LifecycleExecutionState newState = LifecycleExecutionState.builder(state).setStepInfo(longStepInfo).build();
-        assertThat(newState.stepInfo().length(), equalTo(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH));
-        assertThat(
-            newState.stepInfo()
-                .substring(
-                    LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - 28,
-                    LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH
-                ),
-            equalTo("... (~111 chars truncated)\"}")
-        );
+        assertThat(newState.stepInfo(), hasLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH));
+        assertThat(newState.stepInfo(), endsWith("... (~111 chars truncated)\"}"));
     }
 
     public void testEmptyValuesAreNotSerialized() {
@@ -154,11 +148,13 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         assertNull(error6.getMessage());
     }
 
-    public void testPotentiallyTruncateLongJsonWithExplanationNotTruncated() {
+    /** test that strings with length less than or equal to maximum string length are not truncated and returned as-is */
+    public void testPotentiallyTruncateLongJsonWithExplanationNoNeedToTruncate() {
         final String input = randomAlphaOfLengthBetween(0, LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH);
         assertSame(input, LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(input));
     }
 
+    /** test that string with length one character over the max limit has truncation applied to it and has correct explanation */
     public void testPotentiallyTruncateLongJsonWithExplanationOneCharTruncated() {
         final String jsonBaseFormat = "{\"key\": \"%s\"}";
         final int baseLength = Strings.format(jsonBaseFormat, "").length();
@@ -175,6 +171,7 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         assertEquals(expectedOutput, actualOutput);
     }
 
+    /** test that string with length two characters over the max limit has truncation applied to it and has correct explanation */
     public void testPotentiallyTruncateLongJsonWithExplanationTwoCharsTruncated() {
         final String jsonBaseFormat = "{\"key\": \"%s\"}";
         final int baseLength = Strings.format(jsonBaseFormat, "").length();

@@ -955,6 +955,11 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_V0,
 
         /**
+         * Support fusing from_aggregate_metric_double into blockloader
+         */
+        AGGREGATE_METRIC_DOUBLE_FUSE_SUB_BLOCKS,
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,

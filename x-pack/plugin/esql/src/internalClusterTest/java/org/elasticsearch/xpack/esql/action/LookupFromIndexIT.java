@@ -246,7 +246,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             new EsField("l", DataType.LONG, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
         );
         Expression greaterThan = new GreaterThan(Source.EMPTY, filterAttribute, new Literal(Source.EMPTY, value, DataType.LONG));
-        EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), List.of());
+        EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), Map.of(), Map.of(), List.of());
         Filter filter = new Filter(Source.EMPTY, esRelation, greaterThan);
         return new FragmentExec(filter);
     }

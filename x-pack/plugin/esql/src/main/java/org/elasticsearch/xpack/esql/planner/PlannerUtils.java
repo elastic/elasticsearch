@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -61,14 +60,12 @@ import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
@@ -153,18 +150,6 @@ public class PlannerUtils {
 
     private static ReducedPlan getPhysicalPlanReduction(int estimatedRowSize, PhysicalPlan plan) {
         return new ReducedPlan(EstimatesRowSize.estimateRowSize(estimatedRowSize, plan));
-    }
-
-    /**
-     * Returns the original indices specified in the FROM command of the query. We need the original query to resolve alias filters.
-     */
-    public static String[] planOriginalIndices(PhysicalPlan plan) {
-        if (plan == null) {
-            return Strings.EMPTY_ARRAY;
-        }
-        var indices = new LinkedHashSet<String>();
-        forEachRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.indexPattern()))));
-        return indices.toArray(String[]::new);
     }
 
     public static boolean requiresSortedTimeSeriesSource(PhysicalPlan plan) {

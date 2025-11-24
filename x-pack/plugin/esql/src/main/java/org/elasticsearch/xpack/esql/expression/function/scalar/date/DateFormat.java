@@ -174,16 +174,32 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
         EvalOperator.ExpressionEvaluator.Factory formatEvaluator
     ) {
         if (dateType == DATE_NANOS) {
-            return new DateFormatNanosEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, configuration().zoneId(), configuration().locale());
+            return new DateFormatNanosEvaluator.Factory(
+                source(),
+                fieldEvaluator,
+                formatEvaluator,
+                configuration().zoneId(),
+                configuration().locale()
+            );
         }
-        return new DateFormatMillisEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, configuration().zoneId(), configuration().locale());
+        return new DateFormatMillisEvaluator.Factory(
+            source(),
+            fieldEvaluator,
+            formatEvaluator,
+            configuration().zoneId(),
+            configuration().locale()
+        );
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
-            return getConstantEvaluator(field().dataType(), fieldEvaluator, DEFAULT_DATE_TIME_FORMATTER.withZone(configuration().zoneId()).withLocale(configuration().locale()));
+            return getConstantEvaluator(
+                field().dataType(),
+                fieldEvaluator,
+                DEFAULT_DATE_TIME_FORMATTER.withZone(configuration().zoneId()).withLocale(configuration().locale())
+            );
         }
         if (DataType.isString(format.dataType()) == false) {
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");

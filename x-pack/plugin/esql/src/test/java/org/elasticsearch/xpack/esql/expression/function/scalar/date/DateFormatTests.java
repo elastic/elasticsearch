@@ -133,10 +133,11 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
                         new TestCaseSupplier.TypedData(format, DataType.KEYWORD, "format"),
                         new TestCaseSupplier.TypedData(dateMillis, DataType.DATETIME, "date")
                     ),
-                        "DateFormatMillisEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=" + zoneId + ", locale="
-                            + locale
-                            + "]"
-                    ,
+                    "DateFormatMillisEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId="
+                        + zoneId
+                        + ", locale="
+                        + locale
+                        + "]",
                     DataType.KEYWORD,
                     matchesBytesRef(expectedString)
                 ).withConfiguration(TEST_SOURCE, configurationForTimezoneAndLocale(zoneId, locale))
@@ -149,10 +150,11 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
                         new TestCaseSupplier.TypedData(format, DataType.KEYWORD, "format"),
                         new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(dateMillis), DataType.DATE_NANOS, "date")
                     ),
-                        "DateFormatNanosEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=" + zoneId + ", locale="
-                            + locale
-                            + "]"
-                    ,
+                    "DateFormatNanosEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId="
+                        + zoneId
+                        + ", locale="
+                        + locale
+                        + "]",
                     DataType.KEYWORD,
                     matchesBytesRef(expectedString)
                 ).withConfiguration(TEST_SOURCE, configurationForTimezoneAndLocale(zoneId, locale))
@@ -169,13 +171,12 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
                 date + " (millis) - " + locale,
                 List.of(DataType.DATETIME),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(dateMillis, DataType.DATETIME, "date")
-                    ),
-                    "DateFormatMillisConstantEvaluator[val=Attribute[channel=0], formatter=format[strict_date_optional_time] zone[" + zoneId + "] locale["
+                    List.of(new TestCaseSupplier.TypedData(dateMillis, DataType.DATETIME, "date")),
+                    "DateFormatMillisConstantEvaluator[val=Attribute[channel=0], formatter=format[strict_date_optional_time] zone["
+                        + zoneId
+                        + "] locale["
                         + locale
-                        + "]]"
-                    ,
+                        + "]]",
                     DataType.KEYWORD,
                     matchesBytesRef(expectedString)
                 ).withConfiguration(TEST_SOURCE, configurationForTimezoneAndLocale(zoneId, locale))
@@ -184,13 +185,12 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
                 date + " (nanos) - " + locale,
                 List.of(DataType.DATE_NANOS),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(dateMillis), DataType.DATE_NANOS, "date")
-                    ),
-                    "DateFormatNanosConstantEvaluator[val=Attribute[channel=0], formatter=format[strict_date_optional_time] zone[" + zoneId + "] locale["
+                    List.of(new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(dateMillis), DataType.DATE_NANOS, "date")),
+                    "DateFormatNanosConstantEvaluator[val=Attribute[channel=0], formatter=format[strict_date_optional_time] zone["
+                        + zoneId
+                        + "] locale["
                         + locale
-                        + "]]"
-                    ,
+                        + "]]",
                     DataType.KEYWORD,
                     matchesBytesRef(expectedString)
                 ).withConfiguration(TEST_SOURCE, configurationForTimezoneAndLocale(zoneId, locale))

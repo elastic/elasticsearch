@@ -32,11 +32,7 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
     public void testResolvesRemoteIndex() {
         indexRandom(REMOTE_CLUSTER_1, true, "index-1", 1);
 
-        try (
-            var response = run(
-                syncEsqlQueryRequest().query("FROM " + REMOTE_CLUSTER_1 + ":index-1 METADATA _index").includeCCSMetadata(true)
-            )
-        ) {
+        try (var response = run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":index-1 METADATA _index").includeCCSMetadata(true))) {
             assertOk(response);
             assertResultConcreteIndices(response, REMOTE_CLUSTER_1 + ":index-1");
             assertExecutionInfo(response, new EsqlResponseExecutionInfo(REMOTE_CLUSTER_1, "index-1", Status.SUCCESSFUL));
@@ -51,27 +47,23 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":fake]"),
-            () -> run(syncEsqlQueryRequest().query("FROM data," + REMOTE_CLUSTER_1 + ":fake"))
+            () -> run(syncEsqlQueryRequest("FROM data," + REMOTE_CLUSTER_1 + ":fake"))
         );
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":fake]"),
-            () -> run(syncEsqlQueryRequest().query("FROM data," + REMOTE_CLUSTER_1 + ":fake").allowPartialResults(true))
+            () -> run(syncEsqlQueryRequest("FROM data," + REMOTE_CLUSTER_1 + ":fake").allowPartialResults(true))
         );
 
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":fake]"),
-            () -> run(syncEsqlQueryRequest().query("FROM data," + REMOTE_CLUSTER_1 + ":fake"))
+            () -> run(syncEsqlQueryRequest("FROM data," + REMOTE_CLUSTER_1 + ":fake"))
         );
 
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
-        try (
-            var response = run(
-                syncEsqlQueryRequest().query("FROM data," + REMOTE_CLUSTER_1 + ":fake METADATA _index").includeCCSMetadata(true)
-            )
-        ) {
+        try (var response = run(syncEsqlQueryRequest("FROM data," + REMOTE_CLUSTER_1 + ":fake METADATA _index").includeCCSMetadata(true))) {
             assertPartial(response);
             assertResultConcreteIndices(response, "data");
             assertExecutionInfo(
@@ -82,11 +74,7 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
         }
 
         setSkipUnavailable(REMOTE_CLUSTER_1, null);
-        try (
-            var response = run(
-                syncEsqlQueryRequest().query("FROM data," + REMOTE_CLUSTER_1 + ":fake METADATA _index").includeCCSMetadata(true)
-            )
-        ) {
+        try (var response = run(syncEsqlQueryRequest("FROM data," + REMOTE_CLUSTER_1 + ":fake METADATA _index").includeCCSMetadata(true))) {
             assertPartial(response);
             assertResultConcreteIndices(response, "data");
             assertExecutionInfo(
@@ -103,7 +91,7 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
 
         try (
             var response = run(
-                syncEsqlQueryRequest().query("FROM index-1," + REMOTE_CLUSTER_1 + ":index-1 METADATA _index").includeCCSMetadata(true)
+                syncEsqlQueryRequest("FROM index-1," + REMOTE_CLUSTER_1 + ":index-1 METADATA _index").includeCCSMetadata(true)
             )
         ) {
             assertOk(response);
@@ -121,7 +109,7 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
         indexRandom(REMOTE_CLUSTER_1, true, "index-1", 1);
         indexRandom(REMOTE_CLUSTER_2, true, "index-1", 1);
 
-        try (var response = run(syncEsqlQueryRequest().query("FROM *:index-1 METADATA _index").includeCCSMetadata(true))) {
+        try (var response = run(syncEsqlQueryRequest("FROM *:index-1 METADATA _index").includeCCSMetadata(true))) {
             assertOk(response);
             assertResultConcreteIndices(response, REMOTE_CLUSTER_1 + ":index-1", REMOTE_CLUSTER_2 + ":index-1"); // local is not included
             assertExecutionInfo(
@@ -130,7 +118,7 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
                 new EsqlResponseExecutionInfo(REMOTE_CLUSTER_2, "index-1", Status.SUCCESSFUL)
             );
         }
-        try (var response = run(syncEsqlQueryRequest().query("FROM fake*:index-1 METADATA _index").includeCCSMetadata(true))) {
+        try (var response = run(syncEsqlQueryRequest("FROM fake*:index-1 METADATA _index").includeCCSMetadata(true))) {
             assertOk(response);
             assertResultConcreteIndices(response); // empty
             assertExecutionInfo(response); // empty
@@ -141,7 +129,7 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
         expectThrows(
             NoSuchRemoteClusterException.class,
             containsString("no such remote cluster: [fake]"),
-            () -> run(syncEsqlQueryRequest().query("FROM fake:index-1 METADATA _index"))
+            () -> run(syncEsqlQueryRequest("FROM fake:index-1 METADATA _index"))
         );
     }
 
@@ -150,7 +138,7 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
 
         try (
             var response = run(
-                syncEsqlQueryRequest().query("FROM " + REMOTE_CLUSTER_1 + ":index-1 METADATA _index").filter(new MatchAllQueryBuilder())
+                syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":index-1 METADATA _index").filter(new MatchAllQueryBuilder())
             )
         ) {
             assertOk(response);
@@ -159,7 +147,7 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
         }
         try (
             var response = run(
-                syncEsqlQueryRequest().query("FROM " + REMOTE_CLUSTER_1 + ":index-1 METADATA _index").filter(new MatchNoneQueryBuilder())
+                syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":index-1 METADATA _index").filter(new MatchNoneQueryBuilder())
             )
         ) {
             assertOk(response);

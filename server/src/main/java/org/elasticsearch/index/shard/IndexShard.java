@@ -1713,7 +1713,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL);
     }
 
-    public Engine.SearcherSupplier acquireSearcherSupplier(SplitShardCountSummary splitShardCountSummary) {
+    /**
+     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
+     * The supplier is aware of shard splits and will filter documents that have been moved to other shards
+     * according to the provided {@link SplitShardCountSummary}.
+     * @param splitShardCountSummary a summary of the shard routing state seen when the search request was created
+     * @return a searcher supplier
+     */
+    public Engine.SearcherSupplier acquireExternalSearcherSupplier(SplitShardCountSummary splitShardCountSummary) {
         return acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL, splitShardCountSummary);
     }
 

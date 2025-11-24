@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ESTestCase;
@@ -49,6 +50,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
     private ClusterService clusterService;
     private PersistentTasksService persistentTasksService;
     private String localNodeId;
+    private FeatureService enabledFeatureServiceMock;
 
     @Before
     public void setUp() throws Exception {
@@ -57,6 +59,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         clusterService = createClusterService(threadPool);
         persistentTasksService = mock(PersistentTasksService.class);
         localNodeId = clusterService.localNode().getId();
+        enabledFeatureServiceMock = mock(FeatureService.class);
+        when(enabledFeatureServiceMock.clusterHasFeature(any(), any())).thenReturn(true);
     }
 
     @After
@@ -72,6 +76,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         var executor = new AuthorizationTaskExecutor(
             mockClusterService,
             persistentTasksService,
+            enabledFeatureServiceMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
@@ -102,6 +107,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         var executor = new AuthorizationTaskExecutor(
             mockClusterService,
             persistentTasksService,
+            enabledFeatureServiceMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
@@ -138,6 +144,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         var executor = new AuthorizationTaskExecutor(
             mockClusterService,
             persistentTasksService,
+            enabledFeatureServiceMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
@@ -168,6 +175,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         var executor = new AuthorizationTaskExecutor(
             mockClusterService,
             persistentTasksService,
+            enabledFeatureServiceMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
@@ -214,6 +222,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         var executor = new AuthorizationTaskExecutor(
             mockClusterService,
             persistentTasksService,
+            enabledFeatureServiceMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
@@ -263,6 +272,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         var executor = new AuthorizationTaskExecutor(
             mockClusterService,
             persistentTasksService,
+            enabledFeatureServiceMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
@@ -292,6 +302,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         var executor = new AuthorizationTaskExecutor(
             clusterService,
             persistentTasksService,
+            enabledFeatureServiceMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
@@ -340,10 +351,46 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(EMPTY_METADATA).build();
     }
 
+    public void testDoesNotCreateTask_WhenFeatureIsNotSupported() {
+        var eisUrl = "abc";
+        var disabledFeatureServiceMock = mock(FeatureService.class);
+        when(disabledFeatureServiceMock.clusterHasFeature(any(), any())).thenReturn(false);
+
+        var executor = new AuthorizationTaskExecutor(
+            clusterService,
+            persistentTasksService,
+            disabledFeatureServiceMock,
+            new AuthorizationPoller.Parameters(
+                createWithEmptySettings(threadPool),
+                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
+                mock(Sender.class),
+                ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                mock(ModelRegistry.class),
+                mock(Client.class),
+                createMockCCMFeature(false),
+                createMockCCMService(false)
+            )
+        );
+        executor.startAndImmediatelyCreateTask();
+
+        var listener1 = new PlainActionFuture<Void>();
+        clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener1);
+        listener1.actionGet(TimeValue.THIRTY_SECONDS);
+        // We should never call sendClusterStartRequest since the feature is not supported
+        verify(persistentTasksService, never()).sendClusterStartRequest(
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationTaskParams.INSTANCE),
+            any(),
+            any()
+        );
+    }
+
     public void testDoesNotRegisterClusterStateListener_DoesNotCreateTask_WhenTheEisUrlIsEmpty() {
         var executor = new AuthorizationTaskExecutor(
             clusterService,
             persistentTasksService,
+            enabledFeatureServiceMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
@@ -373,6 +420,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         var executor = new AuthorizationTaskExecutor(
             clusterService,
             persistentTasksService,
+            enabledFeatureServiceMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
@@ -425,6 +473,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         var executor = new AuthorizationTaskExecutor(
             mockClusterService,
             persistentTasksService,
+            enabledFeatureServiceMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),

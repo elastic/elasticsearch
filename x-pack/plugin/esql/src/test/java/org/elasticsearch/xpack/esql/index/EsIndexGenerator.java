@@ -14,15 +14,26 @@ import org.elasticsearch.xpack.esql.type.EsFieldTests;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.core.Tuple.tuple;
 
 public class EsIndexGenerator {
 
+    public static EsIndex esIndex(String name) {
+        return new EsIndex(name, Map.of(), Map.of(), Set.of());
+    }
+
+    public static EsIndex esIndex(String name, Map<String, EsField> mapping) {
+        return new EsIndex(name, mapping, Map.of(), Set.of());
+    }
+
+    public static EsIndex esIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) {
+        return new EsIndex(name, mapping, indexNameWithModes, Set.of());
+    }
+
     public static EsIndex randomEsIndex() {
-        String name = ESTestCase.randomIdentifier();
-        Map<String, EsField> mapping = randomMapping();
-        return new EsIndex(name, mapping, randomIndexNameWithModes());
+        return new EsIndex(ESTestCase.randomIdentifier(), randomMapping(), randomIndexNameWithModes(), Set.of());
     }
 
     public static Map<String, EsField> randomMapping() {

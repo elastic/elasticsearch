@@ -29,7 +29,7 @@ public class FeatureUpgradeApiIT extends AbstractSystemIndicesIT {
 
     @After
     public void resetFeatures() throws Exception {
-        client().performRequest(new Request("POST", "/_features/_reset"));
+        performPostFeaturesReset(client());
     }
 
     public void testCreatingSystemIndex() throws Exception {

@@ -81,7 +81,8 @@ public final class Case extends EsqlScalarFunction {
             "keyword",
             "long",
             "unsigned_long",
-            "version" },
+            "version",
+            "exponential_histogram" },
         description = """
             Accepts pairs of conditions and values. The function returns the value that
             belongs to the first condition that evaluates to `true`.
@@ -126,7 +127,8 @@ public final class Case extends EsqlScalarFunction {
                 "long",
                 "text",
                 "unsigned_long",
-                "version" },
+                "version",
+                "exponential_histogram" },
             description = "The value that’s returned when the corresponding condition is the first to evaluate to `true`. "
                 + "The default value is returned when no condition matches."
         ) List<Expression> rest

@@ -25,17 +25,6 @@ public record EsIndex(
         assert partiallyUnmappedFields != null;
     }
 
-    public EsIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) {
-        this(name, mapping, indexNameWithModes, Set.of());
-    }
-
-    /**
-     * Intended for tests. Returns an index with an empty index mode map.
-     */
-    public EsIndex(String name, Map<String, EsField> mapping) {
-        this(name, mapping, Map.of(), Set.of());
-    }
-
     public boolean isPartiallyUnmappedField(String fieldName) {
         return partiallyUnmappedFields.contains(fieldName);
     }

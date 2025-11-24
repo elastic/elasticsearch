@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.gpu;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
@@ -20,7 +19,6 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.xpack.gpu.TestVectorsFormatUtils.randomGPUSupportedSimilarity;
-import static org.hamcrest.Matchers.equalTo;
 
 public class GPUPluginInitializationUnsupportedIT extends ESIntegTestCase {
 
@@ -34,24 +32,23 @@ public class GPUPluginInitializationUnsupportedIT extends ESIntegTestCase {
         return List.of(GPUPlugin.class);
     }
 
-    public void testIndexSettingOnGPUSupportThrowsRethrows() {
+    public void testAutoModeWithUnavailableGPU() {
         assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
 
-        createIndex("index1", Settings.builder().put(GPUPlugin.VECTORS_INDEXING_USE_GPU_SETTING.getKey(), GPUPlugin.GpuMode.TRUE).build());
+        createIndex("index1");
         IndexSettings settings = getIndexSettings();
         final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
 
-        var ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions, randomGPUSupportedSimilarity(indexOptions.getType()))
+        // With AUTO mode (default) and no GPU, should return null (fallback to CPU)
+        var format = vectorsFormatProvider.getKnnVectorsFormat(
+            settings,
+            indexOptions,
+            randomGPUSupportedSimilarity(indexOptions.getType())
         );
-        assertThat(
-            ex.getMessage(),
-            equalTo("[index.vectors.indexing.use_gpu] was set to [true], but GPU resources are not accessible on the node.")
-        );
+        assertNull(format);
     }
 
     private IndexSettings getIndexSettings() {

@@ -25,7 +25,7 @@ public class DimensionFieldValueFetcher extends FieldValueFetcher {
     }
 
     private DimensionFieldProducer createFieldProducer() {
-        return new DimensionFieldProducer(name, new DimensionFieldProducer.Dimension(name));
+        return new DimensionFieldProducer(name);
     }
 
     @Override

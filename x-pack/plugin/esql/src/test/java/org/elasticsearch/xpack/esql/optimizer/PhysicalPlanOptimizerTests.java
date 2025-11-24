@@ -99,6 +99,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -164,6 +165,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -400,7 +402,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     ) {
         Map<String, EsField> mapping = loadMapping(mappingFileName);
         EsIndex[] indexes = new EsIndex[1 + lookupResolution.size()];
-        indexes[0] = new EsIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
+        indexes[0] = EsIndexGenerator.esIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
         for (int i = 0; i < lookupResolution.size(); i++) {
             indexes[i + 1] = lookupResolution.values().toArray(new IndexResolution[0])[i].get();
         }
@@ -3126,14 +3128,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // Transform the verified plan so that it is invalid (i.e. no source attributes)
         var badPlan = verifiedPlan.transformDown(
             EsQueryExec.class,
-            node -> new EsSourceExec(
-                node.source(),
-                node.indexPattern(),
-                IndexMode.STANDARD,
-                node.indexNameWithModes(),
-                List.of(),
-                node.query()
-            )
+            node -> new EsSourceExec(node.source(), node.indexPattern(), IndexMode.STANDARD, List.of(), node.query())
         );
 
         var e = expectThrows(VerificationException.class, () -> testData.physicalOptimizer().verify(badPlan, verifiedPlan.output()));
@@ -3246,18 +3241,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
         // EsRelation[test][some_field1{f}#2, some_field2{f}#3]<>]]
 
-        EsRelation relation = new EsRelation(
+        var esField = List.of(
+            new EsField("some_field1", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            new EsField("some_field2", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        var index = EsIndexGenerator.esIndex("test", esField.stream().collect(Collectors.toMap(EsField::getName, Function.identity())));
+        var relation = new EsRelation(
             Source.EMPTY,
-            new EsIndex(
-                "test",
-                Map.of(
-                    "some_field1",
-                    new EsField("some_field1", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
-                    "some_field2",
-                    new EsField("some_field2", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
-                )
-            ),
-            IndexMode.STANDARD
+            index.name(),
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            index.indexNameWithModes(),
+            esField.stream().map(field -> (Attribute) new FieldAttribute(Source.EMPTY, null, null, field.getName(), field)).toList()
         );
         Attribute some_field1 = relation.output().get(0);
         Attribute some_field2 = relation.output().get(1);
@@ -8156,7 +8152,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             String lookupIndexName = entry.getKey();
             Map<String, EsField> lookup_fields = fields(entry.getValue());
 
-            EsIndex lookupIndex = new EsIndex(lookupIndexName, lookup_fields, Map.of(lookupIndexName, IndexMode.LOOKUP));
+            EsIndex lookupIndex = EsIndexGenerator.esIndex(lookupIndexName, lookup_fields, Map.of(lookupIndexName, IndexMode.LOOKUP));
             lookupIndices.put(lookupIndexName, IndexResolution.valid(lookupIndex));
         }
 

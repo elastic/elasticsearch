@@ -83,9 +83,12 @@ public class S3HttpHandlerTests extends ESTestCase {
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
             </ListBucketResult>""");
 
-        final var body = randomAlphaOfLength(50);
+        final var body = new BytesArray(randomAlphaOfLength(50).getBytes(StandardCharsets.UTF_8));
         assertEquals(RestStatus.OK, handleRequest(handler, "PUT", "/bucket/path/blob", body).status());
-        assertEquals(new TestHttpResponse(RestStatus.OK, body), handleRequest(handler, "GET", "/bucket/path/blob"));
+        assertEquals(
+            new TestHttpResponse(RestStatus.OK, body, addETag(S3HttpHandler.getEtagFromContents(body), TestHttpExchange.EMPTY_HEADERS)),
+            handleRequest(handler, "GET", "/bucket/path/blob")
+        );
 
         assertListObjectsResponse(handler, "", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
@@ -135,23 +138,33 @@ public class S3HttpHandlerTests extends ESTestCase {
         final var blobBytes = randomBytesReference(256);
         assertEquals(RestStatus.OK, handleRequest(handler, "PUT", blobPath, blobBytes).status());
 
+        final var expectedEtag = S3HttpHandler.getEtagFromContents(blobBytes);
+
         assertEquals(
             "No Range",
-            new TestHttpResponse(RestStatus.OK, blobBytes, TestHttpExchange.EMPTY_HEADERS),
+            new TestHttpResponse(RestStatus.OK, blobBytes, addETag(expectedEtag, TestHttpExchange.EMPTY_HEADERS)),
             handleRequest(handler, "GET", blobPath)
         );
 
         var end = blobBytes.length() - 1;
         assertEquals(
             "Exact Range: bytes=0-" + end,
-            new TestHttpResponse(RestStatus.PARTIAL_CONTENT, blobBytes, contentRangeHeader(0, end, blobBytes.length())),
+            new TestHttpResponse(
+                RestStatus.PARTIAL_CONTENT,
+                blobBytes,
+                addETag(expectedEtag, contentRangeHeader(0, end, blobBytes.length()))
+            ),
             handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(0, end))
         );
 
         end = randomIntBetween(blobBytes.length() - 1, Integer.MAX_VALUE);
         assertEquals(
             "Larger Range: bytes=0-" + end,
-            new TestHttpResponse(RestStatus.PARTIAL_CONTENT, blobBytes, contentRangeHeader(0, blobBytes.length() - 1, blobBytes.length())),
+            new TestHttpResponse(
+                RestStatus.PARTIAL_CONTENT,
+                blobBytes,
+                addETag(expectedEtag, contentRangeHeader(0, blobBytes.length() - 1, blobBytes.length()))
+            ),
             handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(0, end))
         );
 
@@ -159,7 +172,11 @@ public class S3HttpHandlerTests extends ESTestCase {
         end = randomIntBetween(start, Integer.MAX_VALUE);
         assertEquals(
             "Invalid Range: bytes=" + start + '-' + end,
-            new TestHttpResponse(RestStatus.REQUESTED_RANGE_NOT_SATISFIED, BytesArray.EMPTY, TestHttpExchange.EMPTY_HEADERS),
+            new TestHttpResponse(
+                RestStatus.REQUESTED_RANGE_NOT_SATISFIED,
+                BytesArray.EMPTY,
+                addETag(expectedEtag, TestHttpExchange.EMPTY_HEADERS)
+            ),
             handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(start, end))
         );
 
@@ -167,7 +184,7 @@ public class S3HttpHandlerTests extends ESTestCase {
         end = randomIntBetween(0, start - 1);
         assertEquals(
             "Weird Valid Range: bytes=" + start + '-' + end,
-            new TestHttpResponse(RestStatus.OK, blobBytes, TestHttpExchange.EMPTY_HEADERS),
+            new TestHttpResponse(RestStatus.OK, blobBytes, addETag(expectedEtag, TestHttpExchange.EMPTY_HEADERS)),
             handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(start, end))
         );
 
@@ -179,7 +196,7 @@ public class S3HttpHandlerTests extends ESTestCase {
             new TestHttpResponse(
                 RestStatus.PARTIAL_CONTENT,
                 blobBytes.slice(start, length),
-                contentRangeHeader(start, end, blobBytes.length())
+                addETag(expectedEtag, contentRangeHeader(start, end, blobBytes.length()))
             ),
             handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(start, end))
         );
@@ -245,7 +262,15 @@ public class S3HttpHandlerTests extends ESTestCase {
             <Contents><Key>path/blob</Key><Size>100</Size></Contents>\
             </ListBucketResult>""");
 
-        assertEquals(new TestHttpResponse(RestStatus.OK, part1 + part2), handleRequest(handler, "GET", "/bucket/path/blob"));
+        final var expectedContents = new BytesArray((part1 + part2).getBytes(StandardCharsets.UTF_8));
+        assertEquals(
+            new TestHttpResponse(
+                RestStatus.OK,
+                expectedContents,
+                addETag(S3HttpHandler.getEtagFromContents(expectedContents), TestHttpExchange.EMPTY_HEADERS)
+            ),
+            handleRequest(handler, "GET", "/bucket/path/blob")
+        );
 
         assertEquals(new TestHttpResponse(RestStatus.OK, """
             <?xml version='1.0' encoding='UTF-8'?>\
@@ -416,7 +441,11 @@ public class S3HttpHandlerTests extends ESTestCase {
         });
 
         assertEquals(
-            new TestHttpResponse(RestStatus.OK, successfulTasks.getFirst().body, TestHttpExchange.EMPTY_HEADERS),
+            new TestHttpResponse(
+                RestStatus.OK,
+                successfulTasks.getFirst().body,
+                addETag(S3HttpHandler.getEtagFromContents(successfulTasks.getFirst().body), TestHttpExchange.EMPTY_HEADERS)
+            ),
             handleRequest(handler, "GET", "/bucket/path/blob")
         );
     }
@@ -560,6 +589,12 @@ public class S3HttpHandlerTests extends ESTestCase {
         var headers = new Headers();
         headers.put("If-None-Match", List.of("*"));
         return headers;
+    }
+
+    private static Headers addETag(String eTag, Headers headers) {
+        final var newHeaders = new Headers(headers);
+        newHeaders.add("ETag", eTag);
+        return newHeaders;
     }
 
     private static class TestHttpExchange extends HttpExchange {

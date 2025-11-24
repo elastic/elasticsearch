@@ -81,8 +81,7 @@ public class InternalPreconfiguredEndpoints {
                     DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
                     TaskType.CHAT_COMPLETION,
                     ElasticInferenceService.NAME,
-                    COMPLETION_SERVICE_SETTINGS,
-                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                    COMPLETION_SERVICE_SETTINGS
                 ),
                 COMPLETION_SERVICE_SETTINGS
             )
@@ -94,8 +93,7 @@ public class InternalPreconfiguredEndpoints {
                     GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID,
                     TaskType.CHAT_COMPLETION,
                     ElasticInferenceService.NAME,
-                    GP_LLM_V2_COMPLETION_SERVICE_SETTINGS,
-                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                    GP_LLM_V2_COMPLETION_SERVICE_SETTINGS
                 ),
                 GP_LLM_V2_COMPLETION_SERVICE_SETTINGS
             ),
@@ -104,8 +102,7 @@ public class InternalPreconfiguredEndpoints {
                     GP_LLM_V2_COMPLETION_ENDPOINT_ID,
                     TaskType.COMPLETION,
                     ElasticInferenceService.NAME,
-                    GP_LLM_V2_COMPLETION_SERVICE_SETTINGS,
-                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                    GP_LLM_V2_COMPLETION_SERVICE_SETTINGS
                 ),
                 GP_LLM_V2_COMPLETION_SERVICE_SETTINGS
             )

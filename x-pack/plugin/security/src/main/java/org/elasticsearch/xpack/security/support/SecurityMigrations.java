@@ -116,8 +116,8 @@ public class SecurityMigrations {
             client.search(countRequest, ActionListener.wrap(response -> {
                 if (response.isTimedOut() == false && response.getFailedShards() == 0) {
                     // If there are no roles, skip migration
-                    if (response.getHits().getTotalHits() != null && response.getHits().getTotalHits().value() > 0) {
-                        logger.info("Preparing to migrate [{}] roles", response.getHits().getTotalHits().value());
+                    if (response.getHits().getTotalHits() != null && response.getHits().getTotalHits().value > 0) {
+                        logger.info("Preparing to migrate [{}] roles", response.getHits().getTotalHits().value);
                         updateRolesByQuery(indexManager, client, filterQuery, listener);
                     } else {
                         listener.onResponse(null);

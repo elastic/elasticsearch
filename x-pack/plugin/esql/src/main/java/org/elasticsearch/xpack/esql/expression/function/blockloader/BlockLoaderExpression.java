@@ -173,7 +173,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
  * <p>
  *     Look for your function in the csv-spec tests and make sure there are cases that
  *     contain your function processing each data type you are pushing. For each type,
- *     make sure the function processes the results of
+ *     make sure the function processes the results of:
  * </p>
  * <ul>
  *     <li>{@code ROW} - these <strong>won't</strong> use your new code</li>

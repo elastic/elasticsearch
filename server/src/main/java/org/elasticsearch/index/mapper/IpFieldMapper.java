@@ -489,9 +489,6 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
             if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSource)) {
-                if (config == null) {
-                    return true;
-                }
                 return switch (config.function()) {
                     case MV_MAX, MV_MIN -> true;
                     default -> false;

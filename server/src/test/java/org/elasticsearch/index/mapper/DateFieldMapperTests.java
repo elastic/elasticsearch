@@ -39,6 +39,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -855,7 +856,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 LeafReaderContext context = reader.leaves().get(0);
                 {
                     // One big doc block
-                    var columnReader = (LongsBlockLoader.SingletonLongs) blockLoader.columnAtATimeReader(context);
+                    var columnReader = (LongsBlockLoader.Singleton) blockLoader.columnAtATimeReader(context);
                     assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(from, to).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
@@ -867,7 +868,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 {
                     // Smaller doc blocks
                     int docBlockSize = 1000;
-                    var columnReader = (LongsBlockLoader.SingletonLongs) blockLoader.columnAtATimeReader(context);
+                    var columnReader = (LongsBlockLoader.Singleton) blockLoader.columnAtATimeReader(context);
                     assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     for (int i = from; i < to; i += docBlockSize) {
                         var docBlock = TestBlock.docs(IntStream.range(i, i + docBlockSize).toArray());
@@ -881,7 +882,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 }
                 {
                     // One smaller doc block:
-                    var columnReader = (LongsBlockLoader.SingletonLongs) blockLoader.columnAtATimeReader(context);
+                    var columnReader = (LongsBlockLoader.Singleton) blockLoader.columnAtATimeReader(context);
                     assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(1010, 2020).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
@@ -893,7 +894,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 }
                 {
                     // Read two tiny blocks:
-                    var columnReader = (LongsBlockLoader.SingletonLongs) blockLoader.columnAtATimeReader(context);
+                    var columnReader = (LongsBlockLoader.Singleton) blockLoader.columnAtATimeReader(context);
                     assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(32, 64).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
@@ -913,5 +914,34 @@ public class DateFieldMapperTests extends MapperTestCase {
                 }
             }
         }
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            new SortShortcutSupport(
+                IndexVersion.current(),
+                Settings.builder().put("index.mode", "logsdb").put("index.logsdb.sort_on_host_name", true).build(),
+                "@timestamp",
+                b -> b.field("type", "date").field("ignore_malformed", false),
+                b -> b.startObject("host.name").field("type", "keyword").endObject(),
+                b -> b.field("@timestamp", "2025-10-30T00:00:00").field("host.name", "foo"),
+                Assert::assertNotNull
+            ),
+            new SortShortcutSupport(b -> b.field("type", "date"), b -> b.field("field", "2025-10-30T00:00:00"), true),
+            new SortShortcutSupport(b -> b.field("type", "date_nanos"), b -> b.field("field", "2025-10-30T00:00:00"), true),
+            new SortShortcutSupport(
+                IndexVersion.fromId(5000099),
+                b -> b.field("type", "date"),
+                b -> b.field("field", "2025-10-30T00:00:00"),
+                false
+            ),
+            new SortShortcutSupport(
+                IndexVersion.fromId(5000099),
+                b -> b.field("type", "date_nanos"),
+                b -> b.field("field", "2025-10-30T00:00:00"),
+                false
+            )
+        );
     }
 }

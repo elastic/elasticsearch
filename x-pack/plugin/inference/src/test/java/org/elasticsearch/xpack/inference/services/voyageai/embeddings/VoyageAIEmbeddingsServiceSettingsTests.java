@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -31,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER;
 import static org.hamcrest.Matchers.is;
 
@@ -310,7 +312,33 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
 
     @Override
     protected VoyageAIEmbeddingsServiceSettings mutateInstance(VoyageAIEmbeddingsServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, VoyageAIEmbeddingsServiceSettingsTests::createRandom);
+        var commonSettings = instance.getCommonSettings();
+        var embeddingType = instance.getEmbeddingType();
+        var similarity = instance.similarity();
+        var dimensions = instance.dimensions();
+        var maxInputTokens = instance.maxInputTokens();
+        var dimensionsSetByUser = instance.dimensionsSetByUser();
+        switch (randomInt(5)) {
+            case 0 -> commonSettings = randomValueOtherThan(commonSettings, VoyageAIServiceSettingsTests::createRandom);
+            case 1 -> embeddingType = randomValueOtherThan(
+                embeddingType,
+                () -> randomFrom(randomFrom(VoyageAIEmbeddingType.values()), null)
+            );
+            case 2 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
+            case 3 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
+            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
+            case 5 -> dimensionsSetByUser = dimensionsSetByUser == false;
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new VoyageAIEmbeddingsServiceSettings(
+            commonSettings,
+            embeddingType,
+            similarity,
+            dimensions,
+            maxInputTokens,
+            dimensionsSetByUser
+        );
     }
 
     @Override

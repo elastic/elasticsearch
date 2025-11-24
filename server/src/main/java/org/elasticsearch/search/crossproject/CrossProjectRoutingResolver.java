@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 
@@ -24,9 +23,8 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
  * Resolves a single entry _alias for a cross-project request specifying a project_routing.
  * We currently only support a single entry routing containing either a specific name, a prefix, a suffix, or a match-all (*).
  */
-public class CrossProjectRoutingResolver {
+public class CrossProjectRoutingResolver implements ProjectRoutingResolver {
     private static final String ALIAS = "_alias:";
-    private static final String ORIGIN = "_origin";
     private static final int ALIAS_LENGTH = ALIAS.length();
     private static final String ALIAS_MATCH_ALL = ALIAS + "*";
     private static final String ALIAS_MATCH_ORIGIN = ALIAS + ORIGIN;
@@ -60,19 +58,35 @@ public class CrossProjectRoutingResolver {
     );
 
     /**
-     * @param projectRouting the project_routing specified in the request object.
-     * @param originProject the project alias where this function is being called.
-     * @param candidateProjects the list of project aliases for the active request. This list must *NOT* contain the originProject entry.
-     * @return the filtered list of projects matching the projectRouting, or an empty list if none are found.
-     * @throws ElasticsearchStatusException if the projectRouting is null, empty, does not start with "_alias:", contains more than one
-     *                                      entry, or contains an '*' in the middle of a string.
+     * Filters the specified TargetProjects based on the provided project routing string
+     * @param projectRouting the project_routing specified in the request object
+     * @param targetProjects The target projects to be filtered
+     * @return A new TargetProjects instance containing only the projects that match the project routing.
+     *  @throws ElasticsearchStatusException if the projectRouting is null, empty, does not start with "_alias:", contains more than one
+     *                                       entry, or contains an '*' in the middle of a string.
      */
-    public List<ProjectRoutingInfo> resolve(
-        String projectRouting,
-        ProjectRoutingInfo originProject,
-        List<ProjectRoutingInfo> candidateProjects
-    ) {
+    @Override
+    public TargetProjects resolve(String projectRouting, TargetProjects targetProjects) {
+        assert targetProjects != TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED;
+        if (targetProjects.isEmpty()) {
+            return TargetProjects.EMPTY;
+        }
+
+        if (projectRouting == null || projectRouting.isEmpty() || ALIAS_MATCH_ALL.equalsIgnoreCase(projectRouting)) {
+            return targetProjects;
+        }
+
+        final var originProject = targetProjects.originProject();
+        assert originProject != null : "origin project must not be null";
+        // TODO: some of the assertions such as alias and non-overlapping could be enforced in TargetProjects constructor
         assert originProject.projectAlias().equalsIgnoreCase(ORIGIN) == false : "origin project alias must not be " + ORIGIN;
+
+        if (ALIAS_MATCH_ORIGIN.equalsIgnoreCase(projectRouting)) {
+            return new TargetProjects(originProject, List.of());
+        }
+
+        final var candidateProjects = targetProjects.linkedProjects();
+        assert candidateProjects != null : "candidate projects must not be null";
 
         var candidateProjectStream = candidateProjects.stream().peek(candidateProject -> {
             assert candidateProject.projectAlias().equalsIgnoreCase(ORIGIN) == false : "project alias must not be " + ORIGIN;
@@ -81,18 +95,13 @@ public class CrossProjectRoutingResolver {
             return candidateProject.equals(originProject) == false; // assertions are disabled in prod, instead we should filter this out
         });
 
-        if (ALIAS_MATCH_ORIGIN.equalsIgnoreCase(projectRouting)) {
-            return List.of(originProject);
-        }
-
-        if (projectRouting == null || projectRouting.isEmpty() || ALIAS_MATCH_ALL.equalsIgnoreCase(projectRouting)) {
-            return Stream.concat(Stream.of(originProject), candidateProjectStream).toList();
-        }
-
         validateProjectRouting(projectRouting);
 
         var matchesSpecifiedRoute = createRoutingEntryFilter(projectRouting);
-        return Stream.concat(Stream.of(originProject), candidateProjectStream).filter(matchesSpecifiedRoute).toList();
+        return new TargetProjects(
+            matchesSpecifiedRoute.test(originProject) ? originProject : null,
+            candidateProjectStream.filter(matchesSpecifiedRoute).toList()
+        );
     }
 
     private static void validateProjectRouting(String projectRouting) {

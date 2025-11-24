@@ -17,7 +17,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
@@ -49,7 +48,6 @@ import java.util.stream.Stream;
 public class ObjectMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(ObjectMapper.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
-    public static final boolean SUB_OBJECTS_AUTO_FEATURE_FLAG = new FeatureFlag("sub_objects_auto").isEnabled();
     static final NodeFeature SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX = new NodeFeature("mapper.subobjects_false_mapping_update_fix");
 
     public static final String CONTENT_TYPE = "object";
@@ -61,8 +59,7 @@ public class ObjectMapper extends Mapper {
      */
     public enum Subobjects {
         ENABLED(Boolean.TRUE),
-        DISABLED(Boolean.FALSE),
-        AUTO("auto");
+        DISABLED(Boolean.FALSE);
 
         private final Object printedValue;
 
@@ -80,9 +77,6 @@ public class ObjectMapper extends Mapper {
                 }
                 if (value.equalsIgnoreCase("false")) {
                     return DISABLED;
-                }
-                if (SUB_OBJECTS_AUTO_FEATURE_FLAG && value.equalsIgnoreCase("auto")) {
-                    return AUTO;
                 }
             }
             throw new ElasticsearchParseException("unknown subobjects value: " + node);
@@ -202,9 +196,6 @@ public class ObjectMapper extends Mapper {
                 if (parentBuilder != null) {
                     parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
                     add(parentBuilder);
-                } else if (subobjects.value() == Subobjects.AUTO) {
-                    // No matching parent object was found, the mapper is added as a leaf - similar to subobjects false.
-                    add(name, mapper);
                 } else {
                     // Expected to find a matching parent object but got null.
                     throw new IllegalStateException("Missing intermediate object " + immediateChildFullName);

@@ -133,20 +133,19 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
     /**
      * This is the cluster state task executor for cluster state update actions.
+     * Visible for testing
      */
-    private static final SimpleBatchedExecutor<DownsampleClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR =
-        new SimpleBatchedExecutor<>() {
-            @Override
-            public Tuple<ClusterState, Void> executeTask(DownsampleClusterStateUpdateTask task, ClusterState clusterState)
-                throws Exception {
-                return Tuple.tuple(task.execute(clusterState), null);
-            }
+    static final SimpleBatchedExecutor<DownsampleClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR = new SimpleBatchedExecutor<>() {
+        @Override
+        public Tuple<ClusterState, Void> executeTask(DownsampleClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
+            return Tuple.tuple(task.execute(clusterState), null);
+        }
 
-            @Override
-            public void taskSucceeded(DownsampleClusterStateUpdateTask task, Void unused) {
-                task.listener.onResponse(AcknowledgedResponse.TRUE);
-            }
-        };
+        @Override
+        public void taskSucceeded(DownsampleClusterStateUpdateTask task, Void unused) {
+            task.listener.onResponse(AcknowledgedResponse.TRUE);
+        }
+    };
 
     @Inject
     public TransportDownsampleAction(
@@ -238,6 +237,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        logger.debug(
+            "Starting downsampling [{}] with [{}] interval",
+            request.getSourceIndex(),
+            request.getDownsampleConfig().getFixedInterval()
+        );
         long startTime = nowSupplier.get();
         String sourceIndexName = request.getSourceIndex();
         IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(sourceIndexName);
@@ -863,15 +867,16 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         Map<String, String> meta = timestampFieldType.meta();
         if (meta.isEmpty() == false) {
-            String interval = meta.get(config.getIntervalType());
-            DownsampleConfig.SamplingMethod sourceSamplingMethod = DownsampleConfig.SamplingMethod.fromIndexMetadata(sourceIndexMetadata);
-            if (interval != null) {
+            String sourceInterval = meta.get(config.getIntervalType());
+            if (sourceInterval != null) {
                 try {
-                    DownsampleConfig sourceConfig = new DownsampleConfig(new DateHistogramInterval(interval), sourceSamplingMethod);
-                    DownsampleConfig.validateSourceAndTargetIntervals(sourceConfig, config);
+                    DownsampleConfig.validateSourceAndTargetIntervals(new DateHistogramInterval(sourceInterval), config.getFixedInterval());
                 } catch (IllegalArgumentException exception) {
                     e.addValidationError("Source index is a downsampled index. " + exception.getMessage());
                 }
+                DownsampleConfig.SamplingMethod sourceSamplingMethod = DownsampleConfig.SamplingMethod.fromIndexMetadata(
+                    sourceIndexMetadata
+                );
                 if (Objects.equals(sourceSamplingMethod, config.getSamplingMethodOrDefault()) == false) {
                     e.addValidationError(
                         "Source index is a downsampled index. Downsampling method ["
@@ -1025,6 +1030,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         taskQueue.submitTask("create-downsample-index [" + downsampleIndexName + "]", new DownsampleClusterStateUpdateTask(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                logger.debug("Creating downsample index [{}]", downsampleIndexName);
                 return metadataCreateIndexService.applyCreateIndexRequest(
                     currentState,
                     createIndexClusterStateUpdateRequest,
@@ -1086,6 +1092,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onResponse(final AcknowledgedResponse response) {
+            logger.debug("Preparing to refresh downsample index [{}]", downsampleIndexName);
             final RefreshRequest request = new RefreshRequest(downsampleIndexName);
             request.setParentTask(parentTask);
             client.admin()
@@ -1098,7 +1105,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onFailure(Exception e) {
-            recordSuccessMetrics(startTime);  // Downsampling has already completed in all shards.
             listener.onFailure(e);
         }
 
@@ -1150,8 +1156,14 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
+                        logger.debug("Updating downsample index status for [{}]", downsampleIndexName);
                         final ProjectMetadata project = currentState.metadata().getProject(projectId);
                         final IndexMetadata downsampleIndex = project.index(downsampleIndexName);
+                        if (downsampleIndex == null) {
+                            throw new IllegalStateException(
+                                "Failed to update downsample status because [" + downsampleIndexName + "] does not exist"
+                            );
+                        }
                         if (IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(downsampleIndex.getSettings()) == DownsampleTaskStatus.SUCCESS) {
                             return currentState;
                         }
@@ -1173,7 +1185,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onFailure(Exception e) {
-            recordSuccessMetrics(startTime);  // Downsampling has already completed in all shards.
             actionListener.onFailure(e);
         }
 
@@ -1201,6 +1212,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onResponse(final AcknowledgedResponse response) {
+            logger.debug("Preparing to flush downsample index [{}]", downsampleIndexName);
             FlushRequest request = new FlushRequest(downsampleIndexName);
             request.setParentTask(parentTask);
             client.admin()
@@ -1239,12 +1251,14 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         @Override
         public void onResponse(final AcknowledgedResponse response) {
             recordSuccessMetrics(startTime);
+            logger.debug("Downsampling measured successfully");
             actionListener.onResponse(AcknowledgedResponse.TRUE);
         }
 
         @Override
         public void onFailure(Exception e) {
-            recordSuccessMetrics(startTime);
+            recordFailureMetrics(startTime);
+            logger.debug("Downsampling failure measured successfully", e);
             this.actionListener.onFailure(e);
         }
 

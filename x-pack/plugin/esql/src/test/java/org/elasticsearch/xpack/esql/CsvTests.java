@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -191,9 +192,13 @@ public class CsvTests extends ESTestCase {
     private final CsvSpecReader.CsvTestCase testCase;
     private final String instructions;
 
-    private final Configuration configuration = EsqlTestUtils.configuration(
-        new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build())
-    );
+    /**
+     * The configuration to be used in the tests.
+     * <p>
+     *     Initialized in {@link #executePlan}.
+     * </p>
+     */
+    private Configuration configuration;
     private final EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     private final EsqlParser parser = new EsqlParser();
     private final Mapper mapper = new Mapper();
@@ -350,6 +355,14 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot currently handle subqueries",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.capabilityName())
             );
+            assumeFalse(
+                "CSV tests cannot currently handle CHUNK function",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.CHUNK_FUNCTION_V2.capabilityName())
+            );
+            assumeFalse(
+                "can't use PromQL in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_V0.capabilityName())
+            );
 
             if (Build.current().isSnapshot()) {
                 assertThat(
@@ -439,7 +452,14 @@ public class CsvTests extends ESTestCase {
             .toList();
         var mergedMappings = mergeMappings(mappings);
         return IndexResolution.valid(
-            new EsIndex(datasets.indexPattern(), mergedMappings.mapping, indexModes, mergedMappings.partiallyUnmappedFields)
+            new EsIndex(
+                datasets.indexPattern(),
+                mergedMappings.mapping,
+                indexModes,
+                Map.of(),
+                Map.of(),
+                mergedMappings.partiallyUnmappedFields
+            )
         );
     }
 
@@ -522,7 +542,10 @@ public class CsvTests extends ESTestCase {
             // this could practically work, but it's wrong:
             // EnrichPolicyResolution should contain the policy (system) index, not the source index
             EsIndex esIndex = loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset.of(sourceIndex.withTypeMapping(Map.of()))).get();
-            var concreteIndices = Map.of(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, Iterables.get(esIndex.concreteIndices(), 0));
+            var concreteIndices = Map.of(
+                RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
+                Iterables.get(esIndex.concreteQualifiedIndices(), 0)
+            );
             enrichResolution.addResolvedPolicy(
                 policyConfig.policyName(),
                 Enrich.Mode.ANY,
@@ -551,6 +574,7 @@ public class CsvTests extends ESTestCase {
 
     private LogicalPlan analyzedPlan(
         LogicalPlan parsed,
+        Configuration configuration,
         Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets,
         TransportVersion minimumVersion
     ) {
@@ -638,11 +662,16 @@ public class CsvTests extends ESTestCase {
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
-        LogicalPlan parsed = parser.createStatement(testCase.query);
-        var testDatasets = testDatasets(parsed);
+        EsqlStatement statement = parser.createQuery(testCase.query);
+        this.configuration = EsqlTestUtils.configuration(
+            new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),
+            testCase.query,
+            statement
+        );
+        var testDatasets = testDatasets(statement.plan());
         // Specifically use the newest transport version; the csv tests correspond to a single node cluster on the current version.
         TransportVersion minimumVersion = TransportVersion.current();
-        LogicalPlan analyzed = analyzedPlan(parsed, testDatasets, minimumVersion);
+        LogicalPlan analyzed = analyzedPlan(statement.plan(), configuration, testDatasets, minimumVersion);
 
         FoldContext foldCtx = FoldContext.small();
         EsqlSession session = new EsqlSession(

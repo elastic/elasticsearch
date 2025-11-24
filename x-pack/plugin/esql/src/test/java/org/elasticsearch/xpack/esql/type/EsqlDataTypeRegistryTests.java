@@ -52,11 +52,12 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
             )
         );
 
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(idxResponses, List.of());
+        FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder().withIndexResponses(idxResponses).build();
         // IndexResolver uses EsqlDataTypeRegistry directly
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
-            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false)
+            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false),
+            indexPattern -> Map.of()
         );
         EsField f = resolution.get().mapping().get(field);
         assertThat(f.getDataType(), equalTo(expected));

@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -257,6 +258,20 @@ public abstract class TransportVersionResourcesService implements BuildService<T
 
     private Path getUpperBoundRelativePath(String name) {
         return UPPER_BOUNDS_DIR.resolve(name + ".csv");
+    }
+
+    boolean checkIfDefinitelyOnReleaseBranch(Collection<TransportVersionUpperBound> upperBounds, String currentUpperBoundName) {
+        // only want to look at definitions <= the current upper bound.
+        // TODO: we should filter all of the upper bounds/definitions that are validated by this, not just in this method
+        TransportVersionUpperBound currentUpperBound = upperBounds.stream()
+            .filter(u -> u.name().equals(currentUpperBoundName))
+            .findFirst()
+            .orElse(null);
+        if (currentUpperBound == null) {
+            // since there is no current upper bound, we don't know if we are on a release branch
+            return false;
+        }
+        return upperBounds.stream().anyMatch(u -> u.definitionId().complete() > currentUpperBound.definitionId().complete());
     }
 
     private String getBaseRefName() {

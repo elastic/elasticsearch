@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParserContext;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
 import org.elasticsearch.index.mapper.TextParams;
@@ -88,7 +87,7 @@ public class PatternTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends BuilderWithSyntheticSourceContext {
+    public static class Builder extends TextFamilyBuilder {
 
         private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -97,23 +96,11 @@ public class PatternTextFieldMapper extends FieldMapper {
         private final Parameter<Boolean> disableTemplating;
 
         public Builder(String name, MappingParserContext context) {
-            this(
-                name,
-                context.indexVersionCreated(),
-                context.getIndexSettings(),
-                SourceFieldMapper.isSynthetic(context.getIndexSettings()),
-                context.isWithinMultiField()
-            );
+            this(name, context.indexVersionCreated(), context.getIndexSettings(), context.isWithinMultiField());
         }
 
-        public Builder(
-            String name,
-            IndexVersion indexCreatedVersion,
-            IndexSettings indexSettings,
-            boolean isSyntheticSourceEnabled,
-            boolean isWithinMultiField
-        ) {
-            super(name, indexCreatedVersion, isSyntheticSourceEnabled, isWithinMultiField);
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexSettings indexSettings, boolean isWithinMultiField) {
+            super(name, indexCreatedVersion, isWithinMultiField);
             this.indexSettings = indexSettings;
             this.analyzer = analyzerParam(name, m -> ((PatternTextFieldMapper) m).analyzer);
             this.disableTemplating = disableTemplatingParameter(indexSettings);
@@ -181,7 +168,7 @@ public class PatternTextFieldMapper extends FieldMapper {
          * associated index setting, which is set from the current license status.
          */
         private static Parameter<Boolean> disableTemplatingParameter(IndexSettings indexSettings) {
-            boolean forceDisable = indexSettings.getValue(DISABLE_TEMPLATING_SETTING);
+            boolean forceDisable = DISABLE_TEMPLATING_SETTING.get(indexSettings.getSettings());
             return Parameter.boolParam(
                 "disable_templating",
                 false,
@@ -205,9 +192,7 @@ public class PatternTextFieldMapper extends FieldMapper {
             BuilderParams builderParams = builderParams(this, context);
             var templateIdMapper = KeywordFieldMapper.Builder.buildWithDocValuesSkipper(
                 patternTextFieldType.templateIdFieldName(leafName()),
-                indexSettings.getMode(),
-                indexCreatedVersion(),
-                true,
+                indexSettings,
                 isWithinMultiField()
             ).indexed(false).build(context);
             return new PatternTextFieldMapper(leafName(), fieldType, patternTextFieldType, builderParams, this, templateIdMapper);
@@ -249,13 +234,7 @@ public class PatternTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            indexCreatedVersion,
-            indexSettings,
-            fieldType().isSyntheticSourceEnabled(),
-            fieldType().isWithinMultiField()
-        ).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexSettings, fieldType().isWithinMultiField()).init(this);
     }
 
     @Override

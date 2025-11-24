@@ -21,11 +21,11 @@ options {
 }
 
 import Expression,
-       Join;
+       Join,
+       Promql;
 
 statements
-    : {this.isDevVersion()}? setCommand+ singleStatement EOF
-    | singleStatement EOF
+    : setCommand* singleStatement EOF
     ;
 
 singleStatement
@@ -70,6 +70,7 @@ processingCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
+    | {this.isDevVersion()}? promqlCommand
     ;
 
 whereCommand

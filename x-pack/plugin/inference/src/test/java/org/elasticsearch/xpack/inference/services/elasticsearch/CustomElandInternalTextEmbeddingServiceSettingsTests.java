@@ -12,10 +12,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationSettingsTests;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 
@@ -239,6 +242,38 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
     @Override
     protected CustomElandInternalTextEmbeddingServiceSettings mutateInstance(CustomElandInternalTextEmbeddingServiceSettings instance)
         throws IOException {
-        return randomValueOtherThan(instance, CustomElandInternalTextEmbeddingServiceSettingsTests::createRandom);
+        var numAllocations = instance.getNumAllocations();
+        var numThreads = instance.getNumThreads();
+        var modelId = instance.modelId();
+        var adaptiveAllocationsSettings = instance.getAdaptiveAllocationsSettings();
+        var deploymentId = instance.getDeploymentId();
+        var dimensions = instance.dimensions();
+        var similarity = instance.similarity();
+        var elementType = instance.elementType();
+        switch (randomInt(7)) {
+            case 0 -> numAllocations = randomValueOtherThan(numAllocations, () -> randomFrom(randomIntBetween(1, 10), null));
+            case 1 -> numThreads = randomValueOtherThan(numThreads, () -> randomIntBetween(1, 10));
+            case 2 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
+            case 3 -> adaptiveAllocationsSettings = randomValueOtherThan(
+                adaptiveAllocationsSettings,
+                () -> randomFrom(AdaptiveAllocationSettingsTests.testInstance(), null)
+            );
+            case 4 -> deploymentId = randomValueOtherThan(deploymentId, () -> randomAlphaOfLengthOrNull(8));
+            case 5 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
+            case 6 -> similarity = randomValueOtherThan(similarity, Utils::randomSimilarityMeasure);
+            case 7 -> elementType = randomValueOtherThan(elementType, () -> randomFrom(DenseVectorFieldMapper.ElementType.values()));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new CustomElandInternalTextEmbeddingServiceSettings(
+            numAllocations,
+            numThreads,
+            modelId,
+            adaptiveAllocationsSettings,
+            deploymentId,
+            dimensions,
+            similarity,
+            elementType
+        );
     }
 }

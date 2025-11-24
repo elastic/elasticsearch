@@ -1,11 +1,12 @@
 {
   "indices.get_all_sample_configuration": {
     "documentation": {
-      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-all-sample-configuration",
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch#TODO",
       "description": "Get sampling configurations for all indices and data streams"
     },
     "stability": "experimental",
-    "visibility": "public",
+    "visibility": "feature_flag",
+    "feature_flag": "random_sampling",
     "headers": {
       "accept": [
         "application/json"
@@ -24,6 +25,7 @@
     "params": {
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Timeout for connection to master node"
       }
     }

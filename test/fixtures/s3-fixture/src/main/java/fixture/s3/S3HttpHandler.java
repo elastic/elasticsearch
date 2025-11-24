@@ -188,10 +188,11 @@ public class S3HttpHandler implements HttpHandler {
 
             } else if (request.isCompleteMultipartUploadRequest()) {
                 final byte[] responseBody;
-                boolean preconditionFailed = false;
+                final boolean preconditionFailed;
                 synchronized (uploads) {
                     final var upload = getUpload(request.getQueryParamOnce("uploadId"));
                     if (upload == null) {
+                        preconditionFailed = false;
                         if (Randomness.get().nextBoolean()) {
                             responseBody = null;
                         } else {
@@ -207,14 +208,7 @@ public class S3HttpHandler implements HttpHandler {
                     } else {
                         final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
 
-                        if (isProtectOverwrite(exchange)) {
-                            var previousValue = blobs.putIfAbsent(request.path(), blobContents);
-                            if (previousValue != null) {
-                                preconditionFailed = true;
-                            }
-                        } else {
-                            blobs.put(request.path(), blobContents);
-                        }
+                        preconditionFailed = updateBlobContents(exchange, request.path(), blobContents) == false;
 
                         if (preconditionFailed == false) {
                             responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -268,15 +262,7 @@ public class S3HttpHandler implements HttpHandler {
                     }
                 } else {
                     final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                    boolean preconditionFailed = false;
-                    if (isProtectOverwrite(exchange)) {
-                        var previousValue = blobs.putIfAbsent(request.path(), blob.v2());
-                        if (previousValue != null) {
-                            preconditionFailed = true;
-                        }
-                    } else {
-                        blobs.put(request.path(), blob.v2());
-                    }
+                    final var preconditionFailed = updateBlobContents(exchange, request.path(), blob.v2()) == false;
 
                     if (preconditionFailed) {
                         exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), -1);
@@ -410,6 +396,20 @@ public class S3HttpHandler implements HttpHandler {
         } catch (Exception e) {
             logger.error("exception in request " + request, e);
             throw e;
+        }
+    }
+
+    /**
+     * Update the blob contents if and only if the preconditions in the request are satisfied.
+     *
+     * @return whether the blob contents were updated: if {@code false} then a requested precondition was not satisfied.
+     */
+    private boolean updateBlobContents(HttpExchange exchange, String path, BytesReference newContents) {
+        if (isProtectOverwrite(exchange)) {
+            return blobs.putIfAbsent(path, newContents) == null;
+        } else {
+            blobs.put(path, newContents);
+            return true;
         }
     }
 

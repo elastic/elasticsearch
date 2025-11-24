@@ -132,7 +132,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(
             KEYWORD_FIELD_NAME,
-            IndexVersion.current()
+            defaultIndexSettings()
         );
         keywordFieldType = kwBuilder.build(MapperBuilderContext.root(false, false));
 
@@ -1271,5 +1271,10 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
             return List.of();
         }
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, false));
     }
 }

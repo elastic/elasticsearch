@@ -209,6 +209,8 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
+import org.elasticsearch.search.crossproject.CrossProjectRoutingResolver;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
@@ -1011,6 +1013,11 @@ class NodeConstruction {
             .create()
             .orElseGet(() -> new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver));
 
+        final var projectRoutingResolver = pluginsService.loadSingletonServiceProvider(
+            ProjectRoutingResolver.class,
+            CrossProjectRoutingResolver::new
+        );
+
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -1035,7 +1042,8 @@ class NodeConstruction {
             projectResolver,
             slowLogFieldProvider,
             indexingLimits,
-            linkedProjectConfigService
+            linkedProjectConfigService,
+            projectRoutingResolver
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1154,7 +1162,7 @@ class NodeConstruction {
             localNodeFactory,
             settingsModule.getClusterSettings(),
             taskManager,
-            telemetryProvider.getTracer(),
+            telemetryProvider,
             nodeEnvironment.nodeId(),
             linkedProjectConfigService,
             projectResolver
@@ -1364,6 +1372,7 @@ class NodeConstruction {
             b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
             b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
             b.bind(MergeMetrics.class).toInstance(mergeMetrics);
+            b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
         });
 
         if (ReadinessService.enabled(environment)) {

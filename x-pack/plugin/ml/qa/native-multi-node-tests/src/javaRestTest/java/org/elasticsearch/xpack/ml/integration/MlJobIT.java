@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
@@ -81,6 +83,21 @@ public class MlJobIT extends ESRestTestCase {
         Response response = createFarequoteJob("given-farequote-config-job");
         String responseAsString = EntityUtils.toString(response.getEntity());
         assertThat(responseAsString, containsString("\"job_id\":\"given-farequote-config-job\""));
+        assertThat(responseAsString, containsString("\"results_index_name\":\"shared\""));
+
+        String mlIndicesResponseAsString = getMlResultsIndices();
+        assertThat(mlIndicesResponseAsString, containsString("green open .ml-anomalies-shared-000001"));
+
+        String aliasesResponseAsString = getAliases();
+        LogManager.getLogger(MlRestTestStateCleaner.class).warn(aliasesResponseAsString);
+        assertThat(
+            aliasesResponseAsString,
+            containsString(
+                "\".ml-anomalies-shared-000001\":{\"aliases\":"
+                    + "{\".ml-anomalies-.write-given-farequote-config-job\":"
+                    + "{\"is_hidden\":true},\".ml-anomalies-given-farequote-config-job\""
+            )
+        );
     }
 
     public void testGetJob_GivenNoSuchJob() {
@@ -212,7 +229,7 @@ public class MlJobIT extends ESRestTestCase {
               "results_index_name" : "%s"}""";
 
         String jobId1 = "create-jobs-with-index-name-option-job-1";
-        String indexName = "non-default-index";
+        String indexName = "non-default-index-000001";
         putJob(jobId1, Strings.format(jobTemplate, indexName));
 
         String jobId2 = "create-jobs-with-index-name-option-job-2";
@@ -257,11 +274,7 @@ public class MlJobIT extends ESRestTestCase {
             }
         });
 
-        // Use _cat/indices/.ml-anomalies-* instead of _cat/indices/_all to workaround https://github.com/elastic/elasticsearch/issues/45652
-        String responseAsString = EntityUtils.toString(
-            client().performRequest(new Request("GET", "/_cat/indices/" + AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "*"))
-                .getEntity()
-        );
+        String responseAsString = getMlResultsIndices();
         assertThat(responseAsString, containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName));
         assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId1))));
         assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))));
@@ -326,10 +339,7 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId1))));
         assertThat(responseAsString, containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))); // job2 still exists
 
-        responseAsString = EntityUtils.toString(
-            client().performRequest(new Request("GET", "/_cat/indices/" + AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "*"))
-                .getEntity()
-        );
+        responseAsString = getMlResultsIndices();
         assertThat(responseAsString, containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName));
 
         refreshAllIndices();
@@ -347,11 +357,158 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))));
 
         refreshAllIndices();
-        responseAsString = EntityUtils.toString(
-            client().performRequest(new Request("GET", "/_cat/indices/" + AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "*"))
-                .getEntity()
+        responseAsString = getMlResultsIndices();
+        assertThat(
+            responseAsString,
+            not(containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName + "-000001"))
         );
-        assertThat(responseAsString, not(containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName)));
+    }
+
+    // The same as testCreateJobsWithIndexNameOption but we don't supply the "-000001" suffix to the index name supplied in the job config
+    // We test that the final index name does indeed have the suffix.
+    public void testCreateJobsWithIndexNameNo6DigitSuffixOption() throws Exception {
+        String jobTemplate = """
+            {
+              "analysis_config" : {
+                    "detectors" :[{"function":"metric","field_name":"responsetime"}]
+                },
+              "data_description": {},
+              "results_index_name" : "%s"}""";
+
+        String jobId1 = "create-jobs-with-index-name-option-job-1";
+        String indexName = "non-default-index";
+        putJob(jobId1, Strings.format(jobTemplate, indexName));
+
+        String jobId2 = "create-jobs-with-index-name-option-job-2";
+        putJob(jobId2, Strings.format(jobTemplate, indexName));
+
+        // With security enabled GET _aliases throws an index_not_found_exception
+        // if no aliases have been created. In multi-node tests the alias may not
+        // appear immediately so wait here.
+        assertBusy(() -> {
+            try {
+                String aliasesResponse = getAliases();
+                assertThat(aliasesResponse, containsString(Strings.format("""
+                    "%s":{"aliases":{""", AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName + "-000001"))));
+                assertThat(
+                    aliasesResponse,
+                    containsString(
+                        Strings.format(
+                            """
+                                "%s":{"filter":{"term":{"job_id":{"value":"%s"}}},"is_hidden":true}""",
+                            AnomalyDetectorsIndex.jobResultsAliasedName(jobId1),
+                            jobId1
+                        )
+                    )
+                );
+                assertThat(aliasesResponse, containsString(Strings.format("""
+                    "%s":{"is_hidden":true}""", AnomalyDetectorsIndex.resultsWriteAlias(jobId1))));
+                assertThat(
+                    aliasesResponse,
+                    containsString(
+                        Strings.format(
+                            """
+                                "%s":{"filter":{"term":{"job_id":{"value":"%s"}}},"is_hidden":true}""",
+                            AnomalyDetectorsIndex.jobResultsAliasedName(jobId2),
+                            jobId2
+                        )
+                    )
+                );
+                assertThat(aliasesResponse, containsString(Strings.format("""
+                    "%s":{"is_hidden":true}""", AnomalyDetectorsIndex.resultsWriteAlias(jobId2))));
+            } catch (ResponseException e) {
+                throw new AssertionError(e);
+            }
+        });
+
+        String responseAsString = getMlResultsIndices();
+        assertThat(responseAsString, containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName + "-000001"));
+        assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId1))));
+        assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))));
+
+        { // create jobId1 docs
+            String id = Strings.format("%s_bucket_%s_%s", jobId1, "1234", 300);
+            Request createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/_doc/" + id);
+            createResultRequest.setJsonEntity(Strings.format("""
+                {"job_id":"%s", "timestamp": "%s", "result_type":"bucket", "bucket_span": "%s"}""", jobId1, "1234", 1));
+            client().performRequest(createResultRequest);
+
+            id = Strings.format("%s_bucket_%s_%s", jobId1, "1236", 300);
+            createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/_doc/" + id);
+            createResultRequest.setJsonEntity(Strings.format("""
+                {"job_id":"%s", "timestamp": "%s", "result_type":"bucket", "bucket_span": "%s"}""", jobId1, "1236", 1));
+            client().performRequest(createResultRequest);
+
+            refreshAllIndices();
+
+            responseAsString = EntityUtils.toString(
+                client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId1 + "/results/buckets"))
+                    .getEntity()
+            );
+            assertThat(responseAsString, containsString("\"count\":2"));
+
+            responseAsString = EntityUtils.toString(
+                client().performRequest(new Request("GET", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/_search")).getEntity()
+            );
+            assertThat(responseAsString, containsString("\"value\":2"));
+        }
+        { // create jobId2 docs
+            String id = Strings.format("%s_bucket_%s_%s", jobId2, "1234", 300);
+            Request createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/_doc/" + id);
+            createResultRequest.setJsonEntity(Strings.format("""
+                {"job_id":"%s", "timestamp": "%s", "result_type":"bucket", "bucket_span": "%s"}""", jobId2, "1234", 1));
+            client().performRequest(createResultRequest);
+
+            id = Strings.format("%s_bucket_%s_%s", jobId2, "1236", 300);
+            createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/_doc/" + id);
+            createResultRequest.setJsonEntity(Strings.format("""
+                {"job_id":"%s", "timestamp": "%s", "result_type":"bucket", "bucket_span": "%s"}""", jobId2, "1236", 1));
+            client().performRequest(createResultRequest);
+
+            refreshAllIndices();
+
+            responseAsString = EntityUtils.toString(
+                client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId2 + "/results/buckets"))
+                    .getEntity()
+            );
+            assertThat(responseAsString, containsString("\"count\":2"));
+
+            responseAsString = EntityUtils.toString(
+                client().performRequest(new Request("GET", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/_search")).getEntity()
+            );
+            assertThat(responseAsString, containsString("\"value\":2"));
+        }
+
+        client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId1));
+
+        // check that indices still exist, but no longer have job1 entries and aliases are gone
+        responseAsString = getAliases();
+        assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId1))));
+        assertThat(responseAsString, containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))); // job2 still exists
+
+        responseAsString = getMlResultsIndices();
+        assertThat(responseAsString, containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName + "-000001"));
+
+        refreshAllIndices();
+
+        responseAsString = EntityUtils.toString(
+            client().performRequest(
+                new Request("GET", AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName + "-000001" + "/_count")
+            ).getEntity()
+        );
+        assertThat(responseAsString, containsString("\"count\":2"));
+
+        // Delete the second job and verify aliases are gone, and original concrete/custom index is gone
+        client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId2));
+        responseAsString = getAliases();
+        assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))));
+
+        refreshAllIndices();
+        responseAsString = getMlResultsIndices();
+        assertThat(
+            responseAsString,
+            not(containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName + "-000001"))
+        );
     }
 
     public void testCreateJobInSharedIndexUpdatesMapping() throws Exception {
@@ -370,10 +527,21 @@ public class MlJobIT extends ESRestTestCase {
 
         putJob(jobId1, Strings.format(jobTemplate, byFieldName1));
 
+        String mlIndicesResponseAsString = getMlResultsIndices();
+        assertThat(
+            mlIndicesResponseAsString,
+            containsString(
+                "green open " + AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            )
+        );
+
         // Check the index mapping contains the first by_field_name
         Request getResultsMappingRequest = new Request(
             "GET",
-            AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT + "/_mapping"
+            AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX
+                + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+                + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX
+                + "/_mapping"
         );
         getResultsMappingRequest.addParameter("pretty", null);
         String resultsMappingAfterJob1 = EntityUtils.toString(client().performRequest(getResultsMappingRequest).getEntity());
@@ -406,7 +574,7 @@ public class MlJobIT extends ESRestTestCase {
         // Check the index mapping contains the first by_field_name
         Request getResultsMappingRequest = new Request(
             "GET",
-            AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-shared-index/_mapping"
+            AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-shared-index-000001/_mapping"
         );
         getResultsMappingRequest.addParameter("pretty", null);
         String resultsMappingAfterJob1 = EntityUtils.toString(client().performRequest(getResultsMappingRequest).getEntity());
@@ -496,7 +664,8 @@ public class MlJobIT extends ESRestTestCase {
 
     public void testDeleteJob() throws Exception {
         String jobId = "delete-job-job";
-        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
         createFarequoteJob(jobId);
 
         // Use _cat/indices/.ml-anomalies-* instead of _cat/indices/_all to workaround https://github.com/elastic/elasticsearch/issues/45652
@@ -562,7 +731,8 @@ public class MlJobIT extends ESRestTestCase {
 
     public void testDeleteJob_TimingStatsDocumentIsDeleted() throws Exception {
         String jobId = "delete-job-with-timing-stats-document-job";
-        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
         createFarequoteJob(jobId);
 
         assertThat(
@@ -615,7 +785,8 @@ public class MlJobIT extends ESRestTestCase {
 
     public void testDeleteJobAsync() throws Exception {
         String jobId = "delete-job-async-job";
-        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
         createFarequoteJob(jobId);
 
         // Use _cat/indices/.ml-anomalies-* instead of _cat/indices/_all to workaround https://github.com/elastic/elasticsearch/issues/45652
@@ -672,7 +843,8 @@ public class MlJobIT extends ESRestTestCase {
     public void testDeleteJobAfterMissingIndex() throws Exception {
         String jobId = "delete-job-after-missing-index-job";
         String aliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
         createFarequoteJob(jobId);
 
         // Use _cat/indices/.ml-anomalies-* instead of _cat/indices/_all to workaround https://github.com/elastic/elasticsearch/issues/45652
@@ -706,7 +878,8 @@ public class MlJobIT extends ESRestTestCase {
         String jobId = "delete-job-after-missing-alias-job";
         String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
-        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
         createFarequoteJob(jobId);
 
         // With security enabled cat aliases throws an index_not_found_exception
@@ -736,7 +909,8 @@ public class MlJobIT extends ESRestTestCase {
 
     public void testMultiIndexDelete() throws Exception {
         String jobId = "multi-index-delete-job";
-        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
         createFarequoteJob(jobId);
 
         // Make the job's results span an extra two indices, i.e. three in total.
@@ -972,6 +1146,14 @@ public class MlJobIT extends ESRestTestCase {
         }
 
         assertEquals(numThreads, recreationGuard.get());
+    }
+
+    private String getMlResultsIndices() throws IOException {
+        // Use _cat/indices/.ml-anomalies-* instead of _cat/indices/_all to workaround https://github.com/elastic/elasticsearch/issues/45652
+        return EntityUtils.toString(
+            client().performRequest(new Request("GET", "/_cat/indices/" + AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "*"))
+                .getEntity()
+        );
     }
 
     private String getAliases() throws IOException {

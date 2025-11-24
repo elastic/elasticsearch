@@ -33,7 +33,7 @@ public class HammingSimilarityTests extends AbstractVectorSimilarityFunctionTest
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return similarityParameters(Hamming.class.getSimpleName(), Hamming.SIMILARITY_FUNCTION);
+        return similarityParameters(Hamming.class.getSimpleName(), Hamming.EVALUATOR_SIMILARITY_FUNCTION);
     }
 
     protected EsqlCapabilities.Cap capability() {

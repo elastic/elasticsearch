@@ -95,9 +95,13 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
                             }
                         }
                         case SUM -> {
-                            assertThat(componentBlock.getValueCount(i), equalTo(1));
-                            int valueIndex = componentBlock.getFirstValueIndex(i);
-                            assertThat(((DoubleBlock) componentBlock).getDouble(valueIndex), equalTo(histo.sum()));
+                            if (histo.valueCount() == 0) {
+                                assertThat(componentBlock.isNull(i), equalTo(true));
+                            } else {
+                                assertThat(componentBlock.getValueCount(i), equalTo(1));
+                                int valueIndex = componentBlock.getFirstValueIndex(i);
+                                assertThat(((DoubleBlock) componentBlock).getDouble(valueIndex), equalTo(histo.sum()));
+                            }
                         }
                         case COUNT -> {
                             assertThat(componentBlock.getValueCount(i), equalTo(1));

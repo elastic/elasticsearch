@@ -1037,6 +1037,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 if (currentNode != sourceNode) {
                     RoutingNode target = currentNode.getRoutingNode();
                     Decision allocationDecision = decider.apply(shardRouting, target);
+                    assert allocationDecision.type() != Type.THROTTLE || allocation.isSimulating() == false
+                        : "DesiredBalance computations run in a simulation mode and should not encounter throttling";
                     if (explain) {
                         nodeResults.add(new NodeAllocationResult(currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
                     }
@@ -1048,8 +1050,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         continue;
                     }
                     if (allocationDecision.type().higherThan(bestDecision)) {
-                        assert allocationDecision.type() != Type.THROTTLE
-                            : "DesiredBalance computations run in a simulation mode and should not encounter throttling";
                         bestDecision = allocationDecision.type();
                         if (bestDecision == Type.YES) {
                             targetNode = target;

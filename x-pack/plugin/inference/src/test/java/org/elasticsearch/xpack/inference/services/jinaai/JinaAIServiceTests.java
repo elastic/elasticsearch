@@ -1733,27 +1733,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 }
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var responseJson2 = """
-                {
-                    "model": "jina-clip-v2",
-                    "object": "list",
-                    "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
-                    },
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.123,
-                                -0.123
-                            ]
-                        }
-                    ]
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson2));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
         } else {
             var responseJson = """
                 {

@@ -3,7 +3,7 @@
     "properties": {
       "body": {
         "type": "text",
-        "copy_to": ["body-elser", "body-e5"]
+        "copy_to": ["body-elser", "body-e5", "body-e5-disk_bbq"]
       },
       "body-e5": {
         "type": "semantic_text",
@@ -13,6 +13,21 @@
           "dimensions": 384,
           "similarity": "cosine",
           "element_type": "float"
+        }
+      },
+      "body-e5-disk_bbq": {
+        "type": "semantic_text",
+        "inference_id": ".multilingual-e5-small-elasticsearch",
+        "model_settings": {
+          "task_type": "text_embedding",
+          "dimensions": 384,
+          "similarity": "cosine",
+          "element_type": "float"
+        },
+        "index_options": {
+          "dense_vector": {
+            "type": "bbq_disk"
+          }
         }
       },
       "body-elser": {

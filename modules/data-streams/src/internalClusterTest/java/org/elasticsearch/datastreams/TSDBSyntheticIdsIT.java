@@ -54,6 +54,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Test suite for time series indices that use synthetic ids for documents.
@@ -103,8 +104,10 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
     public void testSyntheticId() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        assumeTrue("Test should only run with feature flag", IndexSettings.USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID_FEATURE_FLAG);
         final var dataStreamName = randomIdentifier();
-        putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5));
+        final var enableStoredFieldsBloomFilter = randomBoolean();
+        putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5), enableStoredFieldsBloomFilter);
 
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
@@ -260,19 +263,30 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         flush(dataStreamName);
 
-        // Check that synthetic _id field have no postings on disk
-        var indices = new HashSet<>(docs.values());
-        for (var index : indices) {
-            var diskUsage = diskUsage(index);
-            var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
-            assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+        // TODO: fix IndexDiskUsageStats to take into account synthetic _id terms
+        var checkDiskUsage = false;
+        if (checkDiskUsage) {
+            // Check that synthetic _id field have no postings on disk
+            var indices = new HashSet<>(docs.values());
+            for (var index : indices) {
+                var diskUsage = diskUsage(index);
+                var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
+                // If the _id stored fields bloom filter is enabled, IndexDiskUsageStats won't account for anything since
+                // the bloom filter it's not exposed through the Reader API.
+                if (enableStoredFieldsBloomFilter) {
+                    assertThat(diskUsageIdField, nullValue());
+                } else {
+                    assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+                }
+            }
         }
     }
 
     public void testGetFromTranslogBySyntheticId() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var dataStreamName = randomIdentifier();
-        putDataStreamTemplate(dataStreamName, 1);
+        final var enableStoredFieldsBloomFilter = randomBoolean();
+        putDataStreamTemplate(dataStreamName, 1, enableStoredFieldsBloomFilter);
 
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
@@ -371,12 +385,22 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(asInstanceOf(Integer.class, source.get("value")), equalTo(metricOffset + doc.getItemId()));
         }
 
-        // Check that synthetic _id field have no postings on disk
-        var indices = new HashSet<>(docs.values());
-        for (var index : indices) {
-            var diskUsage = diskUsage(index);
-            var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
-            assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+        // TODO: fix IndexDiskUsageStats to take into account synthetic _id terms
+        var checkDiskUsage = false;
+        if (checkDiskUsage) {
+            // Check that synthetic _id field have no postings on disk
+            var indices = new HashSet<>(docs.values());
+            for (var index : indices) {
+                var diskUsage = diskUsage(index);
+                var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
+                // If the _id stored fields bloom filter is enabled, IndexDiskUsageStats won't account for anything since
+                // the bloom filter it's not exposed through the Reader API.
+                if (enableStoredFieldsBloomFilter) {
+                    assertThat(diskUsageIdField, nullValue());
+                } else {
+                    assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+                }
+            }
         }
 
         assertHitCount(client().prepareSearch(dataStreamName).setSize(0), 10L);
@@ -413,11 +437,12 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         return bulkResponse.getItems();
     }
 
-    private static void putDataStreamTemplate(String indexPattern, int shards) throws IOException {
+    private static void putDataStreamTemplate(String indexPattern, int shards, boolean enableStoredFieldsBloomFilter) throws IOException {
         final var settings = indexSettings(shards, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-            .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+            .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
+            .put(IndexSettings.USE_STORED_FIELD_BLOOM_FILTER_ID.getKey(), enableStoredFieldsBloomFilter);
 
         final var mappings = """
             {

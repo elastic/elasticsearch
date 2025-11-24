@@ -58,8 +58,8 @@ public class TSDBSyntheticIdCodec extends FilterCodec {
     private final RewriteFieldInfosFormat fieldInfosFormat;
     private final EnsureNoPostingsFormat postingsFormat;
 
-    public TSDBSyntheticIdCodec(String name, Codec delegate) {
-        super(name, delegate);
+    public TSDBSyntheticIdCodec(Codec delegate) {
+        super(delegate.getName(), delegate);
         this.fieldInfosFormat = new RewriteFieldInfosFormat(delegate.fieldInfosFormat());
         this.postingsFormat = new EnsureNoPostingsFormat(delegate.postingsFormat());
     }

@@ -441,6 +441,9 @@ tests:
 - class: org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT
   method: test {yaml=ingest_geoip/60_ip_location_databases/Test adding, getting, and removing ip location databases}
   issue: https://github.com/elastic/elasticsearch/issues/138502
+- class: org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramFieldMapperTests
+  method: testFormattedDocValues
+  issue: https://github.com/elastic/elasticsearch/issues/138504
 
 # Examples:
 #

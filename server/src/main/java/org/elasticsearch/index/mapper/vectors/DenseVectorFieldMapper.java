@@ -1918,7 +1918,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("ef_construction", efConstruction);
             builder.field("confidence_interval", confidenceInterval);
             if (onDiskRescore) {
-                builder.field("on_disk_rescore", onDiskRescore);
+                builder.field("on_disk_rescore", true);
             }
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);

@@ -223,7 +223,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         final var input = new DesiredBalanceInput(42, routingAllocation, List.of());
         final var computer = createDesiredBalanceComputer(new BalancedShardsAllocator(settings));
         var balance = computer.compute(DesiredBalance.BECOME_MASTER_INITIAL, input, queue(), ignored -> true);
-        assertThat(balance.getAssignment(new ShardId(index, 0)).nodeIds(), equalTo(Set.of("node-0")));
+        // This is an unusual edge case that will result in both shards being moved to the non-hot-spotting node
+        assertThat(balance.getAssignment(new ShardId(index, 0)).nodeIds(), equalTo(Set.of("node-1")));
         assertThat(balance.getAssignment(new ShardId(index, 1)).nodeIds(), equalTo(Set.of("node-1")));
     }
 

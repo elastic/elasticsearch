@@ -26,7 +26,6 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
 public class MvContainsStaticTests extends ESTestCase {
 
-    // 테스트 케이스 1: 기본 pushdown
     public void testMvContainsLucenePushdown() {
         FieldAttribute field = new FieldAttribute(
             EMPTY,
@@ -34,7 +33,6 @@ public class MvContainsStaticTests extends ESTestCase {
             new EsField("tags", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
 
-        // KEYWORD 타입은 BytesRef를 사용해야 함!
         List<Object> values = Arrays.asList(
             new BytesRef("important"),
             new BytesRef("urgent")
@@ -43,13 +41,11 @@ public class MvContainsStaticTests extends ESTestCase {
 
         MvContains mvContains = new MvContains(EMPTY, field, subset);
 
-        // translatable 확인
         assertEquals(
             TranslationAware.Translatable.YES,
             mvContains.translatable(LucenePushdownPredicates.DEFAULT)
         );
 
-        // Query 생성 확인
         var query = mvContains.asQuery(
             LucenePushdownPredicates.DEFAULT,
             TranslatorHandler.TRANSLATOR_HANDLER
@@ -62,7 +58,6 @@ public class MvContainsStaticTests extends ESTestCase {
         assertEquals(2, termsSetQuery.minimumShouldMatch());
     }
 
-    // 테스트 케이스 2: 빈 리스트
     public void testMvContainsEmptySubset() {
         FieldAttribute field = new FieldAttribute(
             EMPTY,
@@ -78,11 +73,9 @@ public class MvContainsStaticTests extends ESTestCase {
             TranslatorHandler.TRANSLATOR_HANDLER
         );
 
-        // 빈 subset은 MatchAll 반환
         assertTrue(query instanceof org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll);
     }
 
-    // 테스트 케이스 3: null 처리
     public void testMvContainsNullSubset() {
         FieldAttribute field = new FieldAttribute(
             EMPTY,
@@ -101,9 +94,7 @@ public class MvContainsStaticTests extends ESTestCase {
         assertTrue(query instanceof org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll);
     }
 
-    // 테스트 케이스 4: pushdown 불가능한 경우
     public void testMvContainsNotPushable() {
-        // Literal이 아닌 경우
         FieldAttribute field1 = new FieldAttribute(
             EMPTY,
             "tags",
@@ -123,7 +114,6 @@ public class MvContainsStaticTests extends ESTestCase {
         );
     }
 
-    // 테스트 케이스 5: 인덱스되지 않은 필드
     public void testMvContainsNotIndexedField() {
         FieldAttribute notIndexed = new FieldAttribute(
             EMPTY,
@@ -131,7 +121,6 @@ public class MvContainsStaticTests extends ESTestCase {
             new EsField("description", DataType.TEXT, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
         );
 
-        // INTEGER 타입으로 변경 (BytesRef 문제 회피)
         List<Object> values = Arrays.asList(1, 2, 3);
         Literal subset = new Literal(EMPTY, values, DataType.INTEGER);
 

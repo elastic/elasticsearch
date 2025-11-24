@@ -39,6 +39,11 @@ setup:
               keyword:
                 type: keyword
                 index: false
+              keyword_high_cardinality:
+                type: keyword
+                index: false
+                doc_values:
+                  cardinality: high
               boolean:
                 type: boolean
                 index: false
@@ -63,6 +68,7 @@ setup:
           short: 1
           date: "2017/01/01"
           keyword: "key1"
+          keyword_high_cardinality: "key1"
           boolean: "false"
           ip: "192.168.0.1"
           geo_point: [13.5, 34.89]
@@ -81,6 +87,7 @@ setup:
           short: 2
           date: "2017/01/02"
           keyword: "key2"
+          keyword_high_cardinality: "key2"
           boolean: "true"
           ip: "192.168.0.2"
           geo_point : [-63.24, 31.0]
@@ -271,6 +278,12 @@ setup:
         body: { query: { match: { keyword: { query: "key1" } } } }
   - length:   { hits.hits: 1  }
 
+  - do:
+      search:
+        index: test
+        body: { query: { match: { keyword_high_cardinality: { "query": "key1" } } } }
+  - length: { hits.hits: 1 }
+
 ---
 "Test terms query on keyword field where only doc values are enabled":
 
@@ -280,6 +293,11 @@ setup:
         body: { query: { terms: { keyword: [ "key1", "key2" ] } } }
   - length:   { hits.hits: 2  }
 
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { keyword_high_cardinality: [ "key1", "key2" ] } } }
+
 ---
 "Test range query on keyword field where only doc values are enabled":
 
@@ -287,6 +305,12 @@ setup:
       search:
         index: test
         body: { query: { range: { keyword: { gte: "key1" } } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { keyword_high_cardinality: { gte: "key1" } } } }
   - length:   { hits.hits: 2  }
 
 ---
@@ -298,6 +322,12 @@ setup:
         body: { query: { fuzzy: { keyword: { value: "kay1", fuzziness: 1 } } } }
   - length:   { hits.hits: 1  }
 
+  - do:
+      search:
+        index: test
+        body: { query: { fuzzy: { keyword_high_cardinality: { value: "kay1", fuzziness: 1 } } } }
+  - length:   { hits.hits: 1  }
+
 ---
 "Test prefix query on keyword field where only doc values are enabled":
 
@@ -305,6 +335,12 @@ setup:
       search:
         index: test
         body: { query: { prefix: { keyword: { value: "key" } } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { prefix: { keyword_high_cardinality: { value: "key" } } } }
   - length:   { hits.hits: 2  }
 
 ---
@@ -316,6 +352,12 @@ setup:
         body: { query: { term: { keyword: { value: "KeY1", case_insensitive: true } } } }
   - length:   { hits.hits: 1  }
 
+  - do:
+      search:
+        index: test
+        body: { query: { term: { keyword_high_cardinality: { value: "KeY1", case_insensitive: true } } } }
+  - length:   { hits.hits: 1  }
+
 ---
 "Test wildcard query on keyword field where only doc values are enabled":
 
@@ -323,6 +365,12 @@ setup:
       search:
         index: test
         body: { query: { wildcard: { keyword: { value: "k*1" } } } }
+  - length:   { hits.hits: 1  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword_high_cardinality: { value: "k*1" } } } }
   - length:   { hits.hits: 1  }
 
 ---
@@ -334,6 +382,12 @@ setup:
         body: { query: { wildcard: { keyword: { value: "K*1", case_insensitive: true } } } }
   - length:   { hits.hits: 1  }
 
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword_high_cardinality: { value: "K*1", case_insensitive: true } } } }
+  - length:   { hits.hits: 1  }
+
 ---
 "Test regexp query on keyword field where only doc values are enabled":
 
@@ -342,6 +396,12 @@ setup:
         index: test
         body: { query: { regexp: { keyword: { value: "k.*1" } } } }
   - length:   { hits.hits: 1  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { regexp: { keyword_high_cardinality: { value: "k.*1" } } } }
+  - length: { hits.hits: 1 }
 
 ---
 "Test match query on boolean field where only doc values are enabled":

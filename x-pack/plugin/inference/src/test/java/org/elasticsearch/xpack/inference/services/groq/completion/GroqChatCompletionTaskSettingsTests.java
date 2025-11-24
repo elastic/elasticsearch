@@ -59,9 +59,7 @@ public class GroqChatCompletionTaskSettingsTests extends AbstractWireSerializing
     @Override
     protected GroqChatCompletionTaskSettings createTestInstance() {
         var user = randomBoolean() ? randomAlphaOfLength(8) : null;
-        Map<String, String> headers = randomBoolean()
-            ? Map.of("X-" + randomAlphaOfLength(4), randomAlphaOfLength(6))
-            : null;
+        Map<String, String> headers = randomBoolean() ? Map.of("X-" + randomAlphaOfLength(4), randomAlphaOfLength(6)) : null;
         return new GroqChatCompletionTaskSettings(user, headers);
     }
 

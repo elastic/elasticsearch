@@ -21,12 +21,14 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Abstract class representing an Nvidia model for inference.
+ * Abstract base class representing an Nvidia model for inference.
  * This class extends {@link RateLimitGroupingModel} and provides common functionality for Nvidia models.
+ * Subclasses must implement the {@link #accept(NvidiaActionVisitor, Map)}
+ * method to handle creation of {@link ExecutableAction} for inference tasks.
  */
 public abstract class NvidiaModel extends RateLimitGroupingModel {
     /**
-     * Constructor for creating an {@link NvidiaModel} with specified configurations and secrets.
+     * Constructs an {@link NvidiaModel} with specified model configurations and secrets.
      *
      * @param configurations the model configurations
      * @param secrets the secret settings for the model
@@ -36,9 +38,9 @@ public abstract class NvidiaModel extends RateLimitGroupingModel {
     }
 
     /**
-     * Constructor for creating an {@link NvidiaModel} with specified model, service settings, and secret settings.
+     * Constructs an {@link NvidiaModel} by copying an existing model and applying new service settings.
      *
-     * @param model the model configurations
+     * @param model the existing model to copy
      * @param serviceSettings the settings for the inference service
      */
     protected NvidiaModel(RateLimitGroupingModel model, ServiceSettings serviceSettings) {
@@ -46,9 +48,9 @@ public abstract class NvidiaModel extends RateLimitGroupingModel {
     }
 
     /**
-     * Constructor for creating an {@link NvidiaModel} with specified model, service settings, and secret settings.
+     * Constructs an {@link NvidiaModel} by copying an existing model and applying new task settings.
      *
-     * @param model the model configurations
+     * @param model the existing model to copy
      * @param taskSettings the task settings for the inference task
      */
     protected NvidiaModel(RateLimitGroupingModel model, TaskSettings taskSettings) {
@@ -62,7 +64,8 @@ public abstract class NvidiaModel extends RateLimitGroupingModel {
 
     @Override
     public int rateLimitGroupingHash() {
-        return Objects.hash(getServiceSettings().uri(), getServiceSettings().modelId());
+        var serviceSettings = getServiceSettings();
+        return Objects.hash(serviceSettings.uri(), serviceSettings.modelId());
     }
 
     @Override
@@ -80,7 +83,7 @@ public abstract class NvidiaModel extends RateLimitGroupingModel {
      *
      * @param creator the visitor that creates the executable action
      * @param taskSettings the task settings for the inference task
-     * @return an executable action for this Nvidia model
+     * @return an {@link ExecutableAction} for this Nvidia model
      */
     public abstract ExecutableAction accept(NvidiaActionVisitor creator, Map<String, Object> taskSettings);
 

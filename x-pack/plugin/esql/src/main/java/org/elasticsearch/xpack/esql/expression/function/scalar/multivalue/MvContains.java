@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import java.util.Objects;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,10 +26,16 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermsSetQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -35,9 +46,12 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
+
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -62,7 +76,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  *     <li>null, null &rArr; true (&empty; &equiv; &empty;)</li>
  * </ul>
  */
-public class MvContains extends BinaryScalarFunction implements EvaluatorMapper {
+public class MvContains extends BinaryScalarFunction implements EvaluatorMapper, TranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvContains",
@@ -209,6 +223,76 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             case NULL -> new IsNull.IsNullEvaluatorFactory(toEvaluator.apply(right()));
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType());
         };
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        // Can only pushdown if:
+        // 1. Left side is a field attribute (superset)
+        // 2. Right side is a literal list (subset)
+        if (left() instanceof FieldAttribute == false) {
+            return Translatable.NO;
+        }
+        if (right() instanceof Literal == false) {
+            return Translatable.NO;
+        }
+
+        FieldAttribute fieldAttribute = (FieldAttribute) left();
+
+        // Check if field is pushable (indexed, has doc values, and has exact subfield for TEXT)
+        if (pushdownPredicates.isPushableFieldAttribute(fieldAttribute) == false) {
+            return Translatable.NO;
+        }
+
+        // Extract values from literal
+        Object value = ((Literal) right()).value();
+
+        // null subset always contained
+        if (value == null) {
+            return Translatable.YES;
+        }
+
+        // Value should be a list for mv_contains
+        if (value instanceof List == false) {
+            return Translatable.NO;
+        }
+
+        List<?> values = (List<?>) value;
+        if (values.isEmpty()) {
+            return Translatable.YES; // empty subset always contained
+        }
+
+        return Translatable.YES;
+    }
+
+    @Override
+    public Query asQuery(LucenePushdownPredicates predicates, TranslatorHandler handler) {
+        if (translatable(predicates) != Translatable.YES) {
+            throw new EsqlIllegalArgumentException("Cannot translate mv_contains to query");
+        }
+
+        FieldAttribute fieldAttribute = (FieldAttribute) left();
+        Literal literal = (Literal) right();
+        Object value = literal.value();
+
+        // Handle null or empty list
+        if (value == null || (value instanceof List && ((List<?>) value).isEmpty())) {
+            // Empty subset is always contained - match all documents
+            return new MatchAll(source());
+        }
+
+        List<?> values = null;
+        if (value instanceof List<?>) {
+            values = (List<?>) value;
+        }
+
+        // Get exact field name
+        String fieldName = fieldAttribute.exactAttribute().name();
+
+        // Create TermsSetQuery (same pattern as TermsQuery for IN operator)
+        // minimum_should_match = values.size() (all values must be present)
+        List<Object> valuesList = new ArrayList<>(Objects.requireNonNull(values));
+        return new TermsSetQuery(source(), fieldName, valuesList, values.size());
     }
 
     @Evaluator(extraName = "Int", allNullsIsNull = false)

@@ -77,6 +77,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
@@ -542,20 +543,23 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         boolean failWrites,
         Map<OperationPurpose, String> filePatternPerPurposeToFail
     ) {
-        setNodeRepositoryFailureStrategy(node, failReads, failWrites, filePatternPerPurposeToFail, Long.MAX_VALUE);
+        setNodeRepositoryFailureStrategy(node, failReads, failWrites, filePatternPerPurposeToFail, Long.MAX_VALUE, Set.of());
     }
 
     /**
      * Modifies the object store strategy on the given node to throw IOExceptions on reads and/or writes, depending on the parameters.
      * The filePatternPerPurposeToFail map can be used to specify regex patterns for blob names per OperationPurpose that should fail.
      * If a purpose is not in the map, no failures will be thrown for that purpose.
+     *
+     * The excludedExecutorNamesList set can be used to specify a set of executor names that should be excluded from failures.
      */
     protected void setNodeRepositoryFailureStrategy(
         String node,
         boolean failReads,
         boolean failWrites,
         Map<OperationPurpose, String> filePatternPerPurposeToFail,
-        long maxNumberOfFailures
+        long maxNumberOfFailures,
+        Set<String> excludedExecutorNamesList
     ) {
         setNodeRepositoryStrategy(node, new StatelessMockRepositoryStrategy() {
             private final AtomicLong failureCounter = new AtomicLong();
@@ -563,8 +567,10 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             private void failIfNeeded(OperationPurpose purpose, String blobName) throws IOException {
                 String filePattern = filePatternPerPurposeToFail.get(purpose);
                 if (filePattern != null && blobName.matches(filePattern)) {
-                    if (failureCounter.incrementAndGet() <= maxNumberOfFailures) {
-                        throw new IOException("Random IOException");
+                    if (excludedExecutorNamesList.contains(EsExecutors.executorName(Thread.currentThread())) == false) {
+                        if (failureCounter.incrementAndGet() <= maxNumberOfFailures) {
+                            throw new IOException("Random IOException");
+                        }
                     }
                 }
             }

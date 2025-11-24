@@ -2392,7 +2392,17 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                                     ? Map.of(OperationPurpose.INDICES, ".*", OperationPurpose.TRANSLOG, ".*")
                                     : randomBoolean() ? Map.of(OperationPurpose.INDICES, ".*")
                                     : Map.of(OperationPurpose.TRANSLOG, ".*");
-                                setNodeRepositoryFailureStrategy(sourceNode, failReads, failWrites, operationPurposesToFail, 1);
+                                // Do not fail in snapshot thread to avoid uncaught assertion error in
+                                // BlobStoreRepository#assertFileContentsMatchHash
+                                // Context in https://github.com/elastic/elasticsearch-serverless/issues/4783
+                                setNodeRepositoryFailureStrategy(
+                                    sourceNode,
+                                    failReads,
+                                    failWrites,
+                                    operationPurposesToFail,
+                                    1,
+                                    Set.of(ThreadPool.Names.SNAPSHOT)
+                                );
                                 failingObjectStore = true;
                             }
 

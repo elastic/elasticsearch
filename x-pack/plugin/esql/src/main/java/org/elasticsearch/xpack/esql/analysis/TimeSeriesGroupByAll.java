@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.Functions;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
@@ -67,7 +68,7 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
 
         if (lastNonTSAggFunction != null) {
             throw new EsqlIllegalArgumentException(
-                "Cannot mix time-series aggregate [{}] and regular aggregate [{}] in the same TimeSeriesAggregate",
+                "Cannot mix time-series aggregate [{}] and regular aggregate [{}] in the same TimeSeriesAggregate.",
                 lastTSAggFunction.sourceText(),
                 lastNonTSAggFunction.sourceText()
             );
@@ -82,7 +83,17 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
         );
         List<Expression> groupings = new ArrayList<>();
         groupings.add(timeSeries);
-        groupings.addAll(aggregate.groupings());
+
+        for (Expression grouping : aggregate.groupings()) {
+            if (Functions.isGrouping(Alias.unwrap(grouping)) == false) {
+                throw new EsqlIllegalArgumentException(
+                    "Cannot mix time-series aggregate and grouping attributes. Found [{}].",
+                    grouping.sourceText()
+                );
+            }
+            groupings.add(grouping);
+        }
+
         TimeSeriesAggregate newStats = new TimeSeriesAggregate(
             aggregate.source(),
             aggregate.child(),

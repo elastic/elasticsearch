@@ -271,29 +271,18 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
 
         assertThat(error.getMessage(), equalTo("""
             Cannot mix time-series aggregate [avg_over_time(network.cost)] and \
-            regular aggregate [sum(network.total_bytes_in)] in the same TimeSeriesAggregate"""));
+            regular aggregate [sum(network.total_bytes_in)] in the same TimeSeriesAggregate."""));
     }
 
     public void testGroupingKeyInAggregatesListPreserved() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
 
-        LogicalPlan plan = planK8s("""
+        var error = expectThrows(EsqlIllegalArgumentException.class, () -> { planK8s("""
             TS k8s
-            | STATS rate(network.total_bytes_out) BY region
-            """);
+            | STATS rate(network.total_bytes_out) BY region, TBUCKET(1hour)
+            """); });
 
-        TimeSeriesAggregate tsa = findTimeSeriesAggregate(plan);
-        assertThat("Should have TimeSeriesAggregate", tsa, is(instanceOf(TimeSeriesAggregate.class)));
-
-        assertNotNull("Plan should be valid", plan);
-
-        List<Attribute> groupings = tsa.groupings().stream().filter(g -> g instanceof Attribute).map(g -> (Attribute) g).toList();
-        boolean hasTsid = groupings.stream().anyMatch(g -> g.name().equals(MetadataAttribute.TSID_FIELD));
-        assertThat("Should group by _tsid", hasTsid, is(true));
-
-        List<Attribute> output = plan.output();
-        boolean hasTimeseries = output.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TIMESERIES));
-        assertThat("Should have _timeseries in output", hasTimeseries, is(true));
+        assertThat(error.getMessage(), equalTo("Cannot mix time-series aggregate and grouping attributes. Found [region]."));
     }
 
     private TimeSeriesAggregate findTimeSeriesAggregate(LogicalPlan plan) {

@@ -140,7 +140,7 @@ static inline int32_t dot7u_inner(int8_t* a, int8_t* b, const int32_t dims) {
     return hsum_i32_8(acc1);
 }
 
-EXPORT int32_t dot7u(int8_t* a, int8_t* b, const int32_t dims) {
+EXPORT int32_t vec_dot7u(int8_t* a, int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > STRIDE_BYTES_LEN) {
@@ -153,7 +153,7 @@ EXPORT int32_t dot7u(int8_t* a, int8_t* b, const int32_t dims) {
     return res;
 }
 
-EXPORT void dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+EXPORT void vec_dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     int32_t res = 0;
     if (dims > STRIDE_BYTES_LEN) {
         const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
@@ -200,7 +200,7 @@ static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, const int32_t dims) {
     return hsum_i32_8(acc1);
 }
 
-EXPORT int32_t sqr7u(int8_t* a, int8_t* b, const int32_t dims) {
+EXPORT int32_t vec_sqr7u(int8_t* a, int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > STRIDE_BYTES_LEN) {
@@ -236,7 +236,7 @@ static inline f32_t hsum_f32_8(const __m256 v) {
 // const f32_t *a  pointer to the first float vector
 // const f32_t *b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
-EXPORT f32_t cosf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
+EXPORT f32_t vec_cosf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     __m256 dot0 = _mm256_setzero_ps();
     __m256 dot1 = _mm256_setzero_ps();
     __m256 dot2 = _mm256_setzero_ps();
@@ -309,7 +309,7 @@ EXPORT f32_t cosf32(const f32_t *a, const f32_t *b, const int32_t elementCount) 
 // const f32_t *a  pointer to the first float vector
 // const f32_t *b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
-EXPORT f32_t dotf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
+EXPORT f32_t vec_dotf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     __m256 acc0 = _mm256_setzero_ps();
     __m256 acc1 = _mm256_setzero_ps();
     __m256 acc2 = _mm256_setzero_ps();
@@ -339,7 +339,7 @@ EXPORT f32_t dotf32(const f32_t *a, const f32_t *b, const int32_t elementCount) 
 // const f32_t *a  pointer to the first float vector
 // const f32_t *b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
-EXPORT f32_t sqrf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
+EXPORT f32_t vec_sqrf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     __m256 sum0 = _mm256_setzero_ps();
     __m256 sum1 = _mm256_setzero_ps();
     __m256 sum2 = _mm256_setzero_ps();

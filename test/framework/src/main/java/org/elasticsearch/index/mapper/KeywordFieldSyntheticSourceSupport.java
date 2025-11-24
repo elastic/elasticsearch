@@ -24,15 +24,21 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     private final Integer ignoreAbove;
     private final boolean allIgnored;
     private final boolean store;
-    private final boolean docValues;
+    private final FieldMapper.DocValuesParameter.Values docValues;
     private final String nullValue;
 
-    KeywordFieldSyntheticSourceSupport(Integer ignoreAbove, boolean store, String nullValue, boolean useFallbackSyntheticSource) {
+    KeywordFieldSyntheticSourceSupport(Integer ignoreAbove, boolean store, String nullValue, boolean allowIgnoredSource) {
         this.ignoreAbove = ignoreAbove;
         this.allIgnored = ignoreAbove != null && LuceneTestCase.rarely();
         this.store = store;
         this.nullValue = nullValue;
-        this.docValues = useFallbackSyntheticSource == false || ESTestCase.randomBoolean();
+
+        this.docValues = switch (ESTestCase.randomInt(allowIgnoredSource ? 2 : 1)) {
+            case 0 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW);
+            case 1 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+            case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
+            default -> throw new IllegalStateException();
+        };
     }
 
     @Override
@@ -44,7 +50,8 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     public boolean preservesExactSource() {
         // We opt in into fallback synthetic source implementation
         // if there is nothing else to use, and it preserves exact source data.
-        return store == false && docValues == false;
+        return store == false
+            && (docValues.enabled() == false || docValues.cardinality() == FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
     }
 
     @Override
@@ -111,8 +118,13 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         if (store) {
             b.field("store", true);
         }
-        if (docValues == false) {
+
+        if (docValues.enabled() == false) {
             b.field("doc_values", false);
+        } else {
+            b.startObject("doc_values");
+            b.field("cardinality", docValues.cardinality().toString());
+            b.endObject();
         }
     }
 

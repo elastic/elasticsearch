@@ -40,10 +40,13 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -58,6 +61,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
@@ -110,7 +114,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "keyword";
     private static final String HOST_NAME = "host.name";
 
-    private static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
+    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
         true,
         DocValuesParameter.Values.Cardinality.LOW
     );
@@ -382,6 +386,17 @@ public final class KeywordFieldMapper extends FieldMapper {
                 dimension };
         }
 
+        private IndexType buildIndexType(FieldType fieldType) {
+            if (fieldType.indexOptions() == IndexOptions.NONE && fieldType.docValuesType() == DocValuesType.NONE) {
+                var docValuesParameters = docValuesParameters();
+                if (docValuesParameters.enabled() && docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.HIGH) {
+                    return IndexType.docValuesOnly();
+                }
+            }
+
+            return IndexType.terms(fieldType);
+        }
+
         private KeywordFieldType buildFieldType(MapperBuilderContext context, FieldType fieldType) {
             NamedAnalyzer normalizer = Lucene.KEYWORD_ANALYZER;
             NamedAnalyzer searchAnalyzer = Lucene.KEYWORD_ANALYZER;
@@ -412,7 +427,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             return new KeywordFieldType(
                 context.buildFullName(leafName()),
-                IndexType.terms(fieldType),
+                buildIndexType(fieldType),
                 new TextSearchInfo(fieldType, similarity.get(), searchAnalyzer, quoteAnalyzer),
                 normalizer,
                 this,
@@ -429,7 +444,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             String offsetsFieldName = getOffsetsFieldName(
                 context,
                 indexSettings.sourceKeepMode(),
-                docValuesParameters.get().enabled(),
+                fieldtype.docValuesType() == DocValuesType.SORTED_SET,
                 stored.getValue(),
                 this,
                 indexCreatedVersion,
@@ -454,13 +469,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             fieldtype.setStored(this.stored.getValue());
 
             DocValuesParameter.Values docValuesParameters = this.docValuesParameters.get();
-            if (docValuesParameters.enabled() == false) {
-                fieldtype.setDocValuesType(DocValuesType.NONE);
-            } else if (docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.HIGH) {
-                fieldtype.setDocValuesType(DocValuesType.BINARY);
-            } else {
-                assert docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.LOW;
+            if (docValuesParameters.enabled() && docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.LOW) {
                 fieldtype.setDocValuesType(DocValuesType.SORTED_SET);
+            } else {
+                fieldtype.setDocValuesType(DocValuesType.NONE);
             }
 
             if (fieldtype.equals(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES) == false) {
@@ -509,6 +521,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final boolean eagerGlobalOrdinals;
         private final FieldValues<String> scriptValues;
         private final boolean isDimension;
+        private final DocValuesParameter.Values docValuesParameters;
 
         public KeywordFieldType(
             String name,
@@ -537,6 +550,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.nullValue = builder.nullValue.getValue();
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();
+            this.docValuesParameters = builder.docValuesParameters();
         }
 
         public KeywordFieldType(String name) {
@@ -551,6 +565,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
+            this.docValuesParameters = DEFAULT_DOC_VALUES_PARAMS;
         }
 
         public KeywordFieldType(String name, FieldType fieldType, boolean isSyntheticSource) {
@@ -569,6 +584,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
+            this.docValuesParameters = DEFAULT_DOC_VALUES_PARAMS;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -587,6 +603,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
+            this.docValuesParameters = DEFAULT_DOC_VALUES_PARAMS;
         }
 
         @Override
@@ -739,6 +756,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
+        public String binaryDocValuesName() {
+            return name() + "._dv";
+        }
+
         @Override
         public boolean eagerGlobalOrdinals() {
             return eagerGlobalOrdinals;
@@ -883,12 +904,19 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
         }
 
-        private SortedSetOrdinalsIndexFieldData.Builder fieldDataFromDocValues() {
-            return new SortedSetOrdinalsIndexFieldData.Builder(
-                name(),
-                CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
-            );
+        private IndexFieldData.Builder fieldDataFromDocValues() {
+            return switch (docValuesParameters.cardinality()) {
+                case LOW -> new SortedSetOrdinalsIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
+                );
+                case HIGH -> new BytesBinaryIndexFieldData.Builder(
+                    binaryDocValuesName(),
+                    CoreValuesSourceType.KEYWORD,
+                    KeywordDocValuesField::new
+                );
+            };
         }
 
         @Override
@@ -1217,6 +1245,16 @@ public final class KeywordFieldMapper extends FieldMapper {
             throw new IllegalArgumentException(msg);
         }
 
+        if (docValuesParameters.enabled() && docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.HIGH) {
+            assert fieldType.docValuesType() == DocValuesType.NONE;
+            KeywordBinaryDocValuesField field = (KeywordBinaryDocValuesField) context.doc().getField(fieldType().binaryDocValuesName());
+            if (field == null) {
+                field = new KeywordBinaryDocValuesField(fieldType().binaryDocValuesName());
+                context.doc().addWithKey(fieldType().binaryDocValuesName(), field);
+            }
+            field.add(binaryValue);
+        }
+
         Field field = buildKeywordField(binaryValue);
         context.doc().add(field);
 
@@ -1300,7 +1338,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             return SyntheticSourceSupport.FALLBACK;
         }
 
-        if (fieldType.stored() || docValuesParameters.enabled()) {
+        if (fieldType.stored()
+            || offsetsFieldName != null
+            || (indexSettings.sourceKeepMode() == SourceKeepMode.NONE && fieldType.docValuesType() != DocValuesType.NONE)) {
             return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));
         }
 
@@ -1320,20 +1360,31 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             });
         } else if (docValuesParameters.enabled()) {
-            if (offsetsFieldName != null) {
-                layers.add(new SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName));
+            if (docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.LOW) {
+                if (offsetsFieldName != null) {
+                    layers.add(new SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName));
+                } else {
+                    layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+
+                        @Override
+                        protected BytesRef convert(BytesRef value) {
+                            return value;
+                        }
+
+                        @Override
+                        protected BytesRef preserve(BytesRef value) {
+                            // Preserve must make a deep copy because convert gets a shallow copy from the iterator
+                            return BytesRef.deepCopyOf(value);
+                        }
+                    });
+                }
             } else {
-                layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
-
+                assert offsetsFieldName == null;
+                assert indexSettings.sourceKeepMode() == SourceKeepMode.NONE;
+                layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().binaryDocValuesName()) {
                     @Override
-                    protected BytesRef convert(BytesRef value) {
-                        return value;
-                    }
-
-                    @Override
-                    protected BytesRef preserve(BytesRef value) {
-                        // Preserve must make a deep copy because convert gets a shallow copy from the iterator
-                        return BytesRef.deepCopyOf(value);
+                    protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                        b.utf8Value(value.bytes, value.offset, value.length);
                     }
                 });
             }
@@ -1353,5 +1404,36 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
+    }
+
+    private static class KeywordBinaryDocValuesField extends CustomDocValuesField {
+        private final List<BytesRef> bytesList;
+
+        KeywordBinaryDocValuesField(String name) {
+            super(name);
+            bytesList = new ArrayList<>();
+        }
+
+        public void add(BytesRef value) {
+            bytesList.add(value);
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            try {
+                bytesList.sort(BytesRef::compareTo);
+                CollectionUtils.uniquify(bytesList, BytesRef::compareTo);
+                int bytesSize = bytesList.stream().map(a -> a.length).reduce(0, Integer::sum);
+                int n = bytesList.size();
+                BytesStreamOutput out = new BytesStreamOutput(bytesSize + (n + 1) * 5);
+                out.writeVInt(n);
+                for (var value : bytesList) {
+                    out.writeBytesRef(value);
+                }
+                return out.bytes().toBytesRef();
+            } catch (IOException e) {
+                throw new ElasticsearchException("Failed to get binary value", e);
+            }
+        }
     }
 }

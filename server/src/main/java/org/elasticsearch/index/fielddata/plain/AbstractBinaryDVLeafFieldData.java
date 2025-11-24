@@ -10,12 +10,9 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-
-import java.io.IOException;
 
 abstract class AbstractBinaryDVLeafFieldData implements LeafFieldData {
     private final BinaryDocValues values;
@@ -32,40 +29,7 @@ abstract class AbstractBinaryDVLeafFieldData implements LeafFieldData {
 
     @Override
     public SortedBinaryDocValues getBytesValues() {
-        return new SortedBinaryDocValues() {
-
-            int count;
-            final ByteArrayStreamInput in = new ByteArrayStreamInput();
-            final BytesRef scratch = new BytesRef();
-
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                if (values.advanceExact(doc)) {
-                    final BytesRef bytes = values.binaryValue();
-                    assert bytes.length > 0;
-                    in.reset(bytes.bytes, bytes.offset, bytes.length);
-                    count = in.readVInt();
-                    scratch.bytes = bytes.bytes;
-                    return true;
-                } else {
-                    return false;
-                }
-            }
-
-            @Override
-            public int docValueCount() {
-                return count;
-            }
-
-            @Override
-            public BytesRef nextValue() throws IOException {
-                scratch.length = in.readVInt();
-                scratch.offset = in.getPosition();
-                in.setPosition(scratch.offset + scratch.length);
-                return scratch;
-            }
-
-        };
+        return new MultiValuedSortedBinaryDocValues(values);
     }
 
 }

@@ -1,0 +1,6 @@
+pr: 138380
+summary: Do not use Min or Max as Top's surrogate when there is an `outputField`
+area: ES|QL
+type: bug
+issues:
+ - 134083

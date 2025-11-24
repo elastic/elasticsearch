@@ -39,7 +39,7 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
             (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
             (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
             (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
-            (LongBlock) blockFactory().newConstantNullBlock(elementCount),
+            (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
             (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
             (BytesRefBlock) blockFactory().newConstantNullBlock(elementCount)
         );
@@ -106,7 +106,7 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
                         case COUNT -> {
                             assertThat(componentBlock.getValueCount(i), equalTo(1));
                             int valueIndex = componentBlock.getFirstValueIndex(i);
-                            assertThat(((LongBlock) componentBlock).getLong(valueIndex), equalTo(histo.valueCount()));
+                            assertThat(((DoubleBlock) componentBlock).getDouble(valueIndex), equalTo((double) histo.valueCount()));
                         }
                     }
                 }

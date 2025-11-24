@@ -7,6 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+ // This file contains implementations for basic vector processing functionalities,
+ // including support for "1st tier" vector capabilities; in the case of ARM,
+ // this first tier include functions for processors supporting at least the NEON
+ // instruction set.
+
 #include <stddef.h>
 #include <arm_neon.h>
 #include <math.h>

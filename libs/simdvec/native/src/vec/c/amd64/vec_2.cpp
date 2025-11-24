@@ -7,6 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+ // This file contains implementations for processors supporting "2nd level" vector
+ // capabilities; in the case of x64, this second level is support for AVX-512
+ // instructions.
+
 #include <stddef.h>
 #include <stdint.h>
 #include <math.h>

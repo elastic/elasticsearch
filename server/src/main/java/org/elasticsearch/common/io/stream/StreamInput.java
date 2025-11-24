@@ -1197,6 +1197,17 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an optional {@link Exception}.
+     */
+    @Nullable
+    public <T extends Exception> T readOptionalException() throws IOException {
+        if (readBoolean()) {
+            return ElasticsearchException.readException(this);
+        }
+        return null;
+    }
+
+    /**
      * Get the registry of named writeables if this stream has one,
      * {@code null} otherwise.
      */

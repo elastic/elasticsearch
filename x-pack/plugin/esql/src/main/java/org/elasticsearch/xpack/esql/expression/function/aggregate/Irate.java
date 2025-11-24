@@ -122,7 +122,7 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     public String toString() {
-        return "irate(" + field() + ")";
+        return "irate(" + field() + ", " + timestamp() + ")";
     }
 
     @Override

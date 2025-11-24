@@ -1,6 +1,0 @@
-pr: 130857
-summary: Improving statsByShard performance when the number of shards is very large
-area: Stats
-type: bug
-issues:
- - 97222

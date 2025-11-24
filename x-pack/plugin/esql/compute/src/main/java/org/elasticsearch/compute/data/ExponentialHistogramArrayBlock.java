@@ -85,10 +85,10 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
                     assert b.isNull(i)
                         : "ExponentialHistogramArrayBlock sub-block [" + b + "] should be null at position " + i + ", but was not";
                 } else {
-                    if (b == minima || b == maxima) {
-                        // minima / maxima should be null exactly when value count is 0 or the histogram is null
+                    if (b == sums || b == minima || b == maxima) {
+                        // sums / minima / maxima should be null exactly when value count is 0 or the histogram is null
                         assert b.isNull(i) == (valueCounts.getLong(valueCounts.getFirstValueIndex(i)) == 0)
-                            : "ExponentialHistogramArrayBlock minima/maxima sub-block [" + b + "] has wrong nullity at position " + i;
+                            : "ExponentialHistogramArrayBlock sums/minima/maxima sub-block [" + b + "] has wrong nullity at position " + i;
                     } else {
                         assert b.isNull(i) == false
                             : "ExponentialHistogramArrayBlock sub-block [" + b + "] should be non-null at position " + i + ", but was not";
@@ -108,7 +108,7 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         BytesRef bytes = encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(valueIndex), scratch.bytesRefScratch);
         double zeroThreshold = zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(valueIndex));
         long valueCount = valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex));
-        double sum = sums.getDouble(sums.getFirstValueIndex(valueIndex));
+        double sum = valueCount == 0 ? 0.0 : sums.getDouble(sums.getFirstValueIndex(valueIndex));
         double min = valueCount == 0 ? Double.NaN : minima.getDouble(minima.getFirstValueIndex(valueIndex));
         double max = valueCount == 0 ? Double.NaN : maxima.getDouble(maxima.getFirstValueIndex(valueIndex));
         try {
@@ -120,15 +120,30 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
     }
 
     @Override
+    public Block buildExponentialHistogramComponentBlock(Component component) {
+        // as soon as we support multi-values, we need to implement this differently,
+        // as the sub-blocks will be flattened and the position count won't match anymore
+        // we'll likely have to return a "view" on the sub-blocks that implements the multi-value logic
+        Block result = switch (component) {
+            case MIN -> minima;
+            case MAX -> maxima;
+            case SUM -> sums;
+            case COUNT -> valueCounts;
+        };
+        result.incRef();
+        return result;
+    }
+
+    @Override
     public void serializeExponentialHistogram(int valueIndex, SerializedOutput out, BytesRef scratch) {
         // not that this value count is different from getValueCount(position)!
         // this value count represents the number of individual samples the histogram was computed for
         long valueCount = valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex));
         out.appendLong(valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex)));
-        out.appendDouble(sums.getDouble(sums.getFirstValueIndex(valueIndex)));
         out.appendDouble(zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(valueIndex)));
         if (valueCount > 0) {
-            // min / max are only non-null for non-empty histograms
+            // sum / min / max are only non-null for non-empty histograms
+            out.appendDouble(sums.getDouble(sums.getFirstValueIndex(valueIndex)));
             out.appendDouble(minima.getDouble(minima.getFirstValueIndex(valueIndex)));
             out.appendDouble(maxima.getDouble(maxima.getFirstValueIndex(valueIndex)));
         }

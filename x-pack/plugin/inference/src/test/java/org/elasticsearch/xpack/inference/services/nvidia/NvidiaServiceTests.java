@@ -95,6 +95,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.INPUT_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.INPUT_TYPE_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.MODEL_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModelTests.createChatCompletionModel;
 import static org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsServiceSettingsTests.buildServiceSettingsMap;
@@ -119,6 +120,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
     private static final String FIRST_PART_OF_INPUT_VALUE = "abc";
     private static final String SECOND_PART_OF_INPUT_VALUE = "def";
     private static final String CONTENT_VALUE = "hello";
+    private static final String INPUT_TYPE_NVIDIA_DEFAULT_VALUE = "query";
 
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
@@ -786,9 +788,10 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             );
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            assertThat(requestMap.size(), Matchers.is(2));
+            assertThat(requestMap.size(), Matchers.is(3));
             assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(FIRST_PART_OF_INPUT_VALUE, SECOND_PART_OF_INPUT_VALUE)));
             assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
+            assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), is(INPUT_TYPE_NVIDIA_DEFAULT_VALUE));
         }
     }
 

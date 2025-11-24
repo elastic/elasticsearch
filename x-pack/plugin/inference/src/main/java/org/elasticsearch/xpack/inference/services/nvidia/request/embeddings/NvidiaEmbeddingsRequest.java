@@ -86,9 +86,9 @@ public class NvidiaEmbeddingsRequest implements Request {
     /**
      * Extracts the input type to be used for the request.
      * It first checks if the inputType field is specified, then checks the model's task settings.
-     * If neither is specified, it returns null.
+     * If neither is specified, it defaults to {@link InputType#SEARCH}.
      *
-     * @return the {@link InputType} to be used for the request, or null if not specified
+     * @return the {@link InputType} to be used for the request
      */
     private InputType extractInputTypeToUse() {
         if (InputType.isSpecified(inputType)) {
@@ -96,7 +96,7 @@ public class NvidiaEmbeddingsRequest implements Request {
         } else if (InputType.isSpecified(model.getTaskSettings().getInputType())) {
             return model.getTaskSettings().getInputType();
         } else {
-            return null;
+            return InputType.SEARCH;
         }
     }
 

@@ -98,6 +98,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
     private static final String INPUT_TYPE_INITIAL_NVIDIA_VALUE = "passage";
     private static final String TRUNCATE_INITIAL_NVIDIA_VALUE = "start";
     private static final String INPUT_TYPE_OVERRIDDEN_NVIDIA_VALUE = "query";
+    private static final String INPUT_TYPE_DEFAULT_NVIDIA_VALUE = "query";
     private static final String TRUNCATE_OVERRIDDEN_NVIDIA_VALUE = "end";
     private static final InputType INPUT_TYPE_INITIAL_ELASTIC_VALUE = InputType.INGEST;
     private static final Truncation TRUNCATE_INITIAL_ELASTIC_VALUE = Truncation.START;
@@ -156,7 +157,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         webServer.close();
     }
 
-    public void testCreate_NvidiaEmbeddingsModel_NoTaskSettings() throws IOException {
+    public void testCreate_NvidiaEmbeddingsModel_NoTaskSettings_NoRequestInputType() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
@@ -183,7 +184,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationFloat(EMBEDDINGS_VALUE)));
-            assertEmbeddingsRequests(null, null);
+            assertEmbeddingsRequests(INPUT_TYPE_DEFAULT_NVIDIA_VALUE, null);
         }
     }
 
@@ -368,13 +369,10 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         assertContentTypeAndAuthorization(request);
 
         var requestMap = entityAsMap(request.getBody());
-        int size = 2;
+        int size = 3;
         assertThat(requestMap.get(INPUT_FIELD_NAME), is(INPUT_VALUE));
         assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
-        if (expectedInputType != null) {
-            size++;
-            assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(expectedInputType));
-        }
+        assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(expectedInputType));
         if (expectedTruncation != null) {
             size++;
             assertThat(requestMap.get(TRUNCATE_FIELD_NAME), Matchers.is(expectedTruncation));
@@ -616,18 +614,20 @@ public class NvidiaActionCreatorTests extends ESTestCase {
                 assertContentTypeAndAuthorization(webServer.requests().getFirst());
 
                 var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-                assertThat(requestMap, aMapWithSize(2));
+                assertThat(requestMap, aMapWithSize(3));
                 assertThat(requestMap.get(INPUT_FIELD_NAME), is(INPUT_VALUE));
                 assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
+                assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(INPUT_TYPE_DEFAULT_NVIDIA_VALUE));
             }
             {
                 assertThat(webServer.requests().get(1).getUri().getQuery(), is(nullValue()));
                 assertContentTypeAndAuthorization(webServer.requests().get(1));
 
                 var requestMap = entityAsMap(webServer.requests().get(1).getBody());
-                assertThat(requestMap, aMapWithSize(2));
+                assertThat(requestMap, aMapWithSize(3));
                 assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_ENTRY_VALUE.substring(0, 2))));
                 assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
+                assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(INPUT_TYPE_DEFAULT_NVIDIA_VALUE));
             }
         }
     }
@@ -681,17 +681,19 @@ public class NvidiaActionCreatorTests extends ESTestCase {
                 var firstRequest = webServer.requests().getFirst();
                 assertContentTypeAndAuthorization(firstRequest);
                 var firstRequestMap = entityAsMap(firstRequest.getBody());
-                assertThat(firstRequestMap, aMapWithSize(2));
+                assertThat(firstRequestMap, aMapWithSize(3));
                 assertThat(firstRequestMap.get(INPUT_FIELD_NAME), is(INPUT_VALUE));
                 assertThat(firstRequestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
+                assertThat(firstRequestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(INPUT_TYPE_DEFAULT_NVIDIA_VALUE));
             }
             {
                 var secondRequest = webServer.requests().get(1);
                 assertContentTypeAndAuthorization(secondRequest);
                 var secondRequestMap = entityAsMap(secondRequest.getBody());
-                assertThat(secondRequestMap, aMapWithSize(2));
+                assertThat(secondRequestMap, aMapWithSize(3));
                 assertThat(secondRequestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_ENTRY_VALUE.substring(0, 2))));
                 assertThat(secondRequestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
+                assertThat(secondRequestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(INPUT_TYPE_DEFAULT_NVIDIA_VALUE));
             }
         }
     }
@@ -731,9 +733,10 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             assertContentTypeAndAuthorization(request);
 
             var requestMap = entityAsMap(request.getBody());
-            assertThat(requestMap, aMapWithSize(2));
+            assertThat(requestMap, aMapWithSize(3));
             assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_TO_TRUNCATE.substring(0, 3))));
             assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
+            assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(INPUT_TYPE_DEFAULT_NVIDIA_VALUE));
         }
     }
 

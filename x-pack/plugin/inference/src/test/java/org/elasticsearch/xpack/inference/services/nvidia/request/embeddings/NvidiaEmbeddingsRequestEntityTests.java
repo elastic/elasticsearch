@@ -45,7 +45,7 @@ public class NvidiaEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_OnlyMandatoryFields() throws IOException {
-        var entity = new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, null, null);
+        var entity = new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, INPUT_TYPE_VALUE, null);
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
@@ -53,7 +53,8 @@ public class NvidiaEmbeddingsRequestEntityTests extends ESTestCase {
         assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
             {
                 "input": ["some input"],
-                "model": "some_model"
+                "model": "some_model",
+                "input_type": "passage"
             }
             """)));
     }

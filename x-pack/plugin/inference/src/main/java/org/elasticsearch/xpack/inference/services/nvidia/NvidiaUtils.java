@@ -8,10 +8,8 @@
 package org.elasticsearch.xpack.inference.services.nvidia;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
-
-import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 
 /**
  * Utility class for Nvidia inference services.
@@ -37,17 +35,15 @@ public final class NvidiaUtils {
      * Converts an {@link InputType} to its corresponding string representation for Nvidia services.
      *
      * @param inputType the InputType to convert
-     * @return the string representation of the {@link InputType}, or null if the input type is null
+     * @return the string representation of the {@link InputType}
      */
-    public static String inputTypeToString(@Nullable InputType inputType) {
+    public static String inputTypeToString(InputType inputType) {
         return switch (inputType) {
             case INGEST, INTERNAL_INGEST -> PASSAGE;
             case SEARCH, INTERNAL_SEARCH -> QUERY;
-            case null -> null;
-            default -> {
-                assert false : invalidInputTypeMessage(inputType);
-                yield null;
-            }
+            case null, default -> throw new IllegalArgumentException(
+                Strings.format("Unrecognized input_type [%s], must be one of %s", inputType, NvidiaService.VALID_INPUT_TYPE_VALUES)
+            );
         };
     }
 

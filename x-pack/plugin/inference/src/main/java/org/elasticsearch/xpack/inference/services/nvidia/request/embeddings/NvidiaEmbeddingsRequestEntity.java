@@ -27,16 +27,14 @@ import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFie
  * NvidiaEmbeddingsRequestEntity is responsible for creating the request entity for Nvidia embeddings.
  * It implements {@link ToXContentObject} to allow serialization to XContent format.
  */
-public record NvidiaEmbeddingsRequestEntity(
-    List<String> input,
-    String modelId,
-    @Nullable InputType inputType,
-    @Nullable Truncation truncation
-) implements ToXContentObject {
+public record NvidiaEmbeddingsRequestEntity(List<String> input, String modelId, InputType inputType, @Nullable Truncation truncation)
+    implements
+        ToXContentObject {
 
     public NvidiaEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
         Objects.requireNonNull(modelId);
+        Objects.requireNonNull(inputType);
     }
 
     @Override
@@ -44,10 +42,7 @@ public record NvidiaEmbeddingsRequestEntity(
         builder.startObject();
         builder.field(INPUT_FIELD_NAME, input);
         builder.field(MODEL_FIELD_NAME, modelId);
-        var inputTypeToUse = NvidiaUtils.inputTypeToString(inputType);
-        if (inputTypeToUse != null) {
-            builder.field(INPUT_TYPE_FIELD_NAME, inputTypeToUse);
-        }
+        builder.field(INPUT_TYPE_FIELD_NAME, NvidiaUtils.inputTypeToString(inputType));
         if (truncation != null) {
             builder.field(TRUNCATE_FIELD_NAME, truncation);
         }

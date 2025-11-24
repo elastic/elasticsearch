@@ -11,7 +11,6 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class NvidiaUtilsTests extends ESTestCase {
 
@@ -35,11 +34,21 @@ public class NvidiaUtilsTests extends ESTestCase {
     }
 
     public void testInputTypeToString_Null() {
-        assertThat(NvidiaUtils.inputTypeToString(null), is(nullValue()));
+        IllegalArgumentException assertionError = assertThrows(IllegalArgumentException.class, () -> NvidiaUtils.inputTypeToString(null));
+        assertThat(
+            assertionError.getMessage(),
+            is("Unrecognized input_type [null], must be one of [ingest, search, internal_search, internal_ingest]")
+        );
     }
 
     public void testInputTypeToString_Unspecified() {
-        AssertionError assertionError = assertThrows(AssertionError.class, () -> NvidiaUtils.inputTypeToString(InputType.UNSPECIFIED));
-        assertThat(assertionError.getMessage(), is("received invalid input type value [unspecified]"));
+        IllegalArgumentException assertionError = assertThrows(
+            IllegalArgumentException.class,
+            () -> NvidiaUtils.inputTypeToString(InputType.UNSPECIFIED)
+        );
+        assertThat(
+            assertionError.getMessage(),
+            is("Unrecognized input_type [unspecified], must be one of [ingest, search, internal_search, internal_ingest]")
+        );
     }
 }

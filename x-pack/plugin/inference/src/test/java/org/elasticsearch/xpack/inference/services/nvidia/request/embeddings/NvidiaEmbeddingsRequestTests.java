@@ -45,6 +45,7 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
     private static final InputType INPUT_TYPE_EXPEDIA_IGNORED_VALUE = InputType.SEARCH;
     private static final Truncation TRUNCATE_EXPEDIA_VALUE = Truncation.START;
     private static final String INPUT_TYPE_NVIDIA_VALUE = "passage";
+    private static final String INPUT_TYPE_NVIDIA_DEFAULT_VALUE = "query";
     private static final String TRUNCATE_NVIDIA_VALUE = "start";
 
     public void testCreateRequest_InputTypeFromTaskSettings_Success() throws IOException {
@@ -68,14 +69,9 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
         testCreateRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
     }
 
-    public void testCreateRequest_OnlyMandatoryFields_Success() throws IOException {
-        var request = createRequest(URL_VALUE, MODEL_VALUE, null, null, null);
-        testCreateRequest(request, null, null, URL_VALUE);
-    }
-
-    public void testCreateRequest_DefaultUrl_Success() throws IOException {
-        var request = createRequest(null, MODEL_VALUE, INPUT_TYPE_EXPEDIA_INITIAL_VALUE, TRUNCATE_EXPEDIA_VALUE, null);
-        testCreateRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_DEFAULT_VALUE);
+    public void testCreateRequest_OnlyMandatoryAndDefaultFields_Success() throws IOException {
+        var request = createRequest(null, MODEL_VALUE, null, null, null);
+        testCreateRequest(request, INPUT_TYPE_NVIDIA_DEFAULT_VALUE, null, URL_DEFAULT_VALUE);
     }
 
     private void testCreateRequest(NvidiaEmbeddingsRequest request, String expectedInputType, String expectedTruncation, String expectedUrl)
@@ -84,13 +80,10 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
         var httpPost = validateRequestUrlAndContentType(httpRequest, expectedUrl);
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        int size = 2;
+        int size = 3;
         assertThat(requestMap.get(INPUT_FIELD_NAME), Matchers.is(List.of(INPUT_VALUE)));
         assertThat(requestMap.get(MODEL_FIELD_NAME), Matchers.is(MODEL_VALUE));
-        if (expectedInputType != null) {
-            size++;
-            assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(expectedInputType));
-        }
+        assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(expectedInputType));
         if (expectedTruncation != null) {
             size++;
             assertThat(requestMap.get(TRUNCATE_FIELD_NAME), Matchers.is(expectedTruncation));
@@ -112,9 +105,10 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(2));
+        assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get(INPUT_FIELD_NAME), Matchers.is(List.of(INPUT_VALUE.substring(0, INPUT_VALUE.length() / 2))));
         assertThat(requestMap.get(MODEL_FIELD_NAME), Matchers.is(MODEL_VALUE));
+        assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(INPUT_TYPE_NVIDIA_DEFAULT_VALUE));
     }
 
     public void testIsTruncated_ReturnsTrue() {

@@ -53,7 +53,7 @@ public class InferenceGetModelsWithElasticInferenceServiceIT extends BaseMockEIS
         assertInferenceIdTaskType(allModels, ".gp-llm-v2-chat_completion", TaskType.CHAT_COMPLETION);
         assertInferenceIdTaskType(allModels, ".elser-2-elastic", TaskType.SPARSE_EMBEDDING);
         assertInferenceIdTaskType(allModels, ".jina-embeddings-v3", TaskType.TEXT_EMBEDDING);
-        assertInferenceIdTaskType(allModels, ".elastic-rerank-v1", TaskType.RERANK);
+        assertInferenceIdTaskType(allModels, ".jina-reranker-v2", TaskType.RERANK);
     }
 
     private static void assertInferenceIdTaskType(List<Map<String, Object>> models, String inferenceId, TaskType taskType) {

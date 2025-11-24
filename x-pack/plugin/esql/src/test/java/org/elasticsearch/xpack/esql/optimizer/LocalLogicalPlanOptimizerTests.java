@@ -125,6 +125,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
@@ -168,6 +169,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 indexResolutions(test),
+                defaultLookupResolution(),
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
             ),
@@ -2099,6 +2101,90 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // EsRelation[test_all] - verify pushed down field is in the relation output
         var subqueryRelation = as(subqueryLimit.child(), EsRelation.class);
         assertTrue(subqueryRelation.output().contains(sFieldAttr));
+    }
+
+    public void testPushDownFunctionsLookupJoin() {
+        assumeTrue("requires functions pushdown", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+
+        var query = """
+            from test
+            | eval s = length(first_name)
+            | rename languages AS language_code
+            | keep s, language_code, last_name
+            | lookup join languages_lookup ON language_code
+            | eval t = length(last_name)
+            | eval u = length(language_name)
+            """;
+
+        var localPlan = localPlan(plan(query, analyzer), TEST_SEARCH_STATS);
+
+        // Project[[s{r}#5, languages{f}#22 AS language_code#8, last_name{f}#23, language_name{f}#31, t{r}#15, u{r}#18]]
+        var project = as(localPlan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("s", "language_code", "last_name", "language_name", "t", "u"));
+
+        // Eval[[$$last_name$LENGTH$2048779556{f$}#32 AS t#15, $$language_name$LENGTH$2048779556{f$}#33 AS u#18]]
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(2));
+
+        // Find the "t" field which should be a pushed down LENGTH function on last_name
+        var tAlias = eval.fields()
+            .stream()
+            .filter(f -> f.name().equals("t"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Field 't' not found in eval"));
+        var tField = as(tAlias, Alias.class);
+        var tFieldAttr = as(tField.child(), FieldAttribute.class);
+        assertThat(tFieldAttr.name(), startsWith("$$last_name$LENGTH$"));
+        assertThat(tFieldAttr.fieldName().string(), equalTo("last_name"));
+
+        // Find the "u" field which should be a pushed down LENGTH function on language_name
+        var uAlias = eval.fields()
+            .stream()
+            .filter(f -> f.name().equals("u"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Field 'u' not found in eval"));
+        var uField = as(uAlias, Alias.class);
+        var uFieldAttr = as(uField.child(), FieldAttribute.class);
+        assertThat(uFieldAttr.name(), startsWith("$$language_name$LENGTH$"));
+        assertThat(uFieldAttr.fieldName().string(), equalTo("language_name"));
+
+        // Limit[1000[INTEGER],true,false]
+        var limit = as(eval.child(), Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
+
+        // Join[LEFT,[languages{f}#22],[language_code{f}#30],null]
+        var join = as(limit.child(), Join.class);
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+
+        // Left side of join: Eval[[$$first_name$LENGTH$2048779556{f$}#34 AS s#5]]
+        var leftEval = as(join.left(), Eval.class);
+        assertThat(leftEval.fields(), hasSize(1));
+
+        // Find the "s" field which should be a pushed down LENGTH function on first_name
+        var sAlias = leftEval.fields()
+            .stream()
+            .filter(f -> f.name().equals("s"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Field 's' not found in left eval"));
+        var sField = as(sAlias, Alias.class);
+        var sFieldAttr = as(sField.child(), FieldAttribute.class);
+        assertThat(sFieldAttr.name(), startsWith("$$first_name$LENGTH$"));
+        assertThat(sFieldAttr.fieldName().string(), equalTo("first_name"));
+
+        // Limit[1000[INTEGER],false,false]
+        var leftLimit = as(leftEval.child(), Limit.class);
+
+        // EsRelation[test] - verify pushed down fields are in the relation output
+        var leftRelation = as(leftLimit.child(), EsRelation.class);
+        assertTrue(leftRelation.output().contains(sFieldAttr));
+        assertTrue(leftRelation.output().contains(tFieldAttr));
+        assertTrue(leftRelation.output().contains(uFieldAttr));
+
+        // Right side of join: EsRelation[languages_lookup][LOOKUP]
+        var rightRelation = as(join.right(), EsRelation.class);
+        // Verify that the pushed down fields from the join result (t and u) are available in the relation
+        assertTrue(rightRelation.output().contains(tFieldAttr));
+        assertTrue(rightRelation.output().contains(uFieldAttr));
     }
 
     private IsNotNull isNotNull(Expression field) {

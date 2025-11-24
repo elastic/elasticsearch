@@ -42,8 +42,8 @@
               "description": "Application name"
             },
             "name": {
-              "type": "string",
-              "description": "Privilege name"
+              "type": "list",
+              "description": "Comma-separated list of privilege names. If you do not specify this parameter, the API returns information about all privileges for the requested application."
             }
           }
         }

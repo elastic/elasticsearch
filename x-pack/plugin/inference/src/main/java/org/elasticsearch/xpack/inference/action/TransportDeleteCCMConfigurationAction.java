@@ -69,7 +69,7 @@ public class TransportDeleteCCMConfigurationAction extends TransportMasterNodeAc
         ClusterState state,
         ActionListener<CCMEnabledActionResponse> listener
     ) {
-        if (ccmFeature.allowConfiguringCcm() == false) {
+        if (ccmFeature.isCcmSupportedEnvironment() == false) {
             listener.onFailure(CCM_FORBIDDEN_EXCEPTION);
             return;
         }

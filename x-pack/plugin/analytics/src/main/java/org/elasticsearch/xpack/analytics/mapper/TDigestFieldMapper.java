@@ -13,6 +13,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.HistogramValue;
@@ -31,6 +33,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -41,6 +44,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
@@ -57,6 +63,7 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -69,7 +76,6 @@ public class TDigestFieldMapper extends FieldMapper {
     public static final String CENTROIDS_NAME = "centroids";
     public static final String COUNTS_NAME = "counts";
     public static final String SUM_FIELD_NAME = "sum";
-    public static final String TOTAL_COUNT_FIELD_NAME = "count";
     public static final String MIN_FIELD_NAME = "min";
     public static final String MAX_FIELD_NAME = "max";
     public static final String CONTENT_TYPE = "tdigest";
@@ -79,13 +85,13 @@ public class TDigestFieldMapper extends FieldMapper {
     }
 
     public static class Builder extends FieldMapper.Builder {
-        private static final int DEFAULT_COMPRESSION = 100;
-        private static final int MAXIMUM_COMPRESSION = 10000;
+        private static final double DEFAULT_COMPRESSION = 100d;
+        private static final double MAXIMUM_COMPRESSION = 10000d;
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<TDigestState.Type> digestType;
-        private final Parameter<Integer> compression;
+        private final Parameter<Double> compression;
 
         public Builder(String name, boolean ignoreMalformedByDefault) {
             super(name);
@@ -102,7 +108,15 @@ public class TDigestFieldMapper extends FieldMapper {
                 TDigestState.Type.HYBRID,
                 TDigestState.Type.class
             );
-            this.compression = Parameter.intParam("compression", false, m -> toType(m).compression, DEFAULT_COMPRESSION).addValidator(c -> {
+            this.compression = new Parameter<>(
+                "compression",
+                false,
+                () -> DEFAULT_COMPRESSION,
+                (n, c1, o) -> XContentMapValues.nodeDoubleValue(o),
+                m -> toType(m).compression,
+                XContentBuilder::field,
+                Objects::toString
+            ).addValidator(c -> {
                 if (c <= 0 || c > MAXIMUM_COMPRESSION) {
                     throw new IllegalArgumentException(
                         "compression must be a positive integer between 1 and " + MAXIMUM_COMPRESSION + " was [" + c + "]"
@@ -135,7 +149,7 @@ public class TDigestFieldMapper extends FieldMapper {
     private final Explicit<Boolean> ignoreMalformed;
     private final boolean ignoreMalformedByDefault;
     private final TDigestState.Type digestType;
-    private final int compression;
+    private final double compression;
 
     public TDigestFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
@@ -154,7 +168,7 @@ public class TDigestFieldMapper extends FieldMapper {
         return digestType;
     }
 
-    public int compression() {
+    public double compression() {
         return compression;
     }
 
@@ -182,6 +196,18 @@ public class TDigestFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            DoublesBlockLoader minimaLoader = new DoublesBlockLoader(valuesMinSubFieldName(name()), NumericUtils::sortableLongToDouble);
+            DoublesBlockLoader maximaLoader = new DoublesBlockLoader(valuesMaxSubFieldName(name()), NumericUtils::sortableLongToDouble);
+            DoublesBlockLoader sumsLoader = new DoublesBlockLoader(valuesSumSubFieldName(name()), NumericUtils::sortableLongToDouble);
+            LongsBlockLoader valueCountsLoader = new LongsBlockLoader(valuesCountSubFieldName(name()));
+            BytesRefsFromBinaryBlockLoader digestLoader = new BytesRefsFromBinaryBlockLoader(name());
+
+            // TODO: We're constantly passing around this set of 5 things. It would be nice to make a container for that.
+            return new TDigestBlockLoader(digestLoader, minimaLoader, maximaLoader, sumsLoader, valueCountsLoader);
         }
 
         @Override
@@ -376,10 +402,13 @@ public class TDigestFieldMapper extends FieldMapper {
                 );
             }
             NumericDocValuesField countField = new NumericDocValuesField(valuesCountSubFieldName(fullPath()), parsedTDigest.count());
-            NumericDocValuesField sumField = new NumericDocValuesField(
-                valuesSumSubFieldName(fullPath()),
-                NumericUtils.doubleToSortableLong(parsedTDigest.sum())
-            );
+            NumericDocValuesField sumField = null;
+            if (Double.isNaN(parsedTDigest.sum()) == false) {
+                sumField = new NumericDocValuesField(
+                    valuesSumSubFieldName(fullPath()),
+                    NumericUtils.doubleToSortableLong(parsedTDigest.sum())
+                );
+            }
             if (context.doc().getByKey(fieldType().name()) != null) {
                 throw new IllegalArgumentException(
                     "Field ["
@@ -391,7 +420,9 @@ public class TDigestFieldMapper extends FieldMapper {
             }
             context.doc().addWithKey(fieldType().name(), digestField);
             context.doc().add(countField);
-            context.doc().add(sumField);
+            if (sumField != null) {
+                context.doc().add(sumField);
+            }
             if (maxField != null) {
                 context.doc().add(maxField);
             }
@@ -444,7 +475,7 @@ public class TDigestFieldMapper extends FieldMapper {
     }
 
     /** re-usable {@link HistogramValue} implementation */
-    private static class InternalTDigestValue extends HistogramValue {
+    static class InternalTDigestValue extends HistogramValue {
         double value;
         long count;
         boolean isExhausted;
@@ -506,10 +537,16 @@ public class TDigestFieldMapper extends FieldMapper {
     private class TDigestSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
         private final InternalTDigestValue value = new InternalTDigestValue();
         private BytesRef binaryValue;
+        private double min;
+        private double max;
+        private double sum;
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
             BinaryDocValues docValues = leafReader.getBinaryDocValues(fieldType().name());
+            NumericDocValues minValues = leafReader.getNumericDocValues(valuesMinSubFieldName(fullPath()));
+            NumericDocValues maxValues = leafReader.getNumericDocValues(valuesMaxSubFieldName(fullPath()));
+            NumericDocValues sumValues = leafReader.getNumericDocValues(valuesSumSubFieldName(fullPath()));
             if (docValues == null) {
                 // No values in this leaf
                 binaryValue = null;
@@ -517,6 +554,28 @@ public class TDigestFieldMapper extends FieldMapper {
             }
             return docId -> {
                 if (docValues.advanceExact(docId)) {
+                    // we assume the summary sub-
+                    if (minValues != null) {
+                        minValues.advanceExact(docId);
+                        min = NumericUtils.sortableLongToDouble(minValues.longValue());
+                    } else {
+                        min = Double.NaN;
+                    }
+
+                    if (maxValues != null) {
+                        maxValues.advanceExact(docId);
+                        max = NumericUtils.sortableLongToDouble(maxValues.longValue());
+                    } else {
+                        max = Double.NaN;
+                    }
+
+                    if (sumValues != null) {
+                        sumValues.advanceExact(docId);
+                        sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
+                    } else {
+                        sum = Double.NaN;
+                    }
+
                     binaryValue = docValues.binaryValue();
                     return true;
                 }
@@ -536,9 +595,19 @@ public class TDigestFieldMapper extends FieldMapper {
                 return;
             }
             value.reset(binaryValue);
-
             b.startObject();
+
             // TODO: Load the summary values out of the sub-fields, if they exist
+            if (Double.isNaN(min) == false) {
+                b.field("min", min);
+            }
+            if (Double.isNaN(max) == false) {
+                b.field("max", max);
+            }
+            if (Double.isNaN(sum) == false) {
+                b.field("sum", sum);
+            }
+
             b.startArray(CENTROIDS_NAME);
             while (value.next()) {
                 b.value(value.value());

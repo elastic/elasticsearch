@@ -19,7 +19,7 @@ setup:
           - '{"index": {"_id": 2}}'
           - '{"latency": {"centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
           - '{"index": {"_id": 3}}'
-          - '{"latency": {"sum": 8.6, "count": 29, "min": 0, "max": 0.5, "centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
+          - '{"latency": {"sum": 8.6, "min": 0, "max": 0.5, "centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
 ---
 "TDigest requires values in increasing order":
   - do:
@@ -47,11 +47,9 @@ TDigest get:
   - match:
       _source:
         latency:
-          # Here the summary fields were in the source, so we get them back
           min: 0
           max: 0.5
           sum: 8.6
-          count: 29
           centroids: [ 0, 0.1, 0.2, 0.3, 0.4, 0.5 ]
           counts: [ 3, 2, 5, 10, 1, 8 ]
 
@@ -89,6 +87,9 @@ TDigest with synthetic source:
   - match:
       _source:
         latency:
+          min: 0.1
+          max: 0.5
+          sum: 16.4
           centroids: [ 0.1, 0.2, 0.3, 0.4, 0.5 ]
           counts: [ 3, 7, 23, 12, 6 ]
 
@@ -99,6 +100,10 @@ TDigest with synthetic source:
   - match:
       _source:
         latency:
+          min: 0.0
+          max: 0.5
+          # $%#@! floating points...
+          sum: 8.600000000000001
           centroids: [ 0.0, 0.1, 0.2, 0.3, 0.4, 0.5 ]
           counts: [ 3, 2, 5, 10, 1, 8 ]
 ---
@@ -124,7 +129,7 @@ TDigest with synthetic source and explicit summary fields:
         refresh: true
         body:
           - '{"index": {"_id": 1}}'
-          - '{"latency": {"sum": 8.6, "count": 29, "min": 0, "max": 0.5, "centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
+          - '{"latency": {"sum": 8.6, "min": 0, "max": 0.5, "centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
 
   - do:
       get:
@@ -133,6 +138,10 @@ TDigest with synthetic source and explicit summary fields:
   - match:
       _source:
         latency:
+          # Note that unlike the stored source case, we get back a float here
+          min: 0.0
+          max: 0.5
+          sum: 8.6
           centroids: [ 0.0, 0.1, 0.2, 0.3, 0.4, 0.5 ]
           counts: [ 3, 2, 5, 10, 1, 8 ]
 
@@ -168,6 +177,10 @@ TDigest with synthetic source and zero counts:
   - match:
       _source:
         latency:
+          # Note that we're storing 0.1 as the min, even though it's count is 0.
+          min: 0.1
+          max: 0.5
+          sum: 3.8000000000000007
           centroids: [ 0.2, 0.4 ]
           counts: [ 7, 6 ]
 
@@ -223,6 +236,9 @@ histogram with synthetic source and ignore_malformed:
   - match:
       _source:
         latency: [ {
+          min: 2.0,
+          max: 2.0,
+          sum: 4.0,
           "centroids": [ 2.0 ],
           "counts": [ 2 ]
         },

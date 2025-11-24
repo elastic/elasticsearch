@@ -40,7 +40,7 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         assertDimension(true, NumberFieldMapper.NumberFieldType::isDimension);
         assertDimension(false, NumberFieldMapper.NumberFieldType::isDimension);
 
-        assertDimensionIndexing();
+        assertTimeSeriesIndexing();
     }
 
     public void testDimensionIndexedAndDocvalues() {

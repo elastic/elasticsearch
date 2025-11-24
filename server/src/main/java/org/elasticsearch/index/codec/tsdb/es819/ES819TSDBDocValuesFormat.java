@@ -37,8 +37,6 @@ import java.io.IOException;
  */
 public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesFormat {
 
-    public static final boolean BINARY_DV_COMPRESSION_FEATURE_FLAG = new FeatureFlag("binary_dv_compression").isEnabled();
-
     static final int NUMERIC_BLOCK_SHIFT = 7;
     public static final int NUMERIC_BLOCK_SIZE = 1 << NUMERIC_BLOCK_SHIFT;
     static final int NUMERIC_BLOCK_MASK = NUMERIC_BLOCK_SIZE - 1;
@@ -145,7 +143,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             OPTIMIZED_MERGE_ENABLE_DEFAULT,
-            BINARY_DV_COMPRESSION_FEATURE_FLAG ? BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1 : BinaryDVCompressionMode.NO_COMPRESS,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
             true
         );
     }

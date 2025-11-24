@@ -50,7 +50,6 @@ public class ToLongBaseTests extends AbstractScalarFunctionTestCase {
         return new ToLongBase(source, args.get(0), args.get(1));
     }
 
-
     /**
      * TO_LONG(string, integer)
      */
@@ -117,14 +116,7 @@ public class ToLongBaseTests extends AbstractScalarFunctionTestCase {
         });
     }
 
-
-    private static TestCaseSupplier binaryStringLongTestCase(
-        String testName,
-        String string,
-        Long base,
-        Long result,
-        DataType stringType
-    ) {
+    private static TestCaseSupplier binaryStringLongTestCase(String testName, String string, Long base, Long result, DataType stringType) {
         return new TestCaseSupplier(testName, List.of(stringType, DataType.LONG), () -> {
             TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
                 List.of(
@@ -166,11 +158,7 @@ public class ToLongBaseTests extends AbstractScalarFunctionTestCase {
         });
     }
 
-    private static TestCaseSupplier.TestCase addWarnings(
-        TestCaseSupplier.TestCase testCase,
-        String string,
-        Object base
-    ) {
+    private static TestCaseSupplier.TestCase addWarnings(TestCaseSupplier.TestCase testCase, String string, Object base) {
         List<String> expectedWarnings = List.of(
             "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
             ("Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert ["

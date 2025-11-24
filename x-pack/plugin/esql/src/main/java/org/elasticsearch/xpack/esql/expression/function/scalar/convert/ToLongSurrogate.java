@@ -184,12 +184,12 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
             // two parameter TO_LONG(string, base)
 
             switch (field.dataType()) {
-            case DataType.KEYWORD:
-            case DataType.TEXT:
-            case DataType.NULL:
-                break;
-            default:
-                throw new UnsupportedOperationException("may not specify base with non-string field " + field.dataType());
+                case DataType.KEYWORD:
+                case DataType.TEXT:
+                case DataType.NULL:
+                    break;
+                default:
+                    throw new UnsupportedOperationException("may not specify base with non-string field " + field.dataType());
             }
 
             switch (base.dataType()) {
@@ -197,9 +197,9 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
                 case DataType.LONG:
                 case DataType.UNSIGNED_LONG:
                 case DataType.NULL:
-                break;
-            default:
-                throw new UnsupportedOperationException("base must be a whole number, not " + base.dataType());
+                    break;
+                default:
+                    throw new UnsupportedOperationException("base must be a whole number, not " + base.dataType());
             }
 
             return new ToLongBase(source(), field, new ToInteger(source(), base));

@@ -33,8 +33,10 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
+import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceField;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
@@ -266,17 +268,25 @@ public class SemanticTextHighlighter implements Highlighter {
                 super.consumeTerms(query, terms);
             }
 
-            @Override
-            public void visitLeaf(Query query) {
+            private void visitLeaf(Query query, Float similarity) {
                 if (query instanceof KnnFloatVectorQuery knnQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(knnQuery.getTargetCopy()), null));
+                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(knnQuery.getTargetCopy()), similarity));
                 } else if (query instanceof KnnByteVectorQuery knnQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), null));
+                    queries.add(fieldType.createExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), similarity));
                 } else if (query instanceof MatchAllDocsQuery) {
                     queries.add(new MatchAllDocsQuery());
                 } else if (query instanceof DenseVectorQuery.Floats floatsQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), null));
+                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), similarity));
+                } else if (query instanceof RescoreKnnVectorQuery rescoreQuery) {
+                    visitLeaf(rescoreQuery.innerQuery(), similarity);
+                } else if (query instanceof VectorSimilarityQuery similarityQuery) {
+                    visitLeaf(similarityQuery.getInnerKnnQuery(), similarityQuery.getSimilarity());
                 }
+            }
+
+            @Override
+            public void visitLeaf(Query query) {
+                visitLeaf(query, null);
             }
         });
         return queries;

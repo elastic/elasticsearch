@@ -429,7 +429,7 @@ public class QueryRewriteContext {
 
                 RemoteClusterClient remoteClient = client.getRemoteClusterClient(
                     clusterAlias,
-                    client.threadPool().executor(SEARCH_COORDINATION), // TODO: Is this the right thread pool for remote async actions?
+                    client.threadPool().executor(SEARCH_COORDINATION),
                     RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                 );
                 ThreadContext threadContext = client.threadPool().getThreadContext();

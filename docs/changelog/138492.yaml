@@ -3,3 +3,9 @@ summary: Enable bfloat16 and on-disk rescoring for dense vectors
 area: Vector Search
 type: feature
 issues: []
+highlight:
+  title: Enable bfloat16 and on-disk rescoring for dense vectors
+  body: |-
+    Remove the feature flag for `bfloat16` and `on_disk_rescore`. `bfloat16`
+    is marked as GA for 9.3, `on_disk_rescore` is in preview for now.
+  notable: true

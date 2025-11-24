@@ -600,13 +600,16 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                     assertFalse(strategy.shouldRebuildConnection(RemoteClusterSettings.toConfig(clusterAlias, noChange)));
                     Settings addressesChanged = Settings.builder()
                         .put(modeSetting.getKey(), "proxy")
-                        .put(addressesSetting.getKey(), remoteAddress.toString())
+                        .put(addressesSetting.getKey(), "foobar:8080")
+                        .put(socketConnections.getKey(), numOfConnections)
+                        .put(serverName.getKey(), "server-name")
                         .build();
                     assertTrue(strategy.shouldRebuildConnection(RemoteClusterSettings.toConfig(clusterAlias, addressesChanged)));
                     Settings socketsChanged = Settings.builder()
                         .put(modeSetting.getKey(), "proxy")
                         .put(addressesSetting.getKey(), remoteAddress.toString())
                         .put(socketConnections.getKey(), numOfConnections + 1)
+                        .put(serverName.getKey(), "server-name")
                         .build();
                     assertTrue(strategy.shouldRebuildConnection(RemoteClusterSettings.toConfig(clusterAlias, socketsChanged)));
                     Settings serverNameChange = Settings.builder()

@@ -1346,6 +1346,35 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertEquals(denyAccessAfterAttempt <= maxRetries ? 1 : 0, accessDeniedResponseCount.get());
     }
 
+    public void testUploadNotFoundInCompareAndExchange() {
+        final var blobContainerPath = BlobPath.EMPTY.add(getTestName());
+        final var statefulBlobContainer = createBlobContainer(1, null, null, null, null, null, blobContainerPath);
+
+        httpServer.createContext("/", new S3HttpHandler("bucket") {
+            @Override
+            public void handle(HttpExchange exchange) throws IOException {
+                if (parseRequest(exchange).isUploadPartRequest()) {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                } else {
+                    super.handle(exchange);
+                }
+            }
+        });
+
+        safeAwait(
+            l -> statefulBlobContainer.compareAndExchangeRegister(
+                randomPurpose(),
+                "not_found_register",
+                BytesArray.EMPTY,
+                new BytesArray(new byte[1]),
+                l.map(result -> {
+                    assertFalse(result.isPresent());
+                    return null;
+                })
+            )
+        );
+    }
+
     private static String getBase16MD5Digest(BytesReference bytesReference) {
         return MessageDigests.toHexString(MessageDigests.digest(bytesReference, MessageDigests.md5()));
     }

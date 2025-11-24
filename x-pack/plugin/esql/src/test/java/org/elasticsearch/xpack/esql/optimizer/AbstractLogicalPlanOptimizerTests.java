@@ -242,7 +242,14 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
         // Some tests use data from the baseConversion index, so we load it here
         mappingBaseConversion = loadMapping("mapping-base_conversion.json");
-        EsIndex baseConversion = new EsIndex("base_conversion", mappingBaseConversion, Map.of("base_conversion", IndexMode.STANDARD));
+        EsIndex baseConversion = new EsIndex(
+            "base_conversion",
+            mappingBaseConversion,
+            Map.of("base_conversion", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of()
+        );
         baseConversionAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,

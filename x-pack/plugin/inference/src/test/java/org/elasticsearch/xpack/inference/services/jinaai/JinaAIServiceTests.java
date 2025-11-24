@@ -1702,7 +1702,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
                 assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertArrayEquals(
-                    new float[] { 0.223f, -0.223f },
+                    new float[] { 0.123f, -0.123f },
                     ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
@@ -1746,8 +1746,8 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                             "object": "embedding",
                             "index": 0,
                             "embedding": [
-                                0.223,
-                                -0.223
+                                0.123,
+                                -0.123
                             ]
                         }
                     ]
@@ -1776,8 +1776,8 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                             "object": "embedding",
                             "index": 1,
                             "embedding": [
-                                0.223,
-                                -0.223
+                                0.123,
+                                -0.123
                             ]
                         }
                     ]

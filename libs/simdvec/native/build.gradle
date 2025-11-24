@@ -48,11 +48,11 @@ model {
     gcc(Gcc) {
       target("aarch64") {
         cCompiler.executable = "/usr/bin/gcc"
-        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=armv8-a"]) }
+        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c11", "-march=armv8-a"]) }
       }
       target("amd64") {
         cCompiler.executable = "/usr/bin/gcc"
-        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=core-avx2", "-Wno-incompatible-pointer-types"]) }
+        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c11", "-march=core-avx2", "-Wno-incompatible-pointer-types"]) }
         cppCompiler.executable = "/usr/bin/g++"
         cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=core-avx2"]) }
       }
@@ -67,11 +67,11 @@ model {
     }
     clang(Clang) {
       target("aarch64") {
-        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=armv8-a"]) }
+        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c11", "-march=armv8-a"]) }
       }
 
       target("amd64") {
-        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=core-avx2"]) }
+        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c11", "-march=core-avx2"]) }
         cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=core-avx2"]) }
       }
     }

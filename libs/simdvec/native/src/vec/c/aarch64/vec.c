@@ -161,10 +161,10 @@ EXPORT int32_t sqr7u(int8_t* a, int8_t* b, const int32_t dims) {
 
 // --- single precision floats
 
-// const float *a  pointer to the first float vector
-// const float *b  pointer to the second float vector
+// const f32_t *a  pointer to the first float vector
+// const f32_t *b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
-EXPORT float dotf32(const float *a, const float *b, const int32_t elementCount) {
+EXPORT f32_t dotf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     float32x4_t sum0 = vdupq_n_f32(0.0f);
     float32x4_t sum1 = vdupq_n_f32(0.0f);
     float32x4_t sum2 = vdupq_n_f32(0.0f);
@@ -192,7 +192,7 @@ EXPORT float dotf32(const float *a, const float *b, const int32_t elementCount) 
         vaddq_f32(vaddq_f32(sum0, sum1), vaddq_f32(sum2, sum3)),
         vaddq_f32(vaddq_f32(sum4, sum5), vaddq_f32(sum6, sum7))
     );
-    float result = vaddvq_f32(total);
+    f32_t result = vaddvq_f32(total);
 
     // Handle remaining elements
     for (; i < elementCount; ++i) {
@@ -202,10 +202,10 @@ EXPORT float dotf32(const float *a, const float *b, const int32_t elementCount) 
     return result;
 }
 
-// const float *a  pointer to the first float vector
-// const float *b  pointer to the second float vector
+// const f32_t *a  pointer to the first float vector
+// const f32_t *b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
-EXPORT float cosf32(const float *a, const float *b, const int32_t elementCount) {
+EXPORT f32_t cosf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     float32x4_t sum0 = vdupq_n_f32(0.0f);
     float32x4_t sum1 = vdupq_n_f32(0.0f);
     float32x4_t sum2 = vdupq_n_f32(0.0f);
@@ -257,27 +257,27 @@ EXPORT float cosf32(const float *a, const float *b, const int32_t elementCount) 
     float32x4_t norms_a = vaddq_f32(vaddq_f32(norm_a0, norm_a1), vaddq_f32(norm_a2, norm_a3));
     float32x4_t norms_b = vaddq_f32(vaddq_f32(norm_b0, norm_b1), vaddq_f32(norm_b2, norm_b3));
 
-    float dot   = vaddvq_f32(sums);
-    float norm_a = vaddvq_f32(norms_a);
-    float norm_b = vaddvq_f32(norms_b);
+    f32_t dot   = vaddvq_f32(sums);
+    f32_t norm_a = vaddvq_f32(norms_a);
+    f32_t norm_b = vaddvq_f32(norms_b);
 
     // Handle remaining tail elements
     for (; i < elementCount; ++i) {
-        float va = a[i];
-        float vb = b[i];
+        f32_t va = a[i];
+        f32_t vb = b[i];
         dot    += va * vb;
         norm_a += va * va;
         norm_b += vb * vb;
     }
 
-    float denom = sqrtf(norm_a) * sqrtf(norm_b);
+    f32_t denom = sqrtf(norm_a) * sqrtf(norm_b);
     if (denom == 0.0f) {
         return 0.0f;
     }
     return dot / denom;
 }
 
-EXPORT float sqrf32(const float *a, const float *b, const int32_t elementCount) {
+EXPORT f32_t sqrf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     float32x4_t sum0 = vdupq_n_f32(0.0f);
     float32x4_t sum1 = vdupq_n_f32(0.0f);
     float32x4_t sum2 = vdupq_n_f32(0.0f);
@@ -314,11 +314,11 @@ EXPORT float sqrf32(const float *a, const float *b, const int32_t elementCount) 
         vaddq_f32(vaddq_f32(sum0, sum1), vaddq_f32(sum2, sum3)),
         vaddq_f32(vaddq_f32(sum4, sum5), vaddq_f32(sum6, sum7))
     );
-    float result = vaddvq_f32(total);
+    f32_t result = vaddvq_f32(total);
 
     // Handle remaining tail elements
     for (; i < elementCount; ++i) {
-        float diff = a[i] - b[i];
+        f32_t diff = a[i] - b[i];
         result += diff * diff;
     }
 

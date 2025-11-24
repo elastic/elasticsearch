@@ -239,7 +239,7 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         for (Block block : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
-            if (WRITE_TYPED_BLOCK.supports(out.getTransportVersion())) {
+            if (out.getTransportVersion().supports(WRITE_TYPED_BLOCK)) {
                 Block.writeTypedBlock(block, out);
             } else {
                 block.writeTo(out);
@@ -255,7 +255,7 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
         IntBlock countBlock = null;
         BlockStreamInput blockStreamInput = (BlockStreamInput) in;
         try {
-            if (WRITE_TYPED_BLOCK.supports(in.getTransportVersion())) {
+            if (in.getTransportVersion().supports(WRITE_TYPED_BLOCK)) {
                 minBlock = (DoubleBlock) Block.readTypedBlock(blockStreamInput);
                 maxBlock = (DoubleBlock) Block.readTypedBlock(blockStreamInput);
                 sumBlock = (DoubleBlock) Block.readTypedBlock(blockStreamInput);

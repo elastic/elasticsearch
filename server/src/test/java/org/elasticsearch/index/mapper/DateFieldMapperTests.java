@@ -16,7 +16,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
@@ -35,7 +34,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
-import org.elasticsearch.lucene.comparators.XUpdateableDocIdSetIterator;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
@@ -51,7 +49,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -918,12 +915,6 @@ public class DateFieldMapperTests extends MapperTestCase {
             }
         }
     }
-
-    private static final Consumer<DocIdSetIterator> checkClass = disi -> {
-        assertThat(disi, instanceOf(XUpdateableDocIdSetIterator.class));
-        XUpdateableDocIdSetIterator iterator = (XUpdateableDocIdSetIterator) disi;
-        assertThat(iterator.getDelegate().getClass().getName(), containsString("SecondarySortIterator"));
-    };
 
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {

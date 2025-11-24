@@ -1,17 +1,6 @@
-import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.mrjar'
-
-// Override the license file to be included in the plugin bundle.
-// We need to do this now, before the BaseInternalPluginBuildPlugin is applied, because the plugin will
-// immediately try to read it from esplugin.licenseFile (PluginPropertiesExtension) before we get a chance to set it
-// a few lines below.
-plugins.withType(PluginBuildPlugin).whenPluginAdded {
-  project.esplugin.licenseFile = layout.settingsDirectory.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile
-}
-apply plugin: 'elasticsearch.internal-es-plugin'
 
 esplugin {
   name = 'gpu'
@@ -26,29 +15,14 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
-  implementation('com.nvidia.cuvs:cuvs-java:25.10.0')
+  implementation project(':libs:gpu-codec')
+
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
-  yamlRestTestImplementation(project(xpackModule('gpu')))
+  yamlRestTestImplementation project(':libs:gpu-codec')
+  internalClusterTestImplementation('com.nvidia.cuvs:cuvs-java:25.10.0')
+
   clusterModules project(xpackModule('gpu'))
-}
-
-ext.projectLicenses.set(
-    [
-      'Server Side Public License, v 1': providers.provider(() -> 'https://www.mongodb.com/licensing/server-side-public-license'),
-      'Elastic License 2.0': ext.elasticLicenseUrl,
-      'GNU Affero General Public License Version 3': ext.agplLicenseUrl
-    ])
-
-// We need to override the JAR license file too (the one placed in META-INF)
-licenseFile.set(layout.settingsDirectory.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile)
-
-// And we need to reset the license header checker. Notice that we need to set additionalLicense here to
-// match the initial default from LicenseHeadersTask#conventionalLicenses, as the x-pack parent gradle
-// resets additionalLicense to 'Elastic License 2.0'
-tasks.named("licenseHeaders").configure {
-  approvedLicenses = ['AGLP+SSPL+Elastic License', 'Generated', 'Vendored']
-  additionalLicense 'TRIPL', 'AGLP+SSPL+Elastic License', "2.0\", the \"GNU Affero General Public License v3.0 only\", and the \"Server Side"
 }
 
 artifacts {

@@ -8846,7 +8846,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
         var knn = as(filter.condition(), Knn.class);
-        assertThat(knn.k(), equalTo(1000));
+        assertThat(knn.implicitK(), equalTo(1000));
     }
 
     public void testKnnWithLimit() {
@@ -8860,7 +8860,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
         var knn = as(filter.condition(), Knn.class);
-        assertThat(knn.k(), equalTo(10));
+        assertThat(knn.implicitK(), equalTo(10));
     }
 
     public void testKnnWithTopN() {
@@ -8875,7 +8875,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var topN = as(optimized, TopN.class);
         var filter = as(topN.child(), Filter.class);
         var knn = as(filter.condition(), Knn.class);
-        assertThat(knn.k(), equalTo(10));
+        assertThat(knn.implicitK(), equalTo(10));
     }
 
     public void testKnnWithMultipleLimitsAfterTopN() {
@@ -8893,7 +8893,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(topN.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
         var knn = as(filter.condition(), Knn.class);
-        assertThat(knn.k(), equalTo(20));
+        assertThat(knn.implicitK(), equalTo(20));
     }
 
     public void testKnnWithMultipleLimitsCombined() {
@@ -8909,7 +8909,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(10));
         var filter = as(limit.child(), Filter.class);
         var knn = as(filter.condition(), Knn.class);
-        assertThat(knn.k(), equalTo(10));
+        assertThat(knn.implicitK(), equalTo(10));
     }
 
     public void testKnnWithMultipleClauses() {
@@ -8965,7 +8965,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(100));
         var filter = as(limit.child(), Filter.class);
         var knn = as(filter.condition(), Knn.class);
-        assertThat(knn.k(), equalTo(100));
+        assertThat(knn.implicitK(), equalTo(100));
     }
 
     private LogicalPlanOptimizer getCustomRulesLogicalPlanOptimizer(

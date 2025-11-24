@@ -51,7 +51,12 @@
       },
       "job_type": {
         "type": "list",
-        "description": "A comma-separated list of job types"
+        "description": "A comma-separated list of job types",
+        "options": [
+          "full",
+          "incremental",
+          "access_control"
+        ]
       }
     }
   }

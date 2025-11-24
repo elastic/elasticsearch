@@ -1,0 +1,5 @@
+pr: 138308
+summary: Reject mappings that (eventually) set dimension and metric in the same field
+area: Mapping
+type: bug
+issues: []

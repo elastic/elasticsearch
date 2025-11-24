@@ -130,20 +130,19 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
     /**
      * This is the cluster state task executor for cluster state update actions.
+     * Visible for testing
      */
-    private static final SimpleBatchedExecutor<DownsampleClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR =
-        new SimpleBatchedExecutor<>() {
-            @Override
-            public Tuple<ClusterState, Void> executeTask(DownsampleClusterStateUpdateTask task, ClusterState clusterState)
-                throws Exception {
-                return Tuple.tuple(task.execute(clusterState), null);
-            }
+    static final SimpleBatchedExecutor<DownsampleClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR = new SimpleBatchedExecutor<>() {
+        @Override
+        public Tuple<ClusterState, Void> executeTask(DownsampleClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
+            return Tuple.tuple(task.execute(clusterState), null);
+        }
 
-            @Override
-            public void taskSucceeded(DownsampleClusterStateUpdateTask task, Void unused) {
-                task.listener.onResponse(AcknowledgedResponse.TRUE);
-            }
-        };
+        @Override
+        public void taskSucceeded(DownsampleClusterStateUpdateTask task, Void unused) {
+            task.listener.onResponse(AcknowledgedResponse.TRUE);
+        }
+    };
 
     @Inject
     public TransportDownsampleAction(
@@ -1086,7 +1085,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onFailure(Exception e) {
-            recordSuccessMetrics(startTime);  // Downsampling has already completed in all shards.
             listener.onFailure(e);
         }
 
@@ -1137,7 +1135,12 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     public ClusterState execute(ClusterState currentState) {
                         logger.debug("Updating downsample index status for [{}]", downsampleIndexName);
                         final Metadata metadata = currentState.metadata();
-                        final IndexMetadata downsampleIndex = metadata.index(metadata.index(downsampleIndexName).getIndex());
+                        final IndexMetadata downsampleIndex = metadata.index(downsampleIndexName);
+                        if (downsampleIndex == null) {
+                            throw new IllegalStateException(
+                                "Failed to update downsample status because [" + downsampleIndexName + "] does not exist"
+                            );
+                        }
                         if (IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(downsampleIndex.getSettings()) == DownsampleTaskStatus.SUCCESS) {
                             return currentState;
                         }
@@ -1159,7 +1162,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onFailure(Exception e) {
-            recordSuccessMetrics(startTime);  // Downsampling has already completed in all shards.
             actionListener.onFailure(e);
         }
 
@@ -1233,8 +1235,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onFailure(Exception e) {
-            recordSuccessMetrics(startTime);
-            logger.debug("Downsampling measured successfully", e);
+            recordFailureMetrics(startTime);
+            logger.debug("Downsampling failure measured successfully", e);
             this.actionListener.onFailure(e);
         }
 

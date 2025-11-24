@@ -65,7 +65,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         this.shardContext = shardContexts.get(shardId);
         this.shardContext.incRef();
         try {
-            this.indexReader = new CachedDirectoryReader((DirectoryReader) shardContext.searcher().getIndexReader());
+            this.indexReader = new CachedDirectoryReader((DirectoryReader) shardContext.searcher().getIndexReader(), queryList);
             this.searcher = new IndexSearcher(this.indexReader);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

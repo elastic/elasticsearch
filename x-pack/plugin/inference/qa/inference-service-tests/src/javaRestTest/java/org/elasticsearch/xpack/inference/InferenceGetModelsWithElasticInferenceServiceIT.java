@@ -19,7 +19,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.getAllModels;
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.getModels;
 import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.ELSER_V2_ENDPOINT_ID;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.GP_LLM_V1_CHAT_COMPLETION_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.JINA_EMBED_V3_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.RAINBOW_SPRINKLES_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.RERANK_V1_ENDPOINT_ID;
@@ -55,7 +55,7 @@ public class InferenceGetModelsWithElasticInferenceServiceIT extends BaseMockEIS
         }
 
         assertInferenceIdTaskType(allModels, RAINBOW_SPRINKLES_ENDPOINT_ID, TaskType.CHAT_COMPLETION);
-        assertInferenceIdTaskType(allModels, GP_LLM_V1_CHAT_COMPLETION_ENDPOINT_ID, TaskType.CHAT_COMPLETION);
+        assertInferenceIdTaskType(allModels, GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID, TaskType.CHAT_COMPLETION);
         assertInferenceIdTaskType(allModels, ELSER_V2_ENDPOINT_ID, TaskType.SPARSE_EMBEDDING);
         assertInferenceIdTaskType(allModels, JINA_EMBED_V3_ENDPOINT_ID, TaskType.TEXT_EMBEDDING);
         assertInferenceIdTaskType(allModels, RERANK_V1_ENDPOINT_ID, TaskType.RERANK);

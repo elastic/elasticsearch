@@ -50,8 +50,8 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
     public static final String EIS_CHAT_PATH = "chat";
 
     // gp-llm-v2
-    public static final String GP_LLM_V1_CHAT_COMPLETION_ENDPOINT_ID = ".gp-llm-v2-chat_completion";
-    public static final String GP_LLM_V1_MODEL_NAME = "gp-llm-v2";
+    public static final String GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID = ".gp-llm-v2-chat_completion";
+    public static final String GP_LLM_V2_MODEL_NAME = "gp-llm-v2";
 
     // elser-2
     public static final String ELSER_V2_ENDPOINT_ID = ".elser-2-elastic";
@@ -354,10 +354,10 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
 
     private static ElasticInferenceServiceModel createGpLlmV2ExpectedEndpoint(String url) {
         return new ElasticInferenceServiceCompletionModel(
-            GP_LLM_V1_CHAT_COMPLETION_ENDPOINT_ID,
+            GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID,
             TaskType.CHAT_COMPLETION,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceCompletionServiceSettings(GP_LLM_V1_MODEL_NAME),
+            new ElasticInferenceServiceCompletionServiceSettings(GP_LLM_V2_MODEL_NAME),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url)
@@ -366,8 +366,8 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
 
     private static AuthorizationResponseEntity.AuthorizedEndpoint createGpLlmV2AuthorizedEndpoint() {
         return new AuthorizationResponseEntity.AuthorizedEndpoint(
-            GP_LLM_V1_CHAT_COMPLETION_ENDPOINT_ID,
-            GP_LLM_V1_MODEL_NAME,
+            GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID,
+            GP_LLM_V2_MODEL_NAME,
             createTaskTypeObject(EIS_CHAT_PATH, "chat_completion"),
             "ga",
             List.of("multilingual"),

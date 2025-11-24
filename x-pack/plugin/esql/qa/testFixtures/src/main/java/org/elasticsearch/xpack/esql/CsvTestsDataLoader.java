@@ -585,13 +585,13 @@ public class CsvTestsDataLoader {
 
     private static void createInferenceEndpoint(RestClient client, TaskType taskType, String inferenceId, String modelSettings)
         throws IOException {
-        Request request = new Request("PUT", "_inference/" + taskType.name() + "/" + inferenceId);
+        Request request = new Request("PUT", "/_inference/" + taskType.name() + "/" + inferenceId);
         request.setJsonEntity(modelSettings);
         client.performRequest(request);
     }
 
     private static boolean clusterHasInferenceEndpoint(RestClient client, TaskType taskType, String inferenceId) throws IOException {
-        Request request = new Request("GET", "_inference/" + taskType.name() + "/" + inferenceId);
+        Request request = new Request("GET", "/_inference/" + taskType.name() + "/" + inferenceId);
         try {
             client.performRequest(request);
         } catch (ResponseException e) {
@@ -605,7 +605,7 @@ public class CsvTestsDataLoader {
 
     private static void deleteInferenceEndpoint(RestClient client, String inferenceId) throws IOException {
         try {
-            client.performRequest(new Request("DELETE", "_inference/" + inferenceId));
+            client.performRequest(new Request("DELETE", "/_inference/" + inferenceId));
         } catch (ResponseException e) {
             // 404 here means the endpoint was not created
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {

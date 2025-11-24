@@ -125,7 +125,12 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
         } else {
             maximaBuilder.appendDouble(histogram.max());
         }
-        sumsBuilder.appendDouble(histogram.sum());
+        if (histogram.valueCount() == 0) {
+            assert histogram.sum() == 0.0 : "Empty histogram should have sum 0.0 but was " + histogram.sum();
+            sumsBuilder.appendNull();
+        } else {
+            sumsBuilder.appendDouble(histogram.sum());
+        }
         valueCountsBuilder.appendLong(histogram.valueCount());
         zeroThresholdsBuilder.appendDouble(zeroBucket.zeroThreshold());
         encodedHistogramsBuilder.appendBytesRef(encodedBytes.bytes().toBytesRef());
@@ -141,12 +146,13 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
     public void deserializeAndAppend(ExponentialHistogramBlock.SerializedInput input) {
         long valueCount = input.readLong();
         valueCountsBuilder.appendLong(valueCount);
-        sumsBuilder.appendDouble(input.readDouble());
         zeroThresholdsBuilder.appendDouble(input.readDouble());
         if (valueCount > 0) {
+            sumsBuilder.appendDouble(input.readDouble());
             minimaBuilder.appendDouble(input.readDouble());
             maximaBuilder.appendDouble(input.readDouble());
         } else {
+            sumsBuilder.appendNull();
             minimaBuilder.appendNull();
             maximaBuilder.appendNull();
         }

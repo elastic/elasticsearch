@@ -129,12 +129,11 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
         ActionListener<InferenceServiceResults> listener
     ) {
         var actionCreator = new NvidiaActionCreator(getSender(), getServiceComponents());
-        if (model instanceof NvidiaModel == false) {
+        if (model instanceof NvidiaModel nvidiaModel) {
+            nvidiaModel.accept(actionCreator, taskSettings).execute(inputs, timeout, listener);
+        } else {
             listener.onFailure(createInvalidModelException(model));
-            return;
         }
-        var nvidiaModel = (NvidiaModel) model;
-        nvidiaModel.accept(actionCreator, taskSettings).execute(inputs, timeout, listener);
     }
 
     /**
@@ -216,6 +215,10 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
             var similarityFromModel = serviceSettings.similarity();
             var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
 
+            if (similarityToUse.equals(similarityFromModel) && embeddingSize == serviceSettings.dimensions()) {
+                // Avoid creating a new model if similarity and embedding size are unchanged
+                return model;
+            }
             var updatedServiceSettings = new NvidiaEmbeddingsServiceSettings(
                 serviceSettings.modelId(),
                 serviceSettings.uri(),

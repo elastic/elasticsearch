@@ -90,7 +90,7 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
         assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.123F, 0.456F, 0.678F, 0.789F }))));
     }
 
-    public void testExecute_ChatCompletionRequest() throws CharacterCodingException {
+    public void testExecute_CompletionRequest() {
         var model = AmazonBedrockChatCompletionModelTests.createModel(
             "id",
             "region",

@@ -48,7 +48,7 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBed
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionServiceSettings;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
@@ -81,7 +81,7 @@ import static org.elasticsearch.xpack.inference.services.SenderServiceTests.crea
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.getProviderDefaultSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionServiceSettingsTests.createChatCompletionRequestSettingsMap;
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettingsTests.createEmbeddingsRequestSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -767,7 +767,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             assertThat(settings.region(), is("region"));
             assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.ANTHROPIC));
-            var taskSettings = (AmazonBedrockChatCompletionTaskSettings) model.getTaskSettings();
+            var taskSettings = (AmazonBedrockCompletionTaskSettings) model.getTaskSettings();
             assertThat(taskSettings.temperature(), is(1.0));
             assertThat(taskSettings.topP(), is(0.5));
             assertThat(taskSettings.topK(), is(0.2));
@@ -857,7 +857,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             assertThat(settings.region(), is("region"));
             assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.ANTHROPIC));
-            var taskSettings = (AmazonBedrockChatCompletionTaskSettings) model.getTaskSettings();
+            var taskSettings = (AmazonBedrockCompletionTaskSettings) model.getTaskSettings();
             assertThat(taskSettings.temperature(), is(1.0));
             assertThat(taskSettings.topP(), is(0.5));
             assertThat(taskSettings.topK(), is(0.2));
@@ -943,7 +943,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             assertThat(settings.region(), is("region"));
             assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.ANTHROPIC));
-            var taskSettings = (AmazonBedrockChatCompletionTaskSettings) model.getTaskSettings();
+            var taskSettings = (AmazonBedrockCompletionTaskSettings) model.getTaskSettings();
             assertThat(taskSettings.temperature(), is(1.0));
             assertThat(taskSettings.topP(), is(0.5));
             assertThat(taskSettings.topK(), is(0.2));

@@ -35,7 +35,7 @@ public class AmazonBedrockCompletionExecutor extends AmazonBedrockExecutor {
     @Override
     protected void executeClientRequest(AmazonBedrockBaseClient awsBedrockClient) {
         if (completionRequest.isStreaming()) {
-            var publisher = completionRequest.executeStreamChatCompletionRequest(awsBedrockClient);
+            var publisher = completionRequest.executeStreamCompletionRequest(awsBedrockClient);
             inferenceResultsListener.onResponse(new StreamingChatCompletionResults(publisher));
         } else {
             var completionResponseListener = new AmazonBedrockChatCompletionResponseListener(
@@ -43,7 +43,7 @@ public class AmazonBedrockCompletionExecutor extends AmazonBedrockExecutor {
                 responseHandler,
                 inferenceResultsListener
             );
-            completionRequest.executeChatCompletionRequest(awsBedrockClient, completionResponseListener);
+            completionRequest.executeCompletionRequest(awsBedrockClient, completionResponseListener);
         }
     }
 }

@@ -131,22 +131,21 @@ public class AmazonBedrockService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        doInfer(model, inputs, timeout, listener);
-    }
-
-    private void doInfer(Model model, InferenceInputs inputs, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        if (model instanceof AmazonBedrockChatCompletionModel amazonBedrockChatCompletionModel) {
-            var manager = new AmazonBedrockChatCompletionRequestManager(
-                amazonBedrockChatCompletionModel,
-                this.getServiceComponents().threadPool(),
-                timeout
-            );
-            var errorMessage = constructFailedToSendRequestMessage(AmazonBedrockService.CHAT_COMPLETION_ERROR_PREFIX);
-            var action = new SenderExecutableAction(amazonBedrockSender, manager, errorMessage);
-            action.execute(inputs, timeout, listener);
-        } else {
+        if (model instanceof AmazonBedrockChatCompletionModel == false) {
             listener.onFailure(createInvalidModelException(model));
+            return;
         }
+
+        AmazonBedrockChatCompletionModel amazonBedrockChatCompletionModel = (AmazonBedrockChatCompletionModel) model;
+
+        var manager = new AmazonBedrockChatCompletionRequestManager(
+            amazonBedrockChatCompletionModel,
+            this.getServiceComponents().threadPool(),
+            timeout
+        );
+        var errorMessage = constructFailedToSendRequestMessage(AmazonBedrockService.CHAT_COMPLETION_ERROR_PREFIX);
+        var action = new SenderExecutableAction(amazonBedrockSender, manager, errorMessage);
+        action.execute(inputs, timeout, listener);
     }
 
     @Override
@@ -157,23 +156,15 @@ public class AmazonBedrockService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        infer(model, inputs, taskSettings, timeout, listener);
-    }
-
-    private void infer(
-        Model model,
-        InferenceInputs inputs,
-        Map<String, Object> taskSettings,
-        TimeValue timeout,
-        ActionListener<InferenceServiceResults> listener
-    ) {
-        var actionCreator = new AmazonBedrockActionCreator(amazonBedrockSender, this.getServiceComponents(), timeout);
-        if (model instanceof AmazonBedrockModel baseAmazonBedrockModel) {
-            var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings);
-            action.execute(inputs, timeout, listener);
-        } else {
+        if (model instanceof AmazonBedrockModel == false) {
             listener.onFailure(createInvalidModelException(model));
+            return;
         }
+
+        AmazonBedrockModel baseAmazonBedrockModel = (AmazonBedrockModel) model;
+        var actionCreator = new AmazonBedrockActionCreator(amazonBedrockSender, this.getServiceComponents(), timeout);
+        var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings);
+        action.execute(inputs, timeout, listener);
     }
 
     @Override

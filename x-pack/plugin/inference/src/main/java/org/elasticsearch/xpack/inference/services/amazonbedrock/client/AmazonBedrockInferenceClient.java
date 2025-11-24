@@ -91,7 +91,7 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     @Override
     public Flow.Publisher<? extends InferenceServiceResults.Result> converseStream(ConverseStreamRequest request)
         throws ElasticsearchException {
-        var awsResponseProcessor = new AmazonBedrockCompletionProcessor(threadPool);
+        var awsResponseProcessor = new AmazonBedrockCompletionStreamingProcessor(threadPool);
         internalClient.converseStream(
             request,
             ConverseStreamResponseHandler.builder().subscriber(() -> FlowAdapters.toSubscriber(awsResponseProcessor)).build()
@@ -105,7 +105,7 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     @Override
     public Flow.Publisher<StreamingUnifiedChatCompletionResults.Results> converseUnifiedStream(ConverseStreamRequest request)
         throws ElasticsearchException {
-        var awsResponseProcessor = new AmazonBedrockChatCompletionProcessor(threadPool);
+        var awsResponseProcessor = new AmazonBedrockChatCompletionStreamingProcessor(threadPool);
         internalClient.converseStream(
             request,
             ConverseStreamResponseHandler.builder().subscriber(() -> FlowAdapters.toSubscriber(awsResponseProcessor)).build()

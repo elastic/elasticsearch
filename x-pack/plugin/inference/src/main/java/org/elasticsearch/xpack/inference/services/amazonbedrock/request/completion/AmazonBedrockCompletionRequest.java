@@ -73,7 +73,7 @@ public class AmazonBedrockCompletionRequest extends AmazonBedrockRequest {
         return converseRequest.build();
     }
 
-    public void executeChatCompletionRequest(
+    public void executeCompletionRequest(
         AmazonBedrockBaseClient awsBedrockClient,
         AmazonBedrockChatCompletionResponseListener chatCompletionResponseListener
     ) {
@@ -81,7 +81,7 @@ public class AmazonBedrockCompletionRequest extends AmazonBedrockRequest {
         this.executeRequest(awsBedrockClient);
     }
 
-    public Flow.Publisher<? extends InferenceServiceResults.Result> executeStreamChatCompletionRequest(
+    public Flow.Publisher<? extends InferenceServiceResults.Result> executeStreamCompletionRequest(
         AmazonBedrockBaseClient awsBedrockClient
     ) {
         var converseStreamRequest = ConverseStreamRequest.builder()

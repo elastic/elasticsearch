@@ -54,6 +54,14 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
         this.stream = stream;
     }
 
+    public void executeChatCompletionRequest(
+        AmazonBedrockBaseClient awsBedrockClient,
+        AmazonBedrockChatCompletionResponseListener chatCompletionResponseListener
+    ) {
+        this.listener = chatCompletionResponseListener;
+        this.executeRequest(awsBedrockClient);
+    }
+
     public Flow.Publisher<StreamingUnifiedChatCompletionResults.Results> executeStreamChatCompletionRequest(
         AmazonBedrockBaseClient awsBedrockClient
     ) {

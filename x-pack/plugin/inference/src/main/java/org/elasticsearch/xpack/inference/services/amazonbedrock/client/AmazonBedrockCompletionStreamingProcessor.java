@@ -28,8 +28,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
-class AmazonBedrockCompletionProcessor implements Flow.Processor<ConverseStreamOutput, StreamingChatCompletionResults.Results> {
-    private static final Logger logger = LogManager.getLogger(AmazonBedrockCompletionProcessor.class);
+class AmazonBedrockCompletionStreamingProcessor implements Flow.Processor<ConverseStreamOutput, StreamingChatCompletionResults.Results> {
+    private static final Logger logger = LogManager.getLogger(AmazonBedrockCompletionStreamingProcessor.class);
 
     private final AtomicReference<Throwable> error = new AtomicReference<>(null);
     private final AtomicLong demand = new AtomicLong(0);
@@ -40,7 +40,7 @@ class AmazonBedrockCompletionProcessor implements Flow.Processor<ConverseStreamO
     private volatile Flow.Subscriber<? super StreamingChatCompletionResults.Results> downstream;
     private volatile Flow.Subscription upstream;
 
-    AmazonBedrockCompletionProcessor(ThreadPool threadPool) {
+    AmazonBedrockCompletionStreamingProcessor(ThreadPool threadPool) {
         this.threadPool = threadPool;
     }
 

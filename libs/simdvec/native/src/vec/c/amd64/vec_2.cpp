@@ -12,19 +12,25 @@
 #include <math.h>
 #include "vec.h"
 
+// Includes for intrinsics
 #ifdef _MSC_VER
 #include <intrin.h>
 #elif __clang__
-#pragma clang attribute push(__attribute__((target("arch=skylake-avx512"))), apply_to=function)
 #include <x86intrin.h>
 #elif __GNUC__
-#pragma GCC push_options
-#pragma GCC target ("arch=skylake-avx512")
 #include <x86intrin.h>
 #endif
 
 #include <emmintrin.h>
 #include <immintrin.h>
+
+// AVX-512 code
+#ifdef __clang__
+#pragma clang attribute push(__attribute__((target("arch=skylake-avx512"))), apply_to=function)
+#elif __GNUC__
+#pragma GCC push_options
+#pragma GCC target ("arch=skylake-avx512")
+#endif
 
 #ifndef STRIDE_BYTES_LEN
 #define STRIDE_BYTES_LEN sizeof(__m512i) // Must be a power of 2
@@ -114,30 +120,48 @@ EXPORT int32_t dot7u_2(int8_t* a, int8_t* b, const int32_t dims) {
     return res;
 }
 
-extern "C"
-EXPORT void dot7u_bulk_2(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, float_t* results) {
+template <int(*mapper)(int, int32_t*)>
+static inline void dot7u_inner_bulk(int8_t* a, int8_t* b, int dims, int32_t* offsets, int count, f32_t* results) {
     int32_t res = 0;
     if (dims > STRIDE_BYTES_LEN) {
         const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
         for (int32_t c = 0; c < count; c++) {
+            const int8_t* a0 = a + mapper(c, offsets) * dims;
             int i = limit;
             res = dot7u_inner_avx512(a, b, i);
             for (; i < dims; i++) {
-                res += a[i] * b[i];
+                res += a0[i] * b[i];
             }
-            results[c] = (float_t)res;
-            a += dims;
+            results[c] = (f32_t)res;
         }
     } else {
         for (int32_t c = 0; c < count; c++) {
+            const int8_t* a0 = a + mapper(c, offsets) * dims;
             res = 0;
             for (int32_t i = 0; i < dims; i++) {
-                res += a[i] * b[i];
+                res += a0[i] * b[i];
             }
-            results[c] = (float_t)res;
-            a += dims;
+            results[c] = (f32_t)res;
         }
     }
+}
+
+static inline int identity(int i, int32_t* offsets) {
+   return i;
+}
+
+static inline int index(int i, int32_t* offsets) {
+   return offsets[i];
+}
+
+extern "C"
+EXPORT void dot7u_bulk(int8_t* a, int8_t* b, int dims, int count, f32_t* results) {
+    dot7u_inner_bulk<identity>(a, b, dims, NULL, count, results);
+}
+
+extern "C"
+EXPORT void dot7u_bulk_offsets(int8_t* a, int8_t* b, int dims, int32_t* offsets, int count, f32_t* results) {
+    dot7u_inner_bulk<index>(a, b, dims, offsets, count, results);
 }
 
 template<int offsetRegs>

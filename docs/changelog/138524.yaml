@@ -1,0 +1,5 @@
+pr: 138524
+summary: Remove feature flag to enable binary doc value compression
+area: Mapping
+type: feature
+issues: []

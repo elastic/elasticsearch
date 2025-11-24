@@ -48,7 +48,11 @@ public class CodecService implements CodecProvider {
     public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays) {
         final var codecs = new HashMap<String, Codec>();
 
-        StorageMode storageMode = StorageMode.from(mapperService);
+        boolean useBloomFilterSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG
+            && mapperService != null
+            && mapperService.getIndexSettings().useTimeSeriesSyntheticId()
+            && mapperService.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
+
         var bloomFilterEnabled = mapperService != null && mapperService.getIndexSettings().useStoredFieldsBloomFilterForId();
         var legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, bigArrays);
         if (ZSTD_STORED_FIELDS_FEATURE_FLAG) {
@@ -59,47 +63,47 @@ public class CodecService implements CodecProvider {
             );
             codecs.put(
                 DEFAULT_CODEC,
-                storageMode == StorageMode.STANDARD
-                    ? defaultZstdCodec
-                    : new ES93TSDBZSTDCompressionLucene103Codec(defaultZstdCodec, bigArrays, bloomFilterEnabled)
+                useBloomFilterSyntheticId
+                    ? new ES93TSDBZSTDCompressionLucene103Codec(defaultZstdCodec, bigArrays, bloomFilterEnabled)
+                    : defaultZstdCodec
             );
         } else {
             codecs.put(
                 DEFAULT_CODEC,
-                storageMode == StorageMode.STANDARD
-                    ? legacyBestSpeedCodec
-                    : new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec, bigArrays, bloomFilterEnabled)
+                useBloomFilterSyntheticId
+                    ? new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec, bigArrays, bloomFilterEnabled)
+                    : legacyBestSpeedCodec
             );
         }
 
         codecs.put(
             LEGACY_DEFAULT_CODEC,
-            storageMode == StorageMode.STANDARD
-                ? legacyBestSpeedCodec
-                : new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec, bigArrays, bloomFilterEnabled)
+            useBloomFilterSyntheticId
+                ? new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec, bigArrays, bloomFilterEnabled)
+                : legacyBestSpeedCodec
         );
 
         var bestCompressionCodec = new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays);
         codecs.put(
             BEST_COMPRESSION_CODEC,
-            storageMode == StorageMode.STANDARD
-                ? bestCompressionCodec
-                : new ES93TSDBZSTDCompressionLucene103Codec(bestCompressionCodec, bigArrays, bloomFilterEnabled)
+            useBloomFilterSyntheticId
+                ? new ES93TSDBZSTDCompressionLucene103Codec(bestCompressionCodec, bigArrays, bloomFilterEnabled)
+                : bestCompressionCodec
         );
 
         var legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays);
         codecs.put(
             LEGACY_BEST_COMPRESSION_CODEC,
-            storageMode == StorageMode.STANDARD
-                ? legacyBestCompressionCodec
-                : new ES93TSDBDefaultCompressionLucene103Codec(legacyBestCompressionCodec, bigArrays, bloomFilterEnabled)
+            useBloomFilterSyntheticId
+                ? new ES93TSDBDefaultCompressionLucene103Codec(legacyBestCompressionCodec, bigArrays, bloomFilterEnabled)
+                : legacyBestCompressionCodec
         );
 
         codecs.put(
             LUCENE_DEFAULT_CODEC,
-            storageMode == StorageMode.STANDARD
-                ? Codec.getDefault()
-                : new ES93TSDBLuceneDefaultCodec(Codec.getDefault(), bigArrays, bloomFilterEnabled)
+            useBloomFilterSyntheticId
+                ? new ES93TSDBLuceneDefaultCodec(Codec.getDefault(), bigArrays, bloomFilterEnabled)
+                : Codec.getDefault()
         );
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));
@@ -151,17 +155,5 @@ public class CodecService implements CodecProvider {
             return delegate;
         }
 
-    }
-
-    private enum StorageMode {
-        TIME_SERIES,
-        STANDARD;
-
-        static StorageMode from(MapperService mapperService) {
-            return IndexSettings.USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID_FEATURE_FLAG
-                && mapperService != null
-                && mapperService.getIndexSettings().useTimeSeriesSyntheticId()
-                && mapperService.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? TIME_SERIES : STANDARD;
-        }
     }
 }

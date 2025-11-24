@@ -176,7 +176,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private volatile RolloverConfiguration rolloverConfiguration;
     private SchedulerEngine.Job scheduledJob;
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
-    private final MasterServiceTaskQueue<UpdateForceMergeCompleteTask> forceMergeClusterStateUpdateTaskQueue;
+    private final MasterServiceTaskQueue<UpdateDataStreamLifecycleCustomMetadataTask> dlmCustomMetadataClusterStateUpdateTaskQueue;
     private final MasterServiceTaskQueue<DeleteSourceAndAddDownsampleToDS> swapSourceWithDownsampleIndexQueue;
     private volatile ByteSizeValue targetMergePolicyFloorSegment;
     private volatile int targetMergePolicyFactor;
@@ -192,16 +192,18 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private volatile Long lastRunDuration = null;
     private volatile Long timeBetweenStarts = null;
 
-    private static final SimpleBatchedExecutor<UpdateForceMergeCompleteTask, Void> FORCE_MERGE_STATE_UPDATE_TASK_EXECUTOR =
-        new SimpleBatchedExecutor<>() {
+    private static final SimpleBatchedExecutor<
+        UpdateDataStreamLifecycleCustomMetadataTask,
+        Void> DLM_CUSTOM_METADATA_STATE_UPDATE_TASK_EXECUTOR = new SimpleBatchedExecutor<>() {
             @Override
-            public Tuple<ClusterState, Void> executeTask(UpdateForceMergeCompleteTask task, ClusterState clusterState) throws Exception {
+            public Tuple<ClusterState, Void> executeTask(UpdateDataStreamLifecycleCustomMetadataTask task, ClusterState clusterState)
+                throws Exception {
                 return Tuple.tuple(task.execute(clusterState), null);
             }
 
             @Override
-            public void taskSucceeded(UpdateForceMergeCompleteTask task, Void unused) {
-                logger.trace("Updated cluster state for force merge of index [{}]", task.targetIndex);
+            public void taskSucceeded(UpdateDataStreamLifecycleCustomMetadataTask task, Void unused) {
+                logger.trace("Updated cluster state for {} of index [{}]", task.key, task.targetIndex);
                 task.listener.onResponse(null);
             }
         };
@@ -235,10 +237,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         this.signallingErrorRetryInterval = DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
         this.rolloverConfiguration = clusterService.getClusterSettings()
             .get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
-        this.forceMergeClusterStateUpdateTaskQueue = clusterService.createTaskQueue(
+        this.dlmCustomMetadataClusterStateUpdateTaskQueue = clusterService.createTaskQueue(
             "data-stream-lifecycle-forcemerge-state-update",
             Priority.LOW,
-            FORCE_MERGE_STATE_UPDATE_TASK_EXECUTOR
+            DLM_CUSTOM_METADATA_STATE_UPDATE_TASK_EXECUTOR
         );
         this.swapSourceWithDownsampleIndexQueue = clusterService.createTaskQueue(
             "data-stream-lifecycle-swap-source-with-downsample",
@@ -1371,9 +1373,15 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * success or failure.
      */
     private void setForceMergeCompletedTimestamp(ProjectId projectId, String targetIndex, ActionListener<Void> listener) {
-        forceMergeClusterStateUpdateTaskQueue.submitTask(
+        dlmCustomMetadataClusterStateUpdateTaskQueue.submitTask(
             Strings.format("Adding force merge complete marker to cluster state for [%s]", targetIndex),
-            new UpdateForceMergeCompleteTask(listener, projectId, targetIndex, threadPool),
+            new UpdateDataStreamLifecycleCustomMetadataTask(
+                listener,
+                projectId,
+                targetIndex,
+                FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY,
+                Long.toString(threadPool.absoluteTimeInMillis())
+            ),
             null
         );
     }
@@ -1597,24 +1605,32 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     /**
-     * This is a ClusterStateTaskListener that writes the force_merge_completed_timestamp into the cluster state. It is meant to run in
-     * STATE_UPDATE_TASK_EXECUTOR.
+     * This is a ClusterStateTaskListener that writes the key and value into the cluster state as custom metadata within targetIndex's
+     * index metadata. It is meant to run in STATE_UPDATE_TASK_EXECUTOR.
      */
-    static class UpdateForceMergeCompleteTask implements ClusterStateTaskListener {
+    static class UpdateDataStreamLifecycleCustomMetadataTask implements ClusterStateTaskListener {
         private final ActionListener<Void> listener;
         private final ProjectId projectId;
         private final String targetIndex;
-        private final ThreadPool threadPool;
+        private final String key;
+        private final String value;
 
-        UpdateForceMergeCompleteTask(ActionListener<Void> listener, ProjectId projectId, String targetIndex, ThreadPool threadPool) {
+        UpdateDataStreamLifecycleCustomMetadataTask(
+            ActionListener<Void> listener,
+            ProjectId projectId,
+            String targetIndex,
+            String key,
+            String value
+        ) {
             this.listener = listener;
             this.projectId = projectId;
             this.targetIndex = targetIndex;
-            this.threadPool = threadPool;
+            this.key = key;
+            this.value = value;
         }
 
         ClusterState execute(ClusterState currentState) throws Exception {
-            logger.debug("Updating cluster state with force merge complete marker for {}", targetIndex);
+            logger.debug("Updating cluster state with {}} marker for {}", key, targetIndex);
             final var currentProject = currentState.metadata().getProject(projectId);
             IndexMetadata indexMetadata = currentProject.index(targetIndex);
             Map<String, String> customMetadata = indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
@@ -1622,7 +1638,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             if (customMetadata != null) {
                 newCustomMetadata.putAll(customMetadata);
             }
-            newCustomMetadata.put(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY, Long.toString(threadPool.absoluteTimeInMillis()));
+            newCustomMetadata.put(key, value);
             IndexMetadata updatededIndexMetadata = new IndexMetadata.Builder(indexMetadata).putCustom(
                 LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
                 newCustomMetadata

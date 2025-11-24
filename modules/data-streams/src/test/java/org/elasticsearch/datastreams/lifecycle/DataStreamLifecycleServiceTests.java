@@ -960,12 +960,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         };
         final var projectId = randomProjectIdOrDefault();
         String targetIndex = randomAlphaOfLength(20);
-        DataStreamLifecycleService.UpdateForceMergeCompleteTask task = new DataStreamLifecycleService.UpdateForceMergeCompleteTask(
-            listener,
-            projectId,
-            targetIndex,
-            threadPool
-        );
+        DataStreamLifecycleService.UpdateDataStreamLifecycleCustomMetadataTask task =
+            new DataStreamLifecycleService.UpdateDataStreamLifecycleCustomMetadataTask(listener, projectId, targetIndex, threadPool);
         {
             Exception exception = new RuntimeException("task failed");
             task.onFailure(exception);

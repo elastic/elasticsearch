@@ -22,7 +22,7 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
     private final DoubleBlock.Builder minimaBuilder;
     private final DoubleBlock.Builder maximaBuilder;
     private final DoubleBlock.Builder sumsBuilder;
-    private final LongBlock.Builder valueCountsBuilder;
+    private final DoubleBlock.Builder valueCountsBuilder;
     private final DoubleBlock.Builder zeroThresholdsBuilder;
     private final BytesRefBlock.Builder encodedHistogramsBuilder;
 
@@ -32,7 +32,7 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
         DoubleBlock.Builder minimaBuilder = null;
         DoubleBlock.Builder maximaBuilder = null;
         DoubleBlock.Builder sumsBuilder = null;
-        LongBlock.Builder valueCountsBuilder = null;
+        DoubleBlock.Builder valueCountsBuilder = null;
         DoubleBlock.Builder zeroThresholdsBuilder = null;
         BytesRefBlock.Builder encodedHistogramsBuilder = null;
         boolean success = false;
@@ -40,7 +40,7 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
             minimaBuilder = blockFactory.newDoubleBlockBuilder(estimatedSize);
             maximaBuilder = blockFactory.newDoubleBlockBuilder(estimatedSize);
             sumsBuilder = blockFactory.newDoubleBlockBuilder(estimatedSize);
-            valueCountsBuilder = blockFactory.newLongBlockBuilder(estimatedSize);
+            valueCountsBuilder = blockFactory.newDoubleBlockBuilder(estimatedSize);
             zeroThresholdsBuilder = blockFactory.newDoubleBlockBuilder(estimatedSize);
             encodedHistogramsBuilder = blockFactory.newBytesRefBlockBuilder(estimatedSize);
             this.minimaBuilder = minimaBuilder;
@@ -80,7 +80,7 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
     }
 
     @Override
-    public BlockLoader.LongBuilder valueCounts() {
+    public BlockLoader.DoubleBuilder valueCounts() {
         return valueCountsBuilder;
     }
 
@@ -131,7 +131,7 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
         } else {
             sumsBuilder.appendDouble(histogram.sum());
         }
-        valueCountsBuilder.appendLong(histogram.valueCount());
+        valueCountsBuilder.appendDouble(histogram.valueCount());
         zeroThresholdsBuilder.appendDouble(zeroBucket.zeroThreshold());
         encodedHistogramsBuilder.appendBytesRef(encodedBytes.bytes().toBytesRef());
         return this;
@@ -144,8 +144,8 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
      * @param input the input to deserialize from
      */
     public void deserializeAndAppend(ExponentialHistogramBlock.SerializedInput input) {
-        long valueCount = input.readLong();
-        valueCountsBuilder.appendLong(valueCount);
+        double valueCount = input.readDouble();
+        valueCountsBuilder.appendDouble(valueCount);
         zeroThresholdsBuilder.appendDouble(input.readDouble());
         if (valueCount > 0) {
             sumsBuilder.appendDouble(input.readDouble());
@@ -164,7 +164,7 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
         DoubleBlock minima = null;
         DoubleBlock maxima = null;
         DoubleBlock sums = null;
-        LongBlock valueCounts = null;
+        DoubleBlock valueCounts = null;
         DoubleBlock zeroThresholds = null;
         BytesRefBlock encodedHistograms = null;
         boolean success = false;

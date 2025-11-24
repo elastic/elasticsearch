@@ -360,6 +360,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         final var project = projectState.metadata();
         int affectedIndices = 0;
         int affectedDataStreams = 0;
+        List<DataStreamLifecycleAction> actions = List.of(
+            this::maybeExecuteRollover,
+            this::timeSeriesIndicesStillWithinTimeBounds,
+            this::maybeExecuteRetention,
+            this::maybeExecuteForceMerge,
+            this::maybeExecuteDownsampling
+        );
         for (DataStream dataStream : project.dataStreams().values()) {
             clearErrorStoreForUnmanagedIndices(project, dataStream);
             var dataLifecycleEnabled = dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled();
@@ -368,14 +375,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             if (dataLifecycleEnabled == false && failuresLifecycleEnabled == false) {
                 continue;
             }
-            List<DataStreamLifecycleAction> actions = List.of(
-                this::maybeExecuteRollover,
-                DataStreamLifecycleService::timeSeriesIndicesStillWithinTimeBounds,
-                this::maybeExecuteRetention,
-                this::maybeExecuteForceMerge,
-                this::maybeExecuteDownsampling
-            );
-
             // the following indices should not be considered for the remainder of this service run, for various reasons.
             Set<Index> indicesToExcludeForRemainingRun = new HashSet<>();
             for (DataStreamLifecycleAction action : actions) {
@@ -394,11 +393,20 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         );
     }
 
+    private Set<Index> timeSeriesIndicesStillWithinTimeBounds(
+        ProjectState projectState,
+        DataStream dataStream,
+        Set<Index> indicesToExcludeForRemainingRun
+    ) {
+        return timeSeriesIndicesStillWithinTimeBounds(projectState, dataStream, indicesToExcludeForRemainingRun, nowSupplier);
+    }
+
     // visible for testing
     static Set<Index> timeSeriesIndicesStillWithinTimeBounds(
         ProjectState projectState,
         DataStream dataStream,
-        Set<Index> indicesToExcludeForRemainingRun
+        Set<Index> indicesToExcludeForRemainingRun,
+        LongSupplier nowSupplier
     ) {
         // tsds indices that are still within their time bounds (i.e. now < time_series.end_time) - we don't want these indices to be
         // deleted, forcemerged, or downsampled as they're still expected to receive large amounts of writes
@@ -412,6 +420,15 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 Instant configuredEndTime = IndexSettings.TIME_SERIES_END_TIME.get(backingIndex.getSettings());
                 assert configuredEndTime != null
                     : "a time series index must have an end time configured but [" + index.getName() + "] does not";
+                if (nowSupplier.getAsLong() <= configuredEndTime.toEpochMilli()) {
+                    logger.trace(
+                        "Data stream lifecycle will not perform any operations in this run on time series index [{}] because "
+                            + "its configured [{}] end time has not lapsed",
+                        index.getName(),
+                        configuredEndTime
+                    );
+                    tsIndicesWithinBounds.add(index);
+                }
             }
         }
         return tsIndicesWithinBounds;

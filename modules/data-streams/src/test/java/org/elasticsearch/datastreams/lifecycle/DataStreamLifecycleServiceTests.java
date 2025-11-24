@@ -357,7 +357,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         clusterState = ClusterState.builder(clusterState).putProjectMetadata(builder).build();
 
         dataStreamLifecycleService.run(clusterState);
-        // There should be two client requests: one rollover, and one to update the merge policy settings. N.B. The merge policy settings
+        // There should be two client requests: one rollover, and one to update the merge policy settings. One of the non-write indices is
+        // still within the time bounds to be written to, so it is not force merged. N.B. The merge policy settings
         // will always be updated before the force merge is done, see testMergePolicySettingsAreConfiguredBeforeForcemerge.
         assertThat(clientSeenRequests.size(), is(2));
         assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
@@ -961,7 +962,13 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         final var projectId = randomProjectIdOrDefault();
         String targetIndex = randomAlphaOfLength(20);
         DataStreamLifecycleService.UpdateDataStreamLifecycleCustomMetadataTask task =
-            new DataStreamLifecycleService.UpdateDataStreamLifecycleCustomMetadataTask(listener, projectId, targetIndex, threadPool);
+            new DataStreamLifecycleService.UpdateDataStreamLifecycleCustomMetadataTask(
+                listener,
+                projectId,
+                targetIndex,
+                FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY,
+                Long.toString(threadPool.absoluteTimeInMillis())
+            );
         {
             Exception exception = new RuntimeException("task failed");
             task.onFailure(exception);
@@ -1441,14 +1448,19 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         );
         final ProjectState project = clusterState.projectState(projectId);
         DataStream dataStream = project.metadata().dataStreams().get(dataStreamName);
+        dataStream = dataStream.copy()
+            .setName(dataStreamName)
+            .setGeneration(dataStream.getGeneration() + 1)
+            .setLifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build())
+            .build();
         {
-            // test for an index for which `now` is outside its time bounds
-            Index firstGenIndex = dataStream.getIndices().get(0);
+            // test for an index for which `now` is outside its time bounds by excluding the two that are not
             Set<Index> indices = DataStreamLifecycleService.timeSeriesIndicesStillWithinTimeBounds(
                 // the end_time for the first generation has lapsed
                 project,
                 dataStream,
-                Set.of()
+                Set.of(dataStream.getIndices().get(1), dataStream.getIndices().get(2)),
+                currentTime::toEpochMilli
             );
             assertThat(indices.size(), is(0));
         }
@@ -1458,21 +1470,43 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 // the end_time for the first generation has lapsed, but the other 2 generations are still within bounds
                 project,
                 dataStream,
-                Set.of()
+                Set.of(),
+                currentTime::toEpochMilli
             );
             assertThat(indices.size(), is(2));
             assertThat(indices, containsInAnyOrder(dataStream.getIndices().get(1), dataStream.getIndices().get(2)));
         }
 
         {
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(project.metadata());
             // non time_series indices are not within time bounds (they don't have any)
-            IndexMetadata indexMeta = IndexMetadata.builder(randomAlphaOfLengthBetween(10, 30))
-                .settings(indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current()))
+            for (Index index : dataStream.getIndices()) {
+                IndexMetadata indexMeta = IndexMetadata.builder(index.getName())
+                    .settings(
+                        indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+                            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+                    )
+                    .build();
+                projectMetadataBuilder.put(indexMeta, true);
+            }
+
+            List<Index> standardIndices = dataStream.getIndices()
+                .stream()
+                .map(index -> new Index(index.getName(), index.getUUID()))
+                .toList();
+            ProjectState newProject = project.updateProject(projectMetadataBuilder.build());
+            dataStream = dataStream.copy()
+                .setName(dataStreamName)
+                .setGeneration(dataStream.getGeneration() + 1)
+                .setBackingIndices(DataStream.DataStreamIndices.backingIndicesBuilder(standardIndices).build())
+                .setIndexMode(IndexMode.STANDARD)
                 .build();
-
-            ProjectState newProject = project.updateProject(ProjectMetadata.builder(project.metadata()).put(indexMeta, true).build());
-
-            Set<Index> indices = DataStreamLifecycleService.timeSeriesIndicesStillWithinTimeBounds(newProject, dataStream, Set.of());
+            Set<Index> indices = DataStreamLifecycleService.timeSeriesIndicesStillWithinTimeBounds(
+                newProject,
+                dataStream,
+                Set.of(),
+                currentTime::toEpochMilli
+            );
             assertThat(indices.size(), is(0));
         }
     }

@@ -64,8 +64,8 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
     public static final String EIS_EMBED_PATH = "embed/text/dense";
 
     // rerank-v1
-    public static final String RERANK_V1_ENDPOINT_ID = ".elastic-rerank-v1";
-    public static final String RERANK_V1_MODEL_NAME = "elastic-rerank-v1";
+    public static final String RERANK_V1_ENDPOINT_ID = ".jina-reranker-v2";
+    public static final String RERANK_V1_MODEL_NAME = "jina-reranker-v2";
     public static final String EIS_RERANK_PATH = "rerank/text/text-similarity";
 
     public record EisAuthorizationResponse(
@@ -235,8 +235,8 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
               }
             },
             {
-              "id": ".elastic-rerank-v1",
-              "model_name": "elastic-rerank-v1",
+              "id": ".jina-reranker-v2",
+              "model_name": "jina-reranker-v2",
               "task_types": {
                 "eis": "rerank/text/text-similarity",
                 "elasticsearch": "rerank"

@@ -143,7 +143,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
                   "inference_endpoints": [
                     {
                       "id": 123,
-                      "model_name": "elastic-rerank-v1",
+                      "model_name": "jina-reranker-v2",
                       "task_type": "rerank",
                       "status": "preview",
                       "properties": [],

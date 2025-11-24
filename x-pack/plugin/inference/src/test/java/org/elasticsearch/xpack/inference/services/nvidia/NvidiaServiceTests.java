@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModel;
@@ -146,6 +147,11 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 }
 
                 @Override
+                protected Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
+                    return NvidiaServiceTests.createServiceSettingsMap(taskType, parseContext);
+                }
+
+                @Override
                 protected Map<String, Object> createTaskSettingsMap() {
                     return NvidiaEmbeddingsTaskSettingsTests.buildTaskSettingsMap(null, null);
                 }
@@ -201,7 +207,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
         assertThat(model, instanceOf(NvidiaEmbeddingsModel.class));
         var embeddingsModel = (NvidiaEmbeddingsModel) model;
         assertThat(embeddingsModel.getTaskSettings(), is(NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS));
-        assertThat(embeddingsModel.getServiceSettings().dimensions(), is(DIMENSIONS_VALUE));
+        assertThat(embeddingsModel.getServiceSettings().dimensions(), is(nullValue()));
         assertThat(embeddingsModel.getServiceSettings().similarity(), is(SIMILARITY_MEASURE_VALUE));
         assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(MAX_INPUT_TOKENS_VALUE));
     }
@@ -233,6 +239,31 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 MAX_INPUT_TOKENS_VALUE,
                 null
             );
+        }
+        return NvidiaChatCompletionServiceSettingsTests.buildServiceSettingsMap(MODEL_VALUE, URL_VALUE, null);
+    }
+
+    private static Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
+        if (Objects.requireNonNull(taskType) == TEXT_EMBEDDING) {
+            if (parseContext.equals(ConfigurationParseContext.REQUEST)) {
+                return buildServiceSettingsMap(
+                    MODEL_VALUE,
+                    URL_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
+                    null,
+                    MAX_INPUT_TOKENS_VALUE,
+                    null
+                );
+            } else {
+                return buildServiceSettingsMap(
+                    MODEL_VALUE,
+                    URL_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
+                    DIMENSIONS_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    null
+                );
+            }
         }
         return NvidiaChatCompletionServiceSettingsTests.buildServiceSettingsMap(MODEL_VALUE, URL_VALUE, null);
     }
@@ -292,7 +323,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    createServiceSettingsMap(TEXT_EMBEDDING),
+                    createServiceSettingsMap(TEXT_EMBEDDING, ConfigurationParseContext.REQUEST),
                     chunkingSettings.asMap(),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
@@ -316,7 +347,10 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             service.parseRequestConfig(
                 INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(createServiceSettingsMap(TEXT_EMBEDDING), getSecretSettingsMap(API_KEY_VALUE)),
+                getRequestConfigMap(
+                    createServiceSettingsMap(TEXT_EMBEDDING, ConfigurationParseContext.REQUEST),
+                    getSecretSettingsMap(API_KEY_VALUE)
+                ),
                 modelVerificationActionListener
             );
         }

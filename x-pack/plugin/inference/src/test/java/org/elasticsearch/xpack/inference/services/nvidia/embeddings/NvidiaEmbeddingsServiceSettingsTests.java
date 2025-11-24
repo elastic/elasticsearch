@@ -210,32 +210,22 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             [similarity] must be one of [cosine, dot_product, l2_norm];""", SIMILARITY_INVALID_VALUE)));
     }
 
-    public void testFromMap_NoDimensions_Persistent_Success() {
-        var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
-            buildServiceSettingsMap(
-                MODEL_VALUE,
-                CORRECT_URL_VALUE,
-                SIMILARITY_MEASURE_VALUE.toString(),
-                null,
-                MAX_INPUT_TOKENS_VALUE,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
-            ),
-            ConfigurationParseContext.PERSISTENT
-        );
-
-        assertThat(
-            serviceSettings,
-            is(
-                new NvidiaEmbeddingsServiceSettings(
+    public void testFromMap_NoDimensions_Persistent_ThrowsException() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> NvidiaEmbeddingsServiceSettings.fromMap(
+                buildServiceSettingsMap(
                     MODEL_VALUE,
                     CORRECT_URL_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
                     null,
-                    SIMILARITY_MEASURE_VALUE,
                     MAX_INPUT_TOKENS_VALUE,
-                    new RateLimitSettings(RATE_LIMIT_VALUE)
-                )
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
+                ),
+                ConfigurationParseContext.PERSISTENT
             )
         );
+        assertThat(thrownException.getMessage(), containsString("[service_settings] does not contain the required setting [dimensions];"));
     }
 
     public void testFromMap_NoDimensions_Request_Success() {
@@ -266,7 +256,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testFromMap_WithDimensions_Request_Success() {
+    public void testFromMap_WithDimensions_Request_Success_DimensionsIgnored() {
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
                 MODEL_VALUE,
@@ -285,7 +275,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                 new NvidiaEmbeddingsServiceSettings(
                     MODEL_VALUE,
                     CORRECT_URL_VALUE,
-                    DIMENSIONS_VALUE,
+                    null,
                     SIMILARITY_MEASURE_VALUE,
                     MAX_INPUT_TOKENS_VALUE,
                     new RateLimitSettings(RATE_LIMIT_VALUE)

@@ -5,6 +5,6 @@
 `field`
 :   The input to chunk.
 
-`options`
-:   Options to customize chunking behavior.
+`chunking_settings`
+:   Options to customize chunking behavior. Defaults to {"strategy":"sentence","max_chunk_size":300,"sentence_overlap":0}.
 

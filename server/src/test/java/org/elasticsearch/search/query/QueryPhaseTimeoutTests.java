@@ -47,19 +47,14 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.io.stream.StreamInput;
-<<<<<<< HEAD
-=======
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
->>>>>>> c699e676ff3 (Handle Query Timeouts During Collector Initialization in QueryPhase (#138084))
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
-<<<<<<< HEAD
-=======
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -71,7 +66,6 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
->>>>>>> c699e676ff3 (Handle Query Timeouts During Collector Initialization in QueryPhase (#138084))
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -424,9 +418,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         context.setSize(size);
         return context;
     }
-
-<<<<<<< HEAD
-=======
+    
     private SearchExecutionContext createSearchExecutionContext() {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
@@ -461,7 +453,6 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         );
     }
 
->>>>>>> c699e676ff3 (Handle Query Timeouts During Collector Initialization in QueryPhase (#138084))
     public void testSuggestOnlyWithTimeout() throws Exception {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().suggest(new SuggestBuilder());
         try (SearchContext context = createSearchContextWithSuggestTimeout(searchSourceBuilder)) {

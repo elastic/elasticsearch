@@ -199,6 +199,14 @@ public final class FetchPhase {
             SourceLoader.Leaf leafSourceLoader;
             IdLoader.Leaf leafIdLoader;
 
+            IntConsumer memChecker = memoryChecker != null ? memoryChecker : bytes -> {
+                locallyAccumulatedBytes[0] += bytes;
+                if (context.checkCircuitBreaker(locallyAccumulatedBytes[0], "fetch source")) {
+                    addRequestBreakerBytes(locallyAccumulatedBytes[0]);
+                    locallyAccumulatedBytes[0] = 0;
+                }
+            };
+
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
                 Timer timer = profiler.startNextReader();
@@ -250,16 +258,7 @@ public final class FetchPhase {
                     if (sourceRef != null) {
                         // This is an empirical value that seems to work well.
                         // Deserializing a large source would also mean serializing it to HTTP response later on, so x2 seems reasonable
-                        int newMemAllocated = sourceRef.length() * 2;
-                        if (memoryChecker != null) {
-                            memoryChecker.accept(newMemAllocated);
-                        } else {
-                            locallyAccumulatedBytes[0] += newMemAllocated;
-                            if (context.checkCircuitBreaker(locallyAccumulatedBytes[0], "fetch source")) {
-                                addRequestBreakerBytes(locallyAccumulatedBytes[0]);
-                                locallyAccumulatedBytes[0] = 0;
-                            }
-                        }
+                        memChecker.accept(sourceRef.length() * 2);
                     }
                     success = true;
                     return hit.hit();

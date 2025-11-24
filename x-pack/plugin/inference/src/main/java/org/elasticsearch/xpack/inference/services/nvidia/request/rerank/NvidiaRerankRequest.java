@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModel;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
@@ -37,6 +36,9 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * @param model the Nvidia rerank model configuration
  */
 public record NvidiaRerankRequest(String query, List<String> input, NvidiaRerankModel model) implements Request {
+    private static final URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https")
+        .setHost(NvidiaUtils.RERANK_HOST)
+        .setPathSegments(NvidiaUtils.VERSION_1, NvidiaUtils.RETRIEVAL_PATH, NvidiaUtils.NVIDIA_PATH, NvidiaUtils.RERANKING_PATH);
 
     public NvidiaRerankRequest {
         Objects.requireNonNull(input);
@@ -67,14 +69,7 @@ public record NvidiaRerankRequest(String query, List<String> input, NvidiaRerank
 
     @Override
     public URI getURI() {
-        return buildUri(model.getServiceSettings().uri(), NvidiaService.NAME, NvidiaRerankRequest::buildDefaultRerankUri);
-    }
-
-    private static URI buildDefaultRerankUri() throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(NvidiaUtils.RERANK_HOST)
-            .setPathSegments(NvidiaUtils.VERSION_1, NvidiaUtils.RETRIEVAL_PATH, NvidiaUtils.NVIDIA_PATH, NvidiaUtils.RERANKING_PATH)
-            .build();
+        return buildUri(model.getServiceSettings().uri(), NvidiaService.NAME, DEFAULT_URI_BUILDER::build);
     }
 
     @Override

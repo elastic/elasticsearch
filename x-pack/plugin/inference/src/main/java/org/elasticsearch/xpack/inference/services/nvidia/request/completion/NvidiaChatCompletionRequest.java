@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModel;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
@@ -35,6 +34,9 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  */
 public class NvidiaChatCompletionRequest implements Request {
 
+    private static final URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https")
+        .setHost(NvidiaUtils.HOST)
+        .setPathSegments(NvidiaUtils.VERSION_1, NvidiaUtils.CHAT_PATH, NvidiaUtils.COMPLETIONS_PATH);
     private final NvidiaChatCompletionModel model;
     private final UnifiedChatInput chatInput;
 
@@ -61,14 +63,7 @@ public class NvidiaChatCompletionRequest implements Request {
 
     @Override
     public URI getURI() {
-        return buildUri(model.getServiceSettings().uri(), NvidiaService.NAME, NvidiaChatCompletionRequest::buildDefaultChatCompletionUri);
-    }
-
-    private static URI buildDefaultChatCompletionUri() throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(NvidiaUtils.HOST)
-            .setPathSegments(NvidiaUtils.VERSION_1, NvidiaUtils.CHAT_PATH, NvidiaUtils.COMPLETIONS_PATH)
-            .build();
+        return buildUri(model.getServiceSettings().uri(), NvidiaService.NAME, DEFAULT_URI_BUILDER::build);
     }
 
     @Override

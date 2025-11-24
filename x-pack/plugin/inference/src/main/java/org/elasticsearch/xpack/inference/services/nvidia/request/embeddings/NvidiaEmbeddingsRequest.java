@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModel;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
@@ -36,6 +35,9 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * It constructs an HTTP POST request with the necessary headers and body content.
  */
 public class NvidiaEmbeddingsRequest implements Request {
+    private static final URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https")
+        .setHost(NvidiaUtils.HOST)
+        .setPathSegments(NvidiaUtils.VERSION_1, NvidiaUtils.EMBEDDINGS_PATH);
     private final NvidiaEmbeddingsModel model;
     private final Truncator.TruncationResult truncationResult;
     private final Truncator truncator;
@@ -102,14 +104,7 @@ public class NvidiaEmbeddingsRequest implements Request {
 
     @Override
     public URI getURI() {
-        return buildUri(model.getServiceSettings().uri(), NvidiaService.NAME, NvidiaEmbeddingsRequest::buildDefaultEmbeddingsUri);
-    }
-
-    private static URI buildDefaultEmbeddingsUri() throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(NvidiaUtils.HOST)
-            .setPathSegments(NvidiaUtils.VERSION_1, NvidiaUtils.EMBEDDINGS_PATH)
-            .build();
+        return buildUri(model.getServiceSettings().uri(), NvidiaService.NAME, DEFAULT_URI_BUILDER::build);
     }
 
     @Override

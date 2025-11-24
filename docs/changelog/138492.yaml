@@ -4,8 +4,57 @@ area: Vector Search
 type: feature
 issues: []
 highlight:
-  title: Enable bfloat16 and on-disk rescoring for dense vectors
-  body: |-
-    Remove the feature flag for `bfloat16` and `on_disk_rescore`. `bfloat16`
-    is marked as GA for 9.3, `on_disk_rescore` is in preview for now.
   notable: true
+  title: New dense_vector options for storing bfloat16 vectors and utilising on-disk rescoring
+  body: |-
+    New options have been added to the `dense_vector` field type.
+
+    The first is support for storing vectors in https://en.wikipedia.org/wiki/Bfloat16_floating-point_format[bfloat16]
+    format. This is a floating-point format that utilises 2-bytes per value rather than 4, halving the storage space
+    required compared to `element_type: float`. This can be specified with `element_type: bfloat16`
+    when creating the index, for all `dense_vector` indexing types:
+
+    [source,yaml]
+    ----------------------------
+    PUT vectors
+    {
+    "mappings": {
+      "properties": {
+        "vector": {
+          "type": "dense_vector",
+          "element_type": "bfloat16",
+          "index_options": {"type": "bbq_hnsw"}
+        }
+      }
+    }
+    ----------------------------
+
+    Float values are automatically truncated to 2-bytes when writing to disk, so this format can be used
+    with original source vectors at 2- or 4-byte precision. BFloat16 values are zero-expanded back to 4-byte floats
+    when read into memory. Using `bfloat16` will cause a loss of precision compared to
+    the original vector values, as well as a small performance hit due to converting between `bfloat16` and `float`
+    when reading and writing vectors; however this may be counterbalanced by a corresponding decrease in I/O,
+    depending on your workload.
+
+    The second option is to utilise on-disk rescoring. When rescoring vectors during kNN searches, the raw vectors
+    are read into memory. When the vector data is larger than the amount of available RAM, this might cause the OS
+    to evict some in-memory pages that then need to be paged back in immediately afterwards. This can cause
+    a significant slowdown in search speed. Utilising on-disk rescoring causes rescoring to use raw vector data
+    on-disk during rescoring, and to not read it into memory first. This may significantly increase search performance
+    in such low-memory situations.
+
+    This is specified as an index option for HNSW vector index types:
+
+    [source,yaml]
+    ----------------------------
+    PUT vectors
+    {
+    "mappings": {
+      "properties": {
+        "vector": {
+          "type": "dense_vector",
+          "index_options": {"type": "bbq_hnsw", "on_disk_rescore": true}
+        }
+      }
+    }
+    ----------------------------

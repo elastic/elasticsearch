@@ -1,0 +1,5 @@
+pr: 137558
+summary: Improve security migration resilience by handling version conflicts
+area: Security
+type: enhancement
+issues: []

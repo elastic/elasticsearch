@@ -7,11 +7,21 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
 
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
+import org.junit.Before;
 
 import java.io.IOException;
 
 public class HistogramPercentileSerializationTests extends AbstractExpressionSerializationTests<HistogramPercentile> {
+
+    @Before
+    public void setup() {
+        assumeTrue(
+            "Only when esql_exponential_histogram feature flag is enabled",
+            EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()
+        );
+    }
 
     @Override
     protected HistogramPercentile createTestInstance() {

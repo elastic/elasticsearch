@@ -63,7 +63,10 @@ public class ExponentialHistogramXContent {
         builder.startObject();
 
         builder.field(SCALE_FIELD, histogram.scale());
-        builder.field(SUM_FIELD, histogram.sum());
+
+        if (histogram.sum() != 0.0 || histogram.valueCount() > 0) {
+            builder.field(SUM_FIELD, histogram.sum());
+        }
         if (Double.isNaN(histogram.min()) == false) {
             builder.field(MIN_FIELD, histogram.min());
         }

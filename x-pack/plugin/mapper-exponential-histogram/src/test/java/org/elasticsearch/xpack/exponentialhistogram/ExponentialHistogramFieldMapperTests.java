@@ -569,21 +569,30 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
 
                 Map<String, Object> zeroBucket = convertZeroBucketToCanonicalForm(Types.forciblyCast(histogram.get("zero")));
 
-                Object sum = histogram.get("sum");
-                if (sum == null) {
-                    sum = ExponentialHistogramUtils.estimateSum(
-                        IndexWithCount.asBuckets(scale, negative).iterator(),
-                        IndexWithCount.asBuckets(scale, positive).iterator()
-                    );
+                Number sum = (Number) histogram.get("sum");
+                ExponentialHistogram.Buckets negativeBuckets = IndexWithCount.asBuckets(scale, negative);
+                ExponentialHistogram.Buckets positiveBuckets = IndexWithCount.asBuckets(scale, positive);
+
+                boolean isEmpty = negativeBuckets.iterator().hasNext() == false
+                    && positiveBuckets.iterator().hasNext() == false
+                    && (zeroBucket == null || Types.<Number>forciblyCast(zeroBucket.getOrDefault("count", 0L)).longValue() == 0L);
+
+                // we allow 0.0 as sum for input histograms, but output null in canonical form in that case
+                if (isEmpty && (sum == null || sum.doubleValue() == 0.0)) {
+                    sum = null;
+                } else if (sum == null) {
+                    sum = ExponentialHistogramUtils.estimateSum(negativeBuckets.iterator(), positiveBuckets.iterator());
                 }
-                result.put("sum", sum);
+                if (sum != null) {
+                    result.put("sum", sum);
+                }
 
                 Object min = histogram.get("min");
                 if (min == null) {
                     OptionalDouble estimatedMin = ExponentialHistogramUtils.estimateMin(
                         mapToZeroBucket(zeroBucket),
-                        IndexWithCount.asBuckets(scale, negative),
-                        IndexWithCount.asBuckets(scale, positive)
+                        negativeBuckets,
+                        positiveBuckets
                     );
                     if (estimatedMin.isPresent()) {
                         min = estimatedMin.getAsDouble();
@@ -597,8 +606,8 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
                 if (max == null) {
                     OptionalDouble estimatedMax = ExponentialHistogramUtils.estimateMax(
                         mapToZeroBucket(zeroBucket),
-                        IndexWithCount.asBuckets(scale, negative),
-                        IndexWithCount.asBuckets(scale, positive)
+                        negativeBuckets,
+                        positiveBuckets
                     );
                     if (estimatedMax.isPresent()) {
                         max = estimatedMax.getAsDouble();

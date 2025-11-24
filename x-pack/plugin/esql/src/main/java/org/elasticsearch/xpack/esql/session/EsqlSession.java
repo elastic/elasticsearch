@@ -760,8 +760,15 @@ public class EsqlSession {
         var localIndexNames = indexNames.stream().map(n -> RemoteClusterAware.splitIndexName(n)[1]).collect(toSet());
         if (localIndexNames.size() == 1) {
             String indexName = localIndexNames.iterator().next();
-            EsIndex newIndex = new EsIndex(index, lookupIndexResolution.get().mapping(), Map.of(indexName, IndexMode.LOOKUP));
-            return IndexResolution.valid(newIndex, newIndex.concreteIndices(), lookupIndexResolution.failures());
+            EsIndex newIndex = new EsIndex(
+                index,
+                lookupIndexResolution.get().mapping(),
+                Map.of(indexName, IndexMode.LOOKUP),
+                Map.of(),
+                Map.of(),
+                Set.of()
+            );
+            return IndexResolution.valid(newIndex, newIndex.concreteQualifiedIndices(), lookupIndexResolution.failures());
         }
         // validate remotes to be able to handle multiple indices in LOOKUP JOIN
         validateRemoteVersions(executionInfo);
@@ -855,6 +862,7 @@ public class EsqlSession {
                 indexMode == IndexMode.TIME_SERIES,
                 preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                 preAnalysis.useDenseVectorWhenNotSupported(),
+                indicesExpressionGrouper,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                     l.onResponse(

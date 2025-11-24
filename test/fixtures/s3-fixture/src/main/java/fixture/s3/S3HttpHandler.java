@@ -418,6 +418,11 @@ public class S3HttpHandler implements HttpHandler {
         }
     }
 
+    /**
+     * Etags are opaque identifiers for the contents of an object.
+     *
+     * @see <a href="https://en.wikipedia.org/wiki/HTTP_ETag">HTTP ETag on Wikipedia</a>.
+     */
     public static String getEtagFromContents(BytesReference blobContents) {
         return '"' + SHA_256_ETAG_PREFIX + MessageDigests.toHexString(MessageDigests.digest(blobContents, MessageDigests.sha256())) + '"';
     }

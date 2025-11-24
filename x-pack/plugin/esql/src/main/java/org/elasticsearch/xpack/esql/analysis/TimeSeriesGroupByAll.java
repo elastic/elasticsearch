@@ -105,7 +105,15 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
         return newStats.transformDown(EsRelation.class, r -> {
             ArrayList<Attribute> attributes = new ArrayList<>(r.output());
             attributes.add(timeSeries);
-            return new EsRelation(r.source(), r.indexPattern(), r.indexMode(), r.indexNameWithModes(), attributes);
+            return new EsRelation(
+                r.source(),
+                r.indexPattern(),
+                r.indexMode(),
+                r.originalIndices(),
+                r.concreteIndices(),
+                r.indexNameWithModes(),
+                attributes
+            );
         });
     }
 }

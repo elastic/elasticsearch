@@ -50,7 +50,7 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
     @BeforeClass
     public static void initK8s() {
         mappingK8s = loadMapping("k8s-mappings.json");
-        EsIndex k8sIndex = new EsIndex("k8s", mappingK8s, Map.of("k8s", IndexMode.TIME_SERIES), Set.of());
+        EsIndex k8sIndex = new EsIndex("k8s", mappingK8s, Map.of("k8s", IndexMode.TIME_SERIES), Map.of(), Map.of(), Set.of());
 
         IndexResolution indexResolution = IndexResolution.valid(k8sIndex);
 

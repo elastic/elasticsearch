@@ -520,11 +520,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         rewritten,
                         resolutionIdxOpts,
                         resolvedIndices,
-                        projectState.metadata(),
-                        indexNameExpressionResolver,
-                        timeProvider.absoluteStartMillis(),
                         searchResponseActionListener.delegateFailureAndWrap((searchListener, replacedIndices) -> {
-                            // TODO figure out if we need to short circuit if indices are resolved and now they are both empty
                             if (replacedIndices.getRemoteClusterIndices().isEmpty()) {
                                 executeLocalSearch(
                                     task,
@@ -1082,53 +1078,45 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return new SearchResponse.Clusters(reconciledMap, false);
     }
 
+    /**
+     * Only used for ccs_minimize_roundtrips=true pathway
+     */
     void collectResolvedIndices(
         boolean resolvesCrossProject,
         SearchRequest rewritten,
         IndicesOptions resolutionIdxOpts,
         ResolvedIndices originalResolvedIndices,
-        ProjectMetadata projectMetadata,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        long startTimeInMillis,
         ActionListener<ResolvedIndices> listener
     ) {
         if (resolvesCrossProject) {
-            var numProjectsToResolve = (originalResolvedIndices.getLocalIndices() == null ? 0 : 1) + originalResolvedIndices
-                .getRemoteClusterIndices()
-                .size();
+            var numProjectsToResolve = originalResolvedIndices.getRemoteClusterIndices().size();
             assert numProjectsToResolve > 0 : "At least one index is required to resolve cross project indices";
             assert rewritten.getResolvedIndexExpressions() != null : "ResolvedIndexExpressions must be set when cross project is enabled";
 
-            ActionListener<Collection<Map.Entry<String, ResolveIndexAction.Response>>> responsesByClusterListener = listener
+            ActionListener<Collection<Map.Entry<String, ResolveIndexAction.Response>>> responsesByProjectListener = listener
                 .delegateFailureAndWrap(
-                    (l, responsesByCluster) -> mergeResolvedIndices(
-                        responsesByCluster,
+                    (l, responsesByProject) -> mergeResolvedIndices(
+                        originalResolvedIndices,
+                        responsesByProject,
                         rewritten,
                         resolutionIdxOpts,
-                        projectMetadata,
-                        indexNameExpressionResolver,
-                        startTimeInMillis,
                         l
                     )
                 );
 
             ActionListener<Map.Entry<String, ResolveIndexAction.Response>> resolveIndexFanOutListener;
             if (numProjectsToResolve > 1) {
-                resolveIndexFanOutListener = new GroupedActionListener<>(numProjectsToResolve, responsesByClusterListener);
+                resolveIndexFanOutListener = new GroupedActionListener<>(numProjectsToResolve, responsesByProjectListener);
             } else {
-                resolveIndexFanOutListener = responsesByClusterListener.map(Collections::singleton);
-            }
-
-            if (originalResolvedIndices.getLocalIndices() != null) {
-                resolveLocalIndex(rewritten, resolutionIdxOpts, originalResolvedIndices.getLocalIndices(), resolveIndexFanOutListener);
+                resolveIndexFanOutListener = responsesByProjectListener.map(Collections::singleton);
             }
 
             originalResolvedIndices.getRemoteClusterIndices()
                 .forEach(
-                    (remoteClusterName, projectIndices) -> resolveRemoteCrossProjectIndex(
+                    (projectName, projectIndices) -> resolveRemoteCrossProjectIndex(
                         rewritten,
                         resolutionIdxOpts,
-                        remoteClusterName,
+                        projectName,
                         projectIndices,
                         resolveIndexFanOutListener
                     )
@@ -1138,17 +1126,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
+    /**
+     * Only used for ccs_minimize_roundtrips=true pathway
+     */
     private void mergeResolvedIndices(
-        Collection<Map.Entry<String, ResolveIndexAction.Response>> responsesByCluster,
+        ResolvedIndices originalResolvedIndices,
+        Collection<Map.Entry<String, ResolveIndexAction.Response>> responsesByProject,
         SearchRequest rewritten,
         IndicesOptions resolutionIdxOpts,
-        ProjectMetadata projectMetadata,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        long startTimeInMillis,
         ActionListener<ResolvedIndices> listener
     ) {
-
-        Map<String, ResolvedIndexExpressions> resolvedExpressions = responsesByCluster.stream()
+        Map<String, ResolvedIndexExpressions> resolvedExpressions = responsesByProject.stream()
             .collect(Collectors.toMap(Map.Entry::getKey, response -> {
                 var resolvedIndexExpressions = response.getValue().getResolvedIndexExpressions();
                 assert resolvedIndexExpressions != null
@@ -1156,8 +1144,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 return resolvedIndexExpressions;
             }));
 
-        // TODO this looks wrong, we never verify localIndexExpression because we're comparing with rewritten.getResolvedIndexExpressions()
-        // i guess we can leave LOCAL_CLUSTER_GROUP_KEY in there and verify it alongside the other resolved expressions?
         var ex = CrossProjectIndexResolutionValidator.validate(
             rewritten.indicesOptions(),
             rewritten.getProjectRouting(),
@@ -1167,47 +1153,24 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (ex != null) {
             listener.onFailure(ex);
         } else {
-            var localIndexExpression = resolvedExpressions.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             listener.onResponse(
                 ResolvedIndices.resolveWithIndexExpressions(
-                    localIndexExpression,
+                    originalResolvedIndices.getLocalIndices(),
+                    originalResolvedIndices.getConcreteLocalIndicesMetadata(),
                     resolvedExpressions,
-                    resolutionIdxOpts,
-                    projectMetadata,
-                    indexNameExpressionResolver,
-                    startTimeInMillis
+                    resolutionIdxOpts
                 )
             );
         }
     }
 
-    private void resolveLocalIndex(
-        SearchRequest rewritten,
-        IndicesOptions resolutionIdxOpts,
-        OriginalIndices localIndices,
-        ActionListener<Map.Entry<String, ResolveIndexAction.Response>> listener
-    ) {
-        SubscribableListener.<ResolveIndexAction.Response>newForked(l -> {
-            var resolveIndexRequest = new ResolveIndexAction.Request(
-                localIndices.indices(),
-                resolutionIdxOpts,
-                null,
-                rewritten.getProjectRouting()
-            );
-
-            client.execute(ResolveIndexAction.INSTANCE, resolveIndexRequest, l);
-        })
-            .addListener(
-                listener.map(response -> Map.entry(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, response)),
-                threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
-                threadPool.getThreadContext()
-            );
-    }
-
+    /**
+     * Only used for ccs_minimize_roundtrips=true pathway
+     */
     private void resolveRemoteCrossProjectIndex(
         SearchRequest rewritten,
         IndicesOptions resolutionIdxOpts,
-        String remoteClusterName,
+        String projectName,
         OriginalIndices projectIndices,
         ActionListener<Map.Entry<String, ResolveIndexAction.Response>> listener
     ) {
@@ -1225,7 +1188,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     new ResolveIndexAction.Request(projectIndices.indices(), resolutionIdxOpts),
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(
-                        listener.map(response -> Map.entry(remoteClusterName, response)),
+                        listener.map(response -> Map.entry(projectName, response)),
                         ResolveIndexAction.Response::new,
                         threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
                     )
@@ -1233,10 +1196,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             )
         );
         remoteClusterService.maybeEnsureConnectedAndGetConnection(
-            remoteClusterName,
+            projectName,
             shouldEstablishConnection(
                 forceConnectTimeoutSecs,
-                remoteClusterService.shouldSkipOnFailure(remoteClusterName, rewritten.allowPartialSearchResults())
+                remoteClusterService.shouldSkipOnFailure(projectName, rewritten.allowPartialSearchResults())
             ),
             connectionListener
         );

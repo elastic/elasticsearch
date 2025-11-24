@@ -28,7 +28,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * Container for information about results of the resolution of index expression.
@@ -254,16 +253,20 @@ public class ResolvedIndices {
         );
     }
 
+    /**
+     * Create a new {@link ResolvedIndices} instance from a Map of Projects to {@link ResolvedIndexExpressions}.
+     * This method guarantees that the resulting remote project contains at least one index resolved for the mapped
+     * {@link ResolvedIndexExpressions}. The resulting {@link ResolvedIndices#getRemoteClusterIndices()} will map to the original index
+     * expression provided in {@link ResolvedIndexExpression#original()}.
+     */
     public static ResolvedIndices resolveWithIndexExpressions(
-        ResolvedIndexExpressions localExpressions,
+        OriginalIndices localIndices,
+        Map<Index, IndexMetadata> localIndexMetadata,
         Map<String, ResolvedIndexExpressions> remoteExpressions,
-        IndicesOptions indicesOptions,
-        ProjectMetadata projectMetadata,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        long startTimeInMillis
+        IndicesOptions indicesOptions
     ) {
-        Function<ResolvedIndexExpressions, OriginalIndices> toIndices = resolvedIndexExpressions -> {
-            var indices = resolvedIndexExpressions.expressions().stream().filter(expression -> {
+        Map<String, OriginalIndices> remoteIndices = remoteExpressions.entrySet().stream().collect(HashMap::new, (map, entry) -> {
+            var indices = entry.getValue().expressions().stream().filter(expression -> {
                 var resolvedExpressions = expression.localExpressions();
                 var successfulResolution = resolvedExpressions
                     .localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
@@ -271,26 +274,12 @@ public class ResolvedIndices {
                 var hasResolvedIndices = resolvedExpressions.indices().isEmpty() == false;
                 return successfulResolution && hasResolvedIndices;
             }).map(ResolvedIndexExpression::original).toArray(String[]::new);
-            return indices.length > 0 ? new OriginalIndices(indices, indicesOptions) : null;
-        };
-        Map<String, OriginalIndices> remoteClusterIndices = remoteExpressions.entrySet().stream().collect(HashMap::new, (map, entry) -> {
-            var indices = toIndices.apply(entry.getValue());
-            if (indices != null) {
-                map.put(entry.getKey(), indices);
+            if (indices.length > 0) {
+                map.put(entry.getKey(), new OriginalIndices(indices, indicesOptions));
             }
         }, Map::putAll);
 
-        var localIndices = localExpressions == null ? null : toIndices.apply(localExpressions);
-
-        var concreteLocalIndices = localIndices == null
-            ? Index.EMPTY_ARRAY
-            : indexNameExpressionResolver.concreteIndices(projectMetadata, localIndices, startTimeInMillis);
-
-        return new ResolvedIndices(
-            remoteClusterIndices,
-            localIndices,
-            resolveLocalIndexMetadata(concreteLocalIndices, projectMetadata, true)
-        );
+        return new ResolvedIndices(remoteIndices, localIndices, localIndexMetadata);
     }
 
     private static Map<Index, IndexMetadata> resolveLocalIndexMetadata(

@@ -46,9 +46,9 @@ public class InternalPreconfiguredEndpoints {
     public static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "jina-embeddings-v3";
     public static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = ".jina-embeddings-v3";
 
-    // rerank-v1
-    public static final String DEFAULT_RERANK_MODEL_ID_V1 = "elastic-rerank-v1";
-    public static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = ".elastic-rerank-v1";
+    // jina-reranker-v2
+    public static final String DEFAULT_RERANK_MODEL_ID = "jina-reranker-v2";
+    public static final String DEFAULT_RERANK_ENDPOINT_ID = ".jina-reranker-v2";
 
     public record MinimalModel(
         ModelConfigurations configurations,
@@ -69,7 +69,7 @@ public class InternalPreconfiguredEndpoints {
             null
         );
     private static final ElasticInferenceServiceRerankServiceSettings RERANK_SERVICE_SETTINGS =
-        new ElasticInferenceServiceRerankServiceSettings(DEFAULT_RERANK_MODEL_ID_V1);
+        new ElasticInferenceServiceRerankServiceSettings(DEFAULT_RERANK_MODEL_ID);
 
     // A single model name can map to multiple inference endpoints, so we need a String to a List
     private static final Map<String, List<MinimalModel>> MODEL_NAME_TO_MINIMAL_MODELS = Map.of(
@@ -125,11 +125,11 @@ public class InternalPreconfiguredEndpoints {
                 DENSE_TEXT_EMBEDDINGS_SERVICE_SETTINGS
             )
         ),
-        DEFAULT_RERANK_MODEL_ID_V1,
+        DEFAULT_RERANK_MODEL_ID,
         List.of(
             new MinimalModel(
                 new ModelConfigurations(
-                    DEFAULT_RERANK_ENDPOINT_ID_V1,
+                    DEFAULT_RERANK_ENDPOINT_ID,
                     TaskType.RERANK,
                     ElasticInferenceService.NAME,
                     RERANK_SERVICE_SETTINGS,

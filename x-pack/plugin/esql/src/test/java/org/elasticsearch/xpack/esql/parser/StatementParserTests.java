@@ -4233,13 +4233,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionMissingOptions() {
-        expectError("FROM foo* | COMPLETION targetField = prompt", "line 1:44: Missing mandatory option [inference_id] in COMPLETION");
+        expectError("FROM foo* | COMPLETION targetField = prompt", "line 1:13: Missing mandatory option [inference_id] in COMPLETION");
     }
 
     public void testCompletionEmptyOptions() {
         expectError(
             "FROM foo* | COMPLETION targetField = prompt WITH { }",
-            "line 1:45: Missing mandatory option [inference_id] in COMPLETION"
+            "line 1:13: Missing mandatory option [inference_id] in COMPLETION"
         );
     }
 

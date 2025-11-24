@@ -14,6 +14,8 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
+import static org.elasticsearch.search.diversification.DiversifyRetrieverBuilder.RETRIEVER_RESULT_DIVERSIFICATION_MMR_FEATURE;
+
 /**
  * Each retriever is given its own {@link NodeFeature} so new
  * retrievers can be added individually with additional functionality.
@@ -28,6 +30,6 @@ public class RetrieversFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(NEGATIVE_RANK_WINDOW_SIZE_FIX);
+        return Set.of(NEGATIVE_RANK_WINDOW_SIZE_FIX, RETRIEVER_RESULT_DIVERSIFICATION_MMR_FEATURE);
     }
 }

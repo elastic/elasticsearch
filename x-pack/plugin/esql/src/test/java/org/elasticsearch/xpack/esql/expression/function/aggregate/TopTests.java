@@ -176,7 +176,63 @@ public class TopTests extends AbstractAggregationTestCase {
                         equalTo(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("ffff::"))))
                     )
                 ),
-
+                // For cases where we have limit == 1 and an outputField, we should not use the surrogate
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.INTEGER, DataType.KEYWORD, DataType.INTEGER),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(List.of(3.14, 2.71, 1.41), DataType.DOUBLE, "field"),
+                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
+                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral(),
+                            TestCaseSupplier.TypedData.multiRow(List.of(1, 2, 3), DataType.INTEGER, "outputField")
+                        ),
+                        "TopDoubleInt",
+                        DataType.INTEGER,
+                        equalTo(1)
+                    )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.INTEGER, DataType.KEYWORD, DataType.INTEGER),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(List.of(3.14, 2.71, 1.41), DataType.DOUBLE, "field"),
+                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
+                            new TestCaseSupplier.TypedData(new BytesRef("asc"), DataType.KEYWORD, "order").forceLiteral(),
+                            TestCaseSupplier.TypedData.multiRow(List.of(1, 2, 3), DataType.INTEGER, "outputField")
+                        ),
+                        "TopDoubleInt",
+                        DataType.INTEGER,
+                        equalTo(3)
+                    )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.INTEGER, DataType.INTEGER, DataType.KEYWORD, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(List.of(1, 2, 3), DataType.INTEGER, "field"),
+                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
+                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral(),
+                            TestCaseSupplier.TypedData.multiRow(List.of(3.14, 2.71, 1.41), DataType.DOUBLE, "outputField")
+                        ),
+                        "TopIntDouble",
+                        DataType.DOUBLE,
+                        equalTo(1.41)
+                    )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.INTEGER, DataType.INTEGER, DataType.KEYWORD, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(List.of(1, 2, 3), DataType.INTEGER, "field"),
+                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
+                            new TestCaseSupplier.TypedData(new BytesRef("asc"), DataType.KEYWORD, "order").forceLiteral(),
+                            TestCaseSupplier.TypedData.multiRow(List.of(3.14, 2.71, 1.41), DataType.DOUBLE, "outputField")
+                        ),
+                        "TopIntDouble",
+                        DataType.DOUBLE,
+                        equalTo(3.14)
+                    )
+                ),
                 // Folding
                 new TestCaseSupplier(
                     List.of(DataType.BOOLEAN, DataType.INTEGER, DataType.KEYWORD),
@@ -455,10 +511,10 @@ public class TopTests extends AbstractAggregationTestCase {
                 .toList();
 
             String baseName;
-            if (limit != 1) {
+            if (limit != 1 || outputFieldSupplied) {
                 baseName = "Top";
             } else {
-                // If the limit is 1 we rewrite TOP into MIN or MAX and never run our lovely TOP code.
+                // If the limit is 1 and there is no `outputField` we rewrite TOP into MIN or MAX and never run our lovely TOP code.
                 if (isAscending) {
                     baseName = "Min";
                 } else {

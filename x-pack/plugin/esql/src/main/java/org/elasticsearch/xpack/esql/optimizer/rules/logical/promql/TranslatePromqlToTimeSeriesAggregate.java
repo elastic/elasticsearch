@@ -207,7 +207,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
             acrossAggregate.source(),
             // to double conversion of the metric to ensure a consistent output type
             // TODO it's probably more efficient to wrap the function in the ToDouble
-            //  but for some reason this doesn't work if you have an inner and outer aggregation
+            // but for some reason this doesn't work if you have an inner and outer aggregation
             List.of(new ToDouble(target.source(), target))
         );
 

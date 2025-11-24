@@ -7,14 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 
-import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;

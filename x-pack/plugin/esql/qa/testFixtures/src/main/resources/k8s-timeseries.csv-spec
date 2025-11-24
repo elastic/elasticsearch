@@ -794,6 +794,7 @@ TS k8s
 | STATS count = count_over_time(network.cost)
 | SORT count DESC
 ;
+ignoreOrder:true
 
 count:long | _timeseries:keyword
 29         | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg=
@@ -815,6 +816,7 @@ TS k8s
 | STATS count = count_over_time(network.cost) BY tbucket = TBUCKET(1 hour)
 | SORT count DESC
 ;
+ignoreOrder:true
 
 count:long | _timeseries:keyword                                          | tbucket:datetime
 29         | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg=     | 2024-05-10T00:00:00.000Z
@@ -836,6 +838,7 @@ TS k8s
 | STATS avg = avg_over_time(network.cost)
 | SORT avg DESC
 ;
+ignoreOrder:true
 
 avg:double         | _timeseries:keyword
 8.375              | LAhW8dgJbuvWP9LgvcDhXAbo6om1mDfU3wEKCKoEKNc42gDQvRlUNqiHo1HG
@@ -857,6 +860,7 @@ TS k8s
 | STATS avg = avg_over_time(network.cost) BY tbucket = TBUCKET(1 hour)
 | SORT avg DESC
 ;
+ignoreOrder:true
 
 avg:double         | _timeseries:keyword                                          | tbucket:datetime
 8.375              | LAhW8dgJbuvWP9LgvcDhXAbo6om1mDfU3wEKCKoEKNc42gDQvRlUNqiHo1HG | 2024-05-10T00:00:00.000Z
@@ -878,6 +882,7 @@ TS k8s
 | STATS sum = sum_over_time(network.cost)
 | SORT sum DESC
 ;
+ignoreOrder:true
 
 sum:double | _timeseries:keyword
 210.625    | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy/m+tXh+yxVR6b3E17ss=
@@ -899,6 +904,7 @@ TS k8s
 | STATS sum = sum_over_time(network.cost) BY tbucket = TBUCKET(1 hour)
 | SORT sum DESC
 ;
+ignoreOrder:true
 
 sum:double | _timeseries:keyword                                          | tbucket:datetime
 210.625    | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy/m+tXh+yxVR6b3E17ss=     | 2024-05-10T00:00:00.000Z
@@ -920,6 +926,7 @@ TS k8s
 | STATS rate = rate(network.total_bytes_in)
 | SORT rate DESC
 ;
+ignoreOrder:true
 
 rate:double        | _timeseries:keyword
 13.17372515125324  | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg=
@@ -941,6 +948,7 @@ TS k8s
 | STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour)
 | SORT rate DESC
 ;
+ignoreOrder:true
 
 rate:double        | _timeseries:keyword                                          | tbucket:datetime
 4.379885057471264  | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg=     | 2024-05-10T00:00:00.000Z

@@ -110,12 +110,12 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
         ///
         /// Custom timezones
         ///
-        suppliers.addAll(casesFor("VV", "2020-01-01T00:00:00.00Z", "Europe/Paris", "en-en", "Europe/Paris"));
-        suppliers.addAll(casesFor("VV", "2020-01-01T00:00:00.00Z", "+05:45", "en-en", "+05:45"));
-        suppliers.addAll(casesFor("MMM", "2020-01-01T00:00:00.00+01:00", "Z", "en-en", "Dec"));
-        suppliers.addAll(casesFor("MMM", "2020-01-01T00:00:00.00+01:00", "Europe/Paris", "en-en", "Jan"));
-        suppliers.addAll(casesFor("date_time", "2020-01-01T00:00:00.00+01:00", "Europe/Paris", "en-en", "2020-01-01T00:00:00.000+01:00"));
-        suppliers.addAll(casesForDefaultFormat("2020-01-01T00:00:00.00+01:00", "Europe/Paris", "en-en", "2020-01-01T00:00:00.000+01:00"));
+        suppliers.addAll(casesFor("VV", "2020-01-01T00:00:00.00Z", "Europe/Paris", "en-us", "Europe/Paris"));
+        suppliers.addAll(casesFor("VV", "2020-01-01T00:00:00.00Z", "+05:45", "en-us", "+05:45"));
+        suppliers.addAll(casesFor("MMM", "2020-01-01T00:00:00.00+01:00", "Z", "en-us", "Dec"));
+        suppliers.addAll(casesFor("MMM", "2020-01-01T00:00:00.00+01:00", "Europe/Paris", "en-us", "Jan"));
+        suppliers.addAll(casesFor("date_time", "2020-01-01T00:00:00.00+01:00", "Europe/Paris", "en-us", "2020-01-01T00:00:00.000+01:00"));
+        suppliers.addAll(casesForDefaultFormat("2020-01-01T00:00:00.00+01:00", "Europe/Paris", "en-us", "2020-01-01T00:00:00.000+01:00"));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }

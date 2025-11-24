@@ -132,7 +132,8 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
                 flatVectorScorer
             ),
             numMergeWorkers,
-            mergeExec
+            mergeExec,
+            0
         );
     }
 

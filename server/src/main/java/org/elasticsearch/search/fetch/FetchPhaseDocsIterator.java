@@ -32,6 +32,10 @@ import java.util.Arrays;
  */
 abstract class FetchPhaseDocsIterator {
 
+    /**
+     * Accounts for FetchPhase memory usage.
+     * It gets cleaned up after each fetch phase and should not be accessed/modified by subclasses.
+     */
     private long requestBreakerBytes;
 
     public void addRequestBreakerBytes(long delta) {

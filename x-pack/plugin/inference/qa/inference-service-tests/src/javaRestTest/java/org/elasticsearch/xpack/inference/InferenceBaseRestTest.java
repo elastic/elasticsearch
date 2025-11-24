@@ -525,7 +525,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         }
     }
 
-    static void assertStatusOkOrCreated(Response response) throws IOException {
+    public static void assertStatusOkOrCreated(Response response) throws IOException {
         int statusCode = response.getStatusLine().getStatusCode();
         // Once EntityUtils.toString(entity) is called the entity cannot be reused.
         // Avoid that call with check here.

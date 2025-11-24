@@ -471,6 +471,7 @@ public class InferencePlugin extends Plugin
 
         var authTaskExecutor = AuthorizationTaskExecutor.create(
             services.clusterService(),
+            services.featureService(),
             new AuthorizationPoller.Parameters(
                 serviceComponents,
                 authorizationHandler,

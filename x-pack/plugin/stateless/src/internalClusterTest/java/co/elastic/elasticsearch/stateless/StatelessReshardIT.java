@@ -102,7 +102,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -541,25 +540,18 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getTotalShards());
         assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getSuccessfulShards());
 
-        // TODO this is a gap - search filters for the source shard do not exist yet
-        // and we'll see previously indexed documents that are moved to the target shards twice
-        // because they are returned by the source node.
-
         long splitTotalDocuments = totalNumberOfDocumentsInIndex;
 
-        var splitActualCount = new AtomicLong();
         var splitSearchAssertion = new SearchAssertion() {
             @Override
             public void assertEsql(long documentCount) {
-                splitActualCount.set(documentCount);
-                assertTrue("Lost documents during reshard", splitActualCount.get() >= splitTotalDocuments);
+                assertEquals("ESQL: wrong number of documents at SPLIT", splitTotalDocuments, documentCount);
             }
 
             @Override
             public void assertSearch(SearchResponse response) {
-                splitActualCount.set(response.getHits().getTotalHits().value());
                 assertEquals(multiple, response.getTotalShards());
-                assertTrue("Lost documents during reshard", splitActualCount.get() >= splitTotalDocuments);
+                assertEquals("wrong number of documents at SPLIT", splitTotalDocuments, response.getHits().getTotalHits().value());
             }
         };
         assertSearch(searchCoordinator, indexName, splitSearchAssertion, useEsql);
@@ -569,9 +561,8 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         totalNumberOfDocumentsInIndex += splitIndexedDocuments;
 
         client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
-        // We still see old documents belonging to the target shards returned but the source shard.
-        // But new bulk requests are routed correctly and returned in search results only once.
-        long splitNewDocsTotalDocuments = splitActualCount.get() + splitIndexedDocuments;
+        // The source shard has not yet deleted unowned documents but will filter them once targets have passed SPLIT
+        long splitNewDocsTotalDocuments = totalNumberOfDocumentsInIndex;
         var splitNewDocsSearchAssertion = new SearchAssertion() {
             @Override
             public void assertEsql(long documentCount) {
@@ -662,15 +653,15 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
     private void assertSearch(String searchNode, String indexName, SearchAssertion assertion, boolean useEsql) {
         if (useEsql) {
             assertion.assertEsql(countDocsWithEsql(searchNode, indexName));
+        } else {
+            var search = client(searchNode).prepareSearch(indexName)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .setSize(10000)
+                .setTrackTotalHits(true)
+                .setAllowPartialSearchResults(false);
+
+            assertResponse(search, assertion::assertSearch);
         }
-
-        var search = client(searchNode).prepareSearch(indexName)
-            .setQuery(QueryBuilders.matchAllQuery())
-            .setSize(10000)
-            .setTrackTotalHits(true)
-            .setAllowPartialSearchResults(false);
-
-        assertResponse(search, assertion::assertSearch);
     }
 
     private long countDocsWithEsql(String searchNode, String indexName) {
@@ -885,12 +876,9 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             // Now that target shards are in SPLIT state they should be considered in routing calculation.
 
             // This search uses routing value that routes to shard 0 so search is send to shard 0.
-            // TODO
-            // However due to absence of search filters for the source shards,
-            // all documents are still returned here.
             assertResponse(splitSearchShard0, r -> {
                 assertEquals(1, r.getTotalShards());
-                assertEquals(ingestedDocumentsPerShard * multiple, r.getHits().getTotalHits().value());
+                assertEquals(ingestedDocumentsPerShard, r.getHits().getTotalHits().value());
             });
 
             for (int targetShardId = 1; targetShardId < multiple; targetShardId++) {
@@ -1111,10 +1099,12 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
             assertResponse(sourceShardTermsAggregation, r -> {
                 InternalMultiBucketAggregation<?, ?> terms = r.getAggregations().get("term");
-                // TODO search filters for the source shard do not exist so we just see everything
+                // TODO this is a current gap, we should only see one bucket here
+                // since all documents routed to the target shard have the same value for "field"
+                // Instead we see ghost term here.
                 assertEquals(2, terms.getBuckets().size());
                 assertEquals(ingestedDocumentsPerShard, terms.getBuckets().get(0).getDocCount());
-                assertEquals(ingestedDocumentsPerShard, terms.getBuckets().get(1).getDocCount());
+                assertEquals(0, terms.getBuckets().get(1).getDocCount());
             });
 
             var targetShardTermsAggregation = client(searchNode).prepareSearch(indexName)

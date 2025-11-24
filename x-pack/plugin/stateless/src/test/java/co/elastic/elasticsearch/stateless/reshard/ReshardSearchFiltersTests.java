@@ -26,7 +26,10 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -279,5 +282,115 @@ public class ReshardSearchFiltersTests extends ESTestCase {
                 assertFalse(liveDocs.get(i));
             }
         }
+    }
+
+    // lower level tests that search filter decision-making is as expected
+
+    // to be removed when all callers of acquireSearcherSupplier provide the appropriate summary
+    public void testShouldFilterAllowsUnsetSummary() {
+        assertFalse(ReshardSearchFilters.shouldFilter(SplitShardCountSummary.UNSET, null, testShardId(0)));
+    }
+
+    // if there is no split in progress and the request and the shard agree on summary, don't filter
+    public void testShouldFilterNoSplit() {
+        final var shardCount = randomIntBetween(1, 5);
+        final var shardNumber = randomIntBetween(0, shardCount - 1);
+
+        final var indexMetadata = IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), shardCount, 0)).build();
+        final var requestSummary = SplitShardCountSummary.forSearch(indexMetadata, shardNumber);
+
+        assertFalse(ReshardSearchFilters.shouldFilter(requestSummary, indexMetadata, testShardId(shardNumber)));
+    }
+
+    // requests that see a target shard at SPLIT or DONE should filter source
+    public void testShouldFilterPostSplitTarget() {
+        final var origShardCount = randomIntBetween(1, 5);
+        final var newShardCount = origShardCount * 2;
+        final var targetShard = randomIntBetween(origShardCount, newShardCount - 1);
+        final var newSplit = IndexReshardingMetadata.newSplitByMultiple(origShardCount, 2).getSplit();
+        final var sourceShard = newSplit.sourceShard(targetShard);
+
+        var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(origShardCount, 2)
+            .transitionSplitTargetToNewState(testShardId(targetShard), IndexReshardingState.Split.TargetShardState.HANDOFF)
+            .transitionSplitTargetToNewState(testShardId(targetShard), IndexReshardingState.Split.TargetShardState.SPLIT);
+        if (randomBoolean()) {
+            reshardingMetadata = reshardingMetadata.transitionSplitTargetToNewState(
+                testShardId(targetShard),
+                IndexReshardingState.Split.TargetShardState.DONE
+            );
+        }
+        final var indexMetadata = IndexMetadata.builder("index")
+            .settings(indexSettings(IndexVersion.current(), origShardCount, 0))
+            .reshardingMetadata(reshardingMetadata)
+            .build();
+        final var requestSummary = SplitShardCountSummary.forSearch(indexMetadata, sourceShard);
+
+        assertTrue(ReshardSearchFilters.shouldFilter(requestSummary, indexMetadata, testShardId(sourceShard)));
+    }
+
+    // requests that predate the most recent split shouldn't be filtered
+    public void testShouldFilterStaleRequest() {
+        final var origShardCount = randomIntBetween(1, 5);
+        final var newShardCount = origShardCount * 2;
+        final var targetShard = randomIntBetween(origShardCount, newShardCount - 1);
+        final var newSplit = IndexReshardingMetadata.newSplitByMultiple(origShardCount, 2).getSplit();
+        final var sourceShard = newSplit.sourceShard(targetShard);
+
+        // pre-split is no metadata, original shard count, or with metadata where target is CLONE through HANDOFF
+        IndexReshardingMetadata reshardingMetadata = null;
+        if (randomBoolean()) {
+            reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(origShardCount, 2);
+            if (randomBoolean()) {
+                reshardingMetadata = reshardingMetadata.transitionSplitTargetToNewState(
+                    testShardId(targetShard),
+                    IndexReshardingState.Split.TargetShardState.HANDOFF
+                );
+            }
+        }
+        final var indexMetadata = IndexMetadata.builder("index")
+            .settings(indexSettings(IndexVersion.current(), origShardCount, 0))
+            .reshardingMetadata(reshardingMetadata)
+            .build();
+        final var staleSummary = SplitShardCountSummary.forSearch(indexMetadata, sourceShard);
+
+        // post-split is target at SPLIT or DONE, source at DONE, or no metadata but more shards
+        IndexMetadata indexMetadataAfterSplit = null;
+        if (randomBoolean()) {
+            indexMetadataAfterSplit = IndexMetadata.builder("index")
+                .settings(indexSettings(IndexVersion.current(), newShardCount, 0))
+                .build();
+        } else {
+            reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(origShardCount, 2);
+            reshardingMetadata = reshardingMetadata.transitionSplitTargetToNewState(
+                testShardId(targetShard),
+                IndexReshardingState.Split.TargetShardState.HANDOFF
+            );
+            reshardingMetadata = reshardingMetadata.transitionSplitTargetToNewState(
+                testShardId(targetShard),
+                IndexReshardingState.Split.TargetShardState.SPLIT
+            );
+            if (randomBoolean()) {
+                reshardingMetadata = reshardingMetadata.transitionSplitTargetToNewState(
+                    testShardId(targetShard),
+                    IndexReshardingState.Split.TargetShardState.DONE
+                );
+                if (randomBoolean()) {
+                    // source is only DONE when there are multiple source shards, otherwise metadata is immediately removed
+                    if (origShardCount > 1) {
+                        reshardingMetadata = reshardingMetadata.transitionSplitSourceToNewState(
+                            testShardId(sourceShard),
+                            IndexReshardingState.Split.SourceShardState.DONE
+                        );
+                    }
+                }
+            }
+            indexMetadataAfterSplit = IndexMetadata.builder(indexMetadata).reshardingMetadata(reshardingMetadata).build();
+        }
+
+        assertFalse(ReshardSearchFilters.shouldFilter(staleSummary, indexMetadataAfterSplit, new ShardId(new Index("index", "_na_"), 0)));
+    }
+
+    private ShardId testShardId(int shardNumber) {
+        return new ShardId(new Index("index", "_na_"), shardNumber);
     }
 }

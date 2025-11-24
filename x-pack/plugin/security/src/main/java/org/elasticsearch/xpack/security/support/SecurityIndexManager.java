@@ -343,7 +343,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             event.state(),
             migrationsVersion
         );
-        var persistentTaskCustomMetadata = PersistentTasksCustomMetadata.get(event.state().metadata());
+        var persistentTaskCustomMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(event.state());
         final boolean securityMigrationRunning = persistentTaskCustomMetadata != null
             && persistentTaskCustomMetadata.getTask(SecurityMigrationTaskParams.TASK_NAME) != null;
         final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());

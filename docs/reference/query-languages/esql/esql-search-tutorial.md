@@ -147,7 +147,7 @@ Full-text search involves executing text-based queries across one or more docume
 {{esql}} provides multiple functions for full-text search, including `MATCH`, `MATCH_PHRASE`, and `QSTR`. For basic text matching, you can use either:
 
 1. Full [match function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) syntax: `match(field, "search terms")`
-2. Compact syntax using the [match operator `:`](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator): `field:"search terms"`
+2. Compact syntax using the [match operator "`:`"](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator): `field:"search terms"`
 
 Both are equivalent for basic matching and can be used interchangeably. The compact syntax is more concise, while the function syntax allows for more configuration options. We use the compact syntax in most examples for brevity.
 
@@ -431,7 +431,7 @@ POST /cooking_blog/_doc
 
 ### Perform semantic search
 
-Once the document has been processed by the underlying model running on the inference endpoint, you can perform semantic searches. Use the [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) (or the [`:` operator](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator) shorthand) on `semantic_text` fields to perform semantic queries:
+Once the document has been processed by the underlying model running on the inference endpoint, you can perform semantic searches. Use the [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) (or the ["`:`" operator](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator) shorthand) on `semantic_text` fields to perform semantic queries:
 
 ```esql
 FROM cooking_blog METADATA _score
@@ -440,7 +440,7 @@ FROM cooking_blog METADATA _score
 | LIMIT 5
 ```
 
-When you use `MATCH` or `:` on a `semantic_text` field, {{esql}} automatically performs a semantic search rather than a lexical search. This means the query finds documents based on semantic similarity, not just keyword matching.
+When you use `MATCH` or "`:`" on a `semantic_text` field, {{esql}} automatically performs a semantic search rather than a lexical search. This means the query finds documents based on semantic similarity, not just keyword matching.
 
 :::{tip}
 If you'd like to test out the semantic search workflow against a large dataset, follow the [semantic-search-tutorial](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md).

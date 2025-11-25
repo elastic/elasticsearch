@@ -35,8 +35,7 @@ public abstract class RetryingInputStream extends InputStream {
     private final long end;
     private final List<Exception> failures;
 
-    protected InputStream currentStream;
-    private long currentStreamFirstOffset;
+    protected SingleAttemptInputStream currentStream;
     private int attempt = 1;
     private int failuresAfterMeaningfulProgress = 0;
     private long currentOffset = 0;
@@ -71,8 +70,7 @@ public abstract class RetryingInputStream extends InputStream {
                     : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
             }
             try {
-                this.currentStreamFirstOffset = Math.addExact(start, currentOffset);
-                currentStream = blobStoreServices.getInputStream(currentStreamFirstOffset, end);
+                currentStream = blobStoreServices.getInputStream(Math.addExact(start, currentOffset), end);
                 return;
             } catch (NoSuchFileException | RequestedRangeNotSatisfiedException e) {
                 throw e;
@@ -223,7 +221,10 @@ public abstract class RetryingInputStream extends InputStream {
     }
 
     private long currentStreamProgress() {
-        return Math.subtractExact(Math.addExact(start, currentOffset), currentStreamFirstOffset);
+        if (currentStream == null) {
+            return 0L;
+        }
+        return Math.subtractExact(Math.addExact(start, currentOffset), currentStream.getFirstOffset());
     }
 
     private boolean shouldRetry(int attempt) {
@@ -299,7 +300,7 @@ public abstract class RetryingInputStream extends InputStream {
          * @throws NoSuchFileException                 if the blob does not exist, this is not retry-able
          * @throws RequestedRangeNotSatisfiedException if the requested range is not valid, this is not retry-able
          */
-        InputStream getInputStream(long start, long end) throws IOException;
+        SingleAttemptInputStream getInputStream(long start, long end) throws IOException;
 
         void onRetryStarted(String action);
 
@@ -310,5 +311,13 @@ public abstract class RetryingInputStream extends InputStream {
         int getMaxRetries();
 
         String getBlobDescription();
+    }
+
+    /**
+     * Represents an {@link InputStream} for a single attempt to read a blob. Each retry
+     * will attempt to create a new one of these. If reading from it fails, it should not retry.
+     */
+    protected abstract static class SingleAttemptInputStream extends InputStream {
+        protected abstract long getFirstOffset();
     }
 }

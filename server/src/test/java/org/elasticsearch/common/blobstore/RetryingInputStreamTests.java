@@ -37,7 +37,7 @@ public class RetryingInputStreamTests extends ESTestCase {
 
         final var services = new BlobStoreServicesAdapter(retryableFailures * 2) {
             @Override
-            public InputStream doGetInputStream(long start, long end) throws IOException {
+            public RetryingInputStream.SingleAttemptInputStream doGetInputStream(long start, long end) throws IOException {
                 return new FailureAtIndexInputStream(resourceBytes, (int) start, failureCounter.getAndDecrement() > 0);
             }
         };
@@ -56,7 +56,7 @@ public class RetryingInputStreamTests extends ESTestCase {
 
         final var services = new BlobStoreServicesAdapter(maxRetries) {
             @Override
-            public InputStream doGetInputStream(long start, long end) throws IOException {
+            public RetryingInputStream.SingleAttemptInputStream doGetInputStream(long start, long end) throws IOException {
                 return new FailureAtIndexInputStream(resourceBytes, (int) start, true);
             }
         };
@@ -77,7 +77,7 @@ public class RetryingInputStreamTests extends ESTestCase {
 
         final var services = new BlobStoreServicesAdapter(maxRetries) {
             @Override
-            public InputStream doGetInputStream(long start, long end) throws IOException {
+            public RetryingInputStream.SingleAttemptInputStream doGetInputStream(long start, long end) throws IOException {
                 return new FailureAtIndexInputStream(resourceBytes, (int) start, true);
             }
         };
@@ -99,7 +99,7 @@ public class RetryingInputStreamTests extends ESTestCase {
 
         final var services = new BlobStoreServicesAdapter(0) {
             @Override
-            public InputStream doGetInputStream(long start, long end) throws IOException {
+            public RetryingInputStream.SingleAttemptInputStream doGetInputStream(long start, long end) throws IOException {
                 return new FailureAtIndexInputStream(resourceBytes, (int) start, failureCounter.getAndDecrement() > 0);
             }
         };
@@ -120,7 +120,7 @@ public class RetryingInputStreamTests extends ESTestCase {
 
         final var services = new BlobStoreServicesAdapter(maxRetries) {
             @Override
-            public InputStream doGetInputStream(long start, long end) throws IOException {
+            public RetryingInputStream.SingleAttemptInputStream doGetInputStream(long start, long end) throws IOException {
                 final var inputStream = meaningfulProgressAttemptsCounter.decrementAndGet() > 0
                     ? new FailureAtIndexInputStream(resourceBytes, (int) start, true, meaningfulProgressSize, Integer.MAX_VALUE)
                     : new FailureAtIndexInputStream(resourceBytes, (int) start, true, 1, meaningfulProgressSize - 1);
@@ -152,7 +152,7 @@ public class RetryingInputStreamTests extends ESTestCase {
 
         final var services = new BlobStoreServicesAdapter(retryableFailures * 2) {
             @Override
-            public InputStream doGetInputStream(long start, long end) throws IOException {
+            public RetryingInputStream.SingleAttemptInputStream doGetInputStream(long start, long end) throws IOException {
                 if (failureCounter.getAndDecrement() > 0) {
                     if (randomBoolean()) {
                         throw new RuntimeException("This is retry-able");
@@ -201,12 +201,12 @@ public class RetryingInputStreamTests extends ESTestCase {
             this.maxRetries = maxRetries;
         }
 
-        public final InputStream getInputStream(long start, long end) throws IOException {
+        public final RetryingInputStream.SingleAttemptInputStream getInputStream(long start, long end) throws IOException {
             attemptCounter.incrementAndGet();
             return doGetInputStream(start, end);
         }
 
-        protected abstract InputStream doGetInputStream(long start, long end) throws IOException;
+        protected abstract RetryingInputStream.SingleAttemptInputStream doGetInputStream(long start, long end) throws IOException;
 
         @Override
         public void onRetryStarted(String action) {
@@ -248,8 +248,9 @@ public class RetryingInputStreamTests extends ESTestCase {
         }
     }
 
-    private static class FailureAtIndexInputStream extends InputStream {
+    private static class FailureAtIndexInputStream extends RetryingInputStream.SingleAttemptInputStream {
 
+        private final long firstOffset;
         private final InputStream delegate;
         private int readRemaining;
 
@@ -271,6 +272,7 @@ public class RetryingInputStreamTests extends ESTestCase {
             } else {
                 this.readRemaining = Integer.MAX_VALUE;
             }
+            this.firstOffset = startIndex;
         }
 
         @Override
@@ -286,6 +288,11 @@ public class RetryingInputStreamTests extends ESTestCase {
         @Override
         public String toString() {
             return "Failing after " + readRemaining;
+        }
+
+        @Override
+        protected long getFirstOffset() {
+            return firstOffset;
         }
     }
 

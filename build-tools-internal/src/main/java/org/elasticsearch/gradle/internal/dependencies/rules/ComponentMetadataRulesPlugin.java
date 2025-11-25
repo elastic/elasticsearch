@@ -458,9 +458,6 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         // SubEtha SMTP dependencies
         components.withModule("org.subethamail:subethasmtp", ExcludeAllTransitivesRule.class);
 
-        // Testcontainers dependencies
-        components.withModule("org.testcontainers:testcontainers", ExcludeAllTransitivesRule.class);
-
         // AWS SDK dependencies
         components.withModule("software.amazon.awssdk:apache-client", ExcludeAllTransitivesRule.class);
         components.withModule("software.amazon.awssdk:arns", ExcludeAllTransitivesRule.class);

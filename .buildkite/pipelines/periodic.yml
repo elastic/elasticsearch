@@ -816,7 +816,7 @@ steps:
               - adoptopenjdk17
               - openjdk21
               - openjdk22
-              - openjdk23
+              - openjdk25
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -844,7 +844,7 @@ steps:
               - adoptopenjdk17
               - openjdk21
               - openjdk22
-              - openjdk23
+              - openjdk25
             BWC_VERSION: ["7.17.30", "8.19.8"]
         agents:
           provider: gcp

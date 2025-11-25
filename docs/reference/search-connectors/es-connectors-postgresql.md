@@ -9,7 +9,7 @@ mapped_pages:
 
 The *Elastic PostgreSQL connector* is a connector for [PostgreSQL](https://www.postgresql.org). This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-This connector uses the [generic database connector source code](https://github.com/elastic/connectors/blob/master/connectors/sources/generic_database.py) (branch *main*, compatible with Elastic *9.0*). View the specific [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/postgresql.py) (branch *main*, compatible with Elastic *9.0*).
+This connector uses the [generic database connector source code](https://github.com/elastic/connectors/blob/master/connectors/sources/generic_database.py) (branch *main*, compatible with Elastic *9.0*). View the specific [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/postgresql) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
 As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).

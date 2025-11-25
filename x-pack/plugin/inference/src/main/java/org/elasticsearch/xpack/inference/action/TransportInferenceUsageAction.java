@@ -265,7 +265,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         // may only happen for external services.
         Set<String> modelIds = endpoints.stream()
             .filter(endpoint -> TASK_TYPES_WITH_SEMANTIC_TEXT_SUPPORT.contains(endpoint.getTaskType()))
-            .filter(endpoint -> modelRegistry.containsDefaultConfigId(endpoint.getInferenceEntityId()))
+            .filter(endpoint -> modelRegistry.containsPreconfiguredInferenceEndpointId(endpoint.getInferenceEntityId()))
             .filter(endpoint -> endpoint.getServiceSettings().modelId() != null)
             .map(endpoint -> stripLinuxSuffix(endpoint.getServiceSettings().modelId()))
             .collect(Collectors.toSet());

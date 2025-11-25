@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
@@ -70,8 +71,8 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
 
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
         if (crossProjectEnabled) {
-            // accept but drop project_routing param until fully supported
-            request.param("project_routing");
+            submit.getSearchRequest().setCcsMinimizeRoundtrips(true);
+            submit.getSearchRequest().setProjectRouting(request.param("project_routing"));
         }
 
         IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);
@@ -87,7 +88,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
                 clusterSupportsFeature,
                 setSize,
                 searchUsageHolder,
-                crossProjectEnabled
+                Optional.of(crossProjectEnabled)
             )
         );
 

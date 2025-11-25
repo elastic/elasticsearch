@@ -247,7 +247,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         .collect(Collectors.toSet());
 
     /**
-     * Creates a new mock client that dispatches every request to both the local and remote clusters, excluding _bulk, _query, and _inference requests.
+     * Creates a new mock client that dispatches every request to both the local and remote clusters, excluding _bulk, _query,
+     *  and _inference requests :
      * - '_bulk' requests are randomly sent to either the local or remote cluster to populate data. Some spec tests, such as AVG,
      *   prevent the splitting of bulk requests.
      * - '_query' requests are dispatched to the local cluster only, as we are testing cross-cluster queries.

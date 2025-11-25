@@ -202,7 +202,8 @@ public class EsqlSession {
             System.nanoTime(),
             request.allowPartialResults(),
             clusterSettings.timeseriesResultTruncationMaxSize(),
-            clusterSettings.timeseriesResultTruncationDefaultSize()
+            clusterSettings.timeseriesResultTruncationDefaultSize(),
+            statement.setting(QuerySettings.PROJECT_ROUTING)
         );
         FoldContext foldContext = configuration.newFoldContext();
 

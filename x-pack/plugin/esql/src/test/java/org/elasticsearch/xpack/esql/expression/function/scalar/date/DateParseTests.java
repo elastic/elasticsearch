@@ -76,17 +76,15 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
             ).withConfiguration(TEST_SOURCE, configurationForLocale(Locale.US));
         }));
 
-        for (DataType dateType: List.of(DataType.KEYWORD, DataType.TEXT)) {
+        for (DataType dateType : List.of(DataType.KEYWORD, DataType.TEXT)) {
             cases.add(
                 new TestCaseSupplier(
                     "With " + dateType,
                     List.of(dateType),
                     () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("2023-05-05T00:00:00.000Z"), dateType, "second")
-                        ),
-                        "DateParseConstantEvaluator[val=Attribute[channel=0], " +
-                            "formatter=format[strict_date_optional_time] zone[null] locale[], zoneId=Z, locale=]",
+                        List.of(new TestCaseSupplier.TypedData(new BytesRef("2023-05-05T00:00:00.000Z"), dateType, "second")),
+                        "DateParseConstantEvaluator[val=Attribute[channel=0], "
+                            + "formatter=format[strict_date_optional_time] zone[null] locale[], zoneId=Z, locale=]",
                         DataType.DATETIME,
                         equalTo(1683244800000L)
                     ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
@@ -151,7 +149,7 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
         );
         cases = anyNullIsNull(true, cases);
 
-        for (DataType dateType: List.of(DataType.KEYWORD, DataType.TEXT)) {
+        for (DataType dateType : List.of(DataType.KEYWORD, DataType.TEXT)) {
             cases.add(
                 new TestCaseSupplier(
                     "Map with " + dateType,
@@ -174,8 +172,8 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
                                 "options"
                             ).forceLiteral()
                         ),
-                        "DateParseConstantEvaluator[val=Attribute[channel=0], " +
-                            "formatter=format[strict_date_optional_time] zone[null] locale[en_US], zoneId=Z, locale=en_US]",
+                        "DateParseConstantEvaluator[val=Attribute[channel=0], "
+                            + "formatter=format[strict_date_optional_time] zone[null] locale[en_US], zoneId=Z, locale=en_US]",
                         DataType.DATETIME,
                         equalTo(1683244800000L)
                     )

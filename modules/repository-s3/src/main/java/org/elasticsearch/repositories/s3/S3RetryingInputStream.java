@@ -216,8 +216,9 @@ class S3RetryingInputStream extends RetryingInputStream {
 
         private void ensureOpen() {
             if (closed) {
-                assert false : "using S3InputStream after close";
-                throw new IllegalStateException("using S3InputStream after close");
+                final var message = "using " + getClass().getSimpleName() + " after close";
+                assert false : message;
+                throw new IllegalStateException(message);
             }
         }
 

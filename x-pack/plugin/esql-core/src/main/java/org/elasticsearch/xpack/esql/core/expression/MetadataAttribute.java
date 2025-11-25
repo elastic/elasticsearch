@@ -30,6 +30,7 @@ public class MetadataAttribute extends TypedAttribute {
     public static final String TSID_FIELD = "_tsid";
     public static final String SCORE = "_score";
     public static final String INDEX = "_index";
+    public static final String TIMESERIES = "_timeseries";
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,

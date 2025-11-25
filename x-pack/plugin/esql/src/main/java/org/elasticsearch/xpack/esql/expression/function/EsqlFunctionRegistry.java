@@ -437,7 +437,7 @@ public class EsqlFunctionRegistry {
                 def(UrlDecode.class, UrlDecode::new, "url_decode") },
             // date
             new FunctionDefinition[] {
-                def(DateDiff.class, DateDiff::new, "date_diff"),
+                def(DateDiff.class, tric(DateDiff::new), "date_diff"),
                 def(DateExtract.class, DateExtract::new, "date_extract"),
                 def(DateFormat.class, DateFormat::new, "date_format"),
                 def(DateParse.class, DateParse::new, "date_parse"),
@@ -1373,6 +1373,10 @@ public class EsqlFunctionRegistry {
         return function;
     }
 
+    private static <T extends Function> UnaryConfigurationAwareBuilder<T> unic(UnaryConfigurationAwareBuilder<T> function) {
+        return function;
+    }
+
     private static <T extends Function> BinaryBuilder<T> bi(BinaryBuilder<T> function) {
         return function;
     }
@@ -1382,6 +1386,10 @@ public class EsqlFunctionRegistry {
     }
 
     private static <T extends Function> TernaryBuilder<T> tri(TernaryBuilder<T> function) {
+        return function;
+    }
+
+    private static <T extends Function> TernaryConfigurationAwareBuilder<T> tric(TernaryConfigurationAwareBuilder<T> function) {
         return function;
     }
 

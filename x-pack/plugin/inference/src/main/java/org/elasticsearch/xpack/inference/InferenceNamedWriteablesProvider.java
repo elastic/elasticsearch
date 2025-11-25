@@ -706,19 +706,6 @@ public class InferenceNamedWriteablesProvider {
                 StreamingUnifiedChatCompletionResults.Results::new
             )
         );
-
-        /*
-        We don't really need to register this because it is never serialized across nodes and it never returned as a result.
-        The reason we have AuthorizationResponseEntity implement InferenceServiceResults is so we can use it with the sender framework
-        we have.
-         */
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                InferenceServiceResults.class,
-                AuthorizationResponseEntity.NAME,
-                AuthorizationResponseEntity::new
-            )
-        );
     }
 
     private static void addCustomElandWriteables(final List<NamedWriteableRegistry.Entry> namedWriteables) {

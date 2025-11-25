@@ -38,11 +38,11 @@ public class NvidiaRerankRequestTests extends ESTestCase {
     private static final String API_KEY_VALUE = "test_api_key";
 
     public void testCreateRequest_AllFieldsSet() throws IOException {
-        testCreateRequest(createRequest(MODEL_VALUE, URL_VALUE), URL_VALUE);
+        testCreateRequest(createRequest(URL_VALUE), URL_VALUE);
     }
 
     public void testCreateRequest_DefaultUrl() throws IOException {
-        testCreateRequest(createRequest(MODEL_VALUE, null), URL_DEFAULT_VALUE);
+        testCreateRequest(createRequest(null), URL_DEFAULT_VALUE);
     }
 
     private void testCreateRequest(NvidiaRerankRequest request, String expectedUrl) throws IOException {
@@ -63,8 +63,8 @@ public class NvidiaRerankRequestTests extends ESTestCase {
         assertThat(requestMap, aMapWithSize(3));
     }
 
-    private static NvidiaRerankRequest createRequest(@Nullable String modelId, @Nullable String url) {
-        var rerankModel = NvidiaRerankModelTests.createRerankModel(url, API_KEY_VALUE, modelId);
+    private static NvidiaRerankRequest createRequest(@Nullable String url) {
+        var rerankModel = NvidiaRerankModelTests.createRerankModel(url, API_KEY_VALUE, MODEL_VALUE);
         return new NvidiaRerankRequest(QUERY_VALUE, List.of(PASSAGE_VALUE), rerankModel);
     }
 }

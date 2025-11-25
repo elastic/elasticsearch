@@ -48,28 +48,22 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
     private static final String TRUNCATE_NVIDIA_VALUE = "start";
 
     public void testCreateRequest_InputTypeFromTaskSettings_Success() throws IOException {
-        var request = createRequest(URL_VALUE, MODEL_VALUE, INPUT_TYPE_ELASTIC_INITIAL_VALUE, TRUNCATE_ELASTIC_VALUE, null);
+        var request = createRequest(URL_VALUE, INPUT_TYPE_ELASTIC_INITIAL_VALUE, TRUNCATE_ELASTIC_VALUE, null);
         assertCreateHttpRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
     }
 
     public void testCreateRequest_InputTypeFromRequest_Success() throws IOException {
-        var request = createRequest(URL_VALUE, MODEL_VALUE, null, TRUNCATE_ELASTIC_VALUE, INPUT_TYPE_ELASTIC_INITIAL_VALUE);
+        var request = createRequest(URL_VALUE, null, TRUNCATE_ELASTIC_VALUE, INPUT_TYPE_ELASTIC_INITIAL_VALUE);
         assertCreateHttpRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
     }
 
     public void testCreateRequest_InputTypeFromRequestPrioritized_Success() throws IOException {
-        var request = createRequest(
-            URL_VALUE,
-            MODEL_VALUE,
-            INPUT_TYPE_ELASTIC_IGNORED_VALUE,
-            TRUNCATE_ELASTIC_VALUE,
-            INPUT_TYPE_ELASTIC_INITIAL_VALUE
-        );
+        var request = createRequest(URL_VALUE, INPUT_TYPE_ELASTIC_IGNORED_VALUE, TRUNCATE_ELASTIC_VALUE, INPUT_TYPE_ELASTIC_INITIAL_VALUE);
         assertCreateHttpRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
     }
 
     public void testCreateRequest_OnlyMandatoryAndDefaultFields_Success() throws IOException {
-        var request = createRequest(null, MODEL_VALUE, null, null, null);
+        var request = createRequest(null, null, null, null);
         assertCreateHttpRequest(request, INPUT_TYPE_NVIDIA_DEFAULT_VALUE, null, URL_DEFAULT_VALUE);
     }
 
@@ -96,7 +90,7 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
     }
 
     public void testTruncate_ReducesInputTextSizeByHalf() throws IOException {
-        var request = createRequest(URL_VALUE, MODEL_VALUE, null, null, null);
+        var request = createRequest(URL_VALUE, null, null, null);
         var truncatedRequest = request.truncate();
 
         var httpRequest = truncatedRequest.createHttpRequest();
@@ -111,7 +105,7 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
     }
 
     public void testGetTruncationInfo() {
-        var request = createRequest(URL_VALUE, MODEL_VALUE, null, null, null);
+        var request = createRequest(URL_VALUE, null, null, null);
         assertThat(request.getTruncationInfo()[0], is(false));
 
         var truncatedRequest = request.truncate();
@@ -128,7 +122,6 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
 
     private static NvidiaEmbeddingsRequest createRequest(
         @Nullable String url,
-        @Nullable String modelId,
         @Nullable InputType inputType,
         @Nullable Truncation truncation,
         @Nullable InputType requestInputType
@@ -136,7 +129,7 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
         var embeddingsModel = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
             url,
             API_KEY_VALUE,
-            modelId,
+            MODEL_VALUE,
             null,
             null,
             inputType,

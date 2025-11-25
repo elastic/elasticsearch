@@ -1758,7 +1758,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         @Override
         public int forceEvict(ShardId shard, Predicate<KeyType> cacheKeyPredicate) {
             final List<LFUCacheEntry> matchingEntries = new ArrayList<>();
-            keyMapping.forEach((key, entry) -> {
+            keyMapping.forEach(shard, (key, entry) -> {
                 if (cacheKeyPredicate.test(key.file)) {
                     matchingEntries.add(entry);
                 }
@@ -1773,6 +1773,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         boolean evicted = entry.chunk.forceEvict();
                         if (evicted && entry.chunk.volatileIO() != null) {
                             unlink(entry);
+                            assert shard.equals(entry.chunk.regionKey.file.shardId());
                             keyMapping.remove(shard, entry.chunk.regionKey, entry);
                             evictedCount++;
                             if (frequency > 0) {

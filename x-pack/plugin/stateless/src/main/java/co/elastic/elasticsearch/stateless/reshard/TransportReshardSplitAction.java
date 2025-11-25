@@ -175,7 +175,7 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
         }
     }
 
-    static class Request extends ActionRequest {
+    public static class Request extends ActionRequest {
 
         private final ShardId shardId;
         private final DiscoveryNode sourceNode;
@@ -217,6 +217,14 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
 
         public ShardId shardId() {
             return shardId;
+        }
+
+        public long targetPrimaryTerm() {
+            return targetPrimaryTerm;
+        }
+
+        public DiscoveryNode sourceNode() {
+            return sourceNode;
         }
     }
 }

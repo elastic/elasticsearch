@@ -226,10 +226,11 @@ azure       | [240.0, 255.0, 255.0]
 
 knnWithNonPushableConjunction
 required_capability: knn_function_v5
+required_capability: knn_function_options_k_visit_percentage
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
-| where knn(rgb_vector, [128,128,0], {"min_candidates": 100}) and composed_name == false
+| where knn(rgb_vector, [128,128,0], {"k": 100}) and composed_name == false
 | sort _score desc, color asc
 | keep color, composed_name
 | limit 10

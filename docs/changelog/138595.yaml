@@ -1,0 +1,5 @@
+pr: 138595
+summary: Feature/esql group by all dimensions
+area: TSDB
+type: enhancement
+issues: []

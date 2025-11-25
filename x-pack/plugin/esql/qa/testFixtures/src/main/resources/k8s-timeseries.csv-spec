@@ -132,6 +132,25 @@ max(rate(network.total_bytes_in)): double | time_bucket:date
 23.702205882352942                        | 2024-05-10T00:15:00.000Z
 ;
 
+oneRateWithSingleTBucket
+required_capability: ts_command_v0
+required_capability: tbucket
+TS k8s
+| STATS max(rate(network.total_bytes_in)) BY time_bucket = tbucket(1h);
+
+max(rate(network.total_bytes_in)): double | time_bucket:date
+4.379885057471264                         | 2024-05-10T00:00:00.000Z
+;
+
+oneRateWithSingleTBucketPromql
+required_capability: promql_v0
+TS k8s
+| PROMQL step 1h (max(rate(network.total_bytes_in[1h])));
+
+max(rate(network.total_bytes_in[1h])):double | TBUCKET:date
+4.379885057471264                            | 2024-05-10T00:00:00.000Z
+;
+
 twoRatesWithBucket
 required_capability: ts_command_v0
 TS k8s | STATS max(rate(network.total_bytes_in)), sum(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute) | SORT time_bucket DESC | LIMIT 3;
@@ -594,6 +613,7 @@ max_cost:integer | pod:keyword | time_bucket:datetime     | max_cluster_cost:int
 973              | two         | 2024-05-10T00:00:00.000Z | 1209                     | staging
 ;
 
+
 max_of_stddev_over_time
 required_capability: ts_command_v0
 required_capability: variance_stddev_over_time
@@ -720,4 +740,49 @@ mx:integer | tbucket:datetime
 1716       | 2024-05-10T00:00:00.000Z
 ;
 
+derivative_of_gauge_metric
+required_capability: ts_command_v0
+required_capability: TS_LINREG_DERIVATIVE
 
+// tag::deriv[]
+TS k8s
+| WHERE pod == "three"
+| STATS max_deriv = MAX(DERIV(network.cost)) BY time_bucket = BUCKET(@timestamp,5minute), pod
+// end::deriv[]
+| EVAL max_deriv = ROUND(max_deriv,6)
+| KEEP max_deriv, time_bucket, pod
+| SORT pod, time_bucket
+| LIMIT 5
+;
+
+// tag::deriv-result[]
+max_deriv:double | time_bucket:datetime     | pod:keyword
+0.092774         | 2024-05-10T00:00:00.000Z | three
+0.038026         | 2024-05-10T00:05:00.000Z | three
+-0.0197          | 2024-05-10T00:10:00.000Z | three
+// end::deriv-result[]
+-0.001209        | 2024-05-10T00:15:00.000Z | three
+0.019397         | 2024-05-10T00:20:00.000Z | three
+
+;
+
+derivative_compared_to_rate
+required_capability: ts_command_v0
+required_capability: TS_LINREG_DERIVATIVE
+
+TS k8s
+| STATS max_deriv = max(deriv(to_long(network.total_bytes_in))), max_rate = max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
+| EVAL max_deriv = ROUND(max_deriv,6), max_rate = ROUND(max_rate,6)
+| KEEP max_deriv, max_rate, time_bucket, cluster
+| SORT cluster, time_bucket
+| LIMIT 5
+;
+
+max_deriv:double | max_rate:double | time_bucket:datetime     | cluster:keyword
+85.5             | 8.120833        | 2024-05-10T00:00:00.000Z | prod
+4.933168         | 6.451737        | 2024-05-10T00:05:00.000Z | prod
+8.922491         | 11.56274        | 2024-05-10T00:10:00.000Z | prod
+16.62316         | 11.86081        | 2024-05-10T00:15:00.000Z | prod
+9.026268         | 6.980661        | 2024-05-10T00:20:00.000Z | prod
+
+;

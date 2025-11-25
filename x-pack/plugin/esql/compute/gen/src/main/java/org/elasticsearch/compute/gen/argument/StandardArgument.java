@@ -21,6 +21,7 @@ import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
+import static org.elasticsearch.compute.gen.Types.FLOAT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
 import static org.elasticsearch.compute.gen.Types.blockType;
@@ -120,6 +121,7 @@ public record StandardArgument(TypeName type, String name) implements Argument {
         return type.equals(INT_BLOCK)
             || type.equals(LONG_BLOCK)
             || type.equals(DOUBLE_BLOCK)
+            || type.equals(FLOAT_BLOCK)
             || type.equals(BOOLEAN_BLOCK)
             || type.equals(BYTES_REF_BLOCK);
     }
@@ -154,6 +156,19 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     @Override
     public void sumBaseRamBytesUsed(MethodSpec.Builder builder) {
         builder.addStatement("baseRamBytesUsed += $L.baseRamBytesUsed()", name);
+    }
+
+    @Override
+    public void startBlockProcessingLoop(MethodSpec.Builder builder) {
+        builder.addStatement("int $L = $L.getFirstValueIndex(p)", startName(), blockName());
+        builder.addStatement("int $L = $L + $LValueCount", endName(), startName(), name());
+        builder.beginControlFlow("for (int $L = $L; $L < $L; $L++)", offsetName(), startName(), offsetName(), endName(), offsetName());
+        read(builder, blockName(), offsetName());
+    }
+
+    @Override
+    public void endBlockProcessingLoop(MethodSpec.Builder builder) {
+        builder.endControlFlow();
     }
 
     static void skipNull(MethodSpec.Builder builder, String value) {

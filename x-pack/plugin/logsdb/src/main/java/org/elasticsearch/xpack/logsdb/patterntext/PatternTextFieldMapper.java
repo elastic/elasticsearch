@@ -168,7 +168,7 @@ public class PatternTextFieldMapper extends FieldMapper {
          * associated index setting, which is set from the current license status.
          */
         private static Parameter<Boolean> disableTemplatingParameter(IndexSettings indexSettings) {
-            boolean forceDisable = indexSettings.getValue(DISABLE_TEMPLATING_SETTING);
+            boolean forceDisable = DISABLE_TEMPLATING_SETTING.get(indexSettings.getSettings());
             return Parameter.boolParam(
                 "disable_templating",
                 false,
@@ -192,9 +192,7 @@ public class PatternTextFieldMapper extends FieldMapper {
             BuilderParams builderParams = builderParams(this, context);
             var templateIdMapper = KeywordFieldMapper.Builder.buildWithDocValuesSkipper(
                 patternTextFieldType.templateIdFieldName(leafName()),
-                indexSettings.getMode(),
-                indexCreatedVersion(),
-                true,
+                indexSettings,
                 isWithinMultiField()
             ).indexed(false).build(context);
             return new PatternTextFieldMapper(leafName(), fieldType, patternTextFieldType, builderParams, this, templateIdMapper);

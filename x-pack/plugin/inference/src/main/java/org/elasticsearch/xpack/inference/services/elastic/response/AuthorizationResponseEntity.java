@@ -39,6 +39,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 /**
  * Handles parsing the v2 authorization response from the Elastic Inference Service.
+ *
+ * Note: This class does not really need to be {@link InferenceServiceResults}. We do this so that we can leverage the existing
+ * {@link org.elasticsearch.xpack.inference.external.http.sender.Sender} framework.
+ *
+ * Because of this, we don't need to register this class as a named writeable in the NamedWriteableRegistry. It will never be
+ * sent over the wire between nodes.
  */
 public class AuthorizationResponseEntity implements InferenceServiceResults {
 

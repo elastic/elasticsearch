@@ -39,22 +39,24 @@ public class AllocationDecisionTests extends ESTestCase {
     public void testValuesOrder() {
         assertEquals(0, AllocationDecision.YES.ordinal());
         assertEquals(1, AllocationDecision.THROTTLED.ordinal());
-        assertEquals(2, AllocationDecision.NO.ordinal());
-        assertEquals(3, AllocationDecision.WORSE_BALANCE.ordinal());
-        assertEquals(4, AllocationDecision.AWAITING_INFO.ordinal());
-        assertEquals(5, AllocationDecision.ALLOCATION_DELAYED.ordinal());
-        assertEquals(6, AllocationDecision.NO_VALID_SHARD_COPY.ordinal());
-        assertEquals(7, AllocationDecision.NO_ATTEMPT.ordinal());
+        assertEquals(2, AllocationDecision.NOT_PREFERRED.ordinal());
+        assertEquals(3, AllocationDecision.NO.ordinal());
+        assertEquals(4, AllocationDecision.WORSE_BALANCE.ordinal());
+        assertEquals(5, AllocationDecision.AWAITING_INFO.ordinal());
+        assertEquals(6, AllocationDecision.ALLOCATION_DELAYED.ordinal());
+        assertEquals(7, AllocationDecision.NO_VALID_SHARD_COPY.ordinal());
+        assertEquals(8, AllocationDecision.NO_ATTEMPT.ordinal());
         AllocationDecision[] decisions = AllocationDecision.values();
         Arrays.sort(decisions);
         assertEquals(AllocationDecision.YES, decisions[0]);
         assertEquals(AllocationDecision.THROTTLED, decisions[1]);
-        assertEquals(AllocationDecision.NO, decisions[2]);
-        assertEquals(AllocationDecision.WORSE_BALANCE, decisions[3]);
-        assertEquals(AllocationDecision.AWAITING_INFO, decisions[4]);
-        assertEquals(AllocationDecision.ALLOCATION_DELAYED, decisions[5]);
-        assertEquals(AllocationDecision.NO_VALID_SHARD_COPY, decisions[6]);
-        assertEquals(AllocationDecision.NO_ATTEMPT, decisions[7]);
+        assertEquals(AllocationDecision.NOT_PREFERRED, decisions[2]);
+        assertEquals(AllocationDecision.NO, decisions[3]);
+        assertEquals(AllocationDecision.WORSE_BALANCE, decisions[4]);
+        assertEquals(AllocationDecision.AWAITING_INFO, decisions[5]);
+        assertEquals(AllocationDecision.ALLOCATION_DELAYED, decisions[6]);
+        assertEquals(AllocationDecision.NO_VALID_SHARD_COPY, decisions[7]);
+        assertEquals(AllocationDecision.NO_ATTEMPT, decisions[8]);
     }
 
     /**

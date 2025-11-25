@@ -32,42 +32,42 @@ public enum AllocationDecision implements Writeable {
      */
     THROTTLED((byte) 1),
     /**
-     * The shard cannot be allocated, which can happen for any number of reasons,
-     * including the allocation deciders gave a NO decision for allocating.
-     */
-    NO((byte) 2),
-    /**
-     * The shard could not be rebalanced to another node despite rebalancing
-     * being allowed, because moving the shard to the other node would not form
-     * a better cluster balance.
-     */
-    WORSE_BALANCE((byte) 3),
-    /**
-     * Waiting on getting shard data from all nodes before making a decision
-     * about where to allocate the shard.
-     */
-    AWAITING_INFO((byte) 4),
-    /**
-     * The allocation decision has been delayed waiting for a replica with a shard copy
-     * that left the cluster to rejoin.
-     */
-    ALLOCATION_DELAYED((byte) 5),
-    /**
-     * The shard was denied allocation because there were no valid shard copies
-     * found for it amongst the nodes in the cluster.
-     */
-    NO_VALID_SHARD_COPY((byte) 6),
-    /**
-     * No attempt was made to allocate the shard
-     */
-    NO_ATTEMPT((byte) 7),
-    /**
      * It is _not_ preferred to allocate a shard to this node, preference should be given to a YES node.
      * This can happen when the shard allocation to a node is allowed, but the node resource usage is
      * already high. Preference can be overridden if a shard's current allocation is no longer allowed
      * and no other node responded YES to the shard relocation.
      */
-    NOT_PREFERRED((byte) 8);
+    NOT_PREFERRED((byte) 2),
+    /**
+     * The shard cannot be allocated, which can happen for any number of reasons,
+     * including the allocation deciders gave a NO decision for allocating.
+     */
+    NO((byte) 3),
+    /**
+     * The shard could not be rebalanced to another node despite rebalancing
+     * being allowed, because moving the shard to the other node would not form
+     * a better cluster balance.
+     */
+    WORSE_BALANCE((byte) 4),
+    /**
+     * Waiting on getting shard data from all nodes before making a decision
+     * about where to allocate the shard.
+     */
+    AWAITING_INFO((byte) 5),
+    /**
+     * The allocation decision has been delayed waiting for a replica with a shard copy
+     * that left the cluster to rejoin.
+     */
+    ALLOCATION_DELAYED((byte) 6),
+    /**
+     * The shard was denied allocation because there were no valid shard copies
+     * found for it amongst the nodes in the cluster.
+     */
+    NO_VALID_SHARD_COPY((byte) 7),
+    /**
+     * No attempt was made to allocate the shard
+     */
+    NO_ATTEMPT((byte) 8);
 
     private final byte id;
 
@@ -85,13 +85,13 @@ public enum AllocationDecision implements Writeable {
         return switch (id) {
             case 0 -> YES;
             case 1 -> THROTTLED;
-            case 2 -> NO;
-            case 3 -> WORSE_BALANCE;
-            case 4 -> AWAITING_INFO;
-            case 5 -> ALLOCATION_DELAYED;
-            case 6 -> NO_VALID_SHARD_COPY;
-            case 7 -> NO_ATTEMPT;
-            case 8 -> NOT_PREFERRED;
+            case 2 -> NOT_PREFERRED;
+            case 3 -> NO;
+            case 4 -> WORSE_BALANCE;
+            case 5 -> AWAITING_INFO;
+            case 6 -> ALLOCATION_DELAYED;
+            case 7 -> NO_VALID_SHARD_COPY;
+            case 8 -> NO_ATTEMPT;
             default -> throw new IllegalArgumentException("Unknown value [" + id + "]");
         };
     }

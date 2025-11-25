@@ -1,7 +1,7 @@
 pr: 138492
 summary: Enable bfloat16 and on-disk rescoring for dense vectors
 area: Vector Search
-type: "docs, feature"
+type: feature
 issues: []
 highlight:
   title: New dense_vector options for storing bfloat16 vectors and utilising on-disk

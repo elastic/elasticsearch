@@ -61,7 +61,10 @@ public class SplitSourceService {
     private final ObjectStoreService objectStoreService;
     private final ReshardIndexService reshardIndexService;
 
-    private final ConcurrentHashMap<IndexShard, Split> onGoingSplits = new ConcurrentHashMap<>();
+    // Tracks ongoing split request, value is target primary term, which is used to reject stale split requests
+    private final ConcurrentHashMap<IndexShard, Long> onGoingSplits = new ConcurrentHashMap<>();
+    // Tracks observers that move source shard to DONE
+    private final ConcurrentHashMap<IndexShard, Split> splitCleanup = new ConcurrentHashMap<>();
 
     // ES-12460 for testing purposes, until pre-handoff logic (flush etc) is built out
     @Nullable
@@ -212,27 +215,48 @@ public class SplitSourceService {
             throw new IndexShardNotStartedException(sourceShardId, sourceShardState);
         }
 
-        if (onGoingSplits.putIfAbsent(sourceShard, new Split(sourceShard)) == null) {
+        if (splitCleanup.putIfAbsent(sourceShard, new Split(sourceShard)) == null) {
             // This is the first time a target shard contacted this source shard to start a split.
             // We'll start tracking this split now to be able to eventually properly finish it.
             // If we have already seen this split before, we are all set already.
-            setupSplitProgressTracking(sourceShard);
+            setupSourceShardCleanup(sourceShard);
         }
 
-        SubscribableListener.<Releasable>newForked(l -> {
-            commitService.markSplitting(sourceShardId, targetShardId);
-            objectStoreService.copyShard(sourceShardId, targetShardId, sourcePrimaryTerm);
-            prepareForHandoff(l, sourceShard, targetShardId);
-        }).addListener(listener.delegateResponse((l, e) -> {
-            try {
-                commitService.markSplitEnding(sourceShardId, targetShardId, true);
-            } catch (AlreadyClosedException ignored) {
-                // It's okay to not clean up the splitting flag since the shard is closed anyway
-                // and there will be no new commits.
-                // We explicitly swallow this exception since the contract of `delegateResponse` is to not throw.
-            }
-            l.onFailure(e);
-        }));
+        // TODO: check against target primary term of ongoing split
+        if (onGoingSplits.putIfAbsent(sourceShard, targetPrimaryTerm) != null) {
+            // The source shard is currently handling a split request. This can occur if the target shard failed and is recovering or was
+            // relocated. The new target shard instance will repeatedly fail recovery until the current split request completes.
+            // TODO: explore cancelling current split request if new request has a higher targetPrimaryTerm
+            String message = String.format(
+                Locale.ROOT,
+                "Split [%s -> %s]. Source shard is already setting up target shard. Failing the request.",
+                sourceShardId,
+                targetShardId
+            );
+            logger.error(message);
+
+            throw new IllegalStateException(message);
+        }
+
+        commitService.markSplitting(sourceShardId, targetShardId);
+        SubscribableListener.<Releasable>newForked(l -> sourceShard.acquirePrimaryOperationPermit(l, clusterService.threadPool().generic()))
+            .<Releasable>andThen((l, permit) -> {
+                try (Releasable ignore = permit) {
+                    objectStoreService.copyShard(sourceShardId, targetShardId, sourcePrimaryTerm);
+                }
+                prepareForHandoff(l, sourceShard, targetShardId);
+            })
+            .addListener(listener.delegateResponse((l, e) -> {
+                try {
+                    commitService.markSplitEnding(sourceShardId, targetShardId, true);
+                } catch (AlreadyClosedException ignored) {
+                    // It's okay to not clean up the splitting flag since the shard is closed anyway
+                    // and there will be no new commits.
+                    // We explicitly swallow this exception since the contract of `delegateResponse` is to not throw.
+                }
+                onGoingSplits.remove(sourceShard);
+                l.onFailure(e);
+            }));
     }
 
     public void setPreHandoffHook(Runnable preHandoffHook) {
@@ -256,7 +280,7 @@ public class SplitSourceService {
             preHandoffHook.run();
         }
 
-        var split = onGoingSplits.get(sourceShard);
+        var split = splitCleanup.get(sourceShard);
         if (split == null) {
             throw new AlreadyClosedException("Split source shard " + sourceShard.shardId() + " is closed");
         }
@@ -273,6 +297,7 @@ public class SplitSourceService {
                             // commits spontaneously even though indexing permits are held. These are harmless to copy.
                             logger.debug("handoff: stopping commit copy from {} to {}", sourceShard.shardId(), targetShardId);
                             stopCopyingNewCommits(targetShardId);
+                            onGoingSplits.remove(sourceShard);
                             return null;
                         }));
                         return null;
@@ -303,17 +328,17 @@ public class SplitSourceService {
         // It is possible that the shard is already STARTED at this point, see IndicesClusterStateService#updateShard.
         // As such it is possible that we are already accepting requests to start split from targets.
         // If any of them already set up tracking of the split process we don't need to do anything here.
-        if (onGoingSplits.putIfAbsent(indexShard, new Split(indexShard)) != null) {
+        if (splitCleanup.putIfAbsent(indexShard, new Split(indexShard)) != null) {
             listener.onResponse(null);
             return;
         }
 
-        setupSplitProgressTracking(indexShard);
+        setupSourceShardCleanup(indexShard);
         listener.onResponse(null);
     }
 
-    public void setupSplitProgressTracking(IndexShard indexShard) {
-        var tracker = new SplitProgressTracker(indexShard, new ActionListener<>() {
+    public void setupSourceShardCleanup(IndexShard indexShard) {
+        var cleanup = new SourceShardCleanupAction(indexShard, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 logger.info(Strings.format("Split source shard %s successfully transitioned to DONE", indexShard.shardId()));
@@ -325,7 +350,7 @@ public class SplitSourceService {
             }
         });
 
-        tracker.run();
+        cleanup.run();
     }
 
     private ShardId getSplitSource(ShardId targetShardId) {
@@ -401,10 +426,10 @@ public class SplitSourceService {
         }
     }
 
-    private class SplitProgressTracker extends RetryableAction<Void> {
+    private class SourceShardCleanupAction extends RetryableAction<Void> {
         private final IndexShard indexShard;
 
-        private SplitProgressTracker(IndexShard indexShard, ActionListener<Void> listener) {
+        private SourceShardCleanupAction(IndexShard indexShard, ActionListener<Void> listener) {
             super(
                 logger,
                 clusterService.threadPool(),
@@ -442,7 +467,7 @@ public class SplitSourceService {
                         return true;
                     }
 
-                    if (onGoingSplits.containsKey(indexShard) == false) {
+                    if (splitCleanup.containsKey(indexShard) == false) {
                         // Shard was closed in the meantime.
                         // It will pick this work up on recovery.
                         return true;
@@ -471,7 +496,7 @@ public class SplitSourceService {
                         return;
                     }
 
-                    if (onGoingSplits.containsKey(indexShard) == false) {
+                    if (splitCleanup.containsKey(indexShard) == false) {
                         return;
                     }
 
@@ -503,7 +528,7 @@ public class SplitSourceService {
     }
 
     public void cancelSplits(IndexShard indexShard) {
-        onGoingSplits.remove(indexShard);
+        splitCleanup.remove(indexShard);
     }
 
     private void moveToDone(IndexShard indexShard, ActionListener<Void> listener) {
@@ -521,7 +546,7 @@ public class SplitSourceService {
                 )
 
             )
-            .andThenAccept(ignored -> onGoingSplits.remove(indexShard))
+            .andThenAccept(ignored -> splitCleanup.remove(indexShard))
             .addListener(listener);
     }
 

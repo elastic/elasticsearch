@@ -535,7 +535,10 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
         }
     }
 
-    public static class Reader extends StoredFieldsReader implements BloomFilter {
+    static class Reader extends StoredFieldsReader implements BloomFilter {
+        // The bloom filter can be null in cases where the indexed documents
+        // do not include a field bloomFilterFieldName and thus the bloom filter
+        // is empty. (This mostly apply for tests).
         @Nullable
         private final BloomFilterFieldReader bloomFilterFieldReader;
 

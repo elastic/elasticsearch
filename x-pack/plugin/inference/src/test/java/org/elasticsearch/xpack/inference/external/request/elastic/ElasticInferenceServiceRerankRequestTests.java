@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bearerToken;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -99,7 +99,7 @@ public class ElasticInferenceServiceRerankRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(Task.TRACE_STATE).getValue(), is(traceState));
         var headers = httpPost.getHeaders(HttpHeaders.AUTHORIZATION);
         assertThat(headers.length, is(1));
-        assertThat(headers[0].getValue(), is(bearerToken(secret)));
+        assertThat(headers[0].getValue(), is(apiKey(secret)));
     }
 
     private ElasticInferenceServiceRerankRequest createRequest(

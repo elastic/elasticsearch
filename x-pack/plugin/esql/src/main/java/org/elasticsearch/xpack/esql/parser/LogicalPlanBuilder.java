@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.inference.InferenceCommandConfig;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -1119,9 +1120,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw qualifiersUnsupportedInFieldDefinitions(scoreAttribute.source(), ctx.targetField.getText());
         }
 
-        Literal rowLimit = Literal.integer(Source.EMPTY, context.inferenceCommandConfigProvider().get("rerank").rowLimit());
+        InferenceCommandConfig commandConfig = context.inferenceCommandConfigProvider().get("rerank");
+        Literal rowLimit = Literal.integer(Source.EMPTY, commandConfig.rowLimit());
 
         return p -> {
+            if (commandConfig.enabled() == false) {
+                throw new ParsingException(source, "RERANK command is disabled");
+            }
+
             checkForRemoteClusters(p, source, "RERANK");
             return applyRerankOptions(
                 new Rerank(source, p, queryText, rerankFields, scoreAttribute, rowLimit),
@@ -1164,11 +1170,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (targetField.qualifier() != null) {
             throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
         }
-
-        Literal rowLimit = Literal.integer(Source.EMPTY, context.inferenceCommandConfigProvider().get("completion").rowLimit());
+        
+        InferenceCommandConfig commandConfig = context.inferenceCommandConfigProvider().get("completion");
+        Literal rowLimit = Literal.integer(Source.EMPTY, commandConfig.rowLimit());
 
         return p -> {
+            if (commandConfig.enabled() == false) {
+                throw new ParsingException(source, "COMPLETION command is disabled");
+            }
+
             checkForRemoteClusters(p, source, "COMPLETION");
+
             return applyCompletionOptions(new Completion(source, p, prompt, targetField, rowLimit), ctx.commandNamedParameters());
         };
     }

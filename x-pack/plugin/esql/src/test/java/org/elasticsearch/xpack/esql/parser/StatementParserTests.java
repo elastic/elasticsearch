@@ -4323,6 +4323,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.rowLimit(), equalTo(Literal.integer(EMPTY, customRowLimit)));
     }
 
+    public void testRerankCommandDisabled() {
+        EsqlParser parserWithDisabledRerank = new EsqlParser(
+            Settings.builder().put(InferenceCommandConfig.RERANK_ENABLED_SETTING.getKey(), false).build()
+        );
+        ParsingException pe = expectThrows(
+            ParsingException.class,
+            () -> parserWithDisabledRerank.createStatement("FROM foo* | RERANK \"query text\" ON title")
+        );
+        assertThat(pe.getMessage(), containsString("RERANK command is disabled"));
+    }
+
     public void testInvalidRerank() {
         expectError(
             "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": 3 }",
@@ -4400,6 +4411,19 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
 
         assertThat(plan.rowLimit(), equalTo(Literal.integer(EMPTY, customRowLimit)));
+    }
+
+    public void testCompletionCommandDisabled() {
+        EsqlParser parserWithDisabledCompletion = new EsqlParser(
+            Settings.builder().put(InferenceCommandConfig.COMPLETION_ENABLED_SETTING.getKey(), false).build()
+        );
+        ParsingException pe = expectThrows(
+            ParsingException.class,
+            () -> parserWithDisabledCompletion.createStatement(
+                "FROM foo* | COMPLETION targetField = prompt WITH { \"inference_id\": \"test\" }"
+            )
+        );
+        assertThat(pe.getMessage(), containsString("COMPLETION command is disabled"));
     }
 
     public void testCompletionWithPositionalParameters() {

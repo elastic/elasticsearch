@@ -701,7 +701,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                     searchContext,
                     searchContext.getSearchExecutionContext(),
                     searchContext.request().getAliasFilter(),
-                    searchContext.getProfilers().getCurrentQueryProfiler()
+                    searchContext.getProfilers() == null ? null : searchContext.getProfilers().getCurrentQueryProfiler()
                 ),
                 searchContext.getSearchExecutionContext(),
                 searchContext

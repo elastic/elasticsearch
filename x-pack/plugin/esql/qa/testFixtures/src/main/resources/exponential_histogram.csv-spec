@@ -400,3 +400,76 @@ instance-0       | 2.4E-4     | null       | null          | 0.2608237  | null  
 instance-1       | null       | 3.190723   | null          | null       | 36.198484  | null
 instance-2       | null       | null       | 6.469E-4      | null       | null       | 0.008197
 ;
+
+
+timeseriesAllAggsLastOverTimeNoBucket
+required_capability: exponential_histogram_pre_tech_preview_v5
+required_capability: ts_command_v0
+
+TS exp_histo_sample 
+ | WHERE instance == "instance-1"
+ | STATS min = MIN(last_over_time(responseTime)),
+         max = MAX(last_over_time(responseTime)),
+         median = MEDIAN(last_over_time(responseTime)),
+         p75 = PERCENTILE(last_over_time(responseTime), 75),
+         sum = SUM(last_over_time(responseTime)),
+         avg = AVG(last_over_time(responseTime))
+ | EVAL median = ROUND(median, 7), p75 = ROUND(p75, 7), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
+ | KEEP min, max, median, p75, sum, avg
+;
+
+min:double | max:double | median:double | p75:double | sum:double | avg:double
+2.22E-4    | 0.003494   | 5.621E-4      | 0.0014898  | 0.021901   | 9.522E-4
+;
+
+
+timeseriesAllAggsLastOverTimeBucketed
+required_capability: exponential_histogram_pre_tech_preview_v5
+required_capability: ts_command_v0
+
+TS exp_histo_sample 
+ | WHERE NOT STARTS_WITH(instance, "dummy") 
+ | STATS min = MIN(last_over_time(responseTime)),
+         max = MAX(last_over_time(responseTime)),
+         median = MEDIAN(last_over_time(responseTime)),
+         p75 = PERCENTILE(last_over_time(responseTime), 75),
+         sum = SUM(last_over_time(responseTime)),
+         avg = AVG(last_over_time(responseTime))
+         BY instance
+ | EVAL median = ROUND(median, 7), p75 = ROUND(p75, 7), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
+ | KEEP instance, min, max, median, p75, sum, avg
+ | SORT instance
+;
+
+instance:keyword | min:double | max:double | median:double | p75:double | sum:double | avg:double
+instance-0       | 3.36E-4    | 3.252835   | 0.0355538     | 0.3688603   | 21.522568  | 0.2314255
+instance-1       | 2.22E-4    | 0.003494   | 5.621E-4      | 0.0014898   | 0.021901   | 9.522E-4
+instance-2       | 2.59E-4    | 0.068249   | 5.209E-4      | 0.0014578   | 0.097412   | 0.0037466
+;
+
+
+
+timeseriesAllAggsLastOverTimeEmptyBuckets
+required_capability: exponential_histogram_pre_tech_preview_v5
+required_capability: ts_command_v0
+
+
+TS exp_histo_sample 
+ | WHERE NOT STARTS_WITH(instance, "dummy") 
+ | STATS min = MIN(last_over_time(responseTime)) WHERE instance == "idontexist",
+         max = MAX(last_over_time(responseTime)) WHERE instance == "idontexist",
+         median = MEDIAN(last_over_time(responseTime)) WHERE instance == "idontexist",
+         p75 = PERCENTILE(last_over_time(responseTime), 75) WHERE instance == "idontexist",
+         sum = SUM(last_over_time(responseTime)) WHERE instance == "idontexist",
+         avg = AVG(last_over_time(responseTime)) WHERE instance == "idontexist"
+         BY instance
+ | EVAL median = ROUND(median, 7), p75 = ROUND(p75, 7), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
+ | KEEP instance, min, max, median, p75, sum, avg
+ | SORT instance
+;
+
+instance:keyword | min:double | max:double | median:double | p75:double | sum:double | avg:double
+instance-0       | null       | null       | null          | null        | null       | null
+instance-1       | null       | null       | null          | null        | null       | null
+instance-2       | null       | null       | null          | null        | null       | null
+;

@@ -56,6 +56,16 @@ public class WriteLoadConstraintMonitor {
     private volatile long hotspotNodesCount = 0; // metrics source of hotspotting node count
     private final DoubleHistogram hotspotDurationHistogram;
 
+    protected WriteLoadConstraintMonitor(
+        ClusterSettings clusterSettings,
+        LongSupplier currentTimeMillisSupplier,
+        Supplier<ClusterState> clusterStateSupplier,
+        RerouteService rerouteService
+    ) {
+        // default of NOOP for tests
+        this(clusterSettings, currentTimeMillisSupplier, clusterStateSupplier, rerouteService, MeterRegistry.NOOP);
+    }
+
     public WriteLoadConstraintMonitor(
         ClusterSettings clusterSettings,
         LongSupplier currentTimeMillisSupplier,

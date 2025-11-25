@@ -20,12 +20,19 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestDownsampleAction extends BaseRestHandler {
 
+    private final Set<String> CAPABILITIES = Stream.of(
+        "downsample.sampling_mode.last_value",
+    ).filter(Objects::nonNull).collect(Collectors.toSet());
     @Override
     public List<Route> routes() {
         return List.of(new Route(POST, "/{index}/_downsample/{target_index}"));
@@ -55,4 +62,8 @@ public class RestDownsampleAction extends BaseRestHandler {
         return "downsample_action";
     }
 
+    @Override
+    public Set<String> supportedCapabilities() {
+        return CAPABILITIES;
+    }
 }

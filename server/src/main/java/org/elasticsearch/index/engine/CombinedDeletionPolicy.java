@@ -31,7 +31,6 @@ import java.util.Set;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.lucene.Lucene.additionalFileNames;
-import static org.elasticsearch.index.engine.ElasticsearchIndexDeletionPolicy.CommitsListener.listOfNewFileNames;
 
 /**
  * An {@link IndexDeletionPolicy} that coordinates between Lucene's commits and the retention of translog generation files,

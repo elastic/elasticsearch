@@ -12,10 +12,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 
-import java.io.IOException;
-import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public abstract class ElasticsearchIndexDeletionPolicy extends IndexDeletionPolicy {
 

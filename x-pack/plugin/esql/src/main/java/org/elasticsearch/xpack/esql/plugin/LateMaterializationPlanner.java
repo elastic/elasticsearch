@@ -97,8 +97,8 @@ class LateMaterializationPlanner {
 
         LocalPhysicalOptimizerContext context = contextFactory.apply(SEARCH_STATS_TOP_N_REPLACEMENT);
 
-        List<Attribute> physicalDataOutput = toPhysical(topN, context).output();
-        Attribute doc = physicalDataOutput.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
+        List<Attribute> physicalPlanOutput = toPhysical(topN, context).output();
+        Attribute doc = physicalPlanOutput.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
         if (doc == null) {
             return Optional.empty();
         }
@@ -116,19 +116,15 @@ class LateMaterializationPlanner {
             return Optional.empty();
         }
 
-        // Calculate the expected output attributes for the data driver plan.
-        AttributeSet.Builder expectedDataOutputAttrs = AttributeSet.builder();
-        // We need to add the doc attribute to the project since otherwise when the fragment is converted to a physical plan for the data
-        // driver, the resulting ProjectExec won't have the doc attribute in its output, which is needed by the reduce driver.
-        expectedDataOutputAttrs.add(doc);
         // Add all references used in the ordering
         AttributeSet orderRefsSet = AttributeSet.of(topN.order().stream().flatMap(o -> o.references().stream()).toList());
         // Get the output from the physical plan below the TopN, and filter it to only the attributes needed for the final output (either
         // because they are in the top-level Project's output, or because they are needed for ordering)
-        expectedDataOutputAttrs.addAll(
-            physicalDataOutput.stream().filter(a -> topLevelProject.outputSet().contains(a) || orderRefsSet.contains(a)).toList()
-        );
-        List<Attribute> expectedDataOutput = expectedDataOutputAttrs.build().stream().toList();
+        List<Attribute> expectedDataOutput = AttributeSet.of(
+            physicalPlanOutput.stream()
+                .filter(a -> topLevelProject.outputSet().contains(a) || orderRefsSet.contains(a) || EsQueryExec.isDocAttribute(a))
+                .toList()
+        ).stream().toList();
         var updatedFragment = new Project(Source.EMPTY, withAddedDocToRelation, expectedDataOutput);
         FragmentExec updatedFragmentExec = fragmentExec.withFragment(updatedFragment);
         ExchangeSinkExec updatedDataPlan = originalPlan.replaceChild(updatedFragmentExec);

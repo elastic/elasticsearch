@@ -66,22 +66,13 @@ public final class ExponentialHistogramStates {
         public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             assert blocks.length >= offset + 2;
             BlockFactory blockFactory = driverContext.blockFactory();
-            boolean seen;
+            // in case of error, the blocks are closed by the caller
             if (merger == null) {
                 blocks[offset] = blockFactory.newConstantExponentialHistogramBlock(ExponentialHistogram.empty(), 1);
-                seen = false;
+                blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(false, 1);
             } else {
                 blocks[offset] = blockFactory.newConstantExponentialHistogramBlock(merger.get(), 1);
-                seen = true;
-            }
-            boolean success = false;
-            try {
-                blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(seen, 1);
-                success = true;
-            } finally {
-                if (success == false) {
-                    Releasables.close(blocks[offset]);
-                }
+                blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(true, 1);
             }
         }
 

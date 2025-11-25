@@ -82,7 +82,7 @@ public record EmbeddingRequest(List<InferenceStringGroup> inputs, @Nullable Inpu
         );
         PARSER.declareField(
             optionalConstructorArg(),
-            (parser, context) -> InputType.fromRestString(parser.text()),
+            (parser, context) -> InputType.fromString(parser.text()),
             new ParseField(INPUT_TYPE_FIELD),
             ObjectParser.ValueType.STRING
         );

@@ -9,9 +9,10 @@
 
 package org.elasticsearch.inference;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -19,6 +20,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -29,8 +31,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 /**
  * This class represents a String which may be raw text, or the String representation of some other data such as an image in base64
  */
-public record InferenceString(DataType dataType, String value) implements NamedWriteable, ToXContentObject {
-    public static final String NAME = "inference_string";
+public record InferenceString(DataType dataType, String value) implements Writeable, ToXContentObject {
     private static final String TYPE_FIELD = "type";
     private static final String VALUE_FIELD = "value";
 
@@ -47,7 +48,13 @@ public record InferenceString(DataType dataType, String value) implements NamedW
         }
 
         public static DataType fromString(String name) {
-            return valueOf(name.trim().toUpperCase(Locale.ROOT));
+            try {
+                return valueOf(name.trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException(
+                    Strings.format("Unrecognized type [%s], must be one of %s", name, Arrays.toString(DataType.values()))
+                );
+            }
         }
     }
 
@@ -125,11 +132,6 @@ public record InferenceString(DataType dataType, String value) implements NamedW
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(dataType);
         out.writeString(value);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
     }
 
     @Override

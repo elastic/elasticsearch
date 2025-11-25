@@ -9,9 +9,9 @@
 
 package org.elasticsearch.inference;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -39,9 +39,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * </pre>
  * @param inferenceStrings the list of {@link InferenceString} which should result in generating a single embedding vector
  */
-public record InferenceStringGroup(List<InferenceString> inferenceStrings) implements NamedWriteable, ToXContentObject {
-    public static final String NAME = "embedding_content_object";
-
+public record InferenceStringGroup(List<InferenceString> inferenceStrings) implements Writeable, ToXContentObject {
     private static final String CONTENT_FIELD = "content";
 
     @SuppressWarnings("unchecked")
@@ -69,11 +67,6 @@ public record InferenceStringGroup(List<InferenceString> inferenceStrings) imple
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(inferenceStrings);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
     }
 
     @Override

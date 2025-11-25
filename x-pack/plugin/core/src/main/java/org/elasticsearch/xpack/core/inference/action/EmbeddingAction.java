@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.core.inference.InferenceContext;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public class EmbeddingAction extends ActionType<InferenceAction.Response> {
     public static final EmbeddingAction INSTANCE = new EmbeddingAction();
     public static final String NAME = "cluster:internal/xpack/inference/embedding";
@@ -94,25 +96,18 @@ public class EmbeddingAction extends ActionType<InferenceAction.Response> {
 
         @Override
         public ActionRequestValidationException validate() {
-            if (embeddingRequest == null || embeddingRequest.inputs() == null) {
-                var e = new ActionRequestValidationException();
-                e.addValidationError("Field [inputs] cannot be null");
-                return e;
-            }
-
-            if (embeddingRequest.inputs().isEmpty()) {
-                var e = new ActionRequestValidationException();
-                e.addValidationError("Field [inputs] cannot be an empty array");
-                return e;
+            ActionRequestValidationException e = null;
+            if (embeddingRequest.inputs() == null) {
+                e = addValidationError("Field [inputs] cannot be null", e);
+            } else if (embeddingRequest.inputs().isEmpty()) {
+                e = addValidationError("Field [inputs] cannot be an empty array", e);
             }
 
             if (taskType.isAnyOrSame(TaskType.EMBEDDING) == false) {
-                var e = new ActionRequestValidationException();
-                e.addValidationError("Field [taskType] must be [embedding]");
-                return e;
+                e = addValidationError("Field [taskType] must be [embedding]", e);
             }
 
-            return null;
+            return e;
         }
 
         @Override

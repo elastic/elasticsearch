@@ -9,8 +9,10 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -19,7 +21,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 
-public class EmbeddingRequestTests extends AbstractWireSerializingTestCase<EmbeddingRequest> {
+public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<EmbeddingRequest> {
 
     public void testParser_withSingleString() throws IOException {
         var requestJson = """
@@ -135,6 +137,22 @@ public class EmbeddingRequestTests extends AbstractWireSerializingTestCase<Embed
         }
     }
 
+    public void testParser_withNoInputType() throws IOException {
+        var requestJson = """
+            {
+                "input": "some text input"
+            }
+            """;
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var request = EmbeddingRequest.PARSER.apply(parser, null);
+            var expectedInputs = List.of(
+                new InferenceStringGroup(List.of(new InferenceString(InferenceString.DataType.TEXT, "some text input")))
+            );
+            assertThat(request.inputs(), is(expectedInputs));
+            assertThat(request.inputType(), is(InputType.UNSPECIFIED));
+        }
+    }
+
     @Override
     protected Writeable.Reader<EmbeddingRequest> instanceReader() {
         return EmbeddingRequest::new;
@@ -142,23 +160,17 @@ public class EmbeddingRequestTests extends AbstractWireSerializingTestCase<Embed
 
     @Override
     protected EmbeddingRequest createTestInstance() {
-        int contentsToCreate = randomInt(5);
-        return new EmbeddingRequest(randomEmbeddingContents(contentsToCreate), randomFrom(InputType.values()));
+        return createRandom();
     }
 
-    private static InferenceStringGroup randomEmbeddingContent() {
-        var inferenceStrings = new ArrayList<InferenceString>();
-        int inferenceStringsToCreate = randomInt(5);
-        for (int j = 0; j < inferenceStringsToCreate; ++j) {
-            inferenceStrings.add(InferenceStringTests.createRandom());
-        }
-        return new InferenceStringGroup(inferenceStrings);
+    public static EmbeddingRequest createRandom() {
+        return new EmbeddingRequest(randomEmbeddingContents(), randomFrom(InputType.values()));
     }
 
-    private static List<InferenceStringGroup> randomEmbeddingContents(int contentsToCreate) {
+    private static List<InferenceStringGroup> randomEmbeddingContents() {
         var contents = new ArrayList<InferenceStringGroup>();
-        for (int i = 0; i < contentsToCreate; ++i) {
-            contents.add(randomEmbeddingContent());
+        for (int i = 0; i < randomInt(5); ++i) {
+            contents.add(InferenceStringGroupTests.createRandom());
         }
         return contents;
     }
@@ -168,12 +180,22 @@ public class EmbeddingRequestTests extends AbstractWireSerializingTestCase<Embed
         if (randomBoolean()) {
             var embeddingContents = instance.inputs();
             return new EmbeddingRequest(
-                randomValueOtherThan(embeddingContents, () -> randomEmbeddingContents(randomInt(5))),
+                randomValueOtherThan(embeddingContents, EmbeddingRequestTests::randomEmbeddingContents),
                 instance.inputType()
             );
         } else {
             InputType inputType = instance.inputType();
             return new EmbeddingRequest(instance.inputs(), randomValueOtherThan(inputType, () -> randomFrom(InputType.values())));
         }
+    }
+
+    @Override
+    protected EmbeddingRequest mutateInstanceForVersion(EmbeddingRequest instance, TransportVersion version) {
+        return instance;
+    }
+
+    @Override
+    protected EmbeddingRequest doParseInstance(XContentParser parser) throws IOException {
+        return EmbeddingRequest.PARSER.parse(parser, null);
     }
 }

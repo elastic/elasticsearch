@@ -9,9 +9,12 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.InferenceString.DataType;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -23,7 +26,7 @@ import static org.elasticsearch.inference.InferenceString.DataType.TEXT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class InferenceStringTests extends AbstractWireSerializingTestCase<InferenceString> {
+public class InferenceStringTests extends AbstractBWCSerializationTestCase<InferenceString> {
     public void testParserWithText() throws IOException {
         var requestJson = """
             {
@@ -100,18 +103,23 @@ public class InferenceStringTests extends AbstractWireSerializingTestCase<Infere
     }
 
     public void testParserWithUnknownType_throwsException() throws IOException {
-        var requestJson = """
+        var invalidType = "not a real type";
+        var requestJson = Strings.format("""
             {
-                "type": "not a real type",
+                "type": "%s",
                 "value": "some image data"
             }
-            """;
+            """, invalidType);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
                 () -> InferenceString.PARSER.apply(parser, null)
             );
             assertThat(exception.getMessage(), containsString("[InferenceString] failed to parse field [type]"));
+            assertThat(
+                exception.getCause().getMessage(),
+                is(Strings.format("Unrecognized type [%s], must be one of [text, image_base64]", invalidType))
+            );
         }
     }
 
@@ -153,5 +161,15 @@ public class InferenceStringTests extends AbstractWireSerializingTestCase<Infere
             String value = instance.value();
             return new InferenceString(instance.dataType(), randomValueOtherThan(value, () -> randomAlphanumericOfLength(10)));
         }
+    }
+
+    @Override
+    protected InferenceString mutateInstanceForVersion(InferenceString instance, TransportVersion version) {
+        return instance;
+    }
+
+    @Override
+    protected InferenceString doParseInstance(XContentParser parser) throws IOException {
+        return InferenceString.PARSER.parse(parser, null);
     }
 }

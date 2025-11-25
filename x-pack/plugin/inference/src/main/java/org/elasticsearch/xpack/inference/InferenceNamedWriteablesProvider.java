@@ -14,8 +14,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.InferenceString;
-import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
@@ -181,7 +179,6 @@ public class InferenceNamedWriteablesProvider {
         addOpenShiftAiNamedWriteables(namedWriteables);
 
         addUnifiedNamedWriteables(namedWriteables);
-        addEmbeddingNamedWriteables(namedWriteables);
 
         namedWriteables.addAll(StreamingTaskManager.namedWriteables());
         namedWriteables.addAll(DeepSeekChatCompletionModel.namedWriteables());
@@ -230,13 +227,6 @@ public class InferenceNamedWriteablesProvider {
     private static void addUnifiedNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
         var writeables = UnifiedCompletionRequest.getNamedWriteables();
         namedWriteables.addAll(writeables);
-    }
-
-    private static void addEmbeddingNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
-        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceString.class, InferenceString.NAME, InferenceString::new));
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceStringGroup.class, InferenceStringGroup.NAME, InferenceStringGroup::new)
-        );
     }
 
     private static void addAmazonBedrockNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {

@@ -122,13 +122,9 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         return codec;
     }
 
-    public void testBinaryCompressionFeatureFlag() {
+    public void testBinaryCompressionEnabled() {
         ES819TSDBDocValuesFormat docValueFormat = new ES819TSDBDocValuesFormat();
-        if (ES819TSDBDocValuesFormat.BINARY_DV_COMPRESSION_FEATURE_FLAG) {
-            assertThat(docValueFormat.binaryDVCompressionMode, equalTo(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1));
-        } else {
-            assertThat(docValueFormat.binaryDVCompressionMode, equalTo(BinaryDVCompressionMode.NO_COMPRESS));
-        }
+        assertThat(docValueFormat.binaryDVCompressionMode, equalTo(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1));
     }
 
     public void testBlockWiseBinary() throws Exception {

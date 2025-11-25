@@ -126,45 +126,39 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
     // using a multiple of 2. Here we test some valid and invalid combinations.
     public void testReshardTargetNumShardsIsValid() {
         String indexNode = startMasterAndIndexNode();
-        String searchNode = startSearchNode();
+        ensureStableCluster(1);
 
-        ensureStableCluster(2);
-
+        int numShards = randomIntBetween(1, 5);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(1, 1).build());
+        createIndex(indexName, indexSettings(numShards, 0).build());
         ensureGreen(indexName);
 
-        checkNumberOfShardsSetting(indexNode, indexName, 1);
+        checkNumberOfShardsSetting(indexNode, indexName, numShards);
 
-        final int multiple2 = 2;
-        int startingNumShards = 1;
-        int targetNumShards = multiple2 * startingNumShards;
-        logger.info("Starting reshard to go from {} to {} shards", startingNumShards, targetNumShards);
-        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple2)).actionGet();
-        waitForReshardCompletion(indexName);
-        checkNumberOfShardsSetting(indexNode, indexName, targetNumShards);
-
-        // Now lets try to use a multiple of 3 - this is not allowed.
-        startingNumShards = 2;
-        final int multiple3 = 3;
-        checkNumberOfShardsSetting(indexNode, indexName, startingNumShards);
-        targetNumShards = multiple3 * startingNumShards;
-        logger.info("Starting reshard to go from {} to {} shards", startingNumShards, targetNumShards);
-        assertThrows(
-            ActionRequestValidationException.class,
-            () -> client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple3))
-                .actionGet(SAFE_AWAIT_TIMEOUT)
-        );
-        checkNumberOfShardsSetting(indexNode, indexName, startingNumShards);
-
-        // Now lets try to go from 2 shards to 4 shards (this is allowed)
-        startingNumShards = 2;
-        checkNumberOfShardsSetting(indexNode, indexName, startingNumShards);
-        targetNumShards = multiple2 * startingNumShards;
-        logger.info("Starting reshard to go from {} to {} shards", startingNumShards, targetNumShards);
-        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple2)).actionGet();
-        waitForReshardCompletion(indexName);
-        checkNumberOfShardsSetting(indexNode, indexName, targetNumShards);
+        // reshard a few times with legal and illegal multiples
+        for (int i = 0; i < 5; i++) {
+            if (randomBoolean()) {
+                // valid (split in two)
+                logger.info("attempting reshard from {} to {} shards should succeed", numShards, numShards * 2);
+                client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet(SAFE_AWAIT_TIMEOUT);
+                waitForReshardCompletion(indexName);
+                numShards *= 2;
+                checkNumberOfShardsSetting(indexNode, indexName, numShards);
+            } else {
+                // exercise both above and below max shard count after a few splits
+                final int illegalMultiple = randomInt(200);
+                if (illegalMultiple == 2) {
+                    continue;
+                }
+                logger.info("attempting reshard from {} to {} shards should fail", numShards, numShards * illegalMultiple);
+                assertThrows(
+                    ActionRequestValidationException.class,
+                    () -> client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, illegalMultiple))
+                        .actionGet(SAFE_AWAIT_TIMEOUT)
+                );
+                checkNumberOfShardsSetting(indexNode, indexName, numShards);
+            }
+        }
     }
 
     @TestLogging(value = "co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService:DEBUG", reason = "debugging")

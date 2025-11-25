@@ -177,7 +177,7 @@ class S3RetryingInputStream extends RetryingInputStream {
         private final long start;
         private final long end;
         private final long lastOffset;
-        private int offset = 0;
+        private long offset = 0;
         private boolean closed;
         private boolean eof;
         private boolean aborted;

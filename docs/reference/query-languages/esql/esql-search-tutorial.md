@@ -448,17 +448,12 @@ If you'd like to test out the semantic search workflow against a large dataset, 
 
 ### Perform hybrid search
 
-Hybrid search combines different search strategies (like lexical and semantic search) to leverage the strengths of each approach. {{esql}} provides two ways to implement hybrid search:
-
-::::{tab-set}
-
-:::{tab-item} `FORK` and `FUSE`
 ```{applies_to}
 stack: preview 9.2
 serverless: preview
 ```
 
-Use [`FORK`](/reference/query-languages/esql/commands/fork.md) and [`FUSE`](/reference/query-languages/esql/commands/fuse.md) to execute different search strategies in parallel, then merge and score the combined results.
+Hybrid search combines different search strategies (like lexical and semantic search) to leverage the strengths of each approach. Use [`FORK`](/reference/query-languages/esql/commands/fork.md) and [`FUSE`](/reference/query-languages/esql/commands/fuse.md) to execute different search strategies in parallel, then merge and score the combined results.
 
 ```esql
 FROM cooking_blog METADATA _id, _index, _score
@@ -478,31 +473,6 @@ FROM cooking_blog METADATA _id, _index, _score
 1. Lexical search on the title field
 2. Semantic search on the semantic_description field
 3. Merge results using RRF (Reciprocal Rank Fusion) algorithm
-:::
-
-:::{tab-item} OR with boost
-```{applies_to}
-stack: preview 9.0
-serverless: preview
-```
-
-Use OR logic to combine queries with the [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) and boost parameters to control relative weights:
-
-```esql
-FROM cooking_blog METADATA _score
-| WHERE MATCH(semantic_description, "easy to make vegetarian meals", { "boost": 0.75 })
-    OR MATCH(tags, "vegetarian", { "boost": 0.25 })
-| SORT _score DESC
-| LIMIT 5
-```
-
-This query uses OR logic to combine two searches: a semantic search on `semantic_description` with 75% weight and a lexical search on `tags` with 25% weight. Documents matching either query contribute to the final score based on their boost values.
-:::
-
-::::
-
-
-
 
 ## Step 9: Advanced AI-powered search
 

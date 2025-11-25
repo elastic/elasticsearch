@@ -170,7 +170,8 @@ public abstract class LuceneOperator extends SourceOperator {
                     if (profiler != null) {
                         List<ProfileResult> profileResults = profileResultPerShard.computeIfAbsent(
                             currentSlice.shardContext().shardIdentifier(),
-                            k -> new ArrayList<>());
+                            k -> new ArrayList<>()
+                        );
                         profileResults.addAll(profiler.getTree());
                     }
                 }

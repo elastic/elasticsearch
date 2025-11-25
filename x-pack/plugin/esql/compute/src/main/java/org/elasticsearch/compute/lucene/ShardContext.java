@@ -14,8 +14,8 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 

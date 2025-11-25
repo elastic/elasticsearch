@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;

@@ -252,12 +252,6 @@ tests:
 - class: org.elasticsearch.xpack.eql.planner.QueryTranslatorTests
   method: testMatchOptimization
   issue: https://github.com/elastic/elasticsearch/issues/132894
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testTermsAggs
-  issue: https://github.com/elastic/elasticsearch/issues/132879
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testTermsAggsWithProfile
-  issue: https://github.com/elastic/elasticsearch/issues/132880
 - class: org.elasticsearch.xpack.security.authc.AuthenticationServiceTests
   method: testInvalidToken
   issue: https://github.com/elastic/elasticsearch/issues/133328

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

@@ -26,16 +26,19 @@ import java.util.Objects;
 import static java.util.Collections.emptyList;
 
 /**
- * Similar to {@link Avg}, but it is used to calculate the average value over a time series of values from the given field.
+ * Currently just a surrogate for applying {@link HistogramMerge} per series.
  */
 public class HistogramMergeOverTime extends TimeSeriesAggregateFunction implements OptionalArgument {
+    // TODO Eventually we want to replace this with some increase/rate implementation
+    // for histograms to be consistent with counters on extrapolation.
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "HistogramMergeOverTime",
         HistogramMergeOverTime::new
     );
 
-    @FunctionInfo(returnType = "double", type = FunctionType.TIME_SERIES_AGGREGATE)
+    @FunctionInfo(returnType = "exponential_histogram", type = FunctionType.TIME_SERIES_AGGREGATE)
     public HistogramMergeOverTime(
         Source source,
         @Param(name = "histogram", type = "exponential_histogram") Expression field,

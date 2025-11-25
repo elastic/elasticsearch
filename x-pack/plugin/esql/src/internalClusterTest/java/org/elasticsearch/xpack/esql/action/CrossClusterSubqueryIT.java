@@ -545,14 +545,16 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
     }
 
     public void testSubqueryWithFilterInRequest() {
-        EsqlQueryRequest request = randomBoolean() ? EsqlQueryRequest.asyncEsqlQueryRequest() : EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query("""
+        String query = """
             FROM
                 (FROM logs-* metadata _index | where v > 5),
                 (FROM *:logs-* metadata _index | where v >1)
             | DROP const, id
             | SORT _index, v
-            """);
+            """;
+        EsqlQueryRequest request = randomBoolean()
+            ? EsqlQueryRequest.asyncEsqlQueryRequest(query)
+            : EsqlQueryRequest.syncEsqlQueryRequest(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         request.profile(randomInt(5) == 2);
         request.columnar(randomBoolean());

@@ -14,8 +14,14 @@
 | geohex | | long |
 | geotile | | long |
 | integer | | long |
+| keyword | integer | long |
+| keyword | long | long |
+| keyword | unsigned_long | long |
 | keyword | | long |
 | long | | long |
+| text | integer | long |
+| text | long | long |
+| text | unsigned_long | long |
 | text | | long |
 | unsigned_long | | long |
 

@@ -140,6 +140,60 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        },
+        {
+          "name" : "base",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "(Optional) Radix or base used to convert the input value.When a base is specified the input type must be `keyword` or `text`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        },
+        {
+          "name" : "base",
+          "type" : "long",
+          "optional" : true,
+          "description" : "(Optional) Radix or base used to convert the input value.When a base is specified the input type must be `keyword` or `text`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        },
+        {
+          "name" : "base",
+          "type" : "unsigned_long",
+          "optional" : true,
+          "description" : "(Optional) Radix or base used to convert the input value.When a base is specified the input type must be `keyword` or `text`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "long",
           "optional" : false,
           "description" : "Input value. The input can be a single- or multi-valued column or an expression."
@@ -155,6 +209,60 @@
           "type" : "text",
           "optional" : false,
           "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        },
+        {
+          "name" : "base",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "(Optional) Radix or base used to convert the input value.When a base is specified the input type must be `keyword` or `text`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        },
+        {
+          "name" : "base",
+          "type" : "long",
+          "optional" : true,
+          "description" : "(Optional) Radix or base used to convert the input value.When a base is specified the input type must be `keyword` or `text`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        },
+        {
+          "name" : "base",
+          "type" : "unsigned_long",
+          "optional" : true,
+          "description" : "(Optional) Radix or base used to convert the input value.When a base is specified the input type must be `keyword` or `text`."
         }
       ],
       "variadic" : false,

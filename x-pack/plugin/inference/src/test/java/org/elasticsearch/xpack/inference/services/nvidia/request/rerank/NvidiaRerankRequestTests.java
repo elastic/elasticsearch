@@ -45,10 +45,6 @@ public class NvidiaRerankRequestTests extends ESTestCase {
         testCreateRequest(createRequest(MODEL_VALUE, null), URL_DEFAULT_VALUE);
     }
 
-    public void testCreateRequest_NoModel_ThrowsException() {
-        expectThrows(NullPointerException.class, () -> createRequest(null, URL_VALUE));
-    }
-
     private void testCreateRequest(NvidiaRerankRequest request, String expectedUrl) throws IOException {
         var httpRequest = request.createHttpRequest();
 

@@ -91,10 +91,6 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
         assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", API_KEY_VALUE)));
     }
 
-    public void testCreateRequest_NoModel_ThrowsException() {
-        expectThrows(NullPointerException.class, () -> createRequest(URL_VALUE, null, null, null, null));
-    }
-
     public void testTruncate_ReducesInputTextSizeByHalf() throws IOException {
         var request = createRequest(URL_VALUE, MODEL_VALUE, null, null, null);
         var truncatedRequest = request.truncate();

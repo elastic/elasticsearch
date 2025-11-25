@@ -254,10 +254,19 @@ public class ResolvedIndices {
     }
 
     /**
-     * Create a new {@link ResolvedIndices} instance from a Map of Projects to {@link ResolvedIndexExpressions}.
-     * This method guarantees that the resulting remote project contains at least one index resolved for the mapped
-     * {@link ResolvedIndexExpressions}. The resulting {@link ResolvedIndices#getRemoteClusterIndices()} will map to the original index
-     * expression provided in {@link ResolvedIndexExpression#original()}.
+     * Create a new {@link ResolvedIndices} instance from a Map of Projects to {@link ResolvedIndexExpressions}. This is intended to be
+     * used for Cross-Project Search (CPS).
+     *
+     * @param localIndices this value is set as-is in the resulting ResolvedIndices.
+     * @param localIndexMetadata this value is set as-is in the resulting ResolvedIndices.
+     * @param remoteExpressions the map of project names to {@link ResolvedIndexExpressions}. This map is used to create the
+     *                          {@link ResolvedIndices#getRemoteClusterIndices()} for the resulting ResolvedIndices. Each project keyed
+     *                          in the map is guaranteed to have at least one index for the index expression provided by the user.
+     *                          The resulting {@link ResolvedIndices#getRemoteClusterIndices()} will map to the original index expression
+     *                          provided by the user. For example, if the user requested "logs" and "project-1" resolved that to "logs-1",
+     *                          then the result will map "project-1" to "logs". We rely on the remote search request to expand "logs" back
+     *                          to "logs-1".
+     * @param indicesOptions this value is set as-is in the resulting ResolvedIndices.
      */
     public static ResolvedIndices resolveWithIndexExpressions(
         OriginalIndices localIndices,

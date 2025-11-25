@@ -515,13 +515,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             } else {
                 final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
                 if (shouldMinimizeRoundtrips(rewritten)) {
-                    collectResolvedIndices(
+                    collectRemoteResolvedIndices(
                         resolvesCrossProject,
                         rewritten,
                         resolutionIdxOpts,
                         resolvedIndices,
                         searchResponseActionListener.delegateFailureAndWrap((searchListener, replacedIndices) -> {
                             if (replacedIndices.getRemoteClusterIndices().isEmpty()) {
+                                // if the original resolvedIndices had remote clusters, but the replacedIndices no longer does, then we
+                                // treat this like a local search. If there is no local index, then executeLocalSearch will return an
+                                // empty result.
                                 executeLocalSearch(
                                     task,
                                     timeProvider,
@@ -1080,8 +1083,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     /**
      * Only used for ccs_minimize_roundtrips=true pathway
+     * If Cross-Project Search (CPS) is enabled, then this method will fan out to the linked projects to resolve and validate their indices.
      */
-    void collectResolvedIndices(
+    void collectRemoteResolvedIndices(
         boolean resolvesCrossProject,
         SearchRequest rewritten,
         IndicesOptions resolutionIdxOpts,
@@ -1129,7 +1133,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     /**
      * Only used for ccs_minimize_roundtrips=true pathway
      */
-    private void mergeResolvedIndices(
+    private static void mergeResolvedIndices(
         ResolvedIndices originalResolvedIndices,
         Collection<Map.Entry<String, ResolveIndexAction.Response>> responsesByProject,
         SearchRequest rewritten,

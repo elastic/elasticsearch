@@ -132,6 +132,8 @@ public enum ElementType {
             elementType = AGGREGATE_METRIC_DOUBLE;
         } else if (type != null && ExponentialHistogram.class.isAssignableFrom(type)) {
             elementType = EXPONENTIAL_HISTOGRAM;
+        } else if (type != null && TDigestHolder.class.isAssignableFrom(type)) {
+            elementType = TDIGEST;
         } else if (type == null || type == Void.class) {
             elementType = NULL;
         } else {

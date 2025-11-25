@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BlockUtils.BuilderWrapper;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -508,7 +509,7 @@ public final class CsvTestUtils {
         ),
         DENSE_VECTOR(Float::parseFloat, Float.class, false),
         EXPONENTIAL_HISTOGRAM(CsvTestUtils::parseExponentialHistogram, ExponentialHistogram.class),
-        TDIGEST(CsvTestUtils::parseTDigest, TDigestParser.ParsedTDigest.class),
+        TDIGEST(CsvTestUtils::parseTDigest, TDigestHolder.class),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {
@@ -605,6 +606,7 @@ public final class CsvTestUtils {
                 case COMPOSITE -> throw new IllegalArgumentException("can't assert on composite blocks");
                 case AGGREGATE_METRIC_DOUBLE -> AGGREGATE_METRIC_DOUBLE;
                 case EXPONENTIAL_HISTOGRAM -> EXPONENTIAL_HISTOGRAM;
+                case TDIGEST -> TDIGEST;
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }
@@ -722,17 +724,18 @@ public final class CsvTestUtils {
         }
     }
 
-    private static TDigestParser.ParsedTDigest parseTDigest(@Nullable String json) {
+    private static TDigestHolder parseTDigest(@Nullable String json) {
         if (json == null) {
             return null;
         }
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
-            return TDigestParser.parse(
+            TDigestParser.ParsedTDigest parsed = TDigestParser.parse(
                 "field from test data",
                 parser,
                 DocumentParsingException::new,
                 XContentParserUtils::parsingException
             );
+            return new TDigestHolder(parsed.centroids(), parsed.counts(), parsed.min(), parsed.max(), parsed.sum(), parsed.count());
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }

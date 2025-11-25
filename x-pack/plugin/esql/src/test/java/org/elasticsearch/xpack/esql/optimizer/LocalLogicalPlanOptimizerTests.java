@@ -1993,6 +1993,14 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var relation = as(filter.child(), EsRelation.class);
         assertThat(relation.output(), hasItem(lastNamePushDownAttr));
         assertThat(relation.output(), hasItem(firstNamePushDownAttr));
+        assertThat(relation.output().stream().filter(a -> {
+            if (a instanceof FieldAttribute fa) {
+                if (fa.field() instanceof FunctionEsField fef) {
+                    return fef.functionConfig().function() == BlockLoaderFunctionConfig.Function.LENGTH;
+                }
+            }
+            return false;
+        }).toList(), hasSize(2));
     }
 
     public void testLengthInStatsTwice() {

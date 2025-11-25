@@ -17,6 +17,8 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -64,6 +66,7 @@ final class PackedValuesBlockHash extends BlockHash {
     private final BytesRefHash bytesRefHash;
     private final int nullTrackingBytes;
     private final BytesRefBuilder bytes = new BytesRefBuilder();
+    private final SubHash[] subHashes;
     private final List<GroupSpec> specs;
 
     PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize) {
@@ -73,6 +76,13 @@ final class PackedValuesBlockHash extends BlockHash {
         this.bytesRefHash = new BytesRefHash(1, blockFactory.bigArrays());
         this.nullTrackingBytes = (specs.size() + 7) / 8;
         bytes.grow(nullTrackingBytes);
+        this.subHashes = new SubHash[specs.size()];
+        for (int i = 0; i < specs.size(); i++) {
+            var spec = specs.get(i);
+            if (spec.elementType() == ElementType.BYTES_REF) {
+                subHashes[i] = new SubHash(blockFactory);
+            }
+        }
     }
 
     @Override
@@ -90,7 +100,6 @@ final class PackedValuesBlockHash extends BlockHash {
      * The on-heap representation of a {@code for} loop for each group key.
      */
     private static class Group implements Releasable {
-        final GroupSpec spec;
         final BatchEncoder encoder;
         int positionOffset;
         int valueOffset;
@@ -106,15 +115,39 @@ final class PackedValuesBlockHash extends BlockHash {
         int valueCount;
         int bytesStart;
 
-        Group(GroupSpec spec, Page page, int batchSize) {
-            this.spec = spec;
-            this.encoder = MultivalueDedupe.batchEncoder(page.getBlock(spec.channel()), batchSize, true);
+        final Releasable releasable;
+
+        Group(Block block, int batchSize, Releasable releasable) {
+            this.encoder = MultivalueDedupe.batchEncoder(block, batchSize, true);
+            this.releasable = releasable;
         }
 
         @Override
         public void close() {
-            encoder.close();
+            Releasables.close(encoder, releasable);
         }
+    }
+
+    private Group[] newGroups(Page page, int batchSize) {
+        Group[] groups = new Group[specs.size()];
+        boolean success = false;
+        try {
+            for (int i = 0; i < specs.size(); i++) {
+                final Block block = page.getBlock(specs.get(i).channel());
+                if (subHashes[i] != null) {
+                    var hash = subHashes[i].hash((BytesRefBlock) block);
+                    groups[i] = new Group(hash, batchSize, hash);
+                } else {
+                    groups[i] = new Group(block, batchSize, () -> {});
+                }
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(groups);
+            }
+        }
+        return groups;
     }
 
     class AddWork extends AddPage {
@@ -124,7 +157,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
         AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
             super(blockFactory, emitBatchSize, addInput);
-            this.groups = specs.stream().map(s -> new Group(s, page, batchSize)).toArray(Group[]::new);
+            this.groups = newGroups(page, batchSize);
             this.positionCount = page.getPositionCount();
         }
 
@@ -181,7 +214,7 @@ final class PackedValuesBlockHash extends BlockHash {
         private int position;
 
         LookupWork(Page page, long targetByteSize, int batchSize) {
-            this.groups = specs.stream().map(s -> new Group(s, page, batchSize)).toArray(Group[]::new);
+            this.groups = newGroups(page, batchSize);
             this.positionCount = page.getPositionCount();
             this.targetByteSize = targetByteSize;
         }
@@ -352,10 +385,12 @@ final class PackedValuesBlockHash extends BlockHash {
         try {
             for (int g = 0; g < builders.length; g++) {
                 ElementType elementType = specs.get(g).elementType();
+                if (elementType == ElementType.BYTES_REF) {
+                    elementType = ElementType.INT;
+                }
                 decoders[g] = BatchEncoder.decoder(elementType);
                 builders[g] = elementType.newBlockBuilder(size, blockFactory);
             }
-
             BytesRef[] values = new BytesRef[(int) Math.min(100, bytesRefHash.size())];
             BytesRef[] nulls = new BytesRef[values.length];
             for (int offset = 0; offset < values.length; offset++) {
@@ -382,7 +417,27 @@ final class PackedValuesBlockHash extends BlockHash {
             if (offset > 0) {
                 readKeys(decoders, builders, nulls, values, offset);
             }
-            return Block.Builder.buildAll(builders);
+            Block[] blocks = Block.Builder.buildAll(builders);
+            boolean success = false;
+            try {
+                for (int i = 0; i < blocks.length; i++) {
+                    if (subHashes[i] != null) {
+                        if (blocks[i].asVector() instanceof IntVector v) {
+                            var resolved = subHashes[i].lookup(v);
+                            blocks[i].close();
+                            blocks[i] = resolved;
+                        } else {
+                            throw new IllegalStateException("expected a vector for hashed bytes_ref keys; got " + blocks[i].getClass());
+                        }
+                    }
+                }
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.closeExpectNoException(blocks);
+                }
+            }
+            return blocks;
         } finally {
             Releasables.closeExpectNoException(builders);
         }
@@ -413,7 +468,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public void close() {
-        bytesRefHash.close();
+        Releasables.close(Releasables.wrap(subHashes), bytesRefHash);
     }
 
     @Override
@@ -431,5 +486,90 @@ final class PackedValuesBlockHash extends BlockHash {
         b.append("], entries=").append(bytesRefHash.size());
         b.append(", size=").append(ByteSizeValue.ofBytes(bytesRefHash.ramBytesUsed()));
         return b.append("}").toString();
+    }
+
+    /**
+     * Similar to {@link BytesRefBlockHash}, but it does not perform de-duplication.
+     */
+    static final class SubHash implements Releasable {
+        private final BytesRefHash dict;
+        private final BlockFactory blockFactory;
+
+        SubHash(BlockFactory blockFactory) {
+            this.blockFactory = blockFactory;
+            this.dict = new BytesRefHash(1024, blockFactory.bigArrays());
+        }
+
+        IntBlock hash(BytesRefBlock block) {
+            BytesRefVector vector = block.asVector();
+            if (vector != null) {
+                return doHash(vector);
+            } else {
+                return doHash(block);
+            }
+        }
+
+        private IntBlock doHash(BytesRefVector vector) {
+            try (var builder = blockFactory.newIntVectorFixedBuilder(vector.getPositionCount())) {
+                final BytesRef scratch = new BytesRef();
+                for (int p = 0; p < vector.getPositionCount(); p++) {
+                    BytesRef bytes = vector.getBytesRef(p, scratch);
+                    long ord = hashOrdToGroupNullReserved(dict.add(bytes));
+                    builder.appendInt(p, Math.toIntExact(ord));
+                }
+                return builder.build().asBlock();
+            }
+        }
+
+        private IntBlock doHash(BytesRefBlock block) {
+            try (var builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
+                builder.mvOrdering(block.mvOrdering());
+                final BytesRef scratch = new BytesRef();
+                for (int p = 0; p < block.getPositionCount(); p++) {
+                    int valueCount = block.getValueCount(p);
+                    if (valueCount == 0) {
+                        builder.appendInt(0);
+                        continue;
+                    }
+                    int first = block.getFirstValueIndex(p);
+                    if (valueCount == 1) {
+                        BytesRef bytes = block.getBytesRef(first, scratch);
+                        long ord = hashOrdToGroupNullReserved(dict.add(bytes));
+                        builder.appendInt(Math.toIntExact(ord));
+                    } else {
+                        builder.beginPositionEntry();
+                        for (int v = 0; v < valueCount; v++) {
+                            BytesRef bytes = block.getBytesRef(first + v, scratch);
+                            long ord = hashOrdToGroupNullReserved(dict.add(bytes));
+                            builder.appendInt(Math.toIntExact(ord));
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        BytesRefBlock lookup(IntVector vector) {
+            final BytesRef scratch = new BytesRef();
+            try (var builder = blockFactory.newBytesRefBlockBuilder(vector.getPositionCount())) {
+                builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+                for (int p = 0; p < vector.getPositionCount(); p++) {
+                    int v = vector.getInt(p);
+                    if (v == 0) {
+                        builder.appendNull();
+                    } else {
+                        var bytes = dict.get(v - 1, scratch);
+                        builder.appendBytesRef(bytes);
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void close() {
+            dict.close();
+        }
     }
 }

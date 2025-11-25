@@ -63,6 +63,7 @@ import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -265,7 +266,8 @@ public class SecurityTests extends ESTestCase {
             TelemetryProvider.NOOP,
             mock(PersistentTasksService.class),
             StubLinkedProjectConfigService.INSTANCE,
-            TestProjectResolvers.alwaysThrow()
+            TestProjectResolvers.alwaysThrow(),
+            mock(ProjectRoutingResolver.class)
         );
     }
 

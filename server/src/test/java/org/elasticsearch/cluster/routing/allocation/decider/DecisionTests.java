@@ -33,8 +33,8 @@ public class DecisionTests extends ESTestCase {
     }
 
     public void testTypeAllowed() {
-        List.of(NOT_PREFERRED, YES).forEach(d -> assertTrue(d.allowed()));
-        List.of(NO, THROTTLE).forEach(d -> assertFalse(d.allowed()));
+        List.of(NOT_PREFERRED, YES).forEach(d -> assertTrue(d.assignmentAllowed()));
+        List.of(NO, THROTTLE).forEach(d -> assertFalse(d.assignmentAllowed()));
     }
 
 }

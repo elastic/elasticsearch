@@ -169,8 +169,8 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
         /**
          * @return true if Type is one of {NOT_PREFERRED, YES}
          */
-        public boolean allowed() {
-            return this.compareTo(NOT_PREFERRED) >= 0;
+        public boolean assignmentAllowed() {
+            return this == NOT_PREFERRED || this == YES;
         }
 
     }

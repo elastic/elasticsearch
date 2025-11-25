@@ -228,7 +228,7 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static long process(BytesRef val, BytesRef formatter, @Fixed ZoneId zoneId, @Fixed Locale locale) throws IllegalArgumentException {
-        return parse(val.utf8ToString(), toFormatter(formatter), zoneId, locale);
+        return parse(val.utf8ToString(), toFormatter(formatter, locale), zoneId, locale);
     }
 
     private static long parse(String date, DateFormatter formatter, ZoneId zoneId, Locale locale) {
@@ -259,7 +259,7 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
 
         var parsedOptions = this.parseOptions();
         String localeAsString = (String) parsedOptions.get(LOCALE_PARAM_NAME);
-        Locale locale = localeAsString == null ? configuration().locale() : LocaleUtils.parse(localeAsString);
+        Locale locale = localeAsString == null ? Locale.ROOT : LocaleUtils.parse(localeAsString);
 
         String timezoneAsString = (String) parsedOptions.get(TIME_ZONE_PARAM_NAME);
         ZoneId timezone = configuration().zoneId();
@@ -272,8 +272,13 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
         }
 
         if (format == null) {
-            // TODO: Timezone and locale here
-            return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, DEFAULT_DATE_TIME_FORMATTER, timezone, locale);
+            return new DateParseConstantEvaluator.Factory(
+                source(),
+                fieldEvaluator,
+                DEFAULT_DATE_TIME_FORMATTER.withLocale(locale),
+                timezone,
+                locale
+            );
         }
         if (DataType.isString(format.dataType()) == false) {
             throw new IllegalArgumentException("unsupported data type for date_parse [" + format.dataType() + "]");
@@ -281,7 +286,7 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
 
         if (format.foldable()) {
             try {
-                DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()));
+                DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()), locale);
                 return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, formatter, timezone, locale);
             } catch (IllegalArgumentException e) {
                 throw new InvalidArgumentException(e, "invalid date pattern for [{}]: {}", sourceText(), e.getMessage());
@@ -291,8 +296,8 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
         return new DateParseEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, timezone, locale);
     }
 
-    private static DateFormatter toFormatter(Object format) {
-        return forPattern(((BytesRef) format).utf8ToString());
+    private static DateFormatter toFormatter(Object format, Locale locale) {
+        return forPattern(((BytesRef) format).utf8ToString()).withLocale(locale);
     }
 
     @Override

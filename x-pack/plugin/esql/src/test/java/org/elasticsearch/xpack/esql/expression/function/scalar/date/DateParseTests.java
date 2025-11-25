@@ -127,7 +127,6 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
                     List.of(
                         new TestCaseSupplier.TypedData(new BytesRef("not a format"), DataType.KEYWORD, "first"),
                         new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.KEYWORD, "second")
-
                     ),
                     startsWith("DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId="),
                     DataType.DATETIME,
@@ -160,6 +159,7 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
         );
         cases = anyNullIsNull(true, cases);
 
+        // Timezones
         cases.addAll(casesFor("yyyy-MM-dd", "2023-05-05", "Z", "en-us", "2023-05-05T00:00:00.000Z"));
         cases.addAll(casesFor("dd-mm-yyyy", "10-10-2025", "Europe/Paris", "en-us", "2024-12-31T23:00:00.000Z"));
         cases.addAll(casesFor("yyyy-MM-dd", "2023-05-05", "-05:00", "en-us", "2023-05-05T00:00:00.000-05:00"));
@@ -170,6 +170,26 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
         );
         cases.addAll(casesForDefaultFormat("2023-05-05T11:22:33.444", "Europe/Madrid", "en-us", "2023-05-05T11:22:33.444+02:00"));
         cases.addAll(casesForDefaultFormat("2023-05-05T11:22:33.444+05:00", "Europe/Madrid", "en-us", "2023-05-05T11:22:33.444+05:00"));
+
+        // Locales
+        cases.addAll(casesFor("yyyy-MMM-dd", "2023-Jan-05", "Z", "en-us", "2023-01-05T00:00:00.000Z"));
+        cases.addAll(casesFor("yyyy-MMM-dd", "2023-ene-05", "Z", "es-es", "2023-01-05T00:00:00.000Z"));
+        cases.addAll(
+            casesFor("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", "2023-05-05T11:22:33.444+01:00", "Z", "es-es", "2023-05-05T11:22:33.444+01:00")
+        );
+        cases.addAll(
+            casesFor("yyyy-MMM-dd'T'HH:mm:ss.SSSXXX", "2023-may-05T11:22:33.444+01:00", "Z", "es-es", "2023-05-05T11:22:33.444+01:00")
+        );
+        cases.addAll(
+            casesFor("yyyy-MMM-dd'T'HH:mm:ss.SSSXXX", "2023-may-05T11:22:33.444+01:00", "Z", "es-es", "2023-05-05T11:22:33.444+01:00")
+        );
+        cases.addAll(casesForDefaultFormat("2023-05-05T11:22:33.444+02:00", "Z", "es-es", "2023-05-05T11:22:33.444+02:00"));
+        cases.addAll(casesForDefaultFormat("2023-05-05T11:22:33.444", "Europe/Madrid", "es-es", "2023-05-05T11:22:33.444+02:00"));
+
+        cases.addAll(
+            casesFor("yyyy-MM-dd'T'HH:mm:ss.SSS", "2023-05-05T11:22:33.444", "Europe/Madrid", "es-es", "2023-05-05T11:22:33.444+02:00")
+        );
+        cases.addAll(casesFor("yyyy-MMM-dd", "2023-ene-05", "Europe/Madrid", "es-es", "2023-01-05T00:00:00.000+01:00"));
 
         return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(cases));
     }
@@ -187,7 +207,7 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
         return List.of(
             // Zone and locale in the options map
             new TestCaseSupplier(
-                format + ", " + date + ", " + zoneIdString + ", " + expectedString,
+                format + ", " + date + ", " + zoneIdString + ", " + localeString + ", " + expectedString + " (map)",
                 List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.OBJECT),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
@@ -220,12 +240,23 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
 
             // Zone and locale in the configuration
             new TestCaseSupplier(
-                format + ", " + date + ", " + zoneIdString + ", " + expectedString,
-                List.of(DataType.KEYWORD, DataType.KEYWORD),
+                format + ", " + date + ", " + zoneIdString + ", " + localeString + ", " + expectedString + " (config)",
+                List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.OBJECT),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(new BytesRef(format), DataType.KEYWORD, "pattern"),
-                        new TestCaseSupplier.TypedData(new BytesRef(date), DataType.KEYWORD, "date")
+                        new TestCaseSupplier.TypedData(new BytesRef(date), DataType.KEYWORD, "date"),
+                        new TestCaseSupplier.TypedData(
+                            new MapExpression(
+                                Source.EMPTY,
+                                List.of(
+                                    new Literal(Source.EMPTY, new BytesRef("locale"), DataType.KEYWORD),
+                                    new Literal(Source.EMPTY, new BytesRef(localeString), DataType.KEYWORD)
+                                )
+                            ),
+                            DataType.OBJECT,
+                            "options"
+                        ).forceLiteral()
                     ),
                     "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId="
                         + zoneId
@@ -234,7 +265,7 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
                         + "]",
                     DataType.DATETIME,
                     matchesDateMillis(expectedString)
-                ).withConfiguration(TEST_SOURCE, configurationForTimezoneAndLocale(zoneId, locale))
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
             )
         );
     }
@@ -250,7 +281,7 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
 
         return List.of(
             new TestCaseSupplier(
-                date + ", " + zoneIdString + ", " + expectedString,
+                date + ", " + zoneIdString + ", " + localeString + ", " + expectedString + " (map)",
                 List.of(DataType.KEYWORD, DataType.OBJECT),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
@@ -270,7 +301,9 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
                             "options"
                         ).forceLiteral()
                     ),
-                    "DateParseConstantEvaluator[val=Attribute[channel=0], formatter=format[strict_date_optional_time] zone[null] locale[], zoneId="
+                    "DateParseConstantEvaluator[val=Attribute[channel=0], formatter=format[strict_date_optional_time] zone[null] locale["
+                        + locale
+                        + "], zoneId="
                         + zoneId
                         + ", locale="
                         + locale
@@ -280,18 +313,33 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
                 )
             ),
             new TestCaseSupplier(
-                date + ", " + zoneIdString + ", " + expectedString,
-                List.of(DataType.KEYWORD),
+                date + ", " + zoneIdString + ", " + localeString + ", " + expectedString + " (config)",
+                List.of(DataType.KEYWORD, DataType.OBJECT),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(date), DataType.KEYWORD, "date")),
-                    "DateParseConstantEvaluator[val=Attribute[channel=0], formatter=format[strict_date_optional_time] zone[null] locale[], zoneId="
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef(date), DataType.KEYWORD, "date"),
+                        new TestCaseSupplier.TypedData(
+                            new MapExpression(
+                                Source.EMPTY,
+                                List.of(
+                                    new Literal(Source.EMPTY, new BytesRef("locale"), DataType.KEYWORD),
+                                    new Literal(Source.EMPTY, new BytesRef(localeString), DataType.KEYWORD)
+                                )
+                            ),
+                            DataType.OBJECT,
+                            "options"
+                        ).forceLiteral()
+                    ),
+                    "DateParseConstantEvaluator[val=Attribute[channel=0], formatter=format[strict_date_optional_time] zone[null] locale["
+                        + locale
+                        + "], zoneId="
                         + zoneId
                         + ", locale="
                         + locale
                         + "]",
                     DataType.DATETIME,
                     matchesDateMillis(expectedString)
-                ).withConfiguration(TEST_SOURCE, configurationForTimezoneAndLocale(zoneId, locale))
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
             )
         );
     }

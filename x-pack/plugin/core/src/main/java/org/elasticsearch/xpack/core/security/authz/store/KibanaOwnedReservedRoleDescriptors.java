@@ -552,7 +552,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportDeleteIndexAction.TYPE.name()
                     )
                     .build(),
-                // For ExtraHop, QualysGAV, SentinelOne, Island Browser and Cyera specific actions.
+                // For ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera and IRONSCALES specific actions.
                 // Kibana reads, writes and manages this index
                 // for configured ILM policies.
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -565,7 +565,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-island_browser.device-*",
                         "logs-cyera.classification-*",
                         "logs-cyera.issue-*",
-                        "logs-cyera.datastore-*"
+                        "logs-cyera.datastore-*",
+                        "logs-ironscales.incident-*"
                     )
                     .privileges(
                         "manage",

@@ -197,7 +197,7 @@ Here’s an example of a complete eCommerce order document with two products (ba
     
     `products.discount_amount` ([`half_float`](/reference/elasticsearch/mapping-reference/number.md)): Discount amounts applied.
     
-    `products.discount_percentage` ([`half_float`](/reference/elasticsearch/mapping-reference/number)) : Percentage discounts applied.
+    `products.discount_percentage` ([`half_float`](/reference/elasticsearch/mapping-reference/number.md)) : Percentage discounts applied.
     
     `products.unit_discount_amount` ([`half_float`](/reference/elasticsearch/mapping-reference/number.md)): Discount amount per unit.
     

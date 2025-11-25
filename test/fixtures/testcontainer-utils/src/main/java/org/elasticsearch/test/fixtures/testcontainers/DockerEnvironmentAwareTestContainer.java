@@ -34,12 +34,18 @@ public abstract class DockerEnvironmentAwareTestContainer extends GenericContain
     implements
         TestRule,
         CacheableTestFixture {
+
+    static {
+        System.setProperty("api.version", "v1.44"); // set docker api version to avoid version probing which fails in some environments
+    }
+
     protected static final Logger LOGGER = LoggerFactory.getLogger(DockerEnvironmentAwareTestContainer.class);
 
     private static final String DOCKER_ON_LINUX_EXCLUSIONS_FILE = ".ci/dockerOnLinuxExclusions";
 
     private static final boolean CI = Boolean.parseBoolean(System.getProperty("CI", "false"));
     private static final boolean EXCLUDED_OS = isExcludedOs();
+
     private static final boolean DOCKER_PROBING_SUCCESSFUL = isDockerAvailable();
 
     /**

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.exponentialhistogram.fielddata;
+package org.elasticsearch.xpack.core.exponentialhistogram.fielddata;
 
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 

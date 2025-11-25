@@ -73,7 +73,7 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
 
         TSDBStoredFieldsWriter(Directory directory, SegmentInfo si, IOContext context) throws IOException {
             boolean success = false;
-            List<Closeable> toClose = new ArrayList<>();
+            List<Closeable> toClose = new ArrayList<>(2);
             try {
                 this.storedFieldsWriter = delegate.fieldsWriter(directory, si, context);
                 toClose.add(storedFieldsWriter);
@@ -206,7 +206,7 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
 
         TSDBStoredFieldsReader(Directory directory, SegmentInfo si, FieldInfos fn, IOContext context) throws IOException {
             boolean success = false;
-            List<Closeable> toClose = new ArrayList<>();
+            List<Closeable> toClose = new ArrayList<>(2);
             try {
                 this.storedFieldsReader = delegate.fieldsReader(directory, si, fn, context);
                 toClose.add(this.storedFieldsReader);

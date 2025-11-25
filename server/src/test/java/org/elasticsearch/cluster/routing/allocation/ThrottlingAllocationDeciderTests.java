@@ -51,8 +51,8 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
             numberOfShards,
             1
         );
-        // The number of data nodes the util method above creates is numberOfReplicas+2.
-        assertEquals(3, clusterState.nodes().size());
+        // The number of data nodes the util method above creates is numberOfReplicas+1.
+        assertEquals(2, clusterState.nodes().size());
         assertEquals(1, clusterState.metadata().getTotalNumberOfIndices());
 
         var indexIterator = clusterState.metadata().indicesAllProjects().iterator();
@@ -72,8 +72,6 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
         var mutableRoutingNode1 = routingNodesIterator.next();
         assertTrue(routingNodesIterator.hasNext());
         var mutableRoutingNode2 = routingNodesIterator.next();
-        assertTrue(routingNodesIterator.hasNext());
-        routingNodesIterator.next(); // unused third node.
         assertFalse(routingNodesIterator.hasNext());
 
         RoutingTable routingTable = clusterState.routingTable(ProjectId.DEFAULT);

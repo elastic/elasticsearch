@@ -596,6 +596,14 @@ public class ClusterStateCreationUtils {
         return state.build();
     }
 
+    /**
+     * Creates cluster state that contains the specified indices with UNASSIGNED shards. The number of nodes will be
+     * `numberOfReplicas + 1` so that all index shards can be fully assigned.
+     *
+     * @param indices List of indices to create.
+     * @param numberOfShards Number of shards per index.
+     * @param numberOfReplicas Number of shard replicas per shard.
+     */
     public static ClusterState stateWithUnassignedPrimariesAndReplicas(String[] indices, int numberOfShards, int numberOfReplicas) {
         return stateWithUnassignedPrimariesAndReplicas(
             Metadata.DEFAULT_PROJECT_ID,
@@ -606,7 +614,8 @@ public class ClusterStateCreationUtils {
     }
 
     /**
-     * Creates cluster state with several indexes, shards and replicas (with given roles) and all shards STARTED.
+     * Creates cluster state that contains the specified indices with all UNASSIGNED shards.
+     * The number of nodes will be `replicaRoles.size() + 1` so that all index shards can be fully assigned.
      */
     public static ClusterState stateWithUnassignedPrimariesAndReplicas(
         ProjectId projectId,
@@ -616,12 +625,11 @@ public class ClusterStateCreationUtils {
     ) {
         int numberOfDataNodes = replicaRoles.size() + 1;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
-        for (int i = 0; i < numberOfDataNodes + 1; i++) {
+        for (int i = 0; i < numberOfDataNodes; i++) {
             final DiscoveryNode node = newNode(i);
             discoBuilder = discoBuilder.add(node);
             if (i == 0) {
                 discoBuilder.localNodeId(node.getId());
-            } else if (i == numberOfDataNodes) {
                 discoBuilder.masterNodeId(node.getId());
             }
         }

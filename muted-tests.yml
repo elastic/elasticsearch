@@ -444,6 +444,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
   method: testAggregateMetricDoubleInlineStats
   issue: https://github.com/elastic/elasticsearch/issues/138620
+- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
+  method: testAggregateMetricDoubleInlineStats
+  issue: https://github.com/elastic/elasticsearch/issues/138620
 
 # Examples:
 #

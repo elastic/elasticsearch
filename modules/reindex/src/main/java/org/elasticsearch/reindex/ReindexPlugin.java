@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -43,6 +44,11 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
     public static final String NAME = "reindex";
 
     public static final ActionType<ListTasksResponse> RETHROTTLE_ACTION = new ActionType<>("cluster:admin/reindex/rethrottle");
+
+    /**
+     * A {@link FeatureFlag} to guard the work to make reindex more resilient while it is under development.
+     */
+    static final FeatureFlag REINDEX_RESILIENCE_FEATURE_FLAG = new FeatureFlag("reindex_resilience");
 
     @Override
     public List<ActionHandler> getActions() {

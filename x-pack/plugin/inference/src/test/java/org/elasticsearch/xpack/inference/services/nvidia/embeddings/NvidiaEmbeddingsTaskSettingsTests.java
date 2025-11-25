@@ -175,7 +175,7 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public void testOf_KeepsOriginalValuesWhenRequestSettingsAreEmpty() {
         var taskSettings = new NvidiaEmbeddingsTaskSettings(InputType.INGEST, Truncation.START);
         var overriddenTaskSettings = NvidiaEmbeddingsTaskSettings.of(taskSettings, NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS);
-        assertThat(overriddenTaskSettings, is(taskSettings));
+        assertThat(overriddenTaskSettings, is(sameInstance(taskSettings)));
     }
 
     public void testOf_UsesRequestTaskSettings() {

@@ -1420,7 +1420,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 1, // always enable range-encode
                 random().nextBoolean(),
                 randomBinaryCompressionMode(),
-                randomBoolean()
+                randomBoolean(),
+                randomNumericBlockSize()
             );
 
             @Override
@@ -1797,6 +1798,10 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
     public static BinaryDVCompressionMode randomBinaryCompressionMode() {
         BinaryDVCompressionMode[] modes = BinaryDVCompressionMode.values();
         return modes[random().nextInt(modes.length)];
+    }
+
+    public static int randomNumericBlockSize() {
+        return random().nextBoolean() ? ES819TSDBDocValuesFormat.NUMERIC_LARGE_BLOCK_SHIFT : ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
     }
 
     private boolean isCompressed(IndexWriterConfig config, String field) {

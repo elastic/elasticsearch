@@ -71,9 +71,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     private final int maxDoc;
     final int version;
     private final boolean merging;
-    private final int numericBlockShift;
-    private final int numericBlockSize;
-    private final int numericBlockMask;
+    private int numericBlockShift;
+    private int numericBlockSize;
+    private int numericBlockMask;
 
     ES819TSDBDocValuesProducer(
         SegmentReadState state,
@@ -92,10 +92,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         this.maxDoc = state.segmentInfo.maxDoc();
         this.primarySortFieldNumber = primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
         this.merging = false;
+        this.numericBlockShift = numericBlockShift;
+        this.numericBlockSize = 1 << numericBlockShift;
+        this.numericBlockMask = numericBlockSize - 1;
 
         // read in the entries from the metadata file.
         int version = -1;
-        int blockShift = numericBlockShift;
         String metaName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
 
         try (ChecksumIndexInput in = state.directory.openChecksumInput(metaName)) {
@@ -111,17 +113,17 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     state.segmentSuffix
                 );
                 if (version >= ES819TSDBDocValuesFormat.VERSION_NUMERIC_LARGE_BLOCKS) {
-                    blockShift = in.readByte();
+                    this.numericBlockShift = in.readByte();
+                    this.numericBlockSize = 1 << this.numericBlockShift;
+                    this.numericBlockMask = this.numericBlockSize - 1;
                 }
                 readFields(in, state.fieldInfos, version);
-
             } catch (Throwable exception) {
                 priorE = exception;
             } finally {
                 CodecUtil.checkFooter(in, priorE);
             }
         }
-
         String dataName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, dataExtension);
         this.data = state.directory.openInput(dataName, state.context);
         boolean success = false;
@@ -151,10 +153,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 IOUtils.closeWhileHandlingException(this.data);
             }
         }
-
-        this.numericBlockShift = blockShift;
-        this.numericBlockSize = 1 << numericBlockShift;
-        this.numericBlockMask = numericBlockSize - 1;
     }
 
     private ES819TSDBDocValuesProducer(

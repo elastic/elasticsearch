@@ -26,7 +26,9 @@ import org.elasticsearch.core.Releasables;
         @IntermediateState(name = "sumVal", type = "DOUBLE"),
         @IntermediateState(name = "sumTs", type = "LONG"),
         @IntermediateState(name = "sumTsVal", type = "DOUBLE"),
-        @IntermediateState(name = "sumTsSq", type = "LONG") }
+        @IntermediateState(name = "sumTsSq", type = "LONG"),
+        @IntermediateState(name = "maxTs", type = "LONG"),
+        @IntermediateState(name = "valueAtMaxTs", type = "DOUBLE"), }
 )
 @GroupingAggregator
 class DerivDoubleAggregator {
@@ -49,13 +51,19 @@ class DerivDoubleAggregator {
         double sumVal,
         long sumTs,
         double sumTsVal,
-        long sumTsSq
+        long sumTsSq,
+        long maxTs,
+        double valueAtMaxTs
     ) {
         state.count += count;
         state.sumVal += sumVal;
         state.sumTs += sumTs;
         state.sumTsVal += sumTsVal;
         state.sumTsSq += sumTsSq;
+        if (state.maxTs < maxTs) {
+            state.maxTs = maxTs;
+            state.valueAtMaxTs = valueAtMaxTs;
+        }
     }
 
     public static Block evaluateFinal(SimpleLinearRegressionWithTimeseries state, DriverContext driverContext) {
@@ -86,9 +94,11 @@ class DerivDoubleAggregator {
         double sumVal,
         long sumTs,
         double sumTsVal,
-        long sumTsSq
+        long sumTsSq,
+        long maxTs,
+        double valueAtMaxTs
     ) {
-        combineIntermediate(state.getAndGrow(groupId), count, sumVal, sumTs, sumTsVal, sumTsSq);
+        combineIntermediate(state.getAndGrow(groupId), count, sumVal, sumTs, sumTsVal, sumTsSq, maxTs, valueAtMaxTs);
     }
 
     public static Block evaluateFinal(GroupingState state, IntVector selectedGroups, GroupingAggregatorEvaluationContext ctx) {
@@ -154,7 +164,9 @@ class DerivDoubleAggregator {
                 DoubleBlock.Builder sumValBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
                 LongBlock.Builder sumTsBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
                 DoubleBlock.Builder sumTsValBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
-                LongBlock.Builder sumTsSqBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())
+                LongBlock.Builder sumTsSqBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
+                LongBlock.Builder lastTsBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
+                DoubleBlock.Builder valueAtLastTsBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())
             ) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
@@ -165,12 +177,16 @@ class DerivDoubleAggregator {
                         sumTsBuilder.appendNull();
                         sumTsValBuilder.appendNull();
                         sumTsSqBuilder.appendNull();
+                        lastTsBuilder.appendNull();
+                        valueAtLastTsBuilder.appendNull();
                     } else {
                         countBuilder.appendLong(slr.count);
                         sumValBuilder.appendDouble(slr.sumVal);
                         sumTsBuilder.appendLong(slr.sumTs);
                         sumTsValBuilder.appendDouble(slr.sumTsVal);
                         sumTsSqBuilder.appendLong(slr.sumTsSq);
+                        lastTsBuilder.appendLong(slr.maxTs);
+                        valueAtLastTsBuilder.appendDouble(slr.valueAtMaxTs);
                     }
                 }
                 blocks[offset] = countBuilder.build();
@@ -178,6 +194,8 @@ class DerivDoubleAggregator {
                 blocks[offset + 2] = sumTsBuilder.build();
                 blocks[offset + 3] = sumTsValBuilder.build();
                 blocks[offset + 4] = sumTsSqBuilder.build();
+                blocks[offset + 5] = lastTsBuilder.build();
+                blocks[offset + 6] = valueAtLastTsBuilder.build();
             }
         }
     }

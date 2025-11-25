@@ -31,7 +31,9 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
       new IntermediateStateDesc("sumVal", ElementType.DOUBLE),
       new IntermediateStateDesc("sumTs", ElementType.LONG),
       new IntermediateStateDesc("sumTsVal", ElementType.DOUBLE),
-      new IntermediateStateDesc("sumTsSq", ElementType.LONG)  );
+      new IntermediateStateDesc("sumTsSq", ElementType.LONG),
+      new IntermediateStateDesc("maxTs", ElementType.LONG),
+      new IntermediateStateDesc("valueAtMaxTs", ElementType.DOUBLE)  );
 
   private final DerivDoubleAggregator.GroupingState state;
 
@@ -222,7 +224,17 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
       return;
     }
     LongVector sumTsSq = ((LongBlock) sumTsSqUncast).asVector();
-    assert count.getPositionCount() == sumVal.getPositionCount() && count.getPositionCount() == sumTs.getPositionCount() && count.getPositionCount() == sumTsVal.getPositionCount() && count.getPositionCount() == sumTsSq.getPositionCount();
+    Block maxTsUncast = page.getBlock(channels.get(5));
+    if (maxTsUncast.areAllValuesNull()) {
+      return;
+    }
+    LongVector maxTs = ((LongBlock) maxTsUncast).asVector();
+    Block valueAtMaxTsUncast = page.getBlock(channels.get(6));
+    if (valueAtMaxTsUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector valueAtMaxTs = ((DoubleBlock) valueAtMaxTsUncast).asVector();
+    assert count.getPositionCount() == sumVal.getPositionCount() && count.getPositionCount() == sumTs.getPositionCount() && count.getPositionCount() == sumTsVal.getPositionCount() && count.getPositionCount() == sumTsSq.getPositionCount() && count.getPositionCount() == maxTs.getPositionCount() && count.getPositionCount() == valueAtMaxTs.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -232,7 +244,7 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        DerivLongAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getLong(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getLong(valuesPosition));
+        DerivLongAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getLong(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getLong(valuesPosition), maxTs.getLong(valuesPosition), valueAtMaxTs.getDouble(valuesPosition));
       }
     }
   }
@@ -316,7 +328,17 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
       return;
     }
     LongVector sumTsSq = ((LongBlock) sumTsSqUncast).asVector();
-    assert count.getPositionCount() == sumVal.getPositionCount() && count.getPositionCount() == sumTs.getPositionCount() && count.getPositionCount() == sumTsVal.getPositionCount() && count.getPositionCount() == sumTsSq.getPositionCount();
+    Block maxTsUncast = page.getBlock(channels.get(5));
+    if (maxTsUncast.areAllValuesNull()) {
+      return;
+    }
+    LongVector maxTs = ((LongBlock) maxTsUncast).asVector();
+    Block valueAtMaxTsUncast = page.getBlock(channels.get(6));
+    if (valueAtMaxTsUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector valueAtMaxTs = ((DoubleBlock) valueAtMaxTsUncast).asVector();
+    assert count.getPositionCount() == sumVal.getPositionCount() && count.getPositionCount() == sumTs.getPositionCount() && count.getPositionCount() == sumTsVal.getPositionCount() && count.getPositionCount() == sumTsSq.getPositionCount() && count.getPositionCount() == maxTs.getPositionCount() && count.getPositionCount() == valueAtMaxTs.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -326,7 +348,7 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        DerivLongAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getLong(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getLong(valuesPosition));
+        DerivLongAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getLong(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getLong(valuesPosition), maxTs.getLong(valuesPosition), valueAtMaxTs.getDouble(valuesPosition));
       }
     }
   }
@@ -396,11 +418,21 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
       return;
     }
     LongVector sumTsSq = ((LongBlock) sumTsSqUncast).asVector();
-    assert count.getPositionCount() == sumVal.getPositionCount() && count.getPositionCount() == sumTs.getPositionCount() && count.getPositionCount() == sumTsVal.getPositionCount() && count.getPositionCount() == sumTsSq.getPositionCount();
+    Block maxTsUncast = page.getBlock(channels.get(5));
+    if (maxTsUncast.areAllValuesNull()) {
+      return;
+    }
+    LongVector maxTs = ((LongBlock) maxTsUncast).asVector();
+    Block valueAtMaxTsUncast = page.getBlock(channels.get(6));
+    if (valueAtMaxTsUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector valueAtMaxTs = ((DoubleBlock) valueAtMaxTsUncast).asVector();
+    assert count.getPositionCount() == sumVal.getPositionCount() && count.getPositionCount() == sumTs.getPositionCount() && count.getPositionCount() == sumTsVal.getPositionCount() && count.getPositionCount() == sumTsSq.getPositionCount() && count.getPositionCount() == maxTs.getPositionCount() && count.getPositionCount() == valueAtMaxTs.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      DerivLongAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getLong(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getLong(valuesPosition));
+      DerivLongAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getLong(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getLong(valuesPosition), maxTs.getLong(valuesPosition), valueAtMaxTs.getDouble(valuesPosition));
     }
   }
 

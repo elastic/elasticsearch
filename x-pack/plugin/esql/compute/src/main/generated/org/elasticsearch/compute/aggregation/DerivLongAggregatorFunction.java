@@ -29,7 +29,9 @@ public final class DerivLongAggregatorFunction implements AggregatorFunction {
       new IntermediateStateDesc("sumVal", ElementType.DOUBLE),
       new IntermediateStateDesc("sumTs", ElementType.LONG),
       new IntermediateStateDesc("sumTsVal", ElementType.DOUBLE),
-      new IntermediateStateDesc("sumTsSq", ElementType.LONG)  );
+      new IntermediateStateDesc("sumTsSq", ElementType.LONG),
+      new IntermediateStateDesc("maxTs", ElementType.LONG),
+      new IntermediateStateDesc("valueAtMaxTs", ElementType.DOUBLE)  );
 
   private final DriverContext driverContext;
 
@@ -214,7 +216,19 @@ public final class DerivLongAggregatorFunction implements AggregatorFunction {
     }
     LongVector sumTsSq = ((LongBlock) sumTsSqUncast).asVector();
     assert sumTsSq.getPositionCount() == 1;
-    DerivLongAggregator.combineIntermediate(state, count.getLong(0), sumVal.getDouble(0), sumTs.getLong(0), sumTsVal.getDouble(0), sumTsSq.getLong(0));
+    Block maxTsUncast = page.getBlock(channels.get(5));
+    if (maxTsUncast.areAllValuesNull()) {
+      return;
+    }
+    LongVector maxTs = ((LongBlock) maxTsUncast).asVector();
+    assert maxTs.getPositionCount() == 1;
+    Block valueAtMaxTsUncast = page.getBlock(channels.get(6));
+    if (valueAtMaxTsUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector valueAtMaxTs = ((DoubleBlock) valueAtMaxTsUncast).asVector();
+    assert valueAtMaxTs.getPositionCount() == 1;
+    DerivLongAggregator.combineIntermediate(state, count.getLong(0), sumVal.getDouble(0), sumTs.getLong(0), sumTsVal.getDouble(0), sumTsSq.getLong(0), maxTs.getLong(0), valueAtMaxTs.getDouble(0));
   }
 
   @Override

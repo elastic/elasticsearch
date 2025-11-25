@@ -20,7 +20,9 @@ import org.elasticsearch.compute.operator.DriverContext;
         @IntermediateState(name = "sumVal", type = "DOUBLE"),
         @IntermediateState(name = "sumTs", type = "LONG"),
         @IntermediateState(name = "sumTsVal", type = "DOUBLE"),
-        @IntermediateState(name = "sumTsSq", type = "LONG") }
+        @IntermediateState(name = "sumTsSq", type = "LONG"),
+        @IntermediateState(name = "maxTs", type = "LONG"),
+        @IntermediateState(name = "valueAtMaxTs", type = "DOUBLE"), }
 )
 @GroupingAggregator
 class DerivLongAggregator {
@@ -43,9 +45,11 @@ class DerivLongAggregator {
         double sumVal,
         long sumTs,
         double sumTsVal,
-        long sumTsSq
+        long sumTsSq,
+        long maxTs,
+        double valueAtMaxTs
     ) {
-        DerivDoubleAggregator.combineIntermediate(state, count, sumVal, sumTs, sumTsVal, sumTsSq);
+        DerivDoubleAggregator.combineIntermediate(state, count, sumVal, sumTs, sumTsVal, sumTsSq, maxTs, valueAtMaxTs);
     }
 
     public static Block evaluateFinal(SimpleLinearRegressionWithTimeseries state, DriverContext driverContext) {
@@ -71,9 +75,11 @@ class DerivLongAggregator {
         double sumVal,
         long sumTs,
         double sumTsVal,
-        long sumTsSq
+        long sumTsSq,
+        long maxTs,
+        double valueAtMaxTs
     ) {
-        combineIntermediate(state.getAndGrow(groupId), count, sumVal, sumTs, sumTsVal, sumTsSq);
+        combineIntermediate(state.getAndGrow(groupId), count, sumVal, sumTs, sumTsVal, sumTsSq, maxTs, valueAtMaxTs);
     }
 
     public static Block evaluateFinal(

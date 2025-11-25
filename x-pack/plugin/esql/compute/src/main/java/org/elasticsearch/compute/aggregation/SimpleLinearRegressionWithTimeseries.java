@@ -30,6 +30,7 @@ public class SimpleLinearRegressionWithTimeseries implements AggregatorState {
     double sumTsVal;
     long sumTsSq;
     long maxTs;
+    double valueAtMaxTs;
     double dateFactor;
     final SimpleLinearModelFunction fn;
 
@@ -44,11 +45,13 @@ public class SimpleLinearRegressionWithTimeseries implements AggregatorState {
         this.sumTsVal = 0.0;
         this.sumTsSq = 0;
         this.maxTs = Long.MIN_VALUE;
+        this.valueAtMaxTs = Double.NaN;
         this.dateFactor = dateNanos ? 1_000_000.0 : 1_000.0;
         this.fn = fn;
     }
 
     void add(long ts, double val) {
+        ts = ts / (long) dateFactor;
         count++;
         sumVal += val;
         sumTs += ts;
@@ -56,11 +59,16 @@ public class SimpleLinearRegressionWithTimeseries implements AggregatorState {
         sumTsSq += ts * ts;
         if (ts > maxTs) {
             maxTs = ts;
+            valueAtMaxTs = val;
         }
     }
 
     public double lastTimestamp() {
         return maxTs;
+    }
+
+    public double valueAtLastTimestamp() {
+        return valueAtMaxTs;
     }
 
     public double slope() {
@@ -72,7 +80,7 @@ public class SimpleLinearRegressionWithTimeseries implements AggregatorState {
         if (denominator == 0) {
             return Double.NaN;
         }
-        return numerator / denominator * dateFactor; // per second
+        return numerator / denominator;
     }
 
     public double intercept() {

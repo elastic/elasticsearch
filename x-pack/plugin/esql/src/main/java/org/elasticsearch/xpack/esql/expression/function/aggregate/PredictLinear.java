@@ -150,7 +150,7 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
 
         final DataType type = field().dataType();
         final boolean isDateNanos = timestamp.dataType() == DataType.DATE_NANOS;
-        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn = getSimpleLinearModelFunction(isDateNanos, timeDiffSeconds);
+        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn = getSimpleLinearModelFunction(timeDiffSeconds);
         return switch (type) {
             case LONG -> new DerivLongAggregatorFunctionSupplier(fn, isDateNanos);
             case INTEGER -> new DerivIntAggregatorFunctionSupplier(fn, isDateNanos);
@@ -159,19 +159,13 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
         };
     }
 
-    private static SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction getSimpleLinearModelFunction(
-        boolean isDateNanos,
-        double timeDiffSeconds
-    ) {
-        final double timestampFactor = isDateNanos ? 1_000_000.0 : 1000.0;
+    private static SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction getSimpleLinearModelFunction(double timeDiffSeconds) {
         return (SimpleLinearRegressionWithTimeseries model) -> {
             double slope = model.slope();
-            double intercept = model.intercept();
-            double lastTsSec = model.lastTimestamp() / timestampFactor;
             if (Double.isNaN(slope)) {
                 return Double.NaN;
             }
-            return intercept + slope * (lastTsSec + timeDiffSeconds);
+            return model.valueAtLastTimestamp() + slope * timeDiffSeconds;
         };
     }
 }

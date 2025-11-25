@@ -7,4 +7,28 @@
 
 package org.elasticsearch.compute.data;
 
-public sealed interface TDigestBlock extends Block permits ConstantNullBlock, TDigestArrayBlock {}
+import org.elasticsearch.index.mapper.BlockLoader;
+
+public sealed interface TDigestBlock extends Block permits ConstantNullBlock, TDigestArrayBlock {
+
+    /**
+     * Builder for {@link TDigestBlock}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.TDigestBuilder permits TDigestBlockBuilder {
+
+        /**
+         * Copy the values in {@code block} from the given positon into this builder.
+         */
+        TDigestBlock.Builder copyFrom(TDigestBlock block, int position);
+
+        @Override
+        TDigestBlock build();
+
+        DoubleBlock minimaBlock();
+        DoubleBlock maximaBlock();
+        DoubleBlock sumsBlock();
+        LongBlock valueCountsBlock();
+        BytesRefBlock encodedHistogramsBlock();
+    }
+
+}

@@ -496,6 +496,10 @@ public class BlockFactory {
         return new ExponentialHistogramBlockBuilder(estimatedSize, this);
     }
 
+    public TDigestBlockBuilder newTDigestBlockBuilder(int estimatedSize) {
+        return new TDigestBlockBuilder(estimatedSize, this);
+    }
+
     public final ExponentialHistogramBlock newConstantExponentialHistogramBlock(ExponentialHistogram value, int positionCount) {
         try (ExponentialHistogramBlockBuilder builder = newExponentialHistogramBlockBuilder(positionCount)) {
             for (int i = 0; i < positionCount; i++) {

@@ -316,6 +316,11 @@ public final class BlockUtils {
                 // return a copy so that the returned value is not bound to the lifetime of the block
                 yield ExponentialHistogram.builder(histogram, ExponentialHistogramCircuitBreaker.noop()).build();
             }
+            case TDIGEST -> {
+                TDigestBlock tDigestBlock = (TDigestBlock) block;
+                yield new TDigestHolder()
+
+            }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
     }

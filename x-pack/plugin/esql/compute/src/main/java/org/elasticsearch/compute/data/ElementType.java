@@ -75,6 +75,12 @@ public enum ElementType {
         "ExponentialHistogram",
         BlockFactory::newExponentialHistogramBlockBuilder,
         ExponentialHistogramArrayBlock::readFrom
+    ),
+    TDIGEST(
+        12,
+        "TDigest",
+        BlockFactory::newTDigestBlockBuilder,
+        TDigestArrayBlock::readFrom
     );
 
     private static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = TransportVersion.fromName("esql_serialize_block_type_code");

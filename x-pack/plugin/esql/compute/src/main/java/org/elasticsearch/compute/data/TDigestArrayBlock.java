@@ -200,6 +200,22 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
         return new TDigestArrayBlock(copiedEncodedDigests, copiedMinima, copiedMaxima, copiedSums, copiedValueCounts);
     }
 
+    void copyInto(
+        BytesRefBlock.Builder encodedDigestsBuilder,
+        DoubleBlock.Builder minimaBuilder,
+        DoubleBlock.Builder maximaBuilder,
+        DoubleBlock.Builder sumsBuilder,
+        LongBlock.Builder valueCountsBuilder,
+        int beginInclusive,
+        int endExclusive
+    ) {
+        encodedDigestsBuilder.copyFrom(encodedDigests, beginInclusive, endExclusive);
+        minimaBuilder.copyFrom(minima, beginInclusive, endExclusive);
+        maximaBuilder.copyFrom(maxima, beginInclusive, endExclusive);
+        sumsBuilder.copyFrom(sums, beginInclusive, endExclusive);
+        valueCountsBuilder.copyFrom(valueCounts, beginInclusive, endExclusive);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Block.writeTypedBlock(encodedDigests, out);
@@ -208,6 +224,30 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
         Block.writeTypedBlock(sums, out);
         Block.writeTypedBlock(valueCounts, out);
     }
+
+    public static TDigestArrayBlock readFrom(BlockStreamInput in) throws IOException {
+        BytesRefBlock encodedDigests = null;
+        DoubleBlock minima = null;
+        DoubleBlock maxima = null;
+        DoubleBlock sums = null;
+        LongBlock valueCounts = null;
+
+        boolean success = false;
+        try {
+            encodedDigests = (BytesRefBlock) Block.readTypedBlock(in);
+            minima = (DoubleBlock) Block.readTypedBlock(in);
+            maxima = (DoubleBlock) Block.readTypedBlock(in);
+            sums = (DoubleBlock) Block.readTypedBlock(in);
+            valueCounts = (LongBlock) Block.readTypedBlock(in);
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(minima, maxima, sums, valueCounts, encodedDigests);
+            }
+        }
+        return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, valueCounts);
+    }
+
 
     @Override
     public long ramBytesUsed() {

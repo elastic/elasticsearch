@@ -1,0 +1,136 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.compute.data;
+
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BlockLoader;
+
+public final class TDigestBlockBuilder implements TDigestBlock.Builder {
+
+    private final BytesRefBlock.Builder encodedDigestsBuilder;
+    private final DoubleBlock.Builder minimaBuilder;
+    private final DoubleBlock.Builder maximaBuilder;
+    private final DoubleBlock.Builder sumsBuilder;
+    private final LongBlock.Builder valueCountsBuilder;
+
+    public TDigestBlockBuilder(int size, BlockFactory blockFactory) {
+        BytesRefBlock.Builder encodedDigestsBuilder = null;
+        DoubleBlock.Builder minimaBuilder = null;
+        DoubleBlock.Builder maximaBuilder = null;
+        DoubleBlock.Builder sumsBuilder = null;
+        LongBlock.Builder valueCountsBuilder = null;
+        boolean success = false;
+        try {
+            encodedDigestsBuilder = blockFactory.newBytesRefBlockBuilder(size);
+            minimaBuilder = blockFactory.newDoubleBlockBuilder(size);
+            maximaBuilder = blockFactory.newDoubleBlockBuilder(size);
+            sumsBuilder = blockFactory.newDoubleBlockBuilder(size);
+            valueCountsBuilder = blockFactory.newLongBlockBuilder(size);
+            this.encodedDigestsBuilder = encodedDigestsBuilder;
+            this.minimaBuilder = minimaBuilder;
+            this.maximaBuilder = maximaBuilder;
+            this.sumsBuilder = sumsBuilder;
+            this.valueCountsBuilder = valueCountsBuilder;
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(encodedDigestsBuilder, minimaBuilder, maximaBuilder, sumsBuilder, valueCountsBuilder);
+            }
+        }
+    }
+
+    @Override
+    public TDigestBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
+        if (block.areAllValuesNull()) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                appendNull();
+            }
+        } else {
+            TDigestArrayBlock digestBlock = (TDigestArrayBlock) block;
+            digestBlock.copyInto(
+                encodedDigestsBuilder,
+                minimaBuilder,
+                maximaBuilder,
+                sumsBuilder,
+                valueCountsBuilder,
+                beginInclusive,
+                endExclusive
+            );
+        }
+        return this;
+    }
+
+    @Override
+    public TDigestBlock.Builder copyFrom(TDigestBlock block, int position) {
+        copyFrom(block, position, position + 1);
+        return this;
+    }
+
+
+    @Override
+    public Block.Builder appendNull() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Block.Builder beginPositionEntry() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Block.Builder endPositionEntry() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Block.Builder mvOrdering(Block.MvOrdering mvOrdering) {
+        assert mvOrdering == Block.MvOrdering.UNORDERED
+            : "TDigests don't have a natural order, so it doesn't make sense to call this";
+        return this;
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return 0;
+    }
+
+    @Override
+    public TDigestBlock build() {
+        return null;
+    }
+
+    @Override
+    public BlockLoader.DoubleBuilder minima() {
+        return null;
+    }
+
+    @Override
+    public BlockLoader.DoubleBuilder maxima() {
+        return null;
+    }
+
+    @Override
+    public BlockLoader.DoubleBuilder sums() {
+        return null;
+    }
+
+    @Override
+    public BlockLoader.LongBuilder valueCounts() {
+        return null;
+    }
+
+    @Override
+    public BlockLoader.BytesRefBuilder encodedDigests() {
+        return null;
+    }
+
+    @Override
+    public void close() {
+
+    }
+}

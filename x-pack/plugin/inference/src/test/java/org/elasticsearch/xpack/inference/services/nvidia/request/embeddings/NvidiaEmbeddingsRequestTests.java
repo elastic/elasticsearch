@@ -41,20 +41,20 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
     private static final String URL_VALUE = "http://www.abc.com";
     private static final String URL_DEFAULT_VALUE = "https://integrate.api.nvidia.com/v1/embeddings";
     private static final String API_KEY_VALUE = "test_api_key";
-    private static final InputType INPUT_TYPE_EXPEDIA_INITIAL_VALUE = InputType.INGEST;
-    private static final InputType INPUT_TYPE_EXPEDIA_IGNORED_VALUE = InputType.SEARCH;
-    private static final Truncation TRUNCATE_EXPEDIA_VALUE = Truncation.START;
+    private static final InputType INPUT_TYPE_ELASTIC_INITIAL_VALUE = InputType.INGEST;
+    private static final InputType INPUT_TYPE_ELASTIC_IGNORED_VALUE = InputType.SEARCH;
+    private static final Truncation TRUNCATE_ELASTIC_VALUE = Truncation.START;
     private static final String INPUT_TYPE_NVIDIA_VALUE = "passage";
     private static final String INPUT_TYPE_NVIDIA_DEFAULT_VALUE = "query";
     private static final String TRUNCATE_NVIDIA_VALUE = "start";
 
     public void testCreateRequest_InputTypeFromTaskSettings_Success() throws IOException {
-        var request = createRequest(URL_VALUE, MODEL_VALUE, INPUT_TYPE_EXPEDIA_INITIAL_VALUE, TRUNCATE_EXPEDIA_VALUE, null);
+        var request = createRequest(URL_VALUE, MODEL_VALUE, INPUT_TYPE_ELASTIC_INITIAL_VALUE, TRUNCATE_ELASTIC_VALUE, null);
         testCreateRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
     }
 
     public void testCreateRequest_InputTypeFromRequest_Success() throws IOException {
-        var request = createRequest(URL_VALUE, MODEL_VALUE, null, TRUNCATE_EXPEDIA_VALUE, INPUT_TYPE_EXPEDIA_INITIAL_VALUE);
+        var request = createRequest(URL_VALUE, MODEL_VALUE, null, TRUNCATE_ELASTIC_VALUE, INPUT_TYPE_ELASTIC_INITIAL_VALUE);
         testCreateRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
     }
 
@@ -62,9 +62,9 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
         var request = createRequest(
             URL_VALUE,
             MODEL_VALUE,
-            INPUT_TYPE_EXPEDIA_IGNORED_VALUE,
-            TRUNCATE_EXPEDIA_VALUE,
-            INPUT_TYPE_EXPEDIA_INITIAL_VALUE
+            INPUT_TYPE_ELASTIC_IGNORED_VALUE,
+            TRUNCATE_ELASTIC_VALUE,
+            INPUT_TYPE_ELASTIC_INITIAL_VALUE
         );
         testCreateRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
     }

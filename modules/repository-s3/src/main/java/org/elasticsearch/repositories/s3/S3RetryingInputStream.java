@@ -8,6 +8,12 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -16,12 +22,6 @@ import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
 import org.elasticsearch.rest.RestStatus;
-
-import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.core.exception.SdkException;
-import software.amazon.awssdk.core.exception.SdkServiceException;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -250,10 +250,12 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
         }
 
         @Override
-        public long skip(long n) throws IOException {
+        public long skip(long len) throws IOException {
             // This could be optimized on a failure by re-opening stream directly to the preferred location. However, it is rarely called,
-            // so for now we will rely on the default implementation which just discards bytes by reading.
-            return super.skip(n);
+            // so for now we will just delegate to the underlying stream.
+            final long n = in.skip(len);
+            offset += n;
+            return n;
         }
 
         @Override

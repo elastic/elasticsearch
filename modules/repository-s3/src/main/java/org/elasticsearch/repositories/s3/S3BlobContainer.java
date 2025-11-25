@@ -608,7 +608,24 @@ class S3BlobContainer extends AbstractBlobContainer {
             final String uploadId;
             try (AmazonS3Reference clientReference = s3BlobStore.clientReference()) {
                 uploadId = clientReference.client().createMultipartUpload(createMultipartUpload(purpose, operation, blobName)).uploadId();
-                cleanupOnFailureActions.add(() -> abortMultiPartUpload(purpose, uploadId, blobName));
+                cleanupOnFailureActions.add(() -> {
+                    try {
+                        abortMultiPartUpload(purpose, uploadId, blobName);
+                    } catch (Exception e) {
+                        if (e instanceof SdkServiceException sdkServiceException
+                            && sdkServiceException.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                            // NOT_FOUND is what we wanted
+                            logger.atDebug()
+                                .withThrowable(e)
+                                .log("multipart upload of [{}] with ID [{}] not found on abort", blobName, uploadId);
+                        } else {
+                            // aborting the upload on failure is a best-effort cleanup step - if it fails then we must just move on
+                            logger.atWarn()
+                                .withThrowable(e)
+                                .log("failed to clean up multipart upload of [{}] with ID [{}] after earlier failure", blobName, uploadId);
+                        }
+                    }
+                });
             }
             if (Strings.isEmpty(uploadId)) {
                 throw new IOException("Failed to initialize multipart operation for " + blobName);

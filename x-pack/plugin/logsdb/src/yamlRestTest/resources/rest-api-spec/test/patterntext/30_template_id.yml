@@ -64,6 +64,7 @@ Sort by template_id descending from index config setting:
         index: test
         body:
           docvalue_fields: [ "foo.template_id" ]
+          sort: ["_doc", "@timestamp"]
           query: { match_all: {} }
 
   - match: { hits.total.value: 5 }
@@ -86,7 +87,7 @@ Sort by template_id ascending from request:
         index: test
         body:
           docvalue_fields: [ "foo.template_id" ]
-          sort: "foo.template_id"
+          sort: ["foo.template_id", "@timestamp"]
           query: { match_all: {} }
 
   - match: { hits.total.value: 5 }

@@ -86,11 +86,11 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         int skipIndexIntervalSize,
         int minDocsPerOrdinalForOrdinalRangeEncoding,
         boolean enableOptimizedMerge,
+        int numericBlockShift,
         String dataCodec,
         String dataExtension,
         String metaCodec,
-        String metaExtension,
-        int numericBlockShift
+        String metaExtension
     ) throws IOException {
         this.binaryDVCompressionMode = binaryDVCompressionMode;
         this.enablePerBlockCompression = enablePerBlockCompression;
@@ -114,6 +114,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
+
             String metaName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
             meta = state.directory.createOutput(metaName, state.context);
             CodecUtil.writeIndexHeader(
@@ -123,6 +124,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
+            meta.writeByte((byte) numericBlockShift);
+
             maxDoc = state.segmentInfo.maxDoc();
             this.skipIndexIntervalSize = skipIndexIntervalSize;
             this.enableOptimizedMerge = enableOptimizedMerge;

@@ -77,11 +77,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
     ES819TSDBDocValuesProducer(
         SegmentReadState state,
+        int numericBlockShift,
         String dataCodec,
         String dataExtension,
         String metaCodec,
-        String metaExtension,
-        int numericBlockShift
+        String metaExtension
     ) throws IOException {
         this.numerics = new IntObjectHashMap<>();
         this.binaries = new IntObjectHashMap<>();
@@ -92,12 +92,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         this.maxDoc = state.segmentInfo.maxDoc();
         this.primarySortFieldNumber = primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
         this.merging = false;
-        this.numericBlockShift = numericBlockShift;
-        this.numericBlockSize = 1 << numericBlockShift;
-        this.numericBlockMask = numericBlockSize - 1;
 
         // read in the entries from the metadata file.
         int version = -1;
+        int blockShift = numericBlockShift;
         String metaName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
 
         try (ChecksumIndexInput in = state.directory.openChecksumInput(metaName)) {
@@ -112,7 +110,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
-
+                if (version >= ES819TSDBDocValuesFormat.VERSION_NUMERIC_LARGE_BLOCKS) {
+                    blockShift = in.readByte();
+                }
                 readFields(in, state.fieldInfos, version);
 
             } catch (Throwable exception) {
@@ -151,6 +151,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 IOUtils.closeWhileHandlingException(this.data);
             }
         }
+
+        this.numericBlockShift = blockShift;
+        this.numericBlockSize = 1 << numericBlockShift;
+        this.numericBlockMask = numericBlockSize - 1;
     }
 
     private ES819TSDBDocValuesProducer(

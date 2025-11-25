@@ -451,8 +451,7 @@ module org.elasticsearch.server {
     provides org.apache.lucene.codecs.DocValuesFormat
         with
             org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat,
-            org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat,
-            org.elasticsearch.index.codec.tsdb.es819.ES819TSDBLargeBlockDocValuesFormat;
+            org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
     provides org.apache.lucene.codecs.KnnVectorsFormat
         with
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,

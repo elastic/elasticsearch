@@ -75,51 +75,43 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
                 matchesDateMillis(expected_ts)
             ).withConfiguration(TEST_SOURCE, configurationForLocale(Locale.US));
         }));
-        cases.add(
-            new TestCaseSupplier(
-                "With Text",
-                List.of(DataType.KEYWORD, DataType.TEXT),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.KEYWORD, "first"),
-                        new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.TEXT, "second")
-                    ),
-                    startsWith("DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z, locale="),
-                    DataType.DATETIME,
-                    equalTo(1683244800000L)
-                ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
-            )
-        );
-        cases.add(
-            new TestCaseSupplier(
-                "With Both Text",
-                List.of(DataType.TEXT, DataType.TEXT),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.TEXT, "first"),
-                        new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.TEXT, "second")
-                    ),
-                    startsWith("DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z, locale="),
-                    DataType.DATETIME,
-                    equalTo(1683244800000L)
-                ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
-            )
-        );
-        cases.add(
-            new TestCaseSupplier(
-                "With keyword",
-                List.of(DataType.TEXT, DataType.KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.TEXT, "first"),
-                        new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.KEYWORD, "second")
-                    ),
-                    startsWith("DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z, locale="),
-                    DataType.DATETIME,
-                    equalTo(1683244800000L)
-                ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
-            )
-        );
+
+        for (DataType dateType: List.of(DataType.KEYWORD, DataType.TEXT)) {
+            cases.add(
+                new TestCaseSupplier(
+                    "With " + dateType,
+                    List.of(dateType),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("2023-05-05T00:00:00.000Z"), dateType, "second")
+                        ),
+                        "DateParseConstantEvaluator[val=Attribute[channel=0], " +
+                            "formatter=format[strict_date_optional_time] zone[null] locale[], zoneId=Z, locale=]",
+                        DataType.DATETIME,
+                        equalTo(1683244800000L)
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+                )
+            );
+
+            for (DataType formatType : List.of(DataType.KEYWORD, DataType.TEXT)) {
+                cases.add(
+                    new TestCaseSupplier(
+                        "With " + formatType + " and " + dateType,
+                        List.of(formatType, dateType),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), formatType, "first"),
+                                new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), dateType, "second")
+                            ),
+                            "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z, locale=]",
+                            DataType.DATETIME,
+                            equalTo(1683244800000L)
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+                    )
+                );
+            }
+        }
+
         cases.add(
             new TestCaseSupplier(
                 List.of(DataType.KEYWORD, DataType.KEYWORD),
@@ -158,6 +150,70 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
             )
         );
         cases = anyNullIsNull(true, cases);
+
+        for (DataType dateType: List.of(DataType.KEYWORD, DataType.TEXT)) {
+            cases.add(
+                new TestCaseSupplier(
+                    "Map with " + dateType,
+                    List.of(dateType, DataType.OBJECT),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("2023-05-05T00:00:00.000Z"), dateType, "second"),
+                            new TestCaseSupplier.TypedData(
+                                new MapExpression(
+                                    Source.EMPTY,
+                                    List.of(
+                                        new Literal(Source.EMPTY, new BytesRef("time_zone"), DataType.KEYWORD),
+                                        new Literal(Source.EMPTY, new BytesRef("Z"), DataType.KEYWORD),
+
+                                        new Literal(Source.EMPTY, new BytesRef("locale"), DataType.KEYWORD),
+                                        new Literal(Source.EMPTY, new BytesRef("en-us"), DataType.KEYWORD)
+                                    )
+                                ),
+                                DataType.OBJECT,
+                                "options"
+                            ).forceLiteral()
+                        ),
+                        "DateParseConstantEvaluator[val=Attribute[channel=0], " +
+                            "formatter=format[strict_date_optional_time] zone[null] locale[en_US], zoneId=Z, locale=en_US]",
+                        DataType.DATETIME,
+                        equalTo(1683244800000L)
+                    )
+                )
+            );
+
+            for (DataType formatType : List.of(DataType.KEYWORD, DataType.TEXT)) {
+                cases.add(
+                    new TestCaseSupplier(
+                        "Map with " + formatType + " and " + dateType,
+                        List.of(formatType, dateType, DataType.OBJECT),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), formatType, "first"),
+                                new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), dateType, "second"),
+                                new TestCaseSupplier.TypedData(
+                                    new MapExpression(
+                                        Source.EMPTY,
+                                        List.of(
+                                            new Literal(Source.EMPTY, new BytesRef("time_zone"), DataType.KEYWORD),
+                                            new Literal(Source.EMPTY, new BytesRef("Z"), DataType.KEYWORD),
+
+                                            new Literal(Source.EMPTY, new BytesRef("locale"), DataType.KEYWORD),
+                                            new Literal(Source.EMPTY, new BytesRef("en-us"), DataType.KEYWORD)
+                                        )
+                                    ),
+                                    DataType.OBJECT,
+                                    "options"
+                                ).forceLiteral()
+                            ),
+                            "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z, locale=en_US]",
+                            DataType.DATETIME,
+                            equalTo(1683244800000L)
+                        )
+                    )
+                );
+            }
+        }
 
         // Timezones
         cases.addAll(casesFor("yyyy-MM-dd", "2023-05-05", "Z", "en-us", "2023-05-05T00:00:00.000Z"));

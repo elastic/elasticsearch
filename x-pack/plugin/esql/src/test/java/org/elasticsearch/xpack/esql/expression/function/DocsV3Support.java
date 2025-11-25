@@ -1184,7 +1184,8 @@ public abstract class DocsV3Support {
         for (int i = 0; i < sig.argTypes().size(); i++) {
             Param param = sig.argTypes().get(i);
             EsqlFunctionRegistry.ArgSignature argSignature = args.get(i);
-            if (argSignature.mapArg()) {
+            // Remove the "OBJECT" check when the type is usable in ESQL
+            if (argSignature.mapArg() || param.dataType().equals(DataType.OBJECT)) {
                 b.append("named parameters");
             } else {
                 b.append(param.dataType().esNameIfPossible());

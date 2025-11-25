@@ -126,7 +126,10 @@ public class NvidiaChatCompletionServiceSettingsTests extends AbstractBWCWireSer
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings, is(new NvidiaChatCompletionServiceSettings(MODEL_VALUE, URL_VALUE, null)));
+        assertThat(
+            serviceSettings,
+            is(new NvidiaChatCompletionServiceSettings(MODEL_VALUE, URL_VALUE, new RateLimitSettings(RATE_LIMIT_DEFAULT_VALUE)))
+        );
     }
 
     public void testToXContent_WritesAllValues() throws IOException {

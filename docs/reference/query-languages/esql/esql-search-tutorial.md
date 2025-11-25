@@ -76,12 +76,7 @@ PUT /cooking_blog/_mapping
       }
     },
     "description": {
-      "type": "text",
-      "fields": {
-        "keyword": {
-          "type": "keyword"
-        }
-      }
+      "type": "text" <1>
     },
     "author": {
       "type": "text",
@@ -119,8 +114,9 @@ PUT /cooking_blog/_mapping
 ```
 
 1. The `standard` analyzer is used by default for `text` fields. It's included here explicitly for demonstration purposes. To know more about analyzers, refer to [Anatomy of an analyzer](docs-content://manage-data/data-store/text-analysis/anatomy-of-an-analyzer.md).
-2. [Multi-fields](/reference/elasticsearch/mapping-reference/multi-fields.md) enable both full-text search and exact matching/filtering on the same field. The `title` field is declared with both `text` and `keyword` data types. If you use [dynamic mapping](docs-content://manage-data/data-store/mapping/dynamic-field-mapping.md), these multi-fields will be created automatically. Other fields in the mapping like `description`, `author`, `category`, and `tags` are also declared as multi-fields.
+2. [Multi-fields](/reference/elasticsearch/mapping-reference/multi-fields.md) enable both full-text search and exact matching/filtering on the same field. The `title`, `author`, `category`, and `tags` fields are declared with both `text` and `keyword` data types. The `text` version allows full-text search, while the `keyword` version enables exact filtering. If you use [dynamic mapping](docs-content://manage-data/data-store/mapping/dynamic-field-mapping.md), these multi-fields will be created automatically.
 3. The `ignore_above` parameter prevents indexing values longer than 256 characters in the `keyword` field. This is the default value and it's included here for demonstration purposes. For more information, refer to the [ignore_above parameter](/reference/elasticsearch/mapping-reference/ignore-above.md).
+4. `keyword` fields store exact values and are used for filtering, sorting, and aggregations. Unlike `text` fields, they are not analyzed. Use `keyword` when you need exact matching (e.g., filtering by category or finding a specific author name), but use `text` when you want to search within longer content like descriptions.
 
 ::::{tip}
 Full-text search is powered by [text analysis](docs-content://solutions/search/full-text/text-analysis-during-search.md). Text analysis normalizes and standardizes text data so it can be efficiently stored in an inverted index and searched in near real-time. Analysis happens at both [index and search time](docs-content://manage-data/data-store/text-analysis/index-search-analysis.md). This tutorial won't cover analysis in detail, but it's important to understand how text is processed to create effective search queries.

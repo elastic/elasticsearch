@@ -455,6 +455,14 @@ serverless: preview
 
 Hybrid search combines different search strategies (like lexical and semantic search) to leverage the strengths of each approach. Use [`FORK`](/reference/query-languages/esql/commands/fork.md) and [`FUSE`](/reference/query-languages/esql/commands/fuse.md) to execute different search strategies in parallel, then merge and score the combined results.
 
+`FUSE` supports different merging algorithms, namely Reciprocal Rank Fusion (RRF) and linear combination.
+
+::::{tab-set}
+
+:::{tab-item} RRF (default)
+
+RRF is a ranking algorithm that combines rankings from multiple search strategies without needing to tune weights. It's effective when you want to blend different search approaches without manual score tuning.
+
 ```esql
 FROM cooking_blog METADATA _id, _index, _score
 | FORK (
@@ -474,7 +482,36 @@ FROM cooking_blog METADATA _id, _index, _score
 
 1. Lexical search on the title field
 2. Semantic search on the semantic_description field
-3. Merge results using RRF (Reciprocal Rank Fusion) algorithm
+3. Merge results using RRF algorithm (default)
+:::
+
+:::{tab-item} Linear combination
+
+Linear combination allows you to specify explicit weights for each search strategy. This gives you fine-grained control over how much each strategy contributes to the final score.
+
+```esql
+FROM cooking_blog METADATA _id, _index, _score
+| FORK (
+    WHERE title:"vegetarian curry" <1>
+    | SORT _score DESC
+    | LIMIT 5
+) (
+    WHERE semantic_description:"easy vegetarian curry recipes" <2>
+    | SORT _score DESC
+    | LIMIT 5
+)
+| FUSE {"method": "linear", "weights": [0.7, 0.3]} <3>
+| KEEP title, description, rating, _score
+| SORT _score DESC
+| LIMIT 5
+```
+
+1. Lexical search on the title field (70% weight)
+2. Semantic search on the semantic_description field (30% weight)
+3. Merge results using linear combination with explicit weights
+:::
+
+::::
 
 ## Step 9: Advanced AI-powered search
 

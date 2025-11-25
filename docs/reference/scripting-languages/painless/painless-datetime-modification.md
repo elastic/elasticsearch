@@ -8,7 +8,7 @@ products:
 
 # Datetime Modification [_datetime_modification]
 
-Use either a numeric datetime or a complex datetime to do modification such as adding several seconds to a datetime or subtracting several days from a datetime. Use standard [numeric operators](/reference/scripting-languages/painless/painless-operators-numeric.md) to modify a numeric datetime. Use [methods](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared-java-time.html#painless-api-reference-shared-ZonedDateTime) (or fields) to modify a complex datetime. Note many complex datetimes are immutable so upon modification a new complex datetime is created that requires [assignment](/reference/scripting-languages/painless/painless-variables.md#variable-assignment) or immediate use.
+Use either a numeric datetime or a complex datetime to do modifications such as adding several seconds to a datetime or subtracting several days from a datetime. Use standard [numeric operators](/reference/scripting-languages/painless/painless-operators-numeric.md) to modify a numeric datetime. Use [methods](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared-java-time.html#painless-api-reference-shared-ZonedDateTime) (or fields) to modify a complex datetime. Many complex datetimes are immutable, so upon modification a new complex datetime is created that requires [assignment](/reference/scripting-languages/painless/painless-variables.md#variable-assignment) or immediate use.
 
 ## Datetime modification examples [_datetime_modification_examples]
 

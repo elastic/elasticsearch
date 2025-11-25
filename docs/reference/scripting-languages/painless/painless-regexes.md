@@ -10,7 +10,7 @@ products:
 
 # Regexes [painless-regexes]
 
-Regular expression constants are directly supported. To ensure fast performance, this is the only mechanism for creating patterns. Regular expressions are always constants and compiled efficiently a single time.
+Regular expression constants are directly supported. To ensure fast performance, this is the only mechanism for creating patterns. Regular expressions are always constants and are compiled a single time for efficiency.
 
 % You can check out the [regular expressions tutorial](docs-content://explore-analyze/scripting/modules-scripting-regular-expressions-tutorial.md) for related examples, and for help with troubleshooting, refer to [regex pattern matching failures](docs-content://troubleshoot/elasticsearch/painless-regex-pattern-matching-failures.md).
 

@@ -8,7 +8,7 @@ products:
 
 # Datetime Pieces [_datetime_pieces]
 
-Datetime representations often contain the data to extract individual datetime pieces such as year, hour, timezone, etc. Use individual pieces of a datetime to create a complex datetime, and use a complex datetime to extract individual pieces.
+Datetime representations often contain the data to extract individual datetime pieces such as year, hour, timezone, and so on. Use individual pieces of a datetime to create a complex datetime, and use a complex datetime to extract individual pieces.
 
 ## Datetime Pieces Examples [_datetime_pieces_examples]
 

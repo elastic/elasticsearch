@@ -32,7 +32,7 @@ arguments: '(' (expression (',' expression)*)? ')';
 
 **Examples**
 
-* Method calls on different reference types.
+* Method calls on different reference types
 
     ```painless
     Map m = new HashMap();                         <1>
@@ -81,7 +81,7 @@ non-static member fields:
   * List z
 ```
 
-* Field access with the `Example` type.
+* Field access with the `Example` type
 
     ```painless
     Example example = new Example(); <1>
@@ -137,7 +137,7 @@ non-static member fields:
   * List x
 ```
 
-* Null safe without a `null` value.
+* Null safe without a `null` value
 
     ```painless
     Example example = new Example(); <1>
@@ -147,7 +147,7 @@ non-static member fields:
     1. declare `Example example`; allocate `Example` instance → `Example reference`; store `Example reference` to `example`
     2. declare `List x`; load from `example` → `Example reference`; null safe call `factory` on `Example reference` → `List reference`; store `List reference` to `x`;
 
-* Null safe with a `null` value;
+* Null safe with a `null` value
 
     ```painless
     Example example = null; <1>
@@ -172,7 +172,7 @@ list_initialization: '[' expression (',' expression)* ']'
 
 **Examples**
 
-* List initialization of an empty `List` type value.
+* List initialization of an empty `List` type value
 
     ```painless
     List empty = []; <1>
@@ -180,7 +180,7 @@ list_initialization: '[' expression (',' expression)* ']'
 
     1. declare `List empty`; allocate `ArrayList` instance → `ArrayList reference`; implicit cast `ArrayList reference` to `List reference` → `List reference`; store `List reference` to `empty`
 
-* List initialization with static values.
+* List initialization with static values
 
     ```painless
     List list = [1, 2, 3]; <1>
@@ -188,7 +188,7 @@ list_initialization: '[' expression (',' expression)* ']'
 
     1. declare `List list`; allocate `ArrayList` instance → `ArrayList reference`; call `add` on `ArrayList reference` with arguments(`int 1`); call `add` on `ArrayList reference` with arguments(`int 2`); call `add` on `ArrayList reference` with arguments(`int 3`); implicit cast `ArrayList reference` to `List reference` → `List reference`; store `List reference` to `list`
 
-* List initialization with non-static values.
+* List initialization with non-static values
 
     ```painless
     int i = 1;                  <1>
@@ -225,7 +225,7 @@ list_access: '[' expression ']'
 
 **Examples**
 
-* List access with the `List` type.
+* List access with the `List` type
 
     ```painless
     List list = new ArrayList(); <1>
@@ -249,7 +249,7 @@ list_access: '[' expression ']'
     8. declare `int y`; store `int 1` int `y`
     9. declare `int z`; load from `list` → `List reference`; load from `y` → `int 1`; call `get` on `List reference` with arguments(`int 1`) → `def`; implicit cast `def` to `int 5` → `int 5`; store `int 5` to `z`
 
-* List access with the `def` type.
+* List access with the `def` type
 
     ```painless
     def d = new ArrayList(); <1>
@@ -289,7 +289,7 @@ key_pair: expression ':' expression
 
 **Examples**
 
-* Map initialization of an empty `Map` type value.
+* Map initialization of an empty `Map` type value
 
     ```painless
     Map empty = [:]; <1>
@@ -297,7 +297,7 @@ key_pair: expression ':' expression
 
     1. declare `Map empty`; allocate `HashMap` instance → `HashMap reference`; implicit cast `HashMap reference` to `Map reference` → `Map reference`; store `Map reference` to `empty`
 
-* Map initialization with static values.
+* Map initialization with static values
 
     ```painless
     Map map = [1:2, 3:4, 5:6]; <1>
@@ -305,7 +305,7 @@ key_pair: expression ':' expression
 
     1. declare `Map map`; allocate `HashMap` instance → `HashMap reference`; call `put` on `HashMap reference` with arguments(`int 1`, `int 2`); call `put` on `HashMap reference` with arguments(`int 3`, `int 4`); call `put` on `HashMap reference` with arguments(`int 5`, `int 6`); implicit cast `HashMap reference` to `Map reference` → `Map reference`; store `Map reference` to `map`
 
-* Map initialization with non-static values.
+* Map initialization with non-static values
 
     ```painless
     byte b = 0;                  <1>
@@ -343,7 +343,7 @@ map_access: '[' expression ']'
 
 **Examples**
 
-* Map access with the `Map` type.
+* Map access with the `Map` type
 
     ```painless
     Map map = new HashMap();               <1>
@@ -361,7 +361,7 @@ map_access: '[' expression ']'
     5. declare `String y`; store `String 'value5'` to `y`
     6. declare `int z`; load from `map` → `Map reference`; load from `y` → `String 'value5'`; call `get` on `Map reference` with arguments(`String 'value5'`) → `def`; implicit cast `def` to `int 5` → `int 5`; store `int 5` to `z`
 
-* Map access with the `def` type.
+* Map access with the `def` type
 
     ```painless
     def d = new HashMap();             <1>
@@ -401,7 +401,7 @@ new_instance: 'new' TYPE '(' (expression (',' expression)*)? ')';
 
 **Examples**
 
-* Allocation of new instances with different types.
+* Allocation of new instances with different types
 
 ```painless
 Map m = new HashMap();   <1>
@@ -427,7 +427,7 @@ concatenate: expression '+' expression;
 
 **Examples**
 
-* String concatenation with different primitive types.
+* String concatenation with different primitive types
 
     ```painless
     String x = "con";     <1>
@@ -467,7 +467,7 @@ elvis: expression '?:' expression;
 
 **Examples**
 
-* Elvis with different reference types.
+* Elvis with different reference types
 
     ```painless
     List x = new ArrayList();      <1>

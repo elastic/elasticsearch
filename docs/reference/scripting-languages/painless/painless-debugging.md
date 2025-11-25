@@ -28,9 +28,9 @@ Scripts cannot access:
 
 ## Debug methods available
 
-Painless scripts do not provide interactive debugging tools or a REPL. The only official method for inspecting objects and their types during script execution is by means of the`Debug.explain(object)`. This method ***throws an informative exception*** that reveals the object's type and value. As a result, your script will not complete normally; instead, you will see an error message in the response.
+Painless scripts do not provide interactive debugging tools or a REPL. The only official method for inspecting objects and their types during script execution is by means of the`Debug.explain(object)`. This method throws an informative exception that reveals the object's type and value. As a result, your script does not complete normally; instead, you an error message is included in the response.
 
-Custom exceptions (for example, `throw new RuntimeException(...)`) can be used to signal specific conditions or control execution flow but do not provide detailed object inspection. For comprehensive debugging, always use `Debug.explain()`.
+You can use custom exceptions (for example, `throw new RuntimeException(...)`) to signal specific conditions or control execution flow but do not provide detailed object inspection. For comprehensive debugging, always use `Debug.explain()`.
 
 ## Debugging walkthrough
 
@@ -38,7 +38,7 @@ This section demonstrates a common debugging scenario using a script that format
 
 ### Step 1: Run the failing script
 
-The following script attempts to create a formatted price string from the [ecommerce dataset](/reference/scripting-languages/painless/painless-context-examples.md). The script appears logical but will fail:
+The following script attempts to create a formatted price string from the [ecommerce dataset](/reference/scripting-languages/painless/painless-context-examples.md). The script appears logical but fails:
 
 ```json
 GET /kibana_sample_data_ecommerce/_search

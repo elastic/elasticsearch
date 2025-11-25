@@ -18,7 +18,7 @@ In Painless, every variable must be declared with a specific type before you can
 
 Painless supports three main categories of variable types:
 
-* **Primitive types** for basic data such as `int`, `double`, `boolean`, and `char`. These store simple values directly and have default values (0 for numbers, false for boolean).  
+* **Primitive types** for basic data such as `int`, `double`, `boolean`, and `char`. These store simple values directly and have default values (`0` for numbers, `false` for boolean).  
 * **Reference types** for complex objects such as `String`, `list`, `map`, and array types like `int[]`. These store references to objects and default to `null` when not initialized.  
 * **Dynamic type** with `def` that can represent any type of value, determined at runtime. This provides flexibility when the exact type isn’t known in advance.  
    

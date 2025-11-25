@@ -8,7 +8,7 @@ products:
 
 # Datetime zone [_datetime_zone]
 
-Both string datetimes and complex datetimes have a timezone with a default of `UTC`. Numeric datetimes do not have enough explicit information to have a timezone, so `UTC` is always assumed. Use [methods](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared-java-time.html#painless-api-reference-shared-ZonedDateTime) (or fields) in conjunction with a [ZoneId](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared-java-time.html#painless-api-reference-shared-ZoneId) to change the timezone for a complex datetime. Parse a string datetime into a complex datetime to change the timezone, and then format the complex datetime back into a desired string datetime. Note many complex datetimes are immutable so upon modification a new complex datetime is created that requires [assignment](/reference/scripting-languages/painless/painless-variables.md#variable-assignment) or immediate use.
+Both string datetimes and complex datetimes have a timezone with a default of `UTC`. Numeric datetimes do not have enough explicit information to have a timezone, so `UTC` is always assumed. Use [methods](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared-java-time.html#painless-api-reference-shared-ZonedDateTime) (or fields) in conjunction with a [ZoneId](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared-java-time.html#painless-api-reference-shared-ZoneId) to change the timezone for a complex datetime. Parse a string datetime into a complex datetime to change the timezone, and then format the complex datetime back into a desired string datetime. Many complex datetimes are immutable, so upon modification a new complex datetime is created that requires [assignment](/reference/scripting-languages/painless/painless-variables.md#variable-assignment) or immediate use.
 
 ## Datetime zone examples [_datetime_zone_examples]
 
@@ -31,6 +31,6 @@ Both string datetimes and complex datetimes have a timezone with a default of `U
     String pstString = pstZdt.format(DateTimeFormatter.RFC_1123_DATE_TIME);
     ```
 
-    1. Note the use of a built-in DateTimeFormatter.
+    1. This uses a built-in `DateTimeFormatter`.
 
 

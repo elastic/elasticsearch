@@ -52,7 +52,7 @@ The following primitive types are available. The corresponding reference type is
 
 **Examples**
 
-* Primitive types used in declaration, declaration and assignment.
+* Primitive types used in declaration, declaration and assignment
 
     ```painless
     int i = 1;        <1>
@@ -64,7 +64,7 @@ The following primitive types are available. The corresponding reference type is
     2. declare `double d`; store default `double 0.0` to `d`
     3. declare `boolean b`; store `boolean true` to `b`
 
-* Method call on a primitive type using the corresponding reference type.
+* Method call on a primitive type using the corresponding reference type
 
     ```painless
     int i = 1;    <1>
@@ -94,12 +94,12 @@ char x = (char) "a";
 
 Use the cast operator to convert a [string-type](/reference/scripting-languages/painless/painless-types.md#string-type) value into a `char`\-type value.
 
-#### Errors 
+**Errors**
 
 * If the `String` type value isn’t one character in length.  
 * If the `String` type value is `null`.
 
-#### Examples
+**Examples**
 
 * Casting string literals into `char` type values
 
@@ -168,7 +168,7 @@ A reference type object follows a basic inheritance model. Consider types A and 
 
 **Examples**
 
-* Reference types evaluated in several different operations.
+* Reference types evaluated in several different operations
 
     ```painless
     List l = new ArrayList(); <1>
@@ -196,7 +196,7 @@ A reference type object follows a basic inheritance model. Consider types A and 
     4. load from `l1` → `List reference`; implicit cast `int 2` to `def` → `def` call `add` on `List reference` with arguments (`def`)
     5. declare `int i`; load from `l0` → `List reference`; call `get` on `List reference` with arguments (`int 0`) → `def @0`; implicit cast `def @0` to `int 1` → `int 1`; load from `l1` → `List reference`; call `get` on `List reference` with arguments (`int 1`) → `def @1`; implicit cast `def @1` to `int 2` → `int 2`; add `int 1` and `int 2` → `int 3`; store `int 3` to `i`;
 
-* Using the static members of a reference type.
+* Using the static members of a reference type
 
     ```painless
     int i = Integer.MAX_VALUE;       <1>
@@ -222,7 +222,7 @@ Using the `def` type can have a slight impact on performance. Use only primitive
 
 **Examples**
 
-* General uses of the `def` type.
+* General uses of the `def` type
 
     ```painless
     def dp = 1;               <1>
@@ -254,7 +254,7 @@ The `String` type is a specialized reference type that does not require explicit
 
 **Examples**
 
-* General use of the `String` type.
+* General use of the `String` type
 
     ```painless
     String r = "some text";             <1>
@@ -276,7 +276,7 @@ The `void` type represents the concept of a lack of type. Use the `void` type to
 
 **Examples**
 
-* Use of the `void` type in a function.
+* Use of the `void` type in a function
 
     ```painless
     void addToList(List l, def d) {
@@ -298,7 +298,7 @@ When an array type instance is allocated with multiple dimensions using the rang
 
 **Examples**
 
-* General use of single-dimensional arrays.
+* General use of single-dimensional arrays
 
     ```painless
     int[] x;                   <1>
@@ -314,7 +314,7 @@ When an array type instance is allocated with multiple dimensions using the rang
     4. load from `y` → `1-d float array reference`; store `float 1.0` to `index [9]` of `1-d float array reference`
     5. load from `y` → `1-d float array reference @0`; load from `index [9]` of `1-d float array reference @0` → `float 1.0`; load from `z` → `def`; implicit cast `def` to `1-d float array reference @1` → `1-d float array reference @1`; store `float 1.0` to `index [0]` of `1-d float array reference @1`
 
-* General use of a multi-dimensional array.
+* General use of a multi-dimensional array
 
     ```painless
     int[][][] ia3 = new int[2][3][4]; <1>

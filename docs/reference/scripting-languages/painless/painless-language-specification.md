@@ -34,9 +34,9 @@ Painless scripts are parsed and compiled using the [ANTLR4](https://www.antlr.or
 
 ### Step breakdown:
 
-1. **Script input:** Painless code embedded in the JSON queries  
-2. **Compilation:** ANTLR4 and ASM libraries parse and compile the script into JVM bytecode  
-3. **Execution:** Bytecode runs on the standard Java Virtual Machine  
+1. **Script input:** Painless code is embedded in JSON queries.
+2. **Compilation:** ANTLR4 and ASM libraries parse and compile the script into JVM bytecode.  
+3. **Execution:** Bytecode runs on the standard Java Virtual Machine.
    
 This documentation presents the Painless language syntax in an educational format, optimized for developer understanding. The underlying grammar, however, is implemented using more concise ANTLR4 rules for efficient parsing.
 
@@ -57,6 +57,7 @@ Understanding context-syntax relationships is essential for effective Painless d
 :::{image} images/painless-integration-points.png
 :alt: Painless integration-points
 :::
+Double-click to expand the image.
 
 ### Where to write Painless scripts:
 

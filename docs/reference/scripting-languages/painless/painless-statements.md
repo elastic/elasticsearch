@@ -64,13 +64,13 @@ Loop statements allow you to repeat running code multiple times, either for a sp
 
 ### For
 
-Painless supports both traditional `for` loops and enhanced `for` loops (`for-each`). Use for loops to iterate through data collections or repeat operations a specific number of times.
+Painless supports both traditional `for` loops and enhanced `for` loops (`for-each`). Use `for` loops to iterate through data collections or repeat operations a specific number of times.
 
 #### Examples
 
 * Traditional for loop:
 
-    The following loop creates an empty array with 4 positions and assigns a value from 0 to 3 to each position.
+    The following loop creates an empty array with four positions and assigns a value from `0` to `3` to each position.
 
     ```java
     int[] arr = new int[4];
@@ -82,7 +82,7 @@ Painless supports both traditional `for` loops and enhanced `for` loops (`for-ea
     return arr; // [0, 1, 2, 3] 
     ```
 
-* Enhanced for loop (for-each):
+* Enhanced `for` loop (for-each):
 
     The following code snippets create a list containing letters. Using a `for-each` loop, they concatenate the letters into a single string called `word`.
 
@@ -97,7 +97,7 @@ Painless supports both traditional `for` loops and enhanced `for` loops (`for-ea
     return word; // hello
     ```
 
-* Alternative for loop syntax:
+* Alternative `for` loop syntax:
 
     ```java
     List letters = ["h", "e", "l", "l", "o"];
@@ -116,7 +116,7 @@ Use `while` loops to repeat running code as long as a specified condition remain
 
 #### Example
 
-Similar to the first example for the `for` statement, this one assigns a number from 0 to 3 to each position of an array with 4 elements using a `while` loop.
+Similar to the first example for the `for` statement, this one assigns a number from `0` to `3` to each position of an array with four elements using a `while` loop.
 
 ```java
 int[] arr = new int[4];

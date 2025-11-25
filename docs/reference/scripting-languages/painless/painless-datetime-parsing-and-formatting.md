@@ -30,7 +30,7 @@ A [DateTimeFormatter](https://www.elastic.co/guide/en/elasticsearch/painless/cur
     ZonedDateTime zdt = ZonedDateTime.parse(datetime); <1>
     ```
 
-    1. Note the parse method uses ISO 8601 by default.
+    1. The parse method uses ISO 8601 by default.
 
 * Parse from RFC 1123:
 
@@ -40,7 +40,7 @@ A [DateTimeFormatter](https://www.elastic.co/guide/en/elasticsearch/painless/cur
             DateTimeFormatter.RFC_1123_DATE_TIME); <1>
     ```
 
-    1. Note the use of a built-in DateTimeFormatter.
+    1. This uses a built-in `DateTimeFormatter`.
 
 * Parse from a custom format:
 
@@ -51,7 +51,7 @@ A [DateTimeFormatter](https://www.elastic.co/guide/en/elasticsearch/painless/cur
     ZonedDateTime zdt = ZonedDateTime.parse(datetime, dtf); <1>
     ```
 
-    1. Note the use of a custom DateTimeFormatter.
+    1. This uses a custom `DateTimeFormatter`.
 
 
 
@@ -65,7 +65,7 @@ A [DateTimeFormatter](https://www.elastic.co/guide/en/elasticsearch/painless/cur
     String datetime = zdt.format(DateTimeFormatter.ISO_INSTANT); <1>
     ```
 
-    1. Note the use of a built-in DateTimeFormatter.
+    1. This uses a built-in `DateTimeFormatter`.
 
 * Format to a custom format:
 
@@ -77,5 +77,5 @@ A [DateTimeFormatter](https://www.elastic.co/guide/en/elasticsearch/painless/cur
     String datetime = zdt.format(dtf); <1>
     ```
 
-    1. Note the use of a custom DateTimeFormatter.
+    1. This uses a custom `DateTimeFormatter`.
 

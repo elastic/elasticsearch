@@ -30,7 +30,7 @@ expression_list: expression (',' expression);
 
 **Example:**
 
-* Array initialization with static values.
+* Array initialization with static values
 
     ```painless
     int[] x = new int[] {1, 2, 3}; <1>
@@ -75,7 +75,7 @@ brace_access: '[' expression ']'
 
 **Examples**
 
-* Array access with a single-dimensional array.
+* Array access with a single-dimensional array
 
     ```painless
     int[] x = new int[2]; <1>
@@ -93,7 +93,7 @@ brace_access: '[' expression ']'
     5. declare `int z`; store `int 1` to `z`;
     6. declare `int i`; load from `x` → `1-d int array reference`; load from `z` → `int 1`; load from `index [1]` of `1-d int array reference` → `int 5`; store `int 5` to `i`;
 
-* Array access with the `def` type.
+* Array access with the `def` type
 
     ```painless
     def d = new int[2];  <1>
@@ -111,7 +111,7 @@ brace_access: '[' expression ']'
     5. declare `def y`; implicit cast `int 1` to `def` → `def`; store `def` to `y`;
     6. declare `int i`; load from `d` → `def` implicit cast `def` to `1-d int array reference` → `1-d int array reference`; load from `y` → `def`; implicit cast `def` to `int 1` → `int 1`; load from `index [1]` of `1-d int array reference` → `int 5`; implicit cast `int 5` to `def`; store `def` to `z`;
 
-* Array access with a multi-dimensional array.
+* Array access with a multi-dimensional array
 
     ```painless
     int[][][] ia3 = new int[2][3][4]; <1>
@@ -131,7 +131,7 @@ An array type value contains a read-only member field named `length`. The `lengt
 
 **Examples**
 
-* Access the `length` field.
+* Access the `length` field
 
     ```painless
     int[] x = new int[10]; <1>
@@ -159,7 +159,7 @@ new_array: 'new' TYPE ('[' expression ']')+;
 
 **Examples**
 
-* Allocation of different array types.
+* Allocation of different array types
 
     ```painless
     int[] x = new int[5];    <1>

@@ -63,7 +63,7 @@ Use the [params section](docs-content://explore-analyze/scripting/modules-script
         ZonedDateTime zdt = ZonedDateTime.parse(datetime, dtf); <1>
         ```
 
-        1. Note the use of a custom DateTimeFormatter.
+        1. This uses a custom `DateTimeFormatter`.
 
 
 
@@ -93,7 +93,7 @@ Use an original [source](/reference/elasticsearch/mapping-reference/mapping-sour
         ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));
         ```
 
-        1. Note access to `_source` is dependent on the Painless context.
+        1. Access to `_source` is dependent on the Painless context.
 
 * Parse a string datetime from a sourced document to a complex datetime
 
@@ -114,8 +114,8 @@ Use an original [source](/reference/elasticsearch/mapping-reference/mapping-sour
         ZonedDateTime zdt = ZonedDateTime.parse(datetime); <2>
         ```
 
-        1. Note access to `_source` is dependent on the Painless context.
-        2. Note the parse method uses ISO 8601 by default.
+        1. Access to `_source` is dependent on the Painless context.
+        2. The parse method uses ISO 8601 by default.
 
 
 
@@ -157,7 +157,7 @@ Use an indexed document as a script input to access a complex datetime for a spe
         String output = input.format(DateTimeFormatter.ISO_INSTANT); <1>
         ```
 
-        1. Note the use of a built-in DateTimeFormatter.
+        1. This uses a built-in `DateTimeFormatter`.
 
 * Find the difference between two complex datetimes from an indexed document
 

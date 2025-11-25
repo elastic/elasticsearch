@@ -45,9 +45,9 @@ This renaming pattern occurs throughout the Painless API when adapting Java stan
 
 We have a few justifications for this different way of dispatching methods:
 
-1. It makes operating on `def` types simpler and, presumably, faster. Using receiver, name and arity means that when Painless sees a call on a `def` object it can dispatch the appropriate method without having to do expensive comparisons of the types of the parameters. The same is true for invocation with `def` typed parameters.  
+1. It makes operating on `def` types simpler and, presumably, faster. Using receiver, name, and arity means that when Painless sees a call on a `def` object it can dispatch the appropriate method without having to do expensive comparisons of the types of the parameters. The same is true for invocation with `def` typed parameters.  
 2. It keeps things consistent. It would be genuinely weird for Painless to behave like Groovy if any `def` typed parameters were involved and Java otherwise. It’d be slow for Painless to behave like Groovy all the time.   
-3. It keeps Painless maintainable. Adding the Java or Groovy like method dispatch **feels** like it’d add a lot of complexity, which would make maintenance and other improvements much more difficult.
+3. It keeps Painless maintainable. Adding the Java or Groovy like method dispatch feels like it’d add a lot of complexity, which would make maintenance and other improvements much more difficult.
 
 ## Next steps
 

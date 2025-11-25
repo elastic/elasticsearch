@@ -3,3 +3,10 @@ summary: Remove feature flag to enable binary doc value compression
 area: Mapping
 type: feature
 issues: []
+highlight:
+  title: Remove feature flag to enable binary doc value compression
+  body: |-
+    Binary doc value compression was added behind a feature flag in
+    https://github.com/elastic/elasticsearch/pull/137139 .  This PR removes
+    the feature flag to enable the feature.
+  notable: true

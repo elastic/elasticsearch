@@ -133,7 +133,7 @@ max(rate(network.total_bytes_in)): double | time_bucket:date
 ;
 
 oneRateWithPromql
-required_capability: promql_v0
+required_capability: promql_pre_tech_preview_v1
 TS k8s
 | PROMQL step 5m (max(rate(network.total_bytes_in[5m])))
 | SORT step DESC | LIMIT 2;
@@ -154,7 +154,7 @@ max(rate(network.total_bytes_in)): double | time_bucket:date
 ;
 
 oneRateWithSingleStepPromql
-required_capability: promql_v0
+required_capability: promql_pre_tech_preview_v1
 TS k8s
 | PROMQL step 1h (max(rate(network.total_bytes_in[1h])));
 

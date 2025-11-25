@@ -527,8 +527,7 @@ serverless: preview
 The [`RERANK` command](/reference/query-languages/esql/commands/rerank.md) re-scores search results using inference models for improved relevance. This is particularly useful for improving the ranking of initial search results by applying more sophisticated semantic understanding.
 
 :::{tip}
-RERANK requires a configured inference endpoint with a reranking model. We recommend using [Elastic Rerank](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-rerank.md).
-Follow the setup steps in [Download and deploy](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-rerank.md#ml-nlp-rerank-deploy-steps) if you want to follow along.
+`RERANK` requires an inference endpoint configured for the `rerank` task. Refer to the [setup instructions](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-rerank.md#ml-nlp-rerank-deploy).
 :::
 
 ```esql
@@ -536,15 +535,18 @@ FROM cooking_blog METADATA _score
 | WHERE description:"vegetarian recipes" <1>
 | SORT _score DESC
 | LIMIT 100 <2>
-| RERANK "healthy quick meals" ON description WITH { "inference_id": "my_reranker_model" } <3>
+| RERANK "healthy quick meals" ON description <3>
 | LIMIT 5 <4>
 | KEEP title, description, _score
 ```
 
 1. Perform initial lexical search
 2. Limit to top 100 results for reranking
-3. Re-score using reranking model
+3. Re-score using the default reranking model ([Elastic Rerank](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-rerank.md))
 4. Return top 5 results after reranking
+
+You can configure `RERANK` to use a specific reranking model. See the [`RERANK` command documentation](/reference/query-languages/esql/commands/rerank.md) for configuration options.
+
 
 ### Text generation with `COMPLETION`
 

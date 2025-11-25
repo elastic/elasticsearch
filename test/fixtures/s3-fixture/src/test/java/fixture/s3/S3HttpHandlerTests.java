@@ -32,14 +32,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.oneOf;
 
 public class S3HttpHandlerTests extends ESTestCase {
 
@@ -412,11 +411,11 @@ public class S3HttpHandlerTests extends ESTestCase {
 
     }
 
-    public void testPreventObjectOverwrite() throws InterruptedException {
+    public void testPreventObjectOverwrite() {
         ensureExactlyOneSuccess(new S3HttpHandler("bucket", "path"), null);
     }
 
-    public void testConditionalOverwrite() throws InterruptedException {
+    public void testConditionalOverwrite() {
         final var handler = new S3HttpHandler("bucket", "path");
 
         final var originalBody = new BytesArray(randomAlphaOfLength(50).getBytes(StandardCharsets.UTF_8));
@@ -430,20 +429,15 @@ public class S3HttpHandlerTests extends ESTestCase {
         ensureExactlyOneSuccess(handler, originalETag);
     }
 
-    private static void ensureExactlyOneSuccess(S3HttpHandler handler, String originalETag) throws InterruptedException {
-        var tasks = List.of(
+    private static void ensureExactlyOneSuccess(S3HttpHandler handler, String originalETag) {
+        final var tasks = List.of(
             createPutObjectTask(handler, originalETag),
             createPutObjectTask(handler, originalETag),
             createMultipartUploadTask(handler, originalETag),
             createMultipartUploadTask(handler, originalETag)
         );
 
-        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            tasks.forEach(task -> executor.submit(task.consumer));
-            executor.shutdown();
-            var done = executor.awaitTermination(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
-            assertTrue(done);
-        }
+        runInParallel(tasks.size(), i -> tasks.get(i).consumer.run());
 
         List<TestWriteTask> successfulTasks = tasks.stream().filter(task -> task.status == RestStatus.OK).toList();
         assertThat(successfulTasks, hasSize(1));
@@ -452,6 +446,7 @@ public class S3HttpHandlerTests extends ESTestCase {
             if (task.status == RestStatus.PRECONDITION_FAILED) {
                 assertNotNull(handler.getUpload(task.uploadId));
             } else {
+                assertThat(task.status, oneOf(RestStatus.OK, RestStatus.CONFLICT));
                 assertNull(handler.getUpload(task.uploadId));
             }
         });
@@ -464,6 +459,30 @@ public class S3HttpHandlerTests extends ESTestCase {
             ),
             handleRequest(handler, "GET", "/bucket/path/blob")
         );
+    }
+
+    public void testPutObjectIfMatchWithBlobNotFound() {
+        final var handler = new S3HttpHandler("bucket", "path");
+        while (true) {
+            final var task = createPutObjectTask(handler, randomIdentifier());
+            task.consumer.run();
+            if (task.status == RestStatus.NOT_FOUND) {
+                break;
+            }
+            assertEquals(RestStatus.CONFLICT, task.status); // chosen randomly so eventually we will escape the loop
+        }
+    }
+
+    public void testCompleteMultipartUploadIfMatchWithBlobNotFound() {
+        final var handler = new S3HttpHandler("bucket", "path");
+        while (true) {
+            final var task = createMultipartUploadTask(handler, randomIdentifier());
+            task.consumer.run();
+            if (task.status == RestStatus.NOT_FOUND) {
+                break;
+            }
+            assertEquals(RestStatus.CONFLICT, task.status); // chosen randomly so eventually we will escape the loop
+        }
     }
 
     private static TestWriteTask createPutObjectTask(S3HttpHandler handler, @Nullable String originalETag) {

@@ -97,7 +97,7 @@ public class RepositoryS3ConditionalWritesUnsupportedRestIT extends AbstractRepo
     protected Settings extraRepositorySettings() {
         return Settings.builder()
             .put(super.extraRepositorySettings())
-            .put(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_WRITES.getKey(), true)
+            .put(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey(), true)
             .build();
     }
 

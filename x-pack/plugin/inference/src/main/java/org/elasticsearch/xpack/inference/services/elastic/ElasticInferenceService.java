@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -73,6 +74,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.useChatCompletionUrlMessage;
+import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator.USER_ROLE;
 
 public class ElasticInferenceService extends SenderService {
 
@@ -87,6 +89,7 @@ public class ElasticInferenceService extends SenderService {
     public static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(
         TaskType.SPARSE_EMBEDDING,
         TaskType.CHAT_COMPLETION,
+        TaskType.COMPLETION,
         TaskType.RERANK,
         TaskType.TEXT_EMBEDDING
     );
@@ -102,6 +105,7 @@ public class ElasticInferenceService extends SenderService {
      */
     private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(
         TaskType.SPARSE_EMBEDDING,
+        TaskType.COMPLETION,
         TaskType.RERANK,
         TaskType.TEXT_EMBEDDING
     );
@@ -163,7 +167,8 @@ public class ElasticInferenceService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        if (model instanceof ElasticInferenceServiceCompletionModel == false) {
+        if (model instanceof ElasticInferenceServiceCompletionModel == false
+            || (model.getTaskType() != TaskType.CHAT_COMPLETION && model.getTaskType() != TaskType.COMPLETION)) {
             listener.onFailure(createInvalidModelException(model));
             return;
         }
@@ -213,10 +218,15 @@ public class ElasticInferenceService extends SenderService {
 
         var elasticInferenceServiceModel = (ElasticInferenceServiceModel) model;
 
+        // For ElasticInferenceServiceCompletionModel, convert ChatCompletionInput to UnifiedChatInput
+        // since the request manager expects UnifiedChatInput
+        final InferenceInputs finalInputs = (elasticInferenceServiceModel instanceof ElasticInferenceServiceCompletionModel
+            && inputs instanceof ChatCompletionInput) ? new UnifiedChatInput((ChatCompletionInput) inputs, USER_ROLE) : inputs;
+
         actionCreator.create(
             elasticInferenceServiceModel,
             currentTraceInfo,
-            listener.delegateFailureAndWrap((delegate, action) -> action.execute(inputs, timeout, delegate))
+            listener.delegateFailureAndWrap((delegate, action) -> action.execute(finalInputs, timeout, delegate))
         );
     }
 
@@ -380,7 +390,7 @@ public class ElasticInferenceService extends SenderService {
                 context,
                 chunkingSettings
             );
-            case CHAT_COMPLETION -> new ElasticInferenceServiceCompletionModel(
+            case CHAT_COMPLETION, COMPLETION -> new ElasticInferenceServiceCompletionModel(
                 inferenceEntityId,
                 taskType,
                 NAME,

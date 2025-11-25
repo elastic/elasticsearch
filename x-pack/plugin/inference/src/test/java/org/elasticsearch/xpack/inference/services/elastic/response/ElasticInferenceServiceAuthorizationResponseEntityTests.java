@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationModel;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
@@ -42,7 +42,8 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 
-public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializationTestCase<AuthorizationResponseEntity> {
+public class ElasticInferenceServiceAuthorizationResponseEntityTests extends AbstractBWCWireSerializationTestCase<
+    ElasticInferenceServiceAuthorizationResponseEntity> {
 
     // rainbow-sprinkles
     public static final String RAINBOW_SPRINKLES_ENDPOINT_ID = ".rainbow-sprinkles-elastic";
@@ -71,7 +72,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
 
     public record EisAuthorizationResponse(
         String responseJson,
-        AuthorizationResponseEntity responseEntity,
+        ElasticInferenceServiceAuthorizationResponseEntity responseEntity,
         List<ElasticInferenceServiceModel> expectedEndpoints,
         Set<String> inferenceIds
     ) {}
@@ -266,11 +267,13 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
     public static EisAuthorizationResponse getEisElserAuthorizationResponse(String url) {
         var authorizedEndpoints = List.of(createElserAuthorizedEndpoint());
 
-        var inferenceIds = authorizedEndpoints.stream().map(AuthorizationResponseEntity.AuthorizedEndpoint::id).collect(Collectors.toSet());
+        var inferenceIds = authorizedEndpoints.stream()
+            .map(ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint::id)
+            .collect(Collectors.toSet());
 
         return new EisAuthorizationResponse(
             EIS_ELSER_RESPONSE,
-            new AuthorizationResponseEntity(authorizedEndpoints),
+            new ElasticInferenceServiceAuthorizationResponseEntity(authorizedEndpoints),
             List.of(createElserExpectedEndpoint(url)),
             inferenceIds
         );
@@ -289,8 +292,8 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
         );
     }
 
-    private static AuthorizationResponseEntity.AuthorizedEndpoint createElserAuthorizedEndpoint() {
-        return new AuthorizationResponseEntity.AuthorizedEndpoint(
+    private static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createElserAuthorizedEndpoint() {
+        return new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
             ELSER_V2_ENDPOINT_ID,
             ELSER_V2_MODEL_NAME,
             createTaskTypeObject(EIS_SPARSE_PATH, "sparse_embedding"),
@@ -298,7 +301,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             List.of("english"),
             "2024-05-01",
             null,
-            new AuthorizationResponseEntity.Configuration(
+            new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
                 null,
                 null,
                 null,
@@ -307,8 +310,11 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
         );
     }
 
-    public static AuthorizationResponseEntity.TaskTypeObject createTaskTypeObject(String eisTaskType, String elasticsearchTaskType) {
-        return new AuthorizationResponseEntity.TaskTypeObject(eisTaskType, elasticsearchTaskType);
+    public static ElasticInferenceServiceAuthorizationResponseEntity.TaskTypeObject createTaskTypeObject(
+        String eisTaskType,
+        String elasticsearchTaskType
+    ) {
+        return new ElasticInferenceServiceAuthorizationResponseEntity.TaskTypeObject(eisTaskType, elasticsearchTaskType);
     }
 
     public static EisAuthorizationResponse getEisAuthorizationResponseWithMultipleEndpoints(String url) {
@@ -318,7 +324,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             createGpLlmV2CompletionAuthorizedEndpoint(),
             createElserAuthorizedEndpoint(),
             createJinaEmbedAuthorizedEndpoint(),
-            new AuthorizationResponseEntity.AuthorizedEndpoint(
+            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 RERANK_V1_ENDPOINT_ID,
                 RERANK_V1_MODEL_NAME,
                 createTaskTypeObject(EIS_RERANK_PATH, "rerank"),
@@ -330,11 +336,13 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             )
         );
 
-        var inferenceIds = authorizedEndpoints.stream().map(AuthorizationResponseEntity.AuthorizedEndpoint::id).collect(Collectors.toSet());
+        var inferenceIds = authorizedEndpoints.stream()
+            .map(ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint::id)
+            .collect(Collectors.toSet());
 
         return new EisAuthorizationResponse(
             EIS_AUTHORIZATION_RESPONSE_V2,
-            new AuthorizationResponseEntity(authorizedEndpoints),
+            new ElasticInferenceServiceAuthorizationResponseEntity(authorizedEndpoints),
             List.of(
                 createRainbowSprinklesExpectedEndpoint(url),
                 createGpLlmV2ChatCompletionExpectedEndpoint(url),
@@ -355,8 +363,8 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
         );
     }
 
-    private static AuthorizationResponseEntity.AuthorizedEndpoint createRainbowSprinklesAuthorizedEndpoint() {
-        return new AuthorizationResponseEntity.AuthorizedEndpoint(
+    private static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createRainbowSprinklesAuthorizedEndpoint() {
+        return new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
             RAINBOW_SPRINKLES_ENDPOINT_ID,
             RAINBOW_SPRINKLES_MODEL_NAME,
             createTaskTypeObject(EIS_CHAT_PATH, "chat_completion"),
@@ -392,8 +400,8 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
         );
     }
 
-    private static AuthorizationResponseEntity.AuthorizedEndpoint createGpLlmV2ChatCompletionAuthorizedEndpoint() {
-        return new AuthorizationResponseEntity.AuthorizedEndpoint(
+    private static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createGpLlmV2ChatCompletionAuthorizedEndpoint() {
+        return new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
             GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID,
             GP_LLM_V2_MODEL_NAME,
             createTaskTypeObject(EIS_CHAT_PATH, "chat_completion"),
@@ -405,8 +413,8 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
         );
     }
 
-    private static AuthorizationResponseEntity.AuthorizedEndpoint createGpLlmV2CompletionAuthorizedEndpoint() {
-        return new AuthorizationResponseEntity.AuthorizedEndpoint(
+    private static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createGpLlmV2CompletionAuthorizedEndpoint() {
+        return new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
             GP_LLM_V2_COMPLETION_ENDPOINT_ID,
             GP_LLM_V2_MODEL_NAME,
             createTaskTypeObject(EIS_CHAT_PATH, "completion"),
@@ -433,11 +441,13 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
     public static EisAuthorizationResponse getEisRainbowSprinklesAuthorizationResponse(String url) {
         var authorizedEndpoints = List.of(createRainbowSprinklesAuthorizedEndpoint());
 
-        var inferenceIds = authorizedEndpoints.stream().map(AuthorizationResponseEntity.AuthorizedEndpoint::id).collect(Collectors.toSet());
+        var inferenceIds = authorizedEndpoints.stream()
+            .map(ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint::id)
+            .collect(Collectors.toSet());
 
         return new EisAuthorizationResponse(
             EIS_RAINBOW_SPRINKLES_RESPONSE,
-            new AuthorizationResponseEntity(authorizedEndpoints),
+            new ElasticInferenceServiceAuthorizationResponseEntity(authorizedEndpoints),
             List.of(createRainbowSprinklesExpectedEndpoint(url)),
             inferenceIds
         );
@@ -446,18 +456,20 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
     public static EisAuthorizationResponse getEisJinaEmbedAuthorizationResponse(String url) {
         var authorizedEndpoints = List.of(createJinaEmbedAuthorizedEndpoint());
 
-        var inferenceIds = authorizedEndpoints.stream().map(AuthorizationResponseEntity.AuthorizedEndpoint::id).collect(Collectors.toSet());
+        var inferenceIds = authorizedEndpoints.stream()
+            .map(ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint::id)
+            .collect(Collectors.toSet());
 
         return new EisAuthorizationResponse(
             EIS_JINA_EMBED_RESPONSE,
-            new AuthorizationResponseEntity(authorizedEndpoints),
+            new ElasticInferenceServiceAuthorizationResponseEntity(authorizedEndpoints),
             List.of(createJinaExpectedEndpoint(url)),
             inferenceIds
         );
     }
 
-    private static AuthorizationResponseEntity.AuthorizedEndpoint createJinaEmbedAuthorizedEndpoint() {
-        return new AuthorizationResponseEntity.AuthorizedEndpoint(
+    private static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createJinaEmbedAuthorizedEndpoint() {
+        return new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
             JINA_EMBED_V3_ENDPOINT_ID,
             JINA_EMBED_V3_MODEL_NAME,
             createTaskTypeObject(EIS_EMBED_PATH, "text_embedding"),
@@ -465,7 +477,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             List.of("multilingual", "open-weights"),
             "2024-05-01",
             null,
-            new AuthorizationResponseEntity.Configuration(
+            new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
                 "cosine",
                 1024,
                 "float",
@@ -487,18 +499,18 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
         );
     }
 
-    public static AuthorizationResponseEntity createResponse() {
-        return new AuthorizationResponseEntity(
+    public static ElasticInferenceServiceAuthorizationResponseEntity createResponse() {
+        return new ElasticInferenceServiceAuthorizationResponseEntity(
             randomList(1, 5, () -> createAuthorizedEndpoint(randomFrom(ElasticInferenceService.IMPLEMENTED_TASK_TYPES)))
         );
     }
 
-    public static AuthorizationResponseEntity.AuthorizedEndpoint createInvalidTaskTypeAuthorizedEndpoint() {
+    public static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createInvalidTaskTypeAuthorizedEndpoint() {
         var id = randomAlphaOfLength(10);
         var name = randomAlphaOfLength(10);
         var status = randomFrom("ga", "beta", "preview");
 
-        return new AuthorizationResponseEntity.AuthorizedEndpoint(
+        return new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
             id,
             name,
             createTaskTypeObject("invalid/task/type", TaskType.ANY.toString()),
@@ -510,13 +522,13 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
         );
     }
 
-    public static AuthorizationResponseEntity.AuthorizedEndpoint createAuthorizedEndpoint(TaskType taskType) {
+    public static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createAuthorizedEndpoint(TaskType taskType) {
         var id = randomAlphaOfLength(10);
         var name = randomAlphaOfLength(10);
         var status = randomFrom("ga", "beta", "preview");
 
         return switch (taskType) {
-            case CHAT_COMPLETION -> new AuthorizationResponseEntity.AuthorizedEndpoint(
+            case CHAT_COMPLETION -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
                 name,
                 createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
@@ -526,7 +538,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
                 "",
                 null
             );
-            case SPARSE_EMBEDDING -> new AuthorizationResponseEntity.AuthorizedEndpoint(
+            case SPARSE_EMBEDDING -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
                 name,
                 createTaskTypeObject(EIS_SPARSE_PATH, TaskType.SPARSE_EMBEDDING.toString()),
@@ -536,7 +548,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
                 "",
                 null
             );
-            case TEXT_EMBEDDING -> new AuthorizationResponseEntity.AuthorizedEndpoint(
+            case TEXT_EMBEDDING -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
                 name,
                 createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
@@ -544,14 +556,14 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
                 null,
                 "",
                 "",
-                new AuthorizationResponseEntity.Configuration(
+                new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
                     randomFrom(SimilarityMeasure.values()).toString(),
                     randomInt(),
                     DenseVectorFieldMapper.ElementType.FLOAT.toString(),
                     null
                 )
             );
-            case RERANK -> new AuthorizationResponseEntity.AuthorizedEndpoint(
+            case RERANK -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
                 name,
                 createTaskTypeObject(EIS_RERANK_PATH, TaskType.RERANK.toString()),
@@ -561,7 +573,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
                 "",
                 null
             );
-            case COMPLETION -> new AuthorizationResponseEntity.AuthorizedEndpoint(
+            case COMPLETION -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
                 name,
                 createTaskTypeObject(EIS_CHAT_PATH, TaskType.COMPLETION.toString()),
@@ -580,11 +592,11 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
         var url = "http://example.com/authorize";
         var responseData = getEisAuthorizationResponseWithMultipleEndpoints(url);
         try (var parser = createParser(JsonXContent.jsonXContent, responseData.responseJson())) {
-            var entity = AuthorizationResponseEntity.PARSER.apply(parser, null);
+            var entity = ElasticInferenceServiceAuthorizationResponseEntity.PARSER.apply(parser, null);
 
             assertThat(entity, is(responseData.responseEntity()));
 
-            var authModel = AuthorizationModel.of(responseData.responseEntity(), url);
+            var authModel = ElasticInferenceServiceAuthorizationModel.of(responseData.responseEntity(), url);
             assertThat(authModel.getEndpointIds(), containsInAnyOrder(responseData.inferenceIds().toArray(String[]::new)));
 
             assertThat(
@@ -607,24 +619,28 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
     }
 
     @Override
-    protected AuthorizationResponseEntity mutateInstanceForVersion(AuthorizationResponseEntity instance, TransportVersion version) {
+    protected ElasticInferenceServiceAuthorizationResponseEntity mutateInstanceForVersion(
+        ElasticInferenceServiceAuthorizationResponseEntity instance,
+        TransportVersion version
+    ) {
         return instance;
     }
 
     @Override
-    protected Writeable.Reader<AuthorizationResponseEntity> instanceReader() {
-        return AuthorizationResponseEntity::new;
+    protected Writeable.Reader<ElasticInferenceServiceAuthorizationResponseEntity> instanceReader() {
+        return ElasticInferenceServiceAuthorizationResponseEntity::new;
     }
 
     @Override
-    protected AuthorizationResponseEntity createTestInstance() {
+    protected ElasticInferenceServiceAuthorizationResponseEntity createTestInstance() {
         return createResponse();
     }
 
     @Override
-    protected AuthorizationResponseEntity mutateInstance(AuthorizationResponseEntity instance) throws IOException {
+    protected ElasticInferenceServiceAuthorizationResponseEntity mutateInstance(ElasticInferenceServiceAuthorizationResponseEntity instance)
+        throws IOException {
         var newEndpoints = new ArrayList<>(instance.getAuthorizedEndpoints());
         newEndpoints.add(createAuthorizedEndpoint(randomFrom(ElasticInferenceService.IMPLEMENTED_TASK_TYPES)));
-        return new AuthorizationResponseEntity(newEndpoints);
+        return new ElasticInferenceServiceAuthorizationResponseEntity(newEndpoints);
     }
 }

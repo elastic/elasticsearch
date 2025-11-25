@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntity;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.junit.Before;
@@ -43,8 +43,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureTests.createMockCCMFeature;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMServiceTests.createMockCCMService;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.createAuthorizedEndpoint;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.createInvalidTaskTypeAuthorizedEndpoint;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createAuthorizedEndpoint;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createInvalidTaskTypeAuthorizedEndpoint;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -188,8 +188,13 @@ public class AuthorizationPollerTests extends ESTestCase {
         var sparseModel = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING);
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
-            ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntity(List.of(sparseModel)), url));
+            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
+            listener.onResponse(
+                ElasticInferenceServiceAuthorizationModel.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(List.of(sparseModel)),
+                    url
+                )
+            );
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 
@@ -255,8 +260,13 @@ public class AuthorizationPollerTests extends ESTestCase {
 
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
-            ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntity(List.of(sparseModel)), url));
+            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
+            listener.onResponse(
+                ElasticInferenceServiceAuthorizationModel.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(List.of(sparseModel)),
+                    url
+                )
+            );
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 
@@ -310,8 +320,13 @@ public class AuthorizationPollerTests extends ESTestCase {
 
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
-            ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntity(List.of(sparseModel)), url));
+            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
+            listener.onResponse(
+                ElasticInferenceServiceAuthorizationModel.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(List.of(sparseModel)),
+                    url
+                )
+            );
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 
@@ -345,8 +360,13 @@ public class AuthorizationPollerTests extends ESTestCase {
 
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
-            ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntity(List.of(invalidTaskTypeEndpoint)), url));
+            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
+            listener.onResponse(
+                ElasticInferenceServiceAuthorizationModel.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(List.of(invalidTaskTypeEndpoint)),
+                    url
+                )
+            );
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 
@@ -382,8 +402,13 @@ public class AuthorizationPollerTests extends ESTestCase {
 
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
-            ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntity(List.of(sparseModel)), url));
+            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
+            listener.onResponse(
+                ElasticInferenceServiceAuthorizationModel.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(List.of(sparseModel)),
+                    url
+                )
+            );
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 
@@ -439,8 +464,13 @@ public class AuthorizationPollerTests extends ESTestCase {
 
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
-            ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntity(List.of(sparseModel)), url));
+            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
+            listener.onResponse(
+                ElasticInferenceServiceAuthorizationModel.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(List.of(sparseModel)),
+                    url
+                )
+            );
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 

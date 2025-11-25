@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
-import org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -35,9 +35,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.cancelAuthorizationTask;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.waitForTask;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.EIS_EMPTY_RESPONSE;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.RAINBOW_SPRINKLES_ENDPOINT_ID;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_EMPTY_RESPONSE;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RAINBOW_SPRINKLES_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -55,7 +55,7 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
     private static final String AUTH_TASK_ACTION = AuthorizationPoller.TASK_NAME + "[c]";
     private static final MockWebServer webServer = new MockWebServer();
     private static String gatewayUrl;
-    private static AuthorizationResponseEntityTests.EisAuthorizationResponse chatCompletionResponse;
+    private static ElasticInferenceServiceAuthorizationResponseEntityTests.EisAuthorizationResponse chatCompletionResponse;
 
     @BeforeClass
     public static void initClass() throws IOException {

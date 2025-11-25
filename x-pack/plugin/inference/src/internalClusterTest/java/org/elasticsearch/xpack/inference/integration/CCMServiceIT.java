@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureFlag;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMModel;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
-import org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -49,7 +49,7 @@ public class CCMServiceIT extends CCMSingleNodeIT {
 
     private static final MockWebServer webServer = new MockWebServer();
     private static String gatewayUrl;
-    private static AuthorizationResponseEntityTests.EisAuthorizationResponse chatCompletionResponse;
+    private static ElasticInferenceServiceAuthorizationResponseEntityTests.EisAuthorizationResponse chatCompletionResponse;
 
     private AuthorizationTaskExecutor authorizationTaskExecutor;
     private ModelRegistry modelRegistry;
@@ -79,7 +79,9 @@ public class CCMServiceIT extends CCMSingleNodeIT {
 
         webServer.start();
         gatewayUrl = getUrl(webServer);
-        chatCompletionResponse = AuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse(gatewayUrl);
+        chatCompletionResponse = ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse(
+            gatewayUrl
+        );
     }
 
     @Before

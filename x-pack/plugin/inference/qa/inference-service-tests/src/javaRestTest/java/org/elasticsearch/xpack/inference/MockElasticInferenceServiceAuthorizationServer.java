@@ -17,7 +17,7 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.getEisAuthorizationResponseWithMultipleEndpoints;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisAuthorizationResponseWithMultipleEndpoints;
 
 public class MockElasticInferenceServiceAuthorizationServer implements TestRule {
 

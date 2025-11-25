@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceAuthorizationRequest;
-import org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntity;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.junit.After;
 import org.junit.Before;
@@ -55,7 +55,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.getEisElserAuthorizationResponse;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisElserAuthorizationResponse;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -314,14 +314,14 @@ public class HttpRequestSenderTests extends ESTestCase {
             );
             var responseHandler = new ElasticInferenceServiceResponseHandler(
                 String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
-                AuthorizationResponseEntity::fromResponse
+                ElasticInferenceServiceAuthorizationResponseEntity::fromResponse
             );
 
             sender.sendWithoutQueuing(mock(Logger.class), request, responseHandler, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
-            assertThat(result, instanceOf(AuthorizationResponseEntity.class));
-            var authResponse = (AuthorizationResponseEntity) result;
+            assertThat(result, instanceOf(ElasticInferenceServiceAuthorizationResponseEntity.class));
+            var authResponse = (ElasticInferenceServiceAuthorizationResponseEntity) result;
             assertThat(authResponse.getAuthorizedEndpoints(), is(elserResponse.responseEntity().getAuthorizedEndpoints()));
         }
     }

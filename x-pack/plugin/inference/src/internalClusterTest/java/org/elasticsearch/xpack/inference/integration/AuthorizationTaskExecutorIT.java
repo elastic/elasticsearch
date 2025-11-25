@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
-import org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -43,12 +43,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.EIS_EMPTY_RESPONSE;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.ELSER_V2_ENDPOINT_ID;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.JINA_EMBED_V3_ENDPOINT_ID;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.RAINBOW_SPRINKLES_ENDPOINT_ID;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.RERANK_V1_ENDPOINT_ID;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_EMPTY_RESPONSE;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.ELSER_V2_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.JINA_EMBED_V3_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RAINBOW_SPRINKLES_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RERANK_V1_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -66,7 +66,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
     private static final MockWebServer webServer = new MockWebServer();
     private static String gatewayUrl;
-    private static AuthorizationResponseEntityTests.EisAuthorizationResponse chatCompletionResponse;
+    private static ElasticInferenceServiceAuthorizationResponseEntityTests.EisAuthorizationResponse chatCompletionResponse;
 
     private ModelRegistry modelRegistry;
     private AuthorizationTaskExecutor authorizationTaskExecutor;
@@ -273,7 +273,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         assertChatCompletionEndpointExists();
 
         // Simulate that a text embedding model is now authorized
-        var jinaEmbedResponse = AuthorizationResponseEntityTests.getEisJinaEmbedAuthorizationResponse(gatewayUrl);
+        var jinaEmbedResponse = ElasticInferenceServiceAuthorizationResponseEntityTests.getEisJinaEmbedAuthorizationResponse(gatewayUrl);
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(jinaEmbedResponse.responseJson()));
 
         restartPollingTaskAndWaitForAuthResponse();

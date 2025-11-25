@@ -46,9 +46,9 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.be
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createApplierFactory;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.ELSER_V2_ENDPOINT_ID;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.getEisAuthorizationResponseWithMultipleEndpoints;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.getEisElserAuthorizationResponse;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.ELSER_V2_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisAuthorizationResponseWithMultipleEndpoints;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisElserAuthorizationResponse;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -88,7 +88,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(null, threadPool, logger, createNoopApplierFactory());
 
         try (var sender = senderFactory.createSender()) {
-            PlainActionFuture<AuthorizationModel> listener = new PlainActionFuture<>();
+            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
@@ -110,7 +110,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler("", threadPool, logger, createNoopApplierFactory());
 
         try (var sender = senderFactory.createSender()) {
-            PlainActionFuture<AuthorizationModel> listener = new PlainActionFuture<>();
+            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
@@ -155,7 +155,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
 
             queueWebServerResponsesForRetries(responseWithInvalidIdField);
 
-            PlainActionFuture<AuthorizationModel> listener = new PlainActionFuture<>();
+            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
 
             var exception = expectThrows(XContentParseException.class, () -> listener.actionGet(TIMEOUT));
@@ -197,7 +197,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseData.responseJson()));
 
-            PlainActionFuture<AuthorizationModel> listener = new PlainActionFuture<>();
+            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
@@ -253,7 +253,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         try (var sender = senderFactory.createSender()) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(elserResponse.responseJson()));
 
-            PlainActionFuture<AuthorizationModel> listener = new PlainActionFuture<>();
+            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
@@ -288,8 +288,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory()
         );
 
-        PlainActionFuture<AuthorizationModel> listener = new PlainActionFuture<>();
-        ActionListener<AuthorizationModel> onlyOnceListener = ActionListener.assertOnce(listener);
+        PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+        ActionListener<ElasticInferenceServiceAuthorizationModel> onlyOnceListener = ActionListener.assertOnce(listener);
 
         var elserResponse = getEisElserAuthorizationResponse(eisGatewayUrl);
 
@@ -328,7 +328,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler("abc", threadPool, logger, createNoopApplierFactory());
 
         try (var sender = senderFactory.createSender()) {
-            PlainActionFuture<AuthorizationModel> listener = new PlainActionFuture<>();
+            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
 
             authHandler.getAuthorization(listener, sender);
             var exception = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));

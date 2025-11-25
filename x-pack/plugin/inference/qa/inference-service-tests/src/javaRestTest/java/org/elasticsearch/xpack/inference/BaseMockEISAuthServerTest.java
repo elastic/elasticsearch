@@ -25,7 +25,7 @@ import org.junit.rules.TestRule;
 
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.getModel;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings.CCM_SUPPORTED_ENVIRONMENT;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.ELSER_V2_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.ELSER_V2_ENDPOINT_ID;
 
 public class BaseMockEISAuthServerTest extends ESRestTestCase {
 

@@ -306,7 +306,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
     }
 
     private void sendRequest(ActionListener<Void> listener) {
-        SubscribableListener.<AuthorizationModel>newForked(
+        SubscribableListener.<ElasticInferenceServiceAuthorizationModel>newForked(
             authModelListener -> authorizationHandler.getAuthorization(authModelListener, sender)
         )
             .andThenApply(this::getNewInferenceEndpointsToStore)
@@ -314,7 +314,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             .addListener(listener);
     }
 
-    private List<? extends Model> getNewInferenceEndpointsToStore(AuthorizationModel authModel) {
+    private List<? extends Model> getNewInferenceEndpointsToStore(ElasticInferenceServiceAuthorizationModel authModel) {
         logger.debug("Received authorization response, {}", authModel);
 
         var scopedAuthModel = authModel.newLimitedToTaskTypes(EnumSet.copyOf(IMPLEMENTED_TASK_TYPES));

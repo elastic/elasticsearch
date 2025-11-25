@@ -521,7 +521,7 @@ public class ComputeService {
                         // the initial cluster status is collected before the query is executed
                         LOGGER.trace(
                             "skipping execution on remote cluster [{}] since its initial status is [{}]",
-                            clusterStatus,
+                            clusterAlias,
                             clusterStatus
                         );
                         continue;

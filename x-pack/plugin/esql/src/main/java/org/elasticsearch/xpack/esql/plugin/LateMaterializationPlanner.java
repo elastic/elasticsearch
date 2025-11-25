@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -116,15 +117,15 @@ class LateMaterializationPlanner {
             return Optional.empty();
         }
 
-        // Add all references used in the ordering
         AttributeSet orderRefsSet = AttributeSet.of(topN.order().stream().flatMap(o -> o.references().stream()).toList());
         // Get the output from the physical plan below the TopN, and filter it to only the attributes needed for the final output (either
         // because they are in the top-level Project's output, or because they are needed for ordering)
-        List<Attribute> expectedDataOutput = AttributeSet.of(
-            physicalPlanOutput.stream()
-                .filter(a -> topLevelProject.outputSet().contains(a) || orderRefsSet.contains(a) || EsQueryExec.isDocAttribute(a))
-                .toList()
-        ).stream().toList();
+        List<Attribute> expectedDataOutput = new ArrayList<>();
+        for (Attribute a : physicalPlanOutput) {
+            if (topLevelProject.outputSet().contains(a) || orderRefsSet.contains(a) || EsQueryExec.isDocAttribute(a)) {
+                expectedDataOutput.add(a);
+            }
+        }
         var updatedFragment = new Project(Source.EMPTY, withAddedDocToRelation, expectedDataOutput);
         FragmentExec updatedFragmentExec = fragmentExec.withFragment(updatedFragment);
         ExchangeSinkExec updatedDataPlan = originalPlan.replaceChild(updatedFragmentExec);

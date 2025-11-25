@@ -1865,7 +1865,7 @@ public class IngestServiceTests extends ESTestCase {
 
         // The bulk listener should still be called with success
         verify(listener).onResponse(null);
-        assertStats(ingestService.stats().totalStats(), 4,2,0);
+        assertStats(ingestService.stats().totalStats(), 4, 2, 0);
         // Verify that the valid documents were processed (they should have their pipelines executed)
         assertThat(validRequest.getExecutedPipelines(), equalTo(List.of(pipelineId)));
         assertThat(validRequest2.getExecutedPipelines(), equalTo(List.of(pipelineId)));

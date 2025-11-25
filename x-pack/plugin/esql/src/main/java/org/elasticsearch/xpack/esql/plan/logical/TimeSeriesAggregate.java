@@ -222,12 +222,7 @@ public class TimeSeriesAggregate extends Aggregate {
                     Expression field = outer.field();
                     TimeSeriesAggregateFunction overTimeAgg;
                     if (field.dataType() == DataType.EXPONENTIAL_HISTOGRAM) {
-                        overTimeAgg = new HistogramMergeOverTime(
-                            source(),
-                            field,
-                            Literal.TRUE,
-                            AggregateFunction.NO_WINDOW
-                        );
+                        overTimeAgg = new HistogramMergeOverTime(source(), field, Literal.TRUE, AggregateFunction.NO_WINDOW);
                     } else {
                         overTimeAgg = new LastOverTime(
                             source(),

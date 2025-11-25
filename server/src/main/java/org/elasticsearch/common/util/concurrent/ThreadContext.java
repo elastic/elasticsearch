@@ -16,11 +16,13 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -766,6 +768,31 @@ public final class ThreadContext implements Writeable, TraceContext {
             newRequestHeaders,
             originalContext.responseHeaders,
             originalContext.transientHeaders,
+            originalContext.isSystemContext,
+            originalContext.warningHeadersSize
+        );
+        threadLocal.set(newContext);
+        // intentionally not storing prior context to avoid restoring unwanted headers
+    }
+
+    /**
+     * Removes unneeded transient headers from the thread context. Does not store prior context.
+     */
+    public void sanitizeTransientHeaders() {
+        final ThreadContextStruct originalContext = threadLocal.get();
+        final Map<String, Object> newTransientHeaders = Maps.newMapWithExpectedSize(originalContext.transientHeaders.size());
+        for (var entry : originalContext.transientHeaders.entrySet()) {
+            if (entry.getValue() instanceof SecureString secureString) {
+                IOUtils.closeWhileHandlingException(secureString);
+            } else {
+                newTransientHeaders.put(entry.getKey(), entry.getValue());
+            }
+        }
+
+        final ThreadContextStruct newContext = new ThreadContextStruct(
+            originalContext.requestHeaders,
+            originalContext.responseHeaders,
+            newTransientHeaders,
             originalContext.isSystemContext,
             originalContext.warningHeadersSize
         );

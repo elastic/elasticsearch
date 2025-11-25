@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
@@ -344,6 +345,83 @@ public class SecurityRestFilterTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testSanitizeTransientHeaders() throws Exception {
+        for (boolean failRequest : List.of(true, false)) {
+            RestRequest request = mock(RestRequest.class);
+            when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
+            HttpRequest httpRequest = mock(HttpRequest.class);
+            when(request.getHttpRequest()).thenReturn(httpRequest);
+            Authentication authentication = AuthenticationTestHelper.builder().build();
+            doAnswer((i) -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
+                if (failRequest) {
+                    callback.onFailure(new RuntimeException());
+                } else {
+                    callback.onResponse(authentication);
+                }
+                return Void.TYPE;
+            }).when(authcService).authenticate(eq(httpRequest), anyActionListener());
+
+            final SecureString secureString = new SecureString("password".toCharArray());
+            threadContext.putTransient("secure.key", secureString);
+
+            PlainActionFuture<Boolean> future = new PlainActionFuture<>() {
+                @Override
+                public void onResponse(Boolean result) {
+                    assertThat(threadContext.getTransient("secure.key"), equalTo(secureString));
+                    super.onResponse(result);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(threadContext.getTransient("secure.key"), equalTo(secureString));
+                    super.onFailure(e);
+                }
+            };
+            filter.intercept(request, channel, restHandler, future);
+            assertThat(future.get(), is(Boolean.TRUE));
+
+            // verify SecureString instance is removed and closed
+            assertThat(threadContext.getTransient("secure.key"), nullValue());
+            expectThrows(IllegalStateException.class, containsString("SecureString has already been closed"), secureString::getChars);
+        }
+    }
+
+    public void testSanitizeTransientHeadersAfterException() throws Exception {
+        RestRequest request = mock(RestRequest.class);
+        when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
+        HttpRequest httpRequest = mock(HttpRequest.class);
+        when(request.getHttpRequest()).thenReturn(httpRequest);
+
+        final ElasticsearchSecurityException testException = new ElasticsearchSecurityException("test exception");
+        doAnswer((i) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
+            callback.onFailure(testException);
+            return Void.TYPE;
+        }).when(authcService).authenticate(eq(httpRequest), anyActionListener());
+
+        final SecureString secureString = new SecureString("password".toCharArray());
+        threadContext.putTransient("secure.key", secureString);
+
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>() {
+            @Override
+            public void onResponse(Boolean result) {
+                assertThat(threadContext.getTransient("secure.key"), equalTo(secureString));
+                throw testException;
+            }
+        };
+        filter.intercept(request, channel, restHandler, future);
+
+        var ese = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(ese, sameInstance(testException));
+
+        // verify SecureString is removed and closed
+        assertThat(threadContext.getTransient("secure.key"), nullValue());
+        expectThrows(IllegalStateException.class, containsString("SecureString has already been closed"), secureString::getChars);
     }
 
     private interface FilteredRestHandler extends RestHandler, RestRequestFilter {}

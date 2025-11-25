@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -38,6 +39,7 @@ import static org.elasticsearch.tasks.Task.HEADERS_TO_COPY;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -1155,6 +1157,58 @@ public class ThreadContextTests extends ESTestCase {
             assertThat(threadContext.getTransient("authorization"), instanceOf(String.class)); // we don't sanitize transients
             assertThat(threadContext.getResponseHeaders().keySet(), containsInAnyOrder("authorization")); // we don't sanitize responses
         }
+    }
+
+    public void testSanitizeTransientHeaders() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        // add transient headers
+        final SecureString secureString1 = new SecureString("password1".toCharArray());
+        final String regularTransient1 = "string-value";
+        final Integer regularTransient2 = 42;
+        final Object regularTransient3 = new Object();
+        threadContext.putTransient("secure.key1", secureString1);
+        threadContext.putTransient("regular.key1", regularTransient1);
+        threadContext.putTransient("regular.key2", regularTransient2);
+        threadContext.putTransient("regular.key3", regularTransient3);
+
+        // add request and response headers that should be preserved
+        threadContext.putHeader("request-header", "request-value");
+        threadContext.addResponseHeader("response-header", "response-value");
+
+        threadContext.sanitizeTransientHeaders();
+
+        // verify secure string is removed from transient headers and closed
+        assertThat(threadContext.getTransient("secure.key1"), nullValue());
+        expectThrows(IllegalStateException.class, containsString("SecureString has already been closed"), secureString1::getChars);
+
+        // other headers should be unchanged
+        assertThat(threadContext.getTransient("regular.key1"), equalTo(regularTransient1));
+        assertThat(threadContext.getTransient("regular.key2"), equalTo(regularTransient2));
+        assertThat(threadContext.getTransient("regular.key3"), sameInstance(regularTransient3));
+        assertThat(threadContext.getHeader("request-header"), equalTo("request-value"));
+        assertThat(threadContext.getResponseHeaders().get("response-header").getFirst(), equalTo("response-value"));
+    }
+
+    public void testSanitizeTransientHeadersWithOnlySecureStrings() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final SecureString secureString1 = new SecureString("password1".toCharArray());
+        threadContext.putTransient("secure.key1", secureString1);
+
+        threadContext.sanitizeTransientHeaders();
+
+        assertThat(threadContext.getTransient("secure.key1"), nullValue());
+        expectThrows(IllegalStateException.class, containsString("SecureString has already been closed"), secureString1::getChars);
+        assertThat(threadContext.getTransientHeaders(), is(anEmptyMap()));
+    }
+
+    public void testSanitizeTransientHeadersWithEmptyTransients() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        assertThat(threadContext.getTransientHeaders(), is(anEmptyMap()));
+
+        threadContext.sanitizeTransientHeaders();
+
+        assertThat(threadContext.getTransientHeaders(), is(anEmptyMap()));
     }
 
     public void testNewEmptyContext() {

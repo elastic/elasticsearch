@@ -100,20 +100,28 @@ public class SecurityRestFilter implements RestInterceptor {
 
     private void doHandleRequest(RestRequest request, RestChannel channel, RestHandler targetHandler, ActionListener<Boolean> listener) {
         threadContext.sanitizeHeaders();
-        // operator privileges can short circuit to return a non-successful response
-        if (operatorPrivilegesService.checkRest(targetHandler, request, channel, threadContext)) {
-            listener.onResponse(Boolean.TRUE);
-        } else {
-            // The service sends its own response if it returns `false`.
-            // That's kind of ugly, and it would be better if we throw an exception and let the rest controller serialize it as normal
-            listener.onResponse(Boolean.FALSE);
+        try {
+            // operator privileges can short circuit to return a non-successful response
+            if (operatorPrivilegesService.checkRest(targetHandler, request, channel, threadContext)) {
+                listener.onResponse(Boolean.TRUE);
+            } else {
+                // The service sends its own response if it returns `false`.
+                // That's kind of ugly, and it would be better if we throw an exception and let the rest controller serialize it as normal
+                listener.onResponse(Boolean.FALSE);
+            }
+        } finally {
+            threadContext.sanitizeTransientHeaders();
         }
     }
 
     protected void handleException(RestRequest request, Exception e, ActionListener<?> listener) {
-        logger.debug(() -> format("failed for REST request [%s]", request.uri()), e);
-        threadContext.sanitizeHeaders();
-        listener.onFailure(e);
+        try {
+            logger.debug(() -> format("failed for REST request [%s]", request.uri()), e);
+            threadContext.sanitizeHeaders();
+            listener.onFailure(e);
+        } finally {
+            threadContext.sanitizeTransientHeaders();
+        }
     }
 
     // for testing

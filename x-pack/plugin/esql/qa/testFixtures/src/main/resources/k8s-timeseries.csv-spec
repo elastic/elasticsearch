@@ -1010,10 +1010,11 @@ TS k8s
 
 predicted_cost:double | time_bucket:datetime     | cluster:keyword
 592.375               | 2024-05-10T00:00:00.000Z | prod
-128.8924              | 2024-05-10T00:05:00.000Z | prod
-215.1235              | 2024-05-10T00:10:00.000Z | prod
-150.5443              | 2024-05-10T00:15:00.000Z | prod
-128.9042              | 2024-05-10T00:20:00.000Z | prod
+128.89239             | 2024-05-10T00:05:00.000Z | prod
+215.12355             | 2024-05-10T00:10:00.000Z | prod
+150.54425             | 2024-05-10T00:15:00.000Z | prod
+128.90425             | 2024-05-10T00:20:00.000Z | prod
+
 ;
 
 predict_linear_with_int_and_timedelta
@@ -1032,9 +1033,9 @@ TS k8s
 // tag::predict_linear-result[]
 predicted_cost_int:double | time_bucket:datetime     | cluster:keyword
 3105.0                    | 2024-05-10T00:00:00.000Z | prod
-4218.332                  | 2024-05-10T00:05:00.000Z | prod
-6029.225                  | 2024-05-10T00:10:00.000Z | prod
+4218.33168                | 2024-05-10T00:05:00.000Z | prod
+6029.22491                | 2024-05-10T00:10:00.000Z | prod
 // end::predict_linear-result[]
-9420.232                  | 2024-05-10T00:15:00.000Z | prod
-10367.26                  | 2024-05-10T00:20:00.000Z | prod
+9420.23165                | 2024-05-10T00:15:00.000Z | prod
+10367.26268               | 2024-05-10T00:20:00.000Z | prod
 ;

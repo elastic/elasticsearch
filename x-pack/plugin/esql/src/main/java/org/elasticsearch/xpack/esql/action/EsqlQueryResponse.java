@@ -50,6 +50,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
+    public static final String ALLOW_PARTIAL_RESULTS_OPTION = "allow_partial_results";
+    public static final String STREAM_OPTION = "stream";
 
     private final List<ColumnInfoImpl> columns;
     private final List<Page> pages;
@@ -160,7 +162,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return columns;
     }
 
-    List<Page> pages() {
+    public List<Page> pages() {
         return pages;
     }
 

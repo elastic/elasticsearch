@@ -14,6 +14,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -21,7 +22,9 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.ALLOW_PARTIAL_RESULTS_OPTION;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.STREAM_OPTION;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -46,8 +49,28 @@ public class RestEsqlAsyncQueryAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            return RestEsqlQueryAction.restChannelConsumer(RequestXContent.parseAsync(parser), request, client);
+            return restChannelConsumer(RequestXContent.parseAsync(parser), request, client);
         }
+    }
+
+    // TODO: Remove and reuse the RestEsqlQueryAction method again if possible
+    private static RestChannelConsumer restChannelConsumer(EsqlQueryRequest esqlRequest, RestRequest request, NodeClient client) {
+        final Boolean partialResults = request.paramAsBoolean(ALLOW_PARTIAL_RESULTS_OPTION, null);
+        // Just to consume the parameter until streaming is implemented
+        request.paramAsBoolean(STREAM_OPTION, false);
+        if (partialResults != null) {
+            esqlRequest.allowPartialResults(partialResults);
+        }
+        LOGGER.debug("Beginning execution of ESQL query.\nQuery string: [{}]", esqlRequest.query());
+
+        return channel -> {
+            RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            cancellableClient.execute(
+                EsqlQueryAction.INSTANCE,
+                esqlRequest,
+                new EsqlResponseListener(channel, request, esqlRequest).wrapWithLogging()
+            );
+        };
     }
 
     @Override

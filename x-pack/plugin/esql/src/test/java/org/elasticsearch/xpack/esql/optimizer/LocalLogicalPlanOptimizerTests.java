@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
@@ -74,9 +75,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -1436,6 +1439,55 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertTrue(esRelation.output().contains(maxfieldAttr));
         assertTrue(esRelation.output().contains(countfieldAttr));
         assertTrue(esRelation.output().contains(sumfieldAttr));
+    }
+
+    public void testAggregateMetricDoubleInlineStats() {
+        // TODO: modify below when we handle fusing and StubRelations properly
+        assumeTrue(
+            "requires fusing from_aggregate_metric_double",
+            EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_FUSE_SUB_BLOCKS.isEnabled()
+        );
+        String query = """
+            FROM k8s-downsampled
+            | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod
+            | SORT @timestamp, cluster, pod
+            | KEEP @timestamp, cluster, pod, network.eth0.tx, tx_max
+            | LIMIT 9
+            """;
+
+        LogicalPlan plan = localPlan(plan(query, tsAnalyzer), new EsqlTestUtils.TestSearchStats());
+
+        // EsqlProject[[@timestamp{f}#15, cluster{f}#16, pod{f}#17, network.eth0.tx{f}#34, tx_max{r}#5]]
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("@timestamp", "cluster", "pod", "network.eth0.tx", "tx_max"));
+        // TopN[[Order[@timestamp{f}#15,ASC,LAST], Order[cluster{f}#16,ASC,LAST], Order[pod{f}#17,ASC,LAST]],9[INTEGER],false]
+        var topN = as(project.child(), TopN.class);
+        // InlineJoin[LEFT,[pod{f}#17],[pod{r}#17]]
+        var inlineJoin = as(topN.child(), InlineJoin.class);
+        // Aggregate[[pod{f}#17],[MAX($$MAX(network.eth>$MAX$0{r$}#39,true[BOOLEAN],PT0S[TIME_DURATION]) AS tx_max#5, pod{f}#17]]
+        var aggregate = as(inlineJoin.right(), Aggregate.class);
+        assertThat(aggregate.groupings(), hasSize(1));
+        assertThat(aggregate.aggregates(), hasSize(2));
+        as(Alias.unwrap(aggregate.aggregates().get(0)), Max.class);
+        // Eval[[$$network.eth0.tx$AMD_MAX$1489455250{f$}#40 AS $$MAX(network.eth>$MAX$0#39]]
+        var eval = as(aggregate.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        var fieldAttr = as(alias.child(), FieldAttribute.class);
+        assertThat(fieldAttr.fieldName().string(), equalTo("network.eth0.tx"));
+        var field = as(fieldAttr.field(), FunctionEsField.class);
+        var blockLoaderFunctionConfig = as(field.functionConfig(), BlockLoaderFunctionConfig.AggregateMetricDoubleFunctionConfig.class);
+        assertThat(blockLoaderFunctionConfig.function(), equalTo(BlockLoaderFunctionConfig.Function.AMD_MAX));
+
+        // TODO: modify this comment when unmuting test
+        // StubRelation[[@timestamp{f}#15, ..., cluster{f}#16, ..., network.eth0.tx{f}#34, ...,
+        // pod{f}#17, ..., $$MAX(network.eth>$MAX$0{r$}#39, $$network.eth0.tx$AMD_MAX$1489455250{f$}#40]]
+        var stubRelation = as(eval.child(), StubRelation.class);
+        assertFalse(stubRelation.output().contains(fieldAttr));
+        // EsRelation[k8s-downsampled][@timestamp{f}#15, client.ip{f}#19, cluster{f}#16, e..]
+        var esRelation = as(inlineJoin.left(), EsRelation.class);
+        assertTrue(esRelation.output().contains(fieldAttr));
     }
 
     public void testVectorFunctionsWhenFieldMissing() {

@@ -116,7 +116,6 @@ class LateMaterializationPlanner {
             return Optional.empty();
         }
 
-        // Add all references used in the ordering
         AttributeSet orderRefsSet = AttributeSet.of(topN.order().stream().flatMap(o -> o.references().stream()).toList());
         // Get the output from the physical plan below the TopN, and filter it to only the attributes needed for the final output (either
         // because they are in the top-level Project's output, or because they are needed for ordering)

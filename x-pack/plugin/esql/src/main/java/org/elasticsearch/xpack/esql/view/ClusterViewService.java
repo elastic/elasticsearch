@@ -60,10 +60,6 @@ public class ClusterViewService extends ViewService {
         return projectMetadata.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
     }
 
-    protected ProjectMetadata getProjectMetadata(ProjectId projectId) {
-        return clusterService.state().metadata().getProject(projectId);
-    }
-
     @Override
     protected void updateViewMetadata(
         String verb,
@@ -109,7 +105,7 @@ public class ClusterViewService extends ViewService {
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            var project = getProjectMetadata(projectId);
+            var project = currentState.metadata().getProject(projectId);
             var views = project.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
             Map<String, View> policies = updateFunction.apply(views);
             var metadata = ProjectMetadata.builder(project).putCustom(ViewMetadata.TYPE, new ViewMetadata(policies));

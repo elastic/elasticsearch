@@ -46,16 +46,23 @@ public class InferenceGetModelsWithElasticInferenceServiceIT extends BaseMockEIS
     public void testGetDefaultEndpoints() throws IOException {
         var allModels = getAllModels();
         var chatCompletionModels = getModels("_all", TaskType.CHAT_COMPLETION);
+        var completionModels = getModels("_all", TaskType.COMPLETION);
 
-        assertThat(allModels, hasSize(8));
+        assertThat(allModels, hasSize(9));
         assertThat(chatCompletionModels, hasSize(2));
+        assertThat(completionModels, hasSize(1));
 
         for (var model : chatCompletionModels) {
             assertEquals("chat_completion", model.get("task_type"));
         }
 
+        for (var model : completionModels) {
+            assertEquals("completion", model.get("task_type"));
+        }
+
         assertInferenceIdTaskType(allModels, RAINBOW_SPRINKLES_ENDPOINT_ID, TaskType.CHAT_COMPLETION);
         assertInferenceIdTaskType(allModels, GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID, TaskType.CHAT_COMPLETION);
+        assertInferenceIdTaskType(allModels, ".gp-llm-v2-completion", TaskType.COMPLETION);
         assertInferenceIdTaskType(allModels, ELSER_V2_ENDPOINT_ID, TaskType.SPARSE_EMBEDDING);
         assertInferenceIdTaskType(allModels, JINA_EMBED_V3_ENDPOINT_ID, TaskType.TEXT_EMBEDDING);
         assertInferenceIdTaskType(allModels, RERANK_V1_ENDPOINT_ID, TaskType.RERANK);

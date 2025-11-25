@@ -40,10 +40,10 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     // The remaining number of tokens that are permitted before exhausting the rate limit.
     static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
 
-    static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
-    static final String VALIDATION_ERROR_MESSAGE = "Received an input validation error response";
+    private static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
+    private static final String VALIDATION_ERROR_MESSAGE = "Received an input validation error response";
 
-    static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
+    private static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
 
     public OpenAiResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponses) {
         this(requestType, parseFunction, ErrorMessageResponseEntity::fromResponse, canHandleStreamingResponses);
@@ -109,7 +109,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         return new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
     }
 
-    private static boolean isContentTooLarge(HttpResult result) {
+    public boolean isContentTooLarge(HttpResult result) {
         int statusCode = result.response().getStatusLine().getStatusCode();
 
         if (statusCode == 413) {

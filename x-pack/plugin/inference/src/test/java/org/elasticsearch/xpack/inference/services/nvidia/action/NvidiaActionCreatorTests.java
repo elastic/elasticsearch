@@ -570,20 +570,11 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         try (var sender = createSender(senderFactory)) {
             sender.startSynchronously();
 
-            var contentTooLargeErrorMessage = """
-                This model's maximum context length is 8192 tokens, however you requested 13531 tokens (13531 in your prompt;\
-                0 for the completion). Please reduce your prompt; or completion length.""";
-
-            String responseJsonContentTooLarge = Strings.format("""
+            String responseJsonContentTooLarge = """
                     {
-                        "error": {
-                            "message": "%s",
-                            "type": "content_too_large",
-                            "param": null,
-                            "code": null
-                        }
+                        "error": "Input length 18432 exceeds maximum allowed token size 8192"
                     }
-                """, contentTooLargeErrorMessage);
+                """;
 
             String responseJson = Strings.format(EMBEDDING_RESPONSE_JSON, MODEL_VALUE, COMPLETION_RESULT_VALUE);
             webServer.enqueue(new MockResponse().setResponseCode(413).setBody(responseJsonContentTooLarge));
@@ -638,20 +629,11 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         try (var sender = createSender(senderFactory)) {
             sender.startSynchronously();
 
-            var contentTooLargeErrorMessage = """
-                This model's maximum context length is 8192 tokens, however you requested 13531 tokens (13531 in your prompt;\
-                0 for the completion). Please reduce your prompt; or completion length.""";
-
-            String responseJsonContentTooLarge = Strings.format("""
+            String responseJsonContentTooLarge = """
                     {
-                        "error": {
-                            "message": "%s",
-                            "type": "content_too_large",
-                            "param": null,
-                            "code": null
-                        }
+                        "error": "Input length 18432 exceeds maximum allowed token size 8192"
                     }
-                """, contentTooLargeErrorMessage);
+                """;
 
             var responseJson = Strings.format(EMBEDDING_RESPONSE_JSON, MODEL_VALUE, COMPLETION_RESULT_VALUE);
             webServer.enqueue(new MockResponse().setResponseCode(400).setBody(responseJsonContentTooLarge));

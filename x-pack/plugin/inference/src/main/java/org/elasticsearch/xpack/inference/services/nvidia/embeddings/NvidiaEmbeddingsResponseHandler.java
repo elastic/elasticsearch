@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
 
+import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
+import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiResponseHandler;
 
 /**
@@ -16,6 +19,7 @@ import org.elasticsearch.xpack.inference.services.openai.OpenAiResponseHandler;
  * This class extends {@link OpenAiResponseHandler} to provide specific functionality for Nvidia embeddings.
  */
 public class NvidiaEmbeddingsResponseHandler extends OpenAiResponseHandler {
+    private static final String CONTENT_TOO_LARGE_MESSAGE_PATTERN = "exceeds maximum allowed token size";
 
     /**
      * Constructs a new {@link NvidiaEmbeddingsResponseHandler} with the specified request type and response parser.
@@ -25,5 +29,29 @@ public class NvidiaEmbeddingsResponseHandler extends OpenAiResponseHandler {
      */
     public NvidiaEmbeddingsResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, ErrorResponse::fromResponse, false);
+    }
+
+    @Override
+    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+        super.checkForFailureStatusCode(request, result);
+    }
+
+    @Override
+    public boolean isContentTooLarge(HttpResult result) {
+        int statusCode = result.response().getStatusLine().getStatusCode();
+
+        if (statusCode == 413) {
+            return true;
+        }
+
+        if (statusCode == 400) {
+            var errorResponse = ErrorResponse.fromResponse(result);
+
+            return errorResponse != null
+                && errorResponse.getErrorMessage() != null
+                && errorResponse.getErrorMessage().contains(CONTENT_TOO_LARGE_MESSAGE_PATTERN);
+        }
+
+        return false;
     }
 }

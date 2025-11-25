@@ -38,14 +38,14 @@ public class NvidiaRerankRequestTests extends ESTestCase {
     private static final String API_KEY_VALUE = "test_api_key";
 
     public void testCreateRequest_AllFieldsSet() throws IOException {
-        testCreateRequest(createRequest(URL_VALUE), URL_VALUE);
+        assertCreateHttpRequest(createRequest(URL_VALUE), URL_VALUE);
     }
 
     public void testCreateRequest_DefaultUrl() throws IOException {
-        testCreateRequest(createRequest(null), URL_DEFAULT_VALUE);
+        assertCreateHttpRequest(createRequest(null), URL_DEFAULT_VALUE);
     }
 
-    private void testCreateRequest(NvidiaRerankRequest request, String expectedUrl) throws IOException {
+    private void assertCreateHttpRequest(NvidiaRerankRequest request, String expectedUrl) throws IOException {
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));

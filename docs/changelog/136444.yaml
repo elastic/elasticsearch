@@ -1,6 +1,0 @@
-pr: 136444
-summary: Create new block when filter `OrdinalBytesRefBlock`
-area: ES|QL
-type: bug
-issues:
- - 136423

@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDi
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -49,6 +49,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -83,13 +84,12 @@ public class IgnoreNullMetricsTests extends ESTestCase {
             "_tsid",
             new EsField("_tsid", DataType.TSID_DATA_TYPE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.TIME_SERIES));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
+        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.TIME_SERIES));
         analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResult,
+                indexResolutions(test),
                 defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution()

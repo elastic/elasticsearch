@@ -11,25 +11,25 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 
 import java.util.Map;
 
-public record AnalyzerContext(
-    Configuration configuration,
-    EsqlFunctionRegistry functionRegistry,
-    IndexResolution indexResolution,
-    Map<String, IndexResolution> lookupResolution,
-    EnrichResolution enrichResolution,
-    InferenceResolution inferenceResolution,
-    TransportVersion minimumVersion
-) {
+public class AnalyzerContext {
+    private final Configuration configuration;
+    private final EsqlFunctionRegistry functionRegistry;
+    private final Map<IndexPattern, IndexResolution> indexResolution;
+    private final Map<String, IndexResolution> lookupResolution;
+    private final EnrichResolution enrichResolution;
+    private final InferenceResolution inferenceResolution;
+    private final TransportVersion minimumVersion;
 
     public AnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
-        IndexResolution indexResolution,
+        Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
@@ -48,11 +48,39 @@ public record AnalyzerContext(
             : "AnalyzerContext [" + minimumVersion + "] is not on or before current transport version [" + TransportVersion.current() + "]";
     }
 
+    public Configuration configuration() {
+        return configuration;
+    }
+
+    public EsqlFunctionRegistry functionRegistry() {
+        return functionRegistry;
+    }
+
+    public Map<IndexPattern, IndexResolution> indexResolution() {
+        return indexResolution;
+    }
+
+    public Map<String, IndexResolution> lookupResolution() {
+        return lookupResolution;
+    }
+
+    public EnrichResolution enrichResolution() {
+        return enrichResolution;
+    }
+
+    public InferenceResolution inferenceResolution() {
+        return inferenceResolution;
+    }
+
+    public TransportVersion minimumVersion() {
+        return minimumVersion;
+    }
+
     public AnalyzerContext(Configuration configuration, EsqlFunctionRegistry functionRegistry, EsqlSession.PreAnalysisResult result) {
         this(
             configuration,
             functionRegistry,
-            result.indices(),
+            result.indexResolution(),
             result.lookupIndices(),
             result.enrichResolution(),
             result.inferenceResolution(),

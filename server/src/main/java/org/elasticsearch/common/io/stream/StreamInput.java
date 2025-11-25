@@ -72,7 +72,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * it means that the "barrier to entry" for adding new methods to this class is relatively low even though it is a shared class with code
  * everywhere. That being said, this class deals primarily with {@code List}s rather than Arrays. For the most part calls should adapt to
  * lists, either by storing {@code List}s internally or just converting to and from a {@code List} when calling. This comment is repeated
- * on {@link StreamInput}.
+ * on {@link StreamOutput}.
  */
 public abstract class StreamInput extends InputStream {
 
@@ -1194,6 +1194,17 @@ public abstract class StreamInput extends InputStream {
     @Nullable
     public <T extends Exception> T readException() throws IOException {
         return ElasticsearchException.readException(this);
+    }
+
+    /**
+     * Reads an optional {@link Exception}.
+     */
+    @Nullable
+    public <T extends Exception> T readOptionalException() throws IOException {
+        if (readBoolean()) {
+            return ElasticsearchException.readException(this);
+        }
+        return null;
     }
 
     /**

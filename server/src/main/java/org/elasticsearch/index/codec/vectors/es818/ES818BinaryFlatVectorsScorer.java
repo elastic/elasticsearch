@@ -26,9 +26,9 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.es816.BinaryQuantizer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -74,7 +74,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
             assert similarityFunction != COSINE || BQVectorUtils.isUnitVector(target);
             float[] scratch = new float[vectorValues.dimension()];
             int[] initial = new int[target.length];
-            byte[] quantized = new byte[BQSpaceUtils.B_QUERY * binarizedVectors.discretizedDimensions() / 8];
+            byte[] quantized = new byte[BinaryQuantizer.B_QUERY * binarizedVectors.discretizedDimensions() / 8];
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
                 target,
                 scratch,
@@ -82,7 +82,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
                 (byte) 4,
                 centroid
             );
-            BQSpaceUtils.transposeHalfByte(initial, quantized);
+            ESVectorUtil.transposeHalfByte(initial, quantized);
             return new RandomVectorScorer.AbstractRandomVectorScorer(vectorValues) {
                 @Override
                 public float score(int i) throws IOException {

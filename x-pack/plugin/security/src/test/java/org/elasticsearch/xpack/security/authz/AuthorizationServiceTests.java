@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.MockIndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -129,6 +131,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectTags;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -221,6 +224,8 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.ActionListenerUtils.anyCollection;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
@@ -241,7 +246,9 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -278,6 +285,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private LinkedProjectConfigService linkedProjectConfigService;
     private AuthorizedProjectsResolver authorizedProjectsResolver;
     private CrossProjectModeDecider crossProjectModeDecider;
+    private ProjectRoutingResolver projectRoutingResolver;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -341,6 +349,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         crossProjectModeDecider = mock(CrossProjectModeDecider.class);
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(false);
         when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(false);
+        projectRoutingResolver = mock(ProjectRoutingResolver.class);
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
@@ -360,7 +369,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             authorizedProjectsResolver,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            projectRoutingResolver
         );
     }
 
@@ -1306,6 +1316,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
         final Settings settings = Settings.builder().put("serverless.cross_project.enabled", "true").build();
 
+        // return unchanged second argument for resolver
+        when(projectRoutingResolver.resolve(any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
+
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
@@ -1325,7 +1338,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             authorizedProjectsResolver,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1388,7 +1402,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             authorizedProjectsResolver,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1935,7 +1950,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
-            new CrossProjectModeDecider(settings)
+            new CrossProjectModeDecider(settings),
+            projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1988,7 +2004,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
-            new CrossProjectModeDecider(settings)
+            new CrossProjectModeDecider(settings),
+            projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3529,7 +3546,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            projectRoutingResolver
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3688,7 +3706,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            projectRoutingResolver
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {
@@ -3850,6 +3869,74 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(securityException.getRootCause(), throwableWithMessage(containsString("access restricted by workflow")));
     }
 
+    public void testCrossProjectSetExceptionOnUnauthorizedIndex() {
+        final ProjectRoutingInfo originProject = createRandomProjectWithAlias(randomAlphaOfLengthBetween(6, 10));
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            callback.onResponse(new TargetProjects(originProject, Collections.emptyList()));
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
+        // return unchanged second argument for resolver
+        when(projectRoutingResolver.resolve(any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
+
+        final var metadataBuilder = ProjectMetadata.builder(projectId).put(createIndexMetadata("accessible-index"), true);
+        if (randomBoolean()) {
+            metadataBuilder.put(createIndexMetadata("not-accessible-index"), true);
+        }
+
+        mockClusterState(metadataBuilder.build());
+
+        var authentication = createAuthentication(new User("user", "partial-access-role"));
+        roleMap.put(
+            "partial-access-role",
+            new RoleDescriptor(
+                "partial-access-role",
+                null,
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("accessible-index").privileges("read").build() },
+                null
+            )
+        );
+        var requestAccessibleIndex = randomBoolean();
+
+        var request = requestAccessibleIndex
+            ? new SearchRequest("accessible-index", "not-accessible-index")
+            : new SearchRequest("not-accessible-index");
+
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, false));
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        authorize(authentication, TransportSearchAction.TYPE.name(), request);
+
+        final var authorizationInfo = mock(AuthorizationInfo.class);
+        when(authorizationInfo.asMap()).thenReturn(Map.of("user.info", new String[] { "partial-access-role" }));
+
+        final var expressions = request.getResolvedIndexExpressions().expressions();
+        if (requestAccessibleIndex) {
+            assertThat(expressions, hasSize(2));
+            assertThat(expressions.getFirst(), equalTo(resolvedIndexExpression("accessible-index", Set.of("accessible-index"), SUCCESS)));
+        } else {
+            assertThat(expressions, hasSize(1));
+        }
+
+        var notAccessibleIndexExpression = requestAccessibleIndex ? expressions.get(1) : expressions.getFirst();
+        assertThat(notAccessibleIndexExpression.original(), equalTo("not-accessible-index"));
+        assertThat(notAccessibleIndexExpression.localExpressions().indices(), empty());
+        assertThat(notAccessibleIndexExpression.localExpressions().localIndexResolutionResult(), equalTo(CONCRETE_RESOURCE_UNAUTHORIZED));
+        assertThat(
+            notAccessibleIndexExpression.localExpressions().exception().getMessage(),
+            equalTo(
+                "action [indices:data/read/search] is unauthorized for user [user]"
+                    + " with effective roles [partial-access-role] on indices [not-accessible-index], "
+                    + "this action is granted by the index privileges [read,all]"
+            )
+        );
+    }
+
     static AuthorizationInfo authzInfoRoles(String[] expectedRoles) {
         return argThat(new RBACAuthorizationInfoRoleMatcher(expectedRoles));
     }
@@ -3916,5 +4003,30 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {}
+    }
+
+    private static ResolvedIndexExpression resolvedIndexExpression(
+        String original,
+        Set<String> localExpressions,
+        ResolvedIndexExpression.LocalIndexResolutionResult localIndexResolutionResult
+    ) {
+        return new ResolvedIndexExpression(
+            original,
+            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, null),
+            Set.of()
+        );
+    }
+
+    private static ResolvedIndexExpression resolvedIndexExpression(
+        String original,
+        Set<String> localExpressions,
+        ResolvedIndexExpression.LocalIndexResolutionResult localIndexResolutionResult,
+        ElasticsearchException exception
+    ) {
+        return new ResolvedIndexExpression(
+            original,
+            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, exception),
+            Set.of()
+        );
     }
 }

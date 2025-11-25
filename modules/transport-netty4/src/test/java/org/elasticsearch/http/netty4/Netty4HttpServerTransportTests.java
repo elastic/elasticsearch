@@ -66,7 +66,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
 import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.CorsHandler;
@@ -80,6 +79,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -113,6 +113,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD;
+import static org.elasticsearch.http.netty4.Netty4TestUtils.randomClusterSettings;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
@@ -130,7 +131,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Tests for the {@link Netty4HttpServerTransport} class.
  */
-public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportTestCase {
+public class Netty4HttpServerTransportTests extends ESTestCase {
 
     private NetworkService networkService;
     private ThreadPool threadPool;

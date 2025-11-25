@@ -10,12 +10,16 @@ package org.elasticsearch.compute.lucene.read;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -25,6 +29,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
 
     protected DelegatingBlockLoaderFactory(BlockFactory factory) {
         this.factory = factory;
+    }
+
+    @Override
+    public void adjustBreaker(long delta) throws CircuitBreakingException {
+        factory.adjustBreaker(delta);
     }
 
     @Override
@@ -48,6 +57,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     }
 
     @Override
+    public BlockLoader.SingletonBytesRefBuilder singletonBytesRefs(int expectedCount) {
+        return new SingletonBytesRefBuilder(expectedCount, factory);
+    }
+
+    @Override
     public BytesRefBlock constantBytes(BytesRef value, int count) {
         if (count == 1) {
             return factory.newConstantBytesRefBlockWith(value, count);
@@ -66,6 +80,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
                 Releasables.closeExpectNoException(dict, ordinals);
             }
         }
+    }
+
+    @Override
+    public BlockLoader.Block constantInt(int value, int count) {
+        return factory.newConstantIntVector(value, count).asBlock();
     }
 
     @Override
@@ -136,5 +155,61 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     @Override
     public BlockLoader.AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count) {
         return factory.newAggregateMetricDoubleBlockBuilder(count);
+    }
+
+    @Override
+    public BlockLoader.Block buildAggregateMetricDoubleDirect(
+        BlockLoader.Block minBlock,
+        BlockLoader.Block maxBlock,
+        BlockLoader.Block sumBlock,
+        BlockLoader.Block countBlock
+    ) {
+        return factory.newAggregateMetricDoubleBlockFromDocValues(
+            (DoubleBlock) minBlock,
+            (DoubleBlock) maxBlock,
+            (DoubleBlock) sumBlock,
+            (IntBlock) countBlock
+        );
+    }
+
+    @Override
+    public BlockLoader.ExponentialHistogramBuilder exponentialHistogramBlockBuilder(int count) {
+        return factory.newExponentialHistogramBlockBuilder(count);
+    }
+
+    @Override
+    public BlockLoader.Block buildExponentialHistogramBlockDirect(
+        BlockLoader.Block minima,
+        BlockLoader.Block maxima,
+        BlockLoader.Block sums,
+        BlockLoader.Block valueCounts,
+        BlockLoader.Block zeroThresholds,
+        BlockLoader.Block encodedHistograms
+    ) {
+        return factory.newExponentialHistogramBlockFromDocValues(
+            (DoubleBlock) minima,
+            (DoubleBlock) maxima,
+            (DoubleBlock) sums,
+            (LongBlock) valueCounts,
+            (DoubleBlock) zeroThresholds,
+            (BytesRefBlock) encodedHistograms
+        );
+    }
+
+    @Override
+    public BlockLoader.Block buildTDigestBlockDirect(
+        BlockLoader.Block encodedDigests,
+        BlockLoader.Block minima,
+        BlockLoader.Block maxima,
+        BlockLoader.Block sums,
+        BlockLoader.Block valueCounts
+    ) {
+        return factory.newTDigestBlockFromDocValues(
+            (BytesRefBlock) encodedDigests,
+            (DoubleBlock) minima,
+            (DoubleBlock) maxima,
+            (DoubleBlock) sums,
+            (LongBlock) valueCounts
+        );
     }
 }

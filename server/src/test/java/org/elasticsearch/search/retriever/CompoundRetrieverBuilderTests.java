@@ -38,7 +38,7 @@ public class CompoundRetrieverBuilderTests extends ESTestCase {
 
         int priorStatusCode = randomIntBetween(200, 600);
         List<Exception> failures = new ArrayList<>();
-        int shardFailureStatusCode = CompoundRetrieverBuilder.handleShardFailures(response, priorStatusCode, failures);
+        int shardFailureStatusCode = new TestCompoundRetrieverBuilder(0).handleShardFailures(response, priorStatusCode, failures);
 
         assertEquals(2, failures.size());
         assertEquals("failed to retrieve data from shard [1] with message: some shard failed", failures.get(0).getMessage());

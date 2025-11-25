@@ -156,21 +156,40 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
      * Contains the thresholds needed to determine the health of a cluster when it comes to the amount of room available to create new
      * shards. These values are determined by the elected master.
      */
-    public record ShardLimits(int maxShardsPerNode, int maxShardsPerNodeFrozen) implements ToXContentFragment, Writeable {
+    public record ShardLimits(
+        int maxShardsPerNode,
+        int maxShardsPerNodeFrozen,
+        int shardCapacityUnhealthyThresholdYellow,
+        int shardCapacityUnhealthyThresholdRed
+    ) implements ToXContentFragment, Writeable {
 
         private static final String TYPE = "shard_limits";
         private static final ParseField MAX_SHARDS_PER_NODE = new ParseField("max_shards_per_node");
         private static final ParseField MAX_SHARDS_PER_NODE_FROZEN = new ParseField("max_shards_per_node_frozen");
+        private static final ParseField SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW_FIELD = new ParseField(
+            "shard_capacity_unhealthy_threshold_yellow"
+        );
+        private static final ParseField SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED_FIELD = new ParseField(
+            "shard_capacity_unhealthy_threshold_red"
+        );
         static final TransportVersion VERSION_SUPPORTING_SHARD_LIMIT_FIELDS = TransportVersions.V_8_8_0;
+        static final TransportVersion VERSION_SHARD_CAPACITY_UNHEALTH_THRESHOLDS = TransportVersion.fromName(
+            "shard_capacity_unhealthy_thresholds"
+        );
 
         static ShardLimits readFrom(StreamInput in) throws IOException {
-            return new ShardLimits(in.readInt(), in.readInt());
+            return in.getTransportVersion().supports(VERSION_SHARD_CAPACITY_UNHEALTH_THRESHOLDS)
+                ? new ShardLimits(in.readInt(), in.readInt(), in.readInt(), in.readInt())
+                // defaults from older versions
+                : new ShardLimits(in.readInt(), in.readInt(), 10, 5);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(MAX_SHARDS_PER_NODE.getPreferredName(), maxShardsPerNode);
             builder.field(MAX_SHARDS_PER_NODE_FROZEN.getPreferredName(), maxShardsPerNodeFrozen);
+            builder.field(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW_FIELD.getPreferredName(), shardCapacityUnhealthyThresholdYellow);
+            builder.field(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED_FIELD.getPreferredName(), shardCapacityUnhealthyThresholdRed);
             return builder;
         }
 
@@ -178,6 +197,10 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(maxShardsPerNode);
             out.writeInt(maxShardsPerNodeFrozen);
+            if (out.getTransportVersion().supports(VERSION_SHARD_CAPACITY_UNHEALTH_THRESHOLDS)) {
+                out.writeInt(shardCapacityUnhealthyThresholdYellow);
+                out.writeInt(shardCapacityUnhealthyThresholdRed);
+            }
         }
 
         public static Builder newBuilder() {
@@ -192,12 +215,16 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
 
             private int maxShardsPerNode;
             private int maxShardsPerNodeFrozen;
+            private int shardCapacityUnhealthyThresholdYellow;
+            private int shardCapacityUnhealthyThresholdRed;
 
             private Builder() {}
 
             private Builder(ShardLimits shardLimits) {
                 this.maxShardsPerNode = shardLimits.maxShardsPerNode;
                 this.maxShardsPerNodeFrozen = shardLimits.maxShardsPerNodeFrozen;
+                this.shardCapacityUnhealthyThresholdYellow = shardLimits.shardCapacityUnhealthyThresholdYellow;
+                this.shardCapacityUnhealthyThresholdRed = shardLimits.shardCapacityUnhealthyThresholdRed;
             }
 
             public Builder maxShardsPerNode(int maxShardsPerNode) {
@@ -210,8 +237,23 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
                 return this;
             }
 
+            public Builder shardCapacityUnhealthyThresholdYellow(int shardCapacityUnhealthyThresholdYellow) {
+                this.shardCapacityUnhealthyThresholdYellow = shardCapacityUnhealthyThresholdYellow;
+                return this;
+            }
+
+            public Builder shardCapacityUnhealthyThresholdRed(int shardCapacityUnhealthyThresholdRed) {
+                this.shardCapacityUnhealthyThresholdRed = shardCapacityUnhealthyThresholdRed;
+                return this;
+            }
+
             public ShardLimits build() {
-                return new ShardLimits(maxShardsPerNode, maxShardsPerNodeFrozen);
+                return new ShardLimits(
+                    maxShardsPerNode,
+                    maxShardsPerNodeFrozen,
+                    shardCapacityUnhealthyThresholdYellow,
+                    shardCapacityUnhealthyThresholdRed
+                );
             }
         }
     }

@@ -49,6 +49,7 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -240,8 +241,8 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        protected boolean isIndexed() {
-            return false;
+        protected IndexType indexType() {
+            return IndexType.NONE;
         }
     }
 

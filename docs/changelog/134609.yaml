@@ -1,5 +1,0 @@
-pr: 134609
-summary: Add 'SslProfileExtension' SPI interface
-area: TLS
-type: enhancement
-issues: []

@@ -688,7 +688,8 @@ emp_no:integer | job_positions:keyword | _fork:keyword
 10087          | Junior Developer      | fork2
 ;
 
-forkBeforeInlineStats
+forkBeforeInlineStats-Ignore
+// temporarily forbid LIMIT before INLINE STATS
 required_capability: fork_v9
 required_capability: inline_stats
 

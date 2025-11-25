@@ -76,6 +76,7 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .user(USER, PASS, "superuser", false)
+        .setting("xpack.security.enabled", "true")
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.ml.enabled", "false")
@@ -96,7 +97,7 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
     public void beforeTest() throws Exception {
         exporter = OtlpHttpMetricExporter.builder()
             .setEndpoint(getClusterHosts().getFirst().toURI() + "/_otlp/v1/metrics")
-            .addHeader("Authorization", basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray())))
+            .addHeader("Authorization", "ApiKey " + createApiKey())
             .build();
         meterProvider = SdkMeterProvider.builder()
             .registerMetricReader(
@@ -107,6 +108,28 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
             )
             .build();
         assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/metrics-otel@template"))));
+    }
+
+    private static String createApiKey() throws IOException {
+        // Create API key with create_doc privilege for metrics-* index
+        Request createApiKeyRequest = new Request("POST", "/_security/api_key");
+        createApiKeyRequest.setJsonEntity("""
+            {
+              "name": "otel-metrics-test-key",
+              "role_descriptors": {
+                "metrics_writer": {
+                  "index": [
+                    {
+                      "names": ["metrics-*"],
+                      "privileges": ["create_doc", "auto_configure"]
+                    }
+                  ]
+                }
+              }
+            }
+            """);
+        ObjectPath createApiKeyResponse = ObjectPath.createFromResponse(client().performRequest(createApiKeyRequest));
+        return createApiKeyResponse.evaluate("encoded");
     }
 
     @Override

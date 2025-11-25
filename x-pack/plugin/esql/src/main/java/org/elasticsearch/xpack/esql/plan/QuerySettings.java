@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
@@ -22,9 +21,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class QuerySettings {
-    // TODO check cluster state and see if project routing is allowed
-    // see https://github.com/elastic/elasticsearch/pull/134446
-    // PROJECT_ROUTING(..., state -> state.getRemoteClusterNames().crossProjectEnabled());
     public static final QuerySettingDef<String> PROJECT_ROUTING = new QuerySettingDef<>(
         "project_routing",
         DataType.KEYWORD,
@@ -34,6 +30,8 @@ public class QuerySettings {
         "A project routing expression, "
             + "used to define which projects to route the query to. "
             + "Only supported if Cross-Project Search is enabled.",
+        // TODO enable this when CPS is ready and we move this to tech preview
+        // (value, ctx) -> ctx.crossProjectEnabled() ? null : "not enabled",
         (value) -> Foldables.stringLiteralValueOf(value, "Unexpected value"),
         null
     );
@@ -59,11 +57,15 @@ public class QuerySettings {
     public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(PROJECT_ROUTING, TIME_ZONE)
         .collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
 
-    public static void validate(EsqlStatement statement, RemoteClusterService clusterService) {
+    public static void validate(EsqlStatement statement, SettingsValidationContext ctx) {
         for (QuerySetting setting : statement.settings()) {
             QuerySettingDef<?> def = SETTINGS_BY_NAME.get(setting.name());
             if (def == null) {
                 throw new ParsingException(setting.source(), "Unknown setting [" + setting.name() + "]");
+            }
+
+            if (def.snapshotOnly && ctx.isSnapshot() == false) {
+                throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] is only available in snapshot builds");
             }
 
             if (setting.value().dataType() != def.type()) {
@@ -77,7 +79,7 @@ public class QuerySettings {
                 throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must have a literal value");
             }
 
-            String error = def.validator().validate(literal, clusterService);
+            String error = def.validator().validate(literal, ctx);
             if (error != null) {
                 throw new ParsingException("Error validating setting [" + setting.name() + "]: " + error);
             }
@@ -146,7 +148,7 @@ public class QuerySettings {
              * Validates the setting value and returns the error message if there's an error, or null otherwise.
              */
             @Nullable
-            String validate(Literal value, RemoteClusterService clusterService);
+            String validate(Literal value, SettingsValidationContext ctx);
         }
 
         @FunctionalInterface

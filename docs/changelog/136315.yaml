@@ -1,5 +1,0 @@
-pr: 136315
-summary: Store full path in `_ignored` when ignoring dynamic array field
-area: Mapping
-type: bug
-issues: []

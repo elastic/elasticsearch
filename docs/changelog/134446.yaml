@@ -1,5 +1,0 @@
-pr: 134446
-summary: Add support for `include_execution_metadata` parameter
-area: ES|QL
-type: enhancement
-issues: []

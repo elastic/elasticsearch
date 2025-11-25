@@ -109,6 +109,16 @@ public class WriteLoadConstraintSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * The minimum amount of time between logging messages about write load decider interventions
+     */
+    public static final Setting<TimeValue> WRITE_LOAD_DECIDER_MINIMUM_LOGGING_INTERVAL = Setting.timeSetting(
+        SETTING_PREFIX + "log_interval",
+        TimeValue.timeValueMinutes(1),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private volatile WriteLoadDeciderStatus writeLoadDeciderStatus;
     private volatile TimeValue minimumRerouteInterval;
     private volatile double highUtilizationThreshold;

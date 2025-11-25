@@ -32,7 +32,7 @@ import org.elasticsearch.core.Releasables;
 /**
  * Maps a {@link LongBlock} column paired with a {@link BytesRefBlock} column to group ids.
  */
-final class BytesRefLongBlockHash extends BlockHash {
+public final class BytesRefLongBlockHash extends BlockHash {
     private final int bytesChannel;
     private final int longsChannel;
     private final boolean reverseOutput;
@@ -161,12 +161,15 @@ final class BytesRefLongBlockHash extends BlockHash {
                 }
                 // TODO: make takeOwnershipOf work?
                 BytesRefArray bytes = BytesRefArray.deepCopy(bytesHash.hash.getBytesRefs());
+                BytesRefVector dict = null;
+
                 try {
-                    var dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
+                    dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
                     bytes = null; // transfer ownership to dict
                     k1 = new OrdinalBytesRefBlock(ordinals.build(), dict);
+                    dict = null;  // transfer ownership to k1
                 } finally {
-                    Releasables.closeExpectNoException(bytes);
+                    Releasables.closeExpectNoException(bytes, dict);
                 }
                 k2 = longs.build();
             } finally {
@@ -202,6 +205,18 @@ final class BytesRefLongBlockHash extends BlockHash {
         } else {
             return new Block[] { k1, k2.asBlock() };
         }
+    }
+
+    public long getBytesRefKeyFromGroup(long groupId) {
+        return finalHash.getKey1(groupId);
+    }
+
+    public long getLongKeyFromGroup(long groupId) {
+        return finalHash.getKey2(groupId);
+    }
+
+    public long getGroupId(long bytesRefKey, long longKey) {
+        return finalHash.find(bytesRefKey, longKey);
     }
 
     @Override

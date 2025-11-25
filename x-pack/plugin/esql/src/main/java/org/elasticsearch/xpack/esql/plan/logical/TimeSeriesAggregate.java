@@ -193,6 +193,17 @@ public class TimeSeriesAggregate extends Aggregate {
                     )
                 );
             }
+            // reject `TS metrics | MV_EXPAND ... | STATS ...`
+            if (p instanceof MvExpand mvExpand) {
+                failures.add(
+                    fail(
+                        mvExpand,
+                        "mv_expand [{}] in the time-series before the first aggregation [{}] is not allowed",
+                        mvExpand.sourceText(),
+                        this.sourceText()
+                    )
+                );
+            }
         });
     }
 
@@ -208,7 +219,12 @@ public class TimeSeriesAggregate extends Aggregate {
                     // reject COUNT(keyword), but allow COUNT(numeric)
                 } else if (outer instanceof TimeSeriesAggregateFunction == false && outer.field() instanceof AggregateFunction == false) {
                     Expression field = outer.field();
-                    var lastOverTime = new LastOverTime(source(), field, new Literal(source(), null, DataType.DATETIME));
+                    var lastOverTime = new LastOverTime(
+                        source(),
+                        field,
+                        AggregateFunction.NO_WINDOW,
+                        new Literal(source(), null, DataType.DATETIME)
+                    );
                     if (lastOverTime.typeResolved() != Expression.TypeResolution.TYPE_RESOLVED) {
                         failures.add(
                             fail(

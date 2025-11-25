@@ -113,16 +113,16 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testKnnOptions() {
+    public void testKnnKOverridesLimit() {
         float[] queryVector = new float[numDims];
         Arrays.fill(queryVector, 0.0f);
 
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s)
+            | WHERE knn(vector, %s, {"k": 5, "min_candidates": 20})
             | KEEP id, _score, vector
             | SORT _score DESC
-            | LIMIT 5
+            | LIMIT 10
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
@@ -219,12 +219,10 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            // TODO revert this when we have proper versioned type resolutions
-            // containsString(
-            // "line 3:13: [KNN] function cannot operate on [lookup_vector], supplied by an index [test_lookup] in non-STANDARD "
-            // + "mode [lookup]"
-            // )
-            containsString("line 3:13: Cannot use field [lookup_vector] with unsupported type [dense_vector]")
+            containsString(
+                "line 3:13: [KNN] function cannot operate on [lookup_vector], supplied by an index [test_lookup] in non-STANDARD "
+                    + "mode [lookup]"
+            )
         );
     }
 

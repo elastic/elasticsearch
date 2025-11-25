@@ -1,5 +1,0 @@
-pr: 135635
-summary: Add executor name attribute to cache miss metrics
-area: Search
-type: enhancement
-issues: []

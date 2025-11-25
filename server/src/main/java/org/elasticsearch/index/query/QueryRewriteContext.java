@@ -52,6 +52,8 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.search.SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS;
+
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
  */
@@ -80,8 +82,12 @@ public class QueryRewriteContext {
     private QueryRewriteInterceptor queryRewriteInterceptor;
     private final Boolean ccsMinimizeRoundTrips;
     private final boolean isExplain;
+    private final boolean isProfile;
     private Long timeRangeFilterFromMillis;
     private boolean trackTimeRangeFilterFrom = true;
+
+    // FIXME: somehow this has to be wired through for at least retrievers ... but goodnight there's a lot of spidered ways in which these contexts get created.
+    private final boolean allowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -103,7 +109,8 @@ public class QueryRewriteContext {
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
         final Boolean ccsMinimizeRoundTrips,
-        final boolean isExplain
+        final boolean isExplain,
+        final boolean isProfile
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -127,6 +134,7 @@ public class QueryRewriteContext {
         this.queryRewriteInterceptor = queryRewriteInterceptor;
         this.ccsMinimizeRoundTrips = ccsMinimizeRoundTrips;
         this.isExplain = isExplain;
+        this.isProfile = isProfile;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -150,6 +158,7 @@ public class QueryRewriteContext {
             null,
             null,
             null,
+            false,
             false
         );
     }
@@ -175,6 +184,7 @@ public class QueryRewriteContext {
             pit,
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
+            false,
             false
         );
     }
@@ -189,7 +199,8 @@ public class QueryRewriteContext {
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
         final Boolean ccsMinimizeRoundTrips,
-        final boolean isExplain
+        final boolean isExplain,
+        final boolean isProfile
     ) {
         this(
             parserConfiguration,
@@ -211,7 +222,8 @@ public class QueryRewriteContext {
             pit,
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
-            isExplain
+            isExplain,
+            isProfile
         );
     }
 
@@ -322,6 +334,14 @@ public class QueryRewriteContext {
 
     public boolean isExplain() {
         return this.isExplain;
+    }
+
+    public boolean isProfile() {
+        return this.isProfile;
+    }
+
+    public boolean allowPartialSearchResults() {
+        return this.allowPartialSearchResults;
     }
 
     public NamedWriteableRegistry getWriteableRegistry() {

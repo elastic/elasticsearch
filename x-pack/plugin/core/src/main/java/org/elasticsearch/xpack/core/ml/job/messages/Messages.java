@@ -140,7 +140,7 @@ public final class Messages {
     public static final String INFERENCE_DEPLOYMENT_UPDATED_NUMBER_OF_ALLOCATIONS = "Updated number_of_allocations to [{0}]";
 
     public static final String INVALID_MODEL_ALIAS = "Invalid model_alias; ''{0}'' can contain lowercase alphanumeric (a-z and 0-9), "
-        + "hyphens or underscores; must start with alphanumeric and cannot end with numbers";
+        + "hyphens or underscores; must start with alphanumeric and cannot end with numbers, hyphens or underscores";
     public static final String TRAINED_MODEL_INPUTS_DIFFER_SIGNIFICANTLY =
         "The input fields for new model [{0}] and for old model [{1}] differ significantly, model results may change drastically.";
 

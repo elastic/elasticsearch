@@ -60,6 +60,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -255,7 +256,7 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
                             (byte) 1,
                             centroid
                         );
-                        BQVectorUtils.packAsBinary(quantizedVector, expectedVector);
+                        ESVectorUtil.packAsBinary(quantizedVector, expectedVector);
                         assertArrayEquals(expectedVector, qvectorValues.vectorValue(docIndexIterator.index()));
                         assertEquals(corrections, qvectorValues.getCorrectiveTerms(docIndexIterator.index()));
                     }

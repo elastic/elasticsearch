@@ -79,8 +79,8 @@ POST /sales/_search?size=0
   }
 }
 ```
-%  TEST[setup:sales]
-%  TEST[s/size=0/size=0&filter_path=aggregations/]
+% TEST[setup:sales]
+% TEST[s/size=0/size=0&filter_path=aggregations/]
 
 ## Missing value [_missing_value_17]
 

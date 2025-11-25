@@ -1,6 +1,0 @@
-pr: 132138
-summary: Fix lookup index resolution when field-caps returns empty mapping
-area: ES|QL
-type: bug
-issues:
- - 132105

@@ -439,6 +439,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertTrue(kibanaRole.cluster().check("cluster:admin/script/get", request, authentication));
 
         // Inference
+        assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/ccm/delete", request, authentication));
+        assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/ccm/put", request, authentication));
         assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/get", request, authentication));
         assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/put", request, authentication));
         assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/delete", request, authentication));
@@ -1385,6 +1387,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 kibanaRole.indices().allowedIndicesMatcher("indices:admin/data_stream/lifecycle/put").test(indexAbstraction),
                 is(true)
             );
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:admin/forcemerge").test(indexAbstraction), is(true));
 
             // Implied by the overall view_index_metadata and monitor privilege
             assertViewIndexMetadata(kibanaRole, indexName);
@@ -1731,6 +1734,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-google_scc.finding-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.securityhub_findings-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.securityhub_findings_full_posture-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-aws_securityhub.finding-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.inspector-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.config-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-amazon_security_lake.findings-" + randomAlphaOfLength(randomIntBetween(0, 13)),
@@ -1774,6 +1778,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-m365_defender.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-microsoft_defender_endpoint.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-microsoft_defender_cloud.assessment-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-prisma_cloud.misconfiguration-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-prisma_cloud.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-sentinel_one.application_risk-" + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(indexName -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
@@ -1983,6 +1989,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-extrahop.investigation-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-qualys_gav.asset-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-sentinel_one.application-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-sentinel_one.threat_event-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-island_browser.user-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-island_browser.device-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-cyera.classification-" + randomAlphaOfLength(randomIntBetween(1, 10)),

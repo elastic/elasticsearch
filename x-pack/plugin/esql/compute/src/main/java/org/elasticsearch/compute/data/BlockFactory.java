@@ -14,6 +14,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.util.BitSet;
 
@@ -436,6 +438,20 @@ public class BlockFactory {
         return new AggregateMetricDoubleBlockBuilder(estimatedSize, this);
     }
 
+    public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
+        Block minBlock,
+        Block maxBlock,
+        Block sumBlock,
+        Block countBlock
+    ) {
+        return new AggregateMetricDoubleArrayBlock(
+            (DoubleBlock) minBlock,
+            (DoubleBlock) maxBlock,
+            (DoubleBlock) sumBlock,
+            (IntBlock) countBlock
+        );
+    }
+
     public final AggregateMetricDoubleBlock newConstantAggregateMetricDoubleBlock(
         AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral value,
         int positions
@@ -467,6 +483,49 @@ public class BlockFactory {
         }
     }
 
+    public BlockLoader.Block newAggregateMetricDoubleBlockFromDocValues(
+        DoubleBlock minBlock,
+        DoubleBlock maxBlock,
+        DoubleBlock sumBlock,
+        IntBlock countBlock
+    ) {
+        return new AggregateMetricDoubleArrayBlock(minBlock, maxBlock, sumBlock, countBlock);
+    }
+
+    public ExponentialHistogramBlockBuilder newExponentialHistogramBlockBuilder(int estimatedSize) {
+        return new ExponentialHistogramBlockBuilder(estimatedSize, this);
+    }
+
+    public final ExponentialHistogramBlock newConstantExponentialHistogramBlock(ExponentialHistogram value, int positionCount) {
+        try (ExponentialHistogramBlockBuilder builder = newExponentialHistogramBlockBuilder(positionCount)) {
+            for (int i = 0; i < positionCount; i++) {
+                builder.append(value);
+            }
+            return builder.build();
+        }
+    }
+
+    public BlockLoader.Block newExponentialHistogramBlockFromDocValues(
+        DoubleBlock minima,
+        DoubleBlock maxima,
+        DoubleBlock sums,
+        LongBlock valueCounts,
+        DoubleBlock zeroThresholds,
+        BytesRefBlock encodedHistograms
+    ) {
+        return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
+    }
+
+    public BlockLoader.Block newTDigestBlockFromDocValues(
+        BytesRefBlock encodedDigests,
+        DoubleBlock minima,
+        DoubleBlock maxima,
+        DoubleBlock sums,
+        LongBlock counts
+    ) {
+        return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, counts);
+    }
+
     public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
         double[] minValues,
         double[] maxValues,
@@ -487,4 +546,5 @@ public class BlockFactory {
     public long maxPrimitiveArrayBytes() {
         return maxPrimitiveArrayBytes;
     }
+
 }

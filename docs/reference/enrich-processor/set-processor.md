@@ -34,7 +34,7 @@ $$$set-options$$$
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 This processor can also be used to copy data from one field to another. For example:
 
@@ -90,7 +90,7 @@ Result:
   ]
 }
 ```
-%  TESTRESPONSE[s/2019-03-11T21:54:37.909224Z/$body.docs.0.doc._ingest.timestamp/]
+% TESTRESPONSE[s/2019-03-11T21:54:37.909224Z/$body.docs.0.doc._ingest.timestamp/]
 
 This processor can also access array fields using dot notation:
 
@@ -149,7 +149,7 @@ Result:
   ]
 }
 ```
-%  TESTRESPONSE[s/2023-05-05T16:04:16.456475214Z/$body.docs.0.doc._ingest.timestamp/]
+% TESTRESPONSE[s/2023-05-05T16:04:16.456475214Z/$body.docs.0.doc._ingest.timestamp/]
 
 The contents of a field including complex values such as arrays and objects can be copied to another field using `copy_from`:
 
@@ -201,5 +201,5 @@ Result:
   ]
 }
 ```
-%  TESTRESPONSE[s/2020-09-30T12:55:17.742795Z/$body.docs.0.doc._ingest.timestamp/]
+% TESTRESPONSE[s/2020-09-30T12:55:17.742795Z/$body.docs.0.doc._ingest.timestamp/]
 

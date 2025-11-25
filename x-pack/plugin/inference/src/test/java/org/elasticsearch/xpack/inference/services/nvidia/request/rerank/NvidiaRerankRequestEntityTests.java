@@ -21,7 +21,9 @@ import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.hamcrest.Matchers.is;
 
 public class NvidiaRerankRequestEntityTests extends ESTestCase {
-    private static final List<String> PASSAGES_VALUE = List.of("some document");
+    private static final String FIRST_PASSAGE_VALUE = "some document";
+    private static final String SECOND_PASSAGE_VALUE = "some other document";
+    private static final List<String> PASSAGES_VALUE = List.of(FIRST_PASSAGE_VALUE, SECOND_PASSAGE_VALUE);
     private static final String QUERY_VALUE = "some query";
     private static final String MODEL_VALUE = "some_model";
 
@@ -31,13 +33,22 @@ public class NvidiaRerankRequestEntityTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
         String result = Strings.toString(builder);
-        String expected = """
+        String expected = Strings.format("""
             {
-                "model": "some_model",
-                "query": {"text":"some query"},
-                "passages": [{"text":"some document"}]
+                "model": "%s",
+                "query": {
+                    "text": "%s"
+                },
+                "passages": [
+                    {
+                        "text": "%s"
+                    },
+                    {
+                        "text": "%s"
+                    }
+                ]
             }
-            """;
+            """, MODEL_VALUE, QUERY_VALUE, FIRST_PASSAGE_VALUE, SECOND_PASSAGE_VALUE);
         assertThat(result, is(stripWhitespace(expected)));
     }
 

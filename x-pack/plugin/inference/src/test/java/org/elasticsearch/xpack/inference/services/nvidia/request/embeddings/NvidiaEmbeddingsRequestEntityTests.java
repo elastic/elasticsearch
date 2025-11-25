@@ -24,45 +24,49 @@ import static org.hamcrest.Matchers.is;
 public class NvidiaEmbeddingsRequestEntityTests extends ESTestCase {
     // Test values
     private static final String MODEL_VALUE = "some_model";
-    private static final List<String> INPUT_VALUE = List.of("some input");
-    private static final InputType INPUT_TYPE_VALUE = InputType.INGEST;
-    private static final Truncation TRUNCATE_VALUE = Truncation.START;
+    private static final String FIRST_INPUT_VALUE = "some input";
+    private static final String SECOND_INPUT_VALUE = "some more input";
+    private static final List<String> INPUT_VALUE = List.of(FIRST_INPUT_VALUE, SECOND_INPUT_VALUE);
+    private static final InputType INPUT_TYPE_EXPEDIA_VALUE = InputType.INGEST;
+    private static final Truncation TRUNCATE_EXPEDIA_VALUE = Truncation.START;
+    private static final String INPUT_TYPE_NVIDIA_VALUE = "passage";
+    private static final String TRUNCATE_NVIDIA_VALUE = "start";
 
     public void testXContent_AllFields() throws IOException {
-        var entity = new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, INPUT_TYPE_VALUE, TRUNCATE_VALUE);
+        var entity = new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, INPUT_TYPE_EXPEDIA_VALUE, TRUNCATE_EXPEDIA_VALUE);
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
             {
-                "input": ["some input"],
-                "model": "some_model",
-                "input_type": "passage",
-                "truncate": "start"
+                "input": ["%s", "%s"],
+                "model": "%s",
+                "input_type": "%s",
+                "truncate": "%s"
             }
-            """)));
+            """, FIRST_INPUT_VALUE, SECOND_INPUT_VALUE, MODEL_VALUE, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE))));
     }
 
     public void testXContent_OnlyMandatoryFields() throws IOException {
-        var entity = new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, INPUT_TYPE_VALUE, null);
+        var entity = new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, INPUT_TYPE_EXPEDIA_VALUE, null);
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
             {
-                "input": ["some input"],
-                "model": "some_model",
-                "input_type": "passage"
+                "input": ["%s", "%s"],
+                "model": "%s",
+                "input_type": "%s"
             }
-            """)));
+            """, FIRST_INPUT_VALUE, SECOND_INPUT_VALUE, MODEL_VALUE, INPUT_TYPE_NVIDIA_VALUE))));
     }
 
     public void testCreateRequestEntity_ModelIdNull_ThrowsException() {
         expectThrows(
             NullPointerException.class,
-            () -> new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, null, INPUT_TYPE_VALUE, TRUNCATE_VALUE)
+            () -> new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, null, INPUT_TYPE_EXPEDIA_VALUE, TRUNCATE_EXPEDIA_VALUE)
         );
     }
 

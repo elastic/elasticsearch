@@ -29,33 +29,35 @@ public class NvidiaChatCompletionRequestEntityTests extends ESTestCase {
     private static final String INPUT_VALUE = "Hello, world!";
 
     public void testSerializationWithModelIdStreaming() throws IOException {
-        testSerialization(true, """
+        boolean isStreaming = true;
+        testSerialization(isStreaming, Strings.format("""
             {
                 "messages": [{
-                        "content": "Hello, world!",
-                        "role": "user"
+                        "content": "%s",
+                        "role": "%s"
                     }
                 ],
-                "model": "some_model",
+                "model": "%s",
                 "n": 1,
-                "stream": true
+                "stream": %b
             }
-            """);
+            """, INPUT_VALUE, ROLE_VALUE, MODEL_VALUE, isStreaming));
     }
 
     public void testSerializationWithModelIdNonStreaming() throws IOException {
-        testSerialization(false, """
+        boolean isStreaming = false;
+        testSerialization(isStreaming, Strings.format("""
             {
                 "messages": [{
-                        "content": "Hello, world!",
-                        "role": "user"
+                        "content": "%s",
+                        "role": "%s"
                     }
                 ],
-                "model": "some_model",
+                "model": "%s",
                 "n": 1,
-                "stream": false
+                "stream": %b
             }
-            """);
+            """, INPUT_VALUE, ROLE_VALUE, MODEL_VALUE, isStreaming));
     }
 
     public void testCreateRequestEntity_ModelIdNull_ThrowsException() {

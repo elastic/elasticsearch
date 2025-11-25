@@ -705,6 +705,7 @@ public class CsvTests extends ESTestCase {
                 configuration,
                 foldCtx,
                 minimumVersion,
+                planTimeProfile,
                 listener.delegateFailureAndWrap(
                     // Wrap so we can capture the warnings in the calling thread
                     (next, result) -> next.onResponse(
@@ -765,7 +766,7 @@ public class CsvTests extends ESTestCase {
     }
 
     PlanRunner planRunner(BigArrays bigArrays, TestPhysicalOperationProviders physicalOperationProviders) {
-        return (physicalPlan, configuration, foldContext, listener) -> executeSubPlan(
+        return (physicalPlan, configuration, foldContext, planTimeProfile, listener) -> executeSubPlan(
             bigArrays,
             foldContext,
             physicalOperationProviders,

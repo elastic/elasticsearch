@@ -751,26 +751,8 @@ public class ComputeService {
         boolean runNodeLevelReduction,
         boolean reduceNodeLateMaterialization
     ) {
-        long startNanos = System.nanoTime();
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
-        boolean enableProfiling = configuration.profile();
-
-        if (LOGGER.isDebugEnabled() || enableProfiling) {
-            LOGGER.debug(
-                "Planning reduction: runNodeLevelReduction={}, reduceNodeLateMaterialization={}",
-                runNodeLevelReduction,
-                reduceNodeLateMaterialization
-            );
-        }
-
-        ReductionPlan defaultResult = enableProfiling
-            ? new ReductionPlan(
-                originalPlan.replaceChild(source),
-                originalPlan,
-                new ReductionProfile("none", runNodeLevelReduction, reduceNodeLateMaterialization, false, System.nanoTime() - startNanos)
-            )
-            : new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
-
+        ReductionPlan defaultResult = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
         if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
             return defaultResult;
         }
@@ -779,89 +761,20 @@ public class ComputeService {
             originalPlan.replaceChild(p.replaceChildren(List.of(source))),
             originalPlan
         );
-
-        java.util.function.BiFunction<PhysicalPlan, String, ReductionPlan> placePlanBetweenExchangesWithProfile = (
-            p,
-            reductionType) -> enableProfiling
-                ? new ReductionPlan(
-                    originalPlan.replaceChild(p.replaceChildren(List.of(source))),
-                    originalPlan,
-                    new ReductionProfile(
-                        reductionType,
-                        runNodeLevelReduction,
-                        reduceNodeLateMaterialization,
-                        false,
-                        System.nanoTime() - startNanos
-                    )
-                )
-                : new ReductionPlan(originalPlan.replaceChild(p.replaceChildren(List.of(source))), originalPlan);
-
         // The default plan is just the exchange source piped directly into the exchange sink.
         return switch (PlannerUtils.reductionPlan(originalPlan)) {
-            case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization -> {
+            case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization ->
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
                 // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
                 // we also need the original plan, since we add the project in the reduction node.
-                var lateMaterialized = LateMaterializationPlanner.planReduceDriverTopN(
+                LateMaterializationPlanner.planReduceDriverTopN(
                     stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, stats),
                     originalPlan
-                );
-                // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
-                if (lateMaterialized.isPresent()) {
-                    var plan = lateMaterialized.get();
-                    yield enableProfiling
-                        ? new ReductionPlan(
-                            plan.nodeReducePlan(),
-                            plan.dataNodePlan(),
-                            new ReductionProfile(
-                                "topn_late_materialization",
-                                runNodeLevelReduction,
-                                reduceNodeLateMaterialization,
-                                false,
-                                System.nanoTime() - startNanos
-                            )
-                        )
-                        : plan;
-                } else {
-                    // Fell back to regular TopN
-                    long tookNanos = System.nanoTime() - startNanos;
-                    yield runNodeLevelReduction
-                        ? (enableProfiling
-                            ? new ReductionPlan(
-                                originalPlan.replaceChild(topN.plan().replaceChildren(List.of(source))),
-                                originalPlan,
-                                new ReductionProfile(
-                                    "topn_late_materialization",
-                                    runNodeLevelReduction,
-                                    reduceNodeLateMaterialization,
-                                    true,
-                                    tookNanos
-                                )
-                            )
-                            : placePlanBetweenExchanges.apply(topN.plan()))
-                        : (enableProfiling
-                            ? new ReductionPlan(
-                                defaultResult.nodeReducePlan(),
-                                defaultResult.dataNodePlan(),
-                                new ReductionProfile(
-                                    "topn_late_materialization",
-                                    runNodeLevelReduction,
-                                    reduceNodeLateMaterialization,
-                                    true,
-                                    tookNanos
-                                )
-                            )
-                            : defaultResult);
-                }
-            }
-            case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchangesWithProfile.apply(
-                topN.plan(),
-                "topn"
-            );
-            case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchangesWithProfile.apply(
-                rp.plan(),
-                "aggregate"
-            );
+                )
+                    // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
+                    .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : defaultResult);
+            case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topN.plan());
+            case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
             default -> defaultResult;
         };
     }

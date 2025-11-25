@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexRequest;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
@@ -59,10 +60,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
@@ -92,16 +95,20 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -110,6 +117,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.common.blobstore.OperationPurpose.INDICES;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -2325,6 +2333,195 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             prepareSearch(indexName).setAllowPartialSearchResults(false).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true),
             docs
         );
+    }
+
+    public void testRestartTargetWhileSourceIsCopying() throws Exception {
+        var copyLatch = new CountDownLatch(1);
+        var restartLatch = new CountDownLatch(1);
+        var copyBlockStrategy = new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerCopyBlob(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                BlobContainer sourceBlobContainer,
+                String sourceBlobName,
+                String blobName,
+                long blobSize
+            ) throws IOException {
+                restartLatch.countDown();
+                try {
+                    copyLatch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+            }
+        };
+
+        var masterNode = startMasterOnlyNode();
+        var indexNodeA = startIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+        setNodeRepositoryStrategy(indexNodeA, copyBlockStrategy);
+        var searchNode = startSearchNode();
+        ensureStableCluster(3);
+
+        // Disable rebalancing
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"));
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).put("index.allocation.max_retries", Integer.MAX_VALUE).build());
+        ensureGreen(indexName);
+
+        int numDocs = 100;
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 100);
+
+        // Spin up new index node
+        var indexNodeB = startIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+        setNodeRepositoryStrategy(indexNodeB, copyBlockStrategy);
+
+        logger.info("starting reshard");
+        client(indexNodeA).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
+
+        // Wait until source shard is stuck copying
+        restartLatch.await();
+        internalCluster().restartNode(indexNodeB);
+
+        ensureStableCluster(4);
+        copyLatch.countDown();
+
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), numDocs);
+    }
+
+    public void testSourceRelocationAndTargetRestart() throws Exception {
+        Set<String> copiesInProgress = ConcurrentHashMap.newKeySet();
+        var blobToBlock = new AtomicReference<String>();
+        var blockedFirstCopy = new AtomicBoolean(false);
+        var copyLatch = new CountDownLatch(1);
+        var relocateLatch = new CountDownLatch(1);
+        var testFailure = new AtomicReference<Throwable>();
+        var copyRaceCheckStrategy = new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerCopyBlob(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                BlobContainer sourceBlobContainer,
+                String sourceBlobName,
+                String blobName,
+                long blobSize
+            ) throws IOException {
+                if (copiesInProgress.add(blobName) == false) {
+                    // Copies from the old and new source shard have interfered
+                    testFailure.compareAndSet(null, new AssertionError("Copy still in progress: " + blobName));
+                }
+                try {
+                    // Block only the copy of latest blob from the old source shard
+                    if (blobToBlock.get().equals(blobName) && blockedFirstCopy.getAndSet(true) == false) {
+                        relocateLatch.countDown();
+                        copyLatch.await();
+                    }
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                copiesInProgress.remove(blobName);
+            }
+        };
+
+        var masterNode = startMasterOnlyNode();
+        var indexNodes = startIndexNodes(
+            3,
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+        for (String indexNode : indexNodes) {
+            setNodeRepositoryStrategy(indexNode, copyRaceCheckStrategy);
+        }
+        var searchNode = startSearchNode();
+        ensureStableCluster(5);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).put("index.allocation.max_retries", Integer.MAX_VALUE).build());
+        ensureGreen(indexName);
+
+        int numDocs = 100;
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), numDocs);
+
+        // Disable rebalancing
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"));
+
+        var index = resolveIndex(indexName);
+        var sourceShardOldNode = findIndexNode(index, 0).getName();
+        flush(indexName);
+        var blobContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, sourceShardOldNode, 0);
+        var latestBlob = blobContainer.listBlobs(INDICES)
+            .values()
+            .stream()
+            .map(BlobMetadata::name)
+            .max(Comparator.comparingLong(StatelessCompoundCommit::parseGenerationFromBlobName))
+            .orElseThrow();
+        blobToBlock.set(latestBlob);
+
+        logger.info("starting reshard");
+        client(sourceShardOldNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
+
+        // Wait until old source shard is stuck copying
+        relocateLatch.await();
+
+        var targetShardNodeId = new AtomicReference<String>();
+        awaitClusterState(state -> {
+            targetShardNodeId.set(state.routingTable().index(indexName).shard(1).primaryShard().currentNodeId());
+            return targetShardNodeId.get() != null;
+        });
+        var targetShardNode = nodeIdsToNames().get(targetShardNodeId.get());
+        assertNotEquals(sourceShardOldNode, targetShardNode);
+        var sourceShardNewNode = indexNodes.stream()
+            .filter(node -> node.equals(sourceShardOldNode) == false && node.equals(targetShardNode) == false)
+            .findFirst()
+            .orElseThrow();
+        logger.info("Relocating source shard from {} to {}", sourceShardOldNode, sourceShardNewNode);
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceShardOldNode, sourceShardNewNode));
+
+        internalCluster().restartNode(targetShardNode);
+        // Check that all split requests are routed to the new source shard instance.
+        // Add send behavior to all index nodes since the target shard can get assigned to a different node after the restart
+        for (var indexNode : indexNodes) {
+            MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.equals(TransportReshardSplitAction.START_SPLIT_ACTION_NAME)) {
+                    var splitRequest = (TransportReshardSplitAction.Request) request;
+                    if (splitRequest.sourceNode().getName().equals(sourceShardOldNode)) {
+                        testFailure.compareAndSet(null, new AssertionError("Target routed split request to old source shard"));
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+
+        copyLatch.countDown();
+
+        // This test simulates a scenario where the source shard gets stuck copying to the target. During this period, the source shard is
+        // scheduled for relocation, which gets blocked because copying takes a permit. The target shard node also restarts, and upon
+        // recovery it starts sending split requests to the new source shard, which rejects them since it hasn't started.
+        //
+        // Once the old source shard instance finishes copying, it releases the permit, unblocking relocation. After relocation, the old
+        // source instance continues the initial split request and tries to acquire all primary permits in preparation for handoff but fails
+        // as it is no longer the primary. The new source shard instance, once started, will proceed with the split request.
+        //
+        // This test checks that the old and new source shard instances don't copy concurrently. It also checks that the target shard routes
+        // split requests to the new source shard instance.
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), numDocs);
+        if (testFailure.get() != null) {
+            fail(testFailure.get());
+        }
     }
 
     @Override

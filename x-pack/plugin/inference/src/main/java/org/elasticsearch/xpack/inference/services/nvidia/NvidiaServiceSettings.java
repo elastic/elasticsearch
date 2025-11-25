@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
  */
 public abstract class NvidiaServiceSettings extends FilteredXContentObject implements ServiceSettings {
     // There is no default rate limit for Nvidia, so we set a reasonable default of 3000 requests per minute
-    protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
     protected final String modelId;
     protected final URI uri;

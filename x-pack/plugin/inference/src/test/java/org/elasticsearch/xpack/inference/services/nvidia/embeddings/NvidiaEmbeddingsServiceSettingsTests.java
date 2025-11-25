@@ -40,6 +40,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     private static final SimilarityMeasure SIMILARITY_MEASURE_VALUE = SimilarityMeasure.DOT_PRODUCT;
     private static final int MAX_INPUT_TOKENS_VALUE = 128;
     private static final int RATE_LIMIT_VALUE = 2;
+    private static final int RATE_LIMIT_DEFAULT_VALUE = 3000;
     private static final int MAX_INPUT_TOKENS_NEGATIVE_VALUE = -10;
     private static final int DIMENSIONS_NEGATIVE_VALUE = -10;
     private static final String SIMILARITY_INVALID_VALUE = "by_size";
@@ -429,7 +430,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     DIMENSIONS_VALUE,
                     SIMILARITY_MEASURE_VALUE,
                     MAX_INPUT_TOKENS_VALUE,
-                    new RateLimitSettings(3000)
+                    new RateLimitSettings(RATE_LIMIT_DEFAULT_VALUE)
                 )
             )
         );
@@ -442,25 +443,40 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             DIMENSIONS_VALUE,
             SIMILARITY_MEASURE_VALUE,
             MAX_INPUT_TOKENS_VALUE,
-            new RateLimitSettings(3)
+            new RateLimitSettings(RATE_LIMIT_VALUE)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
-            {
-                "model_id": "%s",
-                "url": "%s",
-                "rate_limit": {
-                    "requests_per_minute": 3
-                },
-                "dimensions": 384,
-                "similarity": "dot_product",
-                "max_input_tokens": 128
-            }
-            """, MODEL_VALUE, CORRECT_URL_VALUE))));
+        assertThat(
+            xContentResult,
+            is(
+                XContentHelper.stripWhitespace(
+                    Strings.format(
+                        """
+                            {
+                                "model_id": "%s",
+                                "url": "%s",
+                                "rate_limit": {
+                                    "requests_per_minute": %d
+                                },
+                                "dimensions": %d,
+                                "similarity": "%s",
+                                "max_input_tokens": %d
+                            }
+                            """,
+                        MODEL_VALUE,
+                        CORRECT_URL_VALUE,
+                        RATE_LIMIT_VALUE,
+                        DIMENSIONS_VALUE,
+                        SIMILARITY_MEASURE_VALUE.toString(),
+                        MAX_INPUT_TOKENS_VALUE
+                    )
+                )
+            )
+        );
     }
 
     @Override

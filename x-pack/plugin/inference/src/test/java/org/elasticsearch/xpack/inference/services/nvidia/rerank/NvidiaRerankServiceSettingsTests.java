@@ -36,9 +36,10 @@ public class NvidiaRerankServiceSettingsTests extends AbstractBWCWireSerializati
 
     private static final String MODEL_VALUE = "some_model";
     private static final String URL_VALUE = "http://www.abc.com";
+    private static final String URL_DEFAULT_VALUE = "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking";
     private static final String INVALID_URL_VALUE = "^^^";
     private static final int RATE_LIMIT_VALUE = 2;
-    private static final String URL_DEFAULT_VALUE = "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking";
+    private static final int RATE_LIMIT_DEFAULT_VALUE = 3000;
 
     public void testFromMap_AllFields_Success() {
         var serviceSettings = NvidiaRerankServiceSettings.fromMap(
@@ -136,10 +137,10 @@ public class NvidiaRerankServiceSettingsTests extends AbstractBWCWireSerializati
                 "model_id": "%s",
                 "url": "%s",
                 "rate_limit": {
-                    "requests_per_minute": 2
+                    "requests_per_minute": %d
                 }
             }
-            """, MODEL_VALUE, URL_VALUE));
+            """, MODEL_VALUE, URL_VALUE, RATE_LIMIT_VALUE));
 
         assertThat(xContentResult, is(expected));
     }
@@ -154,10 +155,10 @@ public class NvidiaRerankServiceSettingsTests extends AbstractBWCWireSerializati
                 "model_id": "%s",
                 "url": "%s",
                 "rate_limit": {
-                    "requests_per_minute": 3000
+                    "requests_per_minute": %d
                 }
             }
-            """, MODEL_VALUE, URL_DEFAULT_VALUE));
+            """, MODEL_VALUE, URL_DEFAULT_VALUE, RATE_LIMIT_DEFAULT_VALUE));
         assertThat(xContentResult, is(expected));
     }
 

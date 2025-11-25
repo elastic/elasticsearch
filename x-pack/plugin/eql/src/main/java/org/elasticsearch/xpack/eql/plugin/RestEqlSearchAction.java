@@ -87,6 +87,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
             eqlRequest.allowPartialSequenceResults(
                 request.paramAsBoolean("allow_partial_sequence_results", eqlRequest.allowPartialSequenceResults())
             );
+            eqlRequest.projectRouting(request.param("project_routing", eqlRequest.getProjectRouting()));
         }
 
         return channel -> {

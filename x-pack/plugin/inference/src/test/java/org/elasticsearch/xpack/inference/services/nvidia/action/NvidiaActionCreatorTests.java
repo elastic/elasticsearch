@@ -576,9 +576,8 @@ public class NvidiaActionCreatorTests extends ESTestCase {
                     }
                 """;
 
-            String responseJson = Strings.format(EMBEDDING_RESPONSE_JSON, MODEL_VALUE, COMPLETION_RESULT_VALUE);
             webServer.enqueue(new MockResponse().setResponseCode(413).setBody(responseJsonContentTooLarge));
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
                 getUrl(webServer),
@@ -635,9 +634,8 @@ public class NvidiaActionCreatorTests extends ESTestCase {
                     }
                 """;
 
-            var responseJson = Strings.format(EMBEDDING_RESPONSE_JSON, MODEL_VALUE, COMPLETION_RESULT_VALUE);
             webServer.enqueue(new MockResponse().setResponseCode(400).setBody(responseJsonContentTooLarge));
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
                 getUrl(webServer),
@@ -686,8 +684,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         try (var sender = createSender(senderFactory)) {
             sender.startSynchronously();
 
-            var responseJson = Strings.format(EMBEDDING_RESPONSE_JSON, MODEL_VALUE, COMPLETION_RESULT_VALUE);
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             // truncated to 1 token = 3 characters
             var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(

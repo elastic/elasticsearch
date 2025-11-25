@@ -31,6 +31,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_TYPE;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PLANNING_TOOK;
@@ -164,9 +165,7 @@ public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
                 )
             ).get();
 
-            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-            request.query(query);
-            request.pragmas(randomPragmas());
+            EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(randomPragmas());
             CountDownLatch latch = new CountDownLatch(1);
             client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
                 try {

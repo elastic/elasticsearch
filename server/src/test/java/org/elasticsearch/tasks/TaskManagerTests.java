@@ -69,6 +69,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class TaskManagerTests extends ESTestCase {
@@ -286,8 +287,8 @@ public class TaskManagerTests extends ESTestCase {
         final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
 
-        // fake a trace parent
-        threadPool.getThreadContext().putHeader(Task.TRACE_PARENT_HTTP_HEADER, "traceparent");
+        // fake a parent APM trace context
+        threadPool.getThreadContext().putTransient(Task.PARENT_APM_TRACE_CONTEXT, null);
         final boolean hasParentTask = randomBoolean();
         final TaskId parentTask = hasParentTask ? new TaskId("parentNode", 1) : TaskId.EMPTY_TASK_ID;
 
@@ -311,6 +312,9 @@ public class TaskManagerTests extends ESTestCase {
                 ? Map.of(Tracer.AttributeKeys.TASK_ID, task.getId(), Tracer.AttributeKeys.PARENT_TASK_ID, parentTask.toString())
                 : Map.of(Tracer.AttributeKeys.TASK_ID, task.getId());
             verify(mockTracer).startTrace(any(), eq(task), eq("testAction"), eq(attributes));
+
+            taskManager.unregister(task);
+            verify(mockTracer).stopTrace(task); // always attempt stopping to guard against leaks
         }
     }
 
@@ -362,8 +366,8 @@ public class TaskManagerTests extends ESTestCase {
             }
         });
 
-        // fake a trace context (trace parent)
-        threadPool.getThreadContext().putHeader(Task.TRACE_PARENT_HTTP_HEADER, "traceparent");
+        // fake an APM trace context
+        threadPool.getThreadContext().putTransient(Task.APM_TRACE_CONTEXT, null);
 
         taskManager.unregister(task);
         verify(mockTracer).stopTrace(task);
@@ -393,7 +397,8 @@ public class TaskManagerTests extends ESTestCase {
         // no trace context
 
         taskManager.unregister(task);
-        verifyNoInteractions(mockTracer);
+        verify(mockTracer).stopTrace(task); // always attempt stopping to guard against leaks
+        verifyNoMoreInteractions(mockTracer);
     }
 
     /**
@@ -403,8 +408,8 @@ public class TaskManagerTests extends ESTestCase {
         final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
 
-        // fake a trace parent
-        threadPool.getThreadContext().putHeader(Task.TRACE_PARENT_HTTP_HEADER, "traceparent");
+        // fake a parent APM trace context
+        threadPool.getThreadContext().putTransient(Task.PARENT_APM_TRACE_CONTEXT, null);
 
         final Task task = taskManager.registerAndExecute(
             "testType",
@@ -438,6 +443,7 @@ public class TaskManagerTests extends ESTestCase {
         );
 
         verify(mockTracer).startTrace(any(), eq(task), eq("actionName"), anyMap());
+        verify(mockTracer).stopTrace(task); // always attempt stopping to guard against leaks
     }
 
     /**
@@ -480,7 +486,8 @@ public class TaskManagerTests extends ESTestCase {
             ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
-        verifyNoInteractions(mockTracer);
+        verify(mockTracer).stopTrace(task); // always attempt stopping to guard against leaks
+        verifyNoMoreInteractions(mockTracer);
     }
 
     public void testRegisterWithEnabledDisabledTracing() {

@@ -651,7 +651,6 @@ fieldsInOtherIndicesBug
 required_capability: enrich_load
 required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
 required_capability: dense_vector_agg_metric_double_if_fns
-required_capability: exponential_histogram
 
 from *
 | keep author.keyword, book_no, scalerank, street, bytes_in, @timestamp, abbrev, city_location, distance, description, birth_date, language_code, intersects, client_ip, event_duration, version

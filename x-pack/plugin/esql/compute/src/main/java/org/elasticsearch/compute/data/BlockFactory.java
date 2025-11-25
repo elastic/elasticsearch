@@ -438,6 +438,20 @@ public class BlockFactory {
         return new AggregateMetricDoubleBlockBuilder(estimatedSize, this);
     }
 
+    public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
+        Block minBlock,
+        Block maxBlock,
+        Block sumBlock,
+        Block countBlock
+    ) {
+        return new AggregateMetricDoubleArrayBlock(
+            (DoubleBlock) minBlock,
+            (DoubleBlock) maxBlock,
+            (DoubleBlock) sumBlock,
+            (IntBlock) countBlock
+        );
+    }
+
     public final AggregateMetricDoubleBlock newConstantAggregateMetricDoubleBlock(
         AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral value,
         int positions
@@ -469,6 +483,15 @@ public class BlockFactory {
         }
     }
 
+    public BlockLoader.Block newAggregateMetricDoubleBlockFromDocValues(
+        DoubleBlock minBlock,
+        DoubleBlock maxBlock,
+        DoubleBlock sumBlock,
+        IntBlock countBlock
+    ) {
+        return new AggregateMetricDoubleArrayBlock(minBlock, maxBlock, sumBlock, countBlock);
+    }
+
     public ExponentialHistogramBlockBuilder newExponentialHistogramBlockBuilder(int estimatedSize) {
         return new ExponentialHistogramBlockBuilder(estimatedSize, this);
     }
@@ -486,11 +509,21 @@ public class BlockFactory {
         DoubleBlock minima,
         DoubleBlock maxima,
         DoubleBlock sums,
-        LongBlock valueCounts,
+        DoubleBlock valueCounts,
         DoubleBlock zeroThresholds,
         BytesRefBlock encodedHistograms
     ) {
         return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
+    }
+
+    public BlockLoader.Block newTDigestBlockFromDocValues(
+        BytesRefBlock encodedDigests,
+        DoubleBlock minima,
+        DoubleBlock maxima,
+        DoubleBlock sums,
+        LongBlock counts
+    ) {
+        return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, counts);
     }
 
     public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(

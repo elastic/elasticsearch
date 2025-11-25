@@ -36,6 +36,7 @@ public class InternalPreconfiguredEndpoints {
     // gp-llm-v2
     public static final String GP_LLM_V2_MODEL_ID = "gp-llm-v2";
     public static final String GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID = ".gp-llm-v2-chat_completion";
+    public static final String GP_LLM_V2_COMPLETION_ENDPOINT_ID = ".gp-llm-v2-completion";
 
     // elser-2
     public static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";
@@ -80,8 +81,7 @@ public class InternalPreconfiguredEndpoints {
                     DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
                     TaskType.CHAT_COMPLETION,
                     ElasticInferenceService.NAME,
-                    COMPLETION_SERVICE_SETTINGS,
-                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                    COMPLETION_SERVICE_SETTINGS
                 ),
                 COMPLETION_SERVICE_SETTINGS
             )
@@ -93,8 +93,16 @@ public class InternalPreconfiguredEndpoints {
                     GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID,
                     TaskType.CHAT_COMPLETION,
                     ElasticInferenceService.NAME,
-                    GP_LLM_V2_COMPLETION_SERVICE_SETTINGS,
-                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                    GP_LLM_V2_COMPLETION_SERVICE_SETTINGS
+                ),
+                GP_LLM_V2_COMPLETION_SERVICE_SETTINGS
+            ),
+            new MinimalModel(
+                new ModelConfigurations(
+                    GP_LLM_V2_COMPLETION_ENDPOINT_ID,
+                    TaskType.COMPLETION,
+                    ElasticInferenceService.NAME,
+                    GP_LLM_V2_COMPLETION_SERVICE_SETTINGS
                 ),
                 GP_LLM_V2_COMPLETION_SERVICE_SETTINGS
             )

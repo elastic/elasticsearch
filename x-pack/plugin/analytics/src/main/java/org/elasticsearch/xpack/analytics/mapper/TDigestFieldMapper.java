@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -377,19 +378,7 @@ public class TDigestFieldMapper extends FieldMapper {
                 XContentParserUtils::parsingException
             );
 
-            BytesStreamOutput streamOutput = new BytesStreamOutput();
-
-            for (int i = 0; i < parsedTDigest.centroids().size(); i++) {
-                long count = parsedTDigest.counts().get(i);
-                assert count >= 0;
-                // we do not add elements with count == 0
-                if (count > 0) {
-                    streamOutput.writeVLong(count);
-                    streamOutput.writeDouble(parsedTDigest.centroids().get(i));
-                }
-            }
-
-            BytesRef docValue = streamOutput.bytes().toBytesRef();
+            BytesRef docValue = encodeCentroidsAndCounts(parsedTDigest.centroids(), parsedTDigest.counts());
             Field digestField = new BinaryDocValuesField(fullPath(), docValue);
 
             // Add numeric doc values fields for the summary data
@@ -458,6 +447,23 @@ public class TDigestFieldMapper extends FieldMapper {
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
+    }
+
+    private static BytesRef encodeCentroidsAndCounts(List<Double> centroids, List<Long> counts) throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+
+        for (int i = 0; i < centroids.size(); i++) {
+            long count = counts.get(i);
+            assert count >= 0;
+            // we do not add elements with count == 0
+            if (count > 0) {
+                streamOutput.writeVLong(count);
+                streamOutput.writeDouble(centroids.get(i));
+            }
+        }
+
+        BytesRef docValue = streamOutput.bytes().toBytesRef();
+        return docValue;
     }
 
     private static String valuesCountSubFieldName(String fullPath) {

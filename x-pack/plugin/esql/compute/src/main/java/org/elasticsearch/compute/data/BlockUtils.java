@@ -318,7 +318,9 @@ public final class BlockUtils {
             }
             case TDIGEST -> {
                 TDigestBlock tDigestBlock = (TDigestBlock) block;
-                yield new TDigestHolder()
+                // NOCOMMIT - probably something more sensible here.  We presumably need to account for this memory in some way
+                BytesRef scratch = new BytesRef();
+                yield tDigestBlock.getTDigestHolder(offset, scratch);
 
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");

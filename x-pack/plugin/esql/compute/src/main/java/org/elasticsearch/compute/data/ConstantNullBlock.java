@@ -302,6 +302,12 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public TDigestHolder getTDigestHolder(int valueIndex, BytesRef scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
     public Block buildExponentialHistogramComponentBlock(Component component) {
         // if all histograms are null, the component block is also a constant null block with the same position count
         this.incRef();

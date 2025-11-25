@@ -8,6 +8,10 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+
+import java.io.IOException;
+import java.util.List;
 
 /**
  * This exists to hold the values from a {@link TDigestBlock}.  It is roughly parallel to
@@ -29,5 +33,28 @@ public class TDigestHolder {
         this.max = max;
         this.sum = sum;
         this.valueCount = valueCount;
+    }
+
+    public TDigestHolder(List<Double> centroids, List<Long> counts, double min, double max, double sum, long valueCount)
+        throws IOException {
+        this(encodeCentroidsAndCounts(centroids, counts), min, max, sum, valueCount);
+    }
+
+    private static BytesRef encodeCentroidsAndCounts(List<Double> centroids, List<Long> counts) throws IOException {
+        // TODO: This is copied from the method of the same name in TDigestFieldMapper. It would be nice to find a way to reuse that code
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+
+        for (int i = 0; i < centroids.size(); i++) {
+            long count = counts.get(i);
+            assert count >= 0;
+            // we do not add elements with count == 0
+            if (count > 0) {
+                streamOutput.writeVLong(count);
+                streamOutput.writeDouble(centroids.get(i));
+            }
+        }
+
+        BytesRef docValue = streamOutput.bytes().toBytesRef();
+        return docValue;
     }
 }

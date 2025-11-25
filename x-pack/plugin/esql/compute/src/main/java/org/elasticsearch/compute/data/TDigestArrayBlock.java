@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -256,5 +257,16 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
             bytes += b.ramBytesUsed();
         }
         return bytes;
+    }
+
+    @Override
+    public TDigestHolder getTDigestHolder(int offset, BytesRef scratch) {
+        return new TDigestHolder(
+            encodedDigests.getBytesRef(offset, scratch),
+            minima.getDouble(offset),
+            maxima.getDouble(offset),
+            sums.getDouble(offset),
+            valueCounts.getLong(offset)
+        );
     }
 }

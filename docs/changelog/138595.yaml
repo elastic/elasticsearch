@@ -1,5 +1,5 @@
 pr: 138595
-summary: Feature/esql group by all dimensions
+summary: GROUP BY ALL with the dimensions output
 area: TSDB
 type: enhancement
 issues: []

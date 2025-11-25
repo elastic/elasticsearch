@@ -113,12 +113,6 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
             new NameId(),
             true
         );
-        Attribute.IdIgnoringWrapper key = newFunctionAttr.ignoreId();
-        if (addedAttrs.containsKey(key)) {
-            return addedAttrs.get(key);
-        }
-
-        addedAttrs.put(key, newFunctionAttr);
-        return newFunctionAttr;
+        return addedAttrs.computeIfAbsent(newFunctionAttr.ignoreId(), k -> newFunctionAttr);
     }
 }

@@ -784,5 +784,192 @@ max_deriv:double | max_rate:double | time_bucket:datetime     | cluster:keyword
 8.922491         | 11.56274        | 2024-05-10T00:10:00.000Z | prod
 16.62316         | 11.86081        | 2024-05-10T00:15:00.000Z | prod
 9.026268         | 6.980661        | 2024-05-10T00:20:00.000Z | prod
+;
 
+bare_count_over_time_outputs_dimensions
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all
+  
+TS k8s
+| STATS count = count_over_time(network.cost)
+| SORT count DESC
+;
+ignoreOrder:true
+
+count:long | _timeseries:keyword
+29         | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg=
+29         | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy/m+tXh+yxVR6b3E17ss=
+24         | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3mDfU31KjdGhvDlv8ZkMvESD7elSu/RKt
+24         | KBGrBhmEnziumfgfOq1dn9NyLSzHmDfU38IhLHmDYPRNCcqXvvDolM4=
+23         | LAhW8dgJbuvWP9LgvcDhXAbo6om1bdLj0gEKCKoCwWbTcgIrvk8UnM8+ysUC
+22         | LAhW8dgJbuvWP9LgvcDhXAbo6om1mDfU3wEKCKoEKNc42gDQvRlUNqiHo1HG
+20         | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3ck3A2FKjdGi/h3SR4+8pqYaQpJ7ugp3H
+16         | LAhW8dgJbuvWP9LgvcDhXAbo6om1ck3A2AEKCKqbxalopXodUMoz3uMBXeY3
+13         | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3bdLj0lKjdGjLA+rkYcBfHLSx+bhGbGPB
+;
+
+bare_count_over_time_with_tbucket_outputs_dimensions
+required_capability: ts_command_v0  
+required_capability: metrics_group_by_all
+
+TS k8s
+| STATS count = count_over_time(network.cost) BY tbucket = TBUCKET(1 hour)
+| SORT count DESC
+;
+ignoreOrder:true
+
+count:long | _timeseries:keyword                                          | tbucket:datetime
+29         | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg=     | 2024-05-10T00:00:00.000Z
+29         | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy/m+tXh+yxVR6b3E17ss=     | 2024-05-10T00:00:00.000Z
+24         | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3mDfU31KjdGhvDlv8ZkMvESD7elSu/RKt | 2024-05-10T00:00:00.000Z
+24         | KBGrBhmEnziumfgfOq1dn9NyLSzHmDfU38IhLHmDYPRNCcqXvvDolM4=     | 2024-05-10T00:00:00.000Z
+23         | LAhW8dgJbuvWP9LgvcDhXAbo6om1bdLj0gEKCKoCwWbTcgIrvk8UnM8+ysUC | 2024-05-10T00:00:00.000Z
+22         | LAhW8dgJbuvWP9LgvcDhXAbo6om1mDfU3wEKCKoEKNc42gDQvRlUNqiHo1HG | 2024-05-10T00:00:00.000Z
+20         | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3ck3A2FKjdGi/h3SR4+8pqYaQpJ7ugp3H | 2024-05-10T00:00:00.000Z
+16         | LAhW8dgJbuvWP9LgvcDhXAbo6om1ck3A2AEKCKqbxalopXodUMoz3uMBXeY3 | 2024-05-10T00:00:00.000Z
+13         | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3bdLj0lKjdGjLA+rkYcBfHLSx+bhGbGPB | 2024-05-10T00:00:00.000Z
+;
+
+bare_avg_over_time_outputs_dimensions
+required_capability: ts_command_v0  
+required_capability: metrics_group_by_all
+
+TS k8s
+| STATS avg = avg_over_time(network.cost)
+| SORT avg DESC
+;
+ignoreOrder:true
+
+avg:double         | _timeseries:keyword
+8.375              | LAhW8dgJbuvWP9LgvcDhXAbo6om1mDfU3wEKCKoEKNc42gDQvRlUNqiHo1HG
+7.262931034482759  | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy/m+tXh+yxVR6b3E17ss=
+6.870689655172414  | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg=
+6.635416666666667  | KBGrBhmEnziumfgfOq1dn9NyLSzHmDfU38IhLHmDYPRNCcqXvvDolM4=
+6.46875            | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3ck3A2FKjdGi/h3SR4+8pqYaQpJ7ugp3H
+5.869791666666667  | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3mDfU31KjdGhvDlv8ZkMvESD7elSu/RKt
+5.586956521739131  | LAhW8dgJbuvWP9LgvcDhXAbo6om1bdLj0gEKCKoCwWbTcgIrvk8UnM8+ysUC
+5.1826923076923075 | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3bdLj0lKjdGjLA+rkYcBfHLSx+bhGbGPB
+4.0703125          | LAhW8dgJbuvWP9LgvcDhXAbo6om1ck3A2AEKCKqbxalopXodUMoz3uMBXeY3
+;
+
+bare_avg_over_time_with_tbucket_outputs_dimensions
+required_capability: ts_command_v0  
+required_capability: metrics_group_by_all
+
+TS k8s
+| STATS avg = avg_over_time(network.cost) BY tbucket = TBUCKET(1 hour)
+| SORT avg DESC
+;
+ignoreOrder:true
+
+avg:double         | _timeseries:keyword                                          | tbucket:datetime
+8.375              | LAhW8dgJbuvWP9LgvcDhXAbo6om1mDfU3wEKCKoEKNc42gDQvRlUNqiHo1HG | 2024-05-10T00:00:00.000Z
+7.262931034482759  | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy/m+tXh+yxVR6b3E17ss=     | 2024-05-10T00:00:00.000Z
+6.870689655172414  | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg=     | 2024-05-10T00:00:00.000Z
+6.635416666666667  | KBGrBhmEnziumfgfOq1dn9NyLSzHmDfU38IhLHmDYPRNCcqXvvDolM4=     | 2024-05-10T00:00:00.000Z
+6.46875            | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3ck3A2FKjdGi/h3SR4+8pqYaQpJ7ugp3H | 2024-05-10T00:00:00.000Z
+5.869791666666667  | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3mDfU31KjdGhvDlv8ZkMvESD7elSu/RKt | 2024-05-10T00:00:00.000Z
+5.586956521739131  | LAhW8dgJbuvWP9LgvcDhXAbo6om1bdLj0gEKCKoCwWbTcgIrvk8UnM8+ysUC | 2024-05-10T00:00:00.000Z
+5.1826923076923075 | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3bdLj0lKjdGjLA+rkYcBfHLSx+bhGbGPB | 2024-05-10T00:00:00.000Z
+4.0703125          | LAhW8dgJbuvWP9LgvcDhXAbo6om1ck3A2AEKCKqbxalopXodUMoz3uMBXeY3 | 2024-05-10T00:00:00.000Z
+;
+
+bare_sum_over_time_outputs_dimensions
+required_capability: ts_command_v0  
+required_capability: metrics_group_by_all
+
+TS k8s
+| STATS sum = sum_over_time(network.cost)
+| SORT sum DESC
+;
+ignoreOrder:true
+
+sum:double | _timeseries:keyword
+210.625    | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy/m+tXh+yxVR6b3E17ss=
+199.25     | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg=
+184.25     | LAhW8dgJbuvWP9LgvcDhXAbo6om1mDfU3wEKCKoEKNc42gDQvRlUNqiHo1HG
+159.25     | KBGrBhmEnziumfgfOq1dn9NyLSzHmDfU38IhLHmDYPRNCcqXvvDolM4=
+140.875    | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3mDfU31KjdGhvDlv8ZkMvESD7elSu/RKt
+129.375    | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3ck3A2FKjdGi/h3SR4+8pqYaQpJ7ugp3H
+128.5      | LAhW8dgJbuvWP9LgvcDhXAbo6om1bdLj0gEKCKoCwWbTcgIrvk8UnM8+ysUC
+67.375     | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3bdLj0lKjdGjLA+rkYcBfHLSx+bhGbGPB
+65.125     | LAhW8dgJbuvWP9LgvcDhXAbo6om1ck3A2AEKCKqbxalopXodUMoz3uMBXeY3
+;
+
+bare_sum_over_time_with_tbucket_outputs_dimensions
+required_capability: ts_command_v0  
+required_capability: metrics_group_by_all
+
+TS k8s
+| STATS sum = sum_over_time(network.cost) BY tbucket = TBUCKET(1 hour)
+| SORT sum DESC
+;
+ignoreOrder:true
+
+sum:double | _timeseries:keyword                                          | tbucket:datetime
+210.625    | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy/m+tXh+yxVR6b3E17ss=     | 2024-05-10T00:00:00.000Z
+199.25     | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg=     | 2024-05-10T00:00:00.000Z
+184.25     | LAhW8dgJbuvWP9LgvcDhXAbo6om1mDfU3wEKCKoEKNc42gDQvRlUNqiHo1HG | 2024-05-10T00:00:00.000Z
+159.25     | KBGrBhmEnziumfgfOq1dn9NyLSzHmDfU38IhLHmDYPRNCcqXvvDolM4=     | 2024-05-10T00:00:00.000Z
+140.875    | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3mDfU31KjdGhvDlv8ZkMvESD7elSu/RKt | 2024-05-10T00:00:00.000Z
+129.375    | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3ck3A2FKjdGi/h3SR4+8pqYaQpJ7ugp3H | 2024-05-10T00:00:00.000Z
+128.5      | LAhW8dgJbuvWP9LgvcDhXAbo6om1bdLj0gEKCKoCwWbTcgIrvk8UnM8+ysUC | 2024-05-10T00:00:00.000Z
+67.375     | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3bdLj0lKjdGjLA+rkYcBfHLSx+bhGbGPB | 2024-05-10T00:00:00.000Z
+65.125     | LAhW8dgJbuvWP9LgvcDhXAbo6om1ck3A2AEKCKqbxalopXodUMoz3uMBXeY3 | 2024-05-10T00:00:00.000Z
+;
+
+bare_rate_outputs_dimensions
+required_capability: ts_command_v0  
+required_capability: metrics_group_by_all
+
+TS k8s
+| STATS rate = rate(network.total_bytes_in)
+| SORT rate DESC
+;
+ignoreOrder:true
+
+rate:double        | _timeseries:keyword
+13.17372515125324  | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg=
+10.649149922720246 | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy/m+tXh+yxVR6b3E17ss=
+9.485643970467596  | KBGrBhmEnziumfgfOq1dn9NyLSzHmDfU38IhLHmDYPRNCcqXvvDolM4=
+8.716707021791768  | LAhW8dgJbuvWP9LgvcDhXAbo6om1bdLj0gEKCKoCwWbTcgIrvk8UnM8+ysUC
+8.434290687554395  | LAhW8dgJbuvWP9LgvcDhXAbo6om1mDfU3wEKCKoEKNc42gDQvRlUNqiHo1HG
+7.377611940298507  | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3ck3A2FKjdGi/h3SR4+8pqYaQpJ7ugp3H
+7.340495867768595  | LAhW8dgJbuvWP9LgvcDhXAbo6om1ck3A2AEKCKqbxalopXodUMoz3uMBXeY3
+6.54326561324304   | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3mDfU31KjdGhvDlv8ZkMvESD7elSu/RKt
+4.689830508474576  | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3bdLj0lKjdGjLA+rkYcBfHLSx+bhGbGPB
+;
+
+bare_rate_with_tbucket_outputs_dimensions
+required_capability: ts_command_v0  
+required_capability: metrics_group_by_all
+
+TS k8s
+| STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour)
+| SORT rate DESC
+;
+ignoreOrder:true
+
+rate:double        | _timeseries:keyword                                          | tbucket:datetime
+4.379885057471264  | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg=     | 2024-05-10T00:00:00.000Z
+3.9597701149425295 | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy/m+tXh+yxVR6b3E17ss=     | 2024-05-10T00:00:00.000Z
+3.3457754629629632 | KBGrBhmEnziumfgfOq1dn9NyLSzHmDfU38IhLHmDYPRNCcqXvvDolM4=     | 2024-05-10T00:00:00.000Z
+3.130434782608696  | LAhW8dgJbuvWP9LgvcDhXAbo6om1bdLj0gEKCKoCwWbTcgIrvk8UnM8+ysUC | 2024-05-10T00:00:00.000Z
+2.8741946517412935 | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3ck3A2FKjdGi/h3SR4+8pqYaQpJ7ugp3H | 2024-05-10T00:00:00.000Z
+2.830347222222222  | LAhW8dgJbuvWP9LgvcDhXAbo6om1mDfU3wEKCKoEKNc42gDQvRlUNqiHo1HG | 2024-05-10T00:00:00.000Z
+2.621423611111111  | LAhW8dgJbuvWP9LgvcDhXAbo6om1ck3A2AEKCKqbxalopXodUMoz3uMBXeY3 | 2024-05-10T00:00:00.000Z
+2.5258595644176904 | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3mDfU31KjdGhvDlv8ZkMvESD7elSu/RKt | 2024-05-10T00:00:00.000Z
+1.655470085470086  | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3bdLj0lKjdGjLA+rkYcBfHLSx+bhGbGPB | 2024-05-10T00:00:00.000Z 
+;
+
+wrapped_rate
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all
+
+TS k8s
+| STATS max_rate = MAX(rate(network.total_bytes_in))
+;
+
+max_rate:double 
+13.17372515125324
 ;

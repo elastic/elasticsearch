@@ -54,6 +54,9 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_JUMP_LENGTH_PER_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
@@ -364,13 +367,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
             final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
 
-            final RandomAccessInput docRangeData = this.data.randomAccessSlice(entry.docRangeOffset, entry.docRangeLength);
-            final DirectMonotonicReader docRanges = DirectMonotonicReader.getInstance(entry.docRangeMeta, docRangeData);
+            final RandomAccessInput docOffsetsData = this.data.randomAccessSlice(entry.docOffsetsOffset, entry.docOffsetLength);
+            final DirectMonotonicReader docOffsets = DirectMonotonicReader.getInstance(entry.docOffsetMeta, docOffsetsData);
             return new DenseBinaryDocValues(maxDoc) {
                 final BinaryDecoder decoder = new BinaryDecoder(
                     entry.compression.compressionMode().newDecompressor(),
                     addresses,
-                    docRanges,
+                    docOffsets,
                     data.clone(),
                     entry.maxUncompressedChunkSize,
                     entry.maxNumDocsInAnyBlock
@@ -391,13 +394,22 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     boolean toInt
                 ) throws IOException {
                     int count = docs.count() - offset;
-                    try (var builder = factory.bytesRefs(count)) {
-                        for (int i = offset; i < docs.count(); i++) {
-                            doc = docs.get(i);
-                            var bytes = decoder.decode(doc, entry.numCompressedBlocks);
-                            builder.appendBytesRef(bytes);
+                    int firstDocId = docs.get(offset);
+                    int lastDocId = docs.get(count - 1);
+                    doc = lastDocId;
+
+                    if (isDense(firstDocId, lastDocId, count)) {
+                        try (var builder = factory.singletonBytesRefs(count)) {
+                            decoder.decodeBulk(entry.numCompressedBlocks, firstDocId, count, builder);
+                            return builder.build();
                         }
-                        return builder.build();
+                    } else {
+                        try (var builder = factory.bytesRefs(count)) {
+                            for (int i = offset; i < docs.count(); i++) {
+                                builder.appendBytesRef(decoder.decode(docs.get(i), entry.numCompressedBlocks));
+                            }
+                            return builder.build();
+                        }
                     }
                 }
             };
@@ -414,13 +426,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
             final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
 
-            final RandomAccessInput docRangeData = this.data.randomAccessSlice(entry.docRangeOffset, entry.docRangeLength);
-            final DirectMonotonicReader docRanges = DirectMonotonicReader.getInstance(entry.docRangeMeta, docRangeData);
+            final RandomAccessInput docOffsetsData = this.data.randomAccessSlice(entry.docOffsetsOffset, entry.docOffsetLength);
+            final DirectMonotonicReader docOffsets = DirectMonotonicReader.getInstance(entry.docOffsetMeta, docOffsetsData);
             return new SparseBinaryDocValues(disi) {
                 final BinaryDecoder decoder = new BinaryDecoder(
                     entry.compression.compressionMode().newDecompressor(),
                     addresses,
-                    docRanges,
+                    docOffsets,
                     data.clone(),
                     entry.maxUncompressedChunkSize,
                     entry.maxNumDocsInAnyBlock
@@ -439,7 +451,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     static final class BinaryDecoder {
 
         private final LongValues addresses;
-        private final DirectMonotonicReader docRanges;
+        private final DirectMonotonicReader docOffsets;
         private final IndexInput compressedData;
         // Cache of last uncompressed block
         private long lastBlockId = -1;
@@ -453,14 +465,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         BinaryDecoder(
             Decompressor decompressor,
             LongValues addresses,
-            DirectMonotonicReader docRanges,
+            DirectMonotonicReader docOffsets,
             IndexInput compressedData,
             int biggestUncompressedBlockSize,
             int maxNumDocsInAnyBlock
         ) {
             this.decompressor = decompressor;
             this.addresses = addresses;
-            this.docRanges = docRanges;
+            this.docOffsets = docOffsets;
             this.compressedData = compressedData;
             // pre-allocate a byte array large enough for the biggest uncompressed block needed.
             this.uncompressedBlock = new byte[biggestUncompressedBlockSize];
@@ -526,7 +538,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         BytesRef decode(int docNumber, int numBlocks) throws IOException {
             // docNumber, rather than docId, because these are dense and could be indices from a DISI
-            long blockId = docNumber < limitDocNumForBlock ? lastBlockId : findAndUpdateBlock(docRanges, lastBlockId, docNumber, numBlocks);
+            long blockId = docNumber < limitDocNumForBlock ? lastBlockId : findAndUpdateBlock(docOffsets, lastBlockId, docNumber, numBlocks);
 
             int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
             int idxInBlock = (int) (docNumber - startDocNumForBlock);
@@ -543,6 +555,79 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             uncompressedBytesRef.offset = start;
             uncompressedBytesRef.length = end - start;
             return uncompressedBytesRef;
+        }
+
+        void decodeBulk(
+            int numBlocks,
+            int firstDoc,
+            int count,
+            BlockLoader.SingletonBytesRefBuilder builder
+        ) throws IOException {
+            int remainingCount = count;
+            int nextDoc = firstDoc;
+            long[] offsets = new long[count + 1];
+            int docsAdded = 0;
+            int currBlockByteOffset = 0;
+            List<BytesRef> decompressedBlocks = new ArrayList<>();
+
+            while (remainingCount > 0) {
+
+                long blockId = nextDoc < limitDocNumForBlock ? lastBlockId : findAndUpdateBlock(this.docOffsets, lastBlockId, nextDoc, numBlocks);
+                assert blockId >= 0;
+
+                int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
+                int idxFirstDocInBlock = (int) (nextDoc - startDocNumForBlock);
+                int countInBlock = Math.min(numDocsInBlock - idxFirstDocInBlock, remainingCount);
+
+                assert idxFirstDocInBlock < numDocsInBlock;
+                assert countInBlock <= numDocsInBlock;
+
+                if (blockId != lastBlockId) {
+                    decompressBlock((int) blockId, numDocsInBlock);
+                    // uncompressedBytesRef and uncompressedDocStarts now populated
+                    lastBlockId = blockId;
+                }
+
+                // Copy offsets for block into combined offset array
+                int startOffset = uncompressedDocStarts[idxFirstDocInBlock];
+                int endOffset = uncompressedDocStarts[idxFirstDocInBlock + countInBlock];
+                int lenValuesInBlock = endOffset - startOffset;
+                int offsetIdx = 0;
+                for (int i = idxFirstDocInBlock; i < idxFirstDocInBlock + countInBlock; i++) {
+                    offsets[docsAdded + offsetIdx+1] = uncompressedDocStarts[i+1] - startOffset + currBlockByteOffset;
+                    offsetIdx++;
+                }
+
+                nextDoc += countInBlock;
+                remainingCount -= countInBlock;
+                docsAdded += countInBlock;
+                currBlockByteOffset += lenValuesInBlock;
+
+                if (remainingCount == 0) {
+                    // avoid making a copy if this was the last block to be decompressed
+                    decompressedBlocks.add(new BytesRef(uncompressedBlock, startOffset, lenValuesInBlock));
+                } else {
+                    decompressedBlocks.add(new BytesRef(Arrays.copyOfRange(uncompressedBlock, startOffset, startOffset + lenValuesInBlock)));
+                }
+            }
+
+            int totalLen = Math.toIntExact(offsets[count]);
+            if (totalLen == 0) {
+                builder.appendBytesRefs(new byte[0], 0);
+            } else {
+                var allBytes = combinedBytes(totalLen, decompressedBlocks);
+                builder.appendBytesRefs(allBytes, offsets);
+            }
+        }
+
+        static byte[] combinedBytes(int totalLen, List<BytesRef> allBytes) {
+            byte[] all = new byte[totalLen];
+            int byteOffset = 0;
+            for (var bytes : allBytes) {
+                System.arraycopy(bytes.bytes, bytes.offset, all, byteOffset, bytes.length);
+                byteOffset += bytes.length;
+            }
+            return all;
         }
     }
 
@@ -1533,9 +1618,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 entry.addressesMeta = DirectMonotonicReader.loadMeta(meta, numCompressedChunks + 1, blockShift);
                 entry.addressesLength = meta.readLong();
 
-                entry.docRangeOffset = meta.readLong();
-                entry.docRangeMeta = DirectMonotonicReader.loadMeta(meta, numCompressedChunks + 1, blockShift);
-                entry.docRangeLength = meta.readLong();
+                entry.docOffsetsOffset = meta.readLong();
+                entry.docOffsetMeta = DirectMonotonicReader.loadMeta(meta, numCompressedChunks + 1, blockShift);
+                entry.docOffsetLength = meta.readLong();
 
                 entry.numCompressedBlocks = numCompressedChunks;
             }
@@ -2230,14 +2315,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         int maxLength;
         long addressesOffset;
         long addressesLength;
-        long docRangeOffset;
-        long docRangeLength;
+        long docOffsetsOffset;
+        long docOffsetLength;
         // compression mode
         int maxUncompressedChunkSize;
         int maxNumDocsInAnyBlock;
         int numCompressedBlocks;
         DirectMonotonicReader.Meta addressesMeta;
-        DirectMonotonicReader.Meta docRangeMeta;
+        DirectMonotonicReader.Meta docOffsetMeta;
 
         BinaryEntry(BinaryDVCompressionMode compression) {
             this.compression = compression;

@@ -460,9 +460,11 @@ FROM cooking_blog METADATA _id, _index, _score
 | FORK (
     WHERE title:"vegetarian curry" <1>
     | SORT _score DESC
+    | LIMIT 5
 ) (
     WHERE semantic_description:"easy vegetarian curry recipes" <2>
     | SORT _score DESC
+    | LIMIT 5
 )
 | FUSE <3>
 | KEEP title, description, rating, _score

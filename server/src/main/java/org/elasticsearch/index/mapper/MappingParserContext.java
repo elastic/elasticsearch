@@ -48,7 +48,7 @@ public class MappingParserContext {
     private long mappingObjectDepth = 0;
     private final List<VectorsFormatProvider> vectorsFormatProviders;
     private final RootObjectMapperNamespaceValidator namespaceValidator;
-    private final ProjectMetadata projectMetadata;
+    private final Supplier<ProjectMetadata> projectMetadataSupplier;
 
     public MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
@@ -64,7 +64,7 @@ public class MappingParserContext {
         Function<Query, BitSetProducer> bitSetProducer,
         List<VectorsFormatProvider> vectorsFormatProviders,
         RootObjectMapperNamespaceValidator namespaceValidator,
-        ProjectMetadata projectMetadata
+        Supplier<ProjectMetadata> projectMetadataSupplier
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
@@ -80,7 +80,7 @@ public class MappingParserContext {
         this.bitSetProducer = bitSetProducer;
         this.vectorsFormatProviders = vectorsFormatProviders;
         this.namespaceValidator = namespaceValidator;
-        this.projectMetadata = projectMetadata;
+        this.projectMetadataSupplier = projectMetadataSupplier;
     }
 
     public MappingParserContext(
@@ -209,8 +209,8 @@ public class MappingParserContext {
         return new MultiFieldParserContext(this);
     }
 
-    public ProjectMetadata getProjectMetadata() {
-        return projectMetadata;
+    public Supplier<ProjectMetadata> getProjectMetadata() {
+        return projectMetadataSupplier;
     }
 
     private static class MultiFieldParserContext extends MappingParserContext {

@@ -63,7 +63,7 @@ class S3RetryingInputStream extends RetryingInputStream {
                 }
                 final var getObjectRequest = getObjectRequestBuilder.build();
                 final var getObjectResponse = clientReference.client().getObject(getObjectRequest);
-                return new S3InputStream(getObjectResponse, start, end);
+                return new S3CurrentOpenStream(getObjectResponse, start, end);
             } catch (SdkException e) {
                 if (e instanceof SdkServiceException sdkServiceException) {
                     if (sdkServiceException.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
@@ -172,7 +172,7 @@ class S3RetryingInputStream extends RetryingInputStream {
         return getObjectResponse.contentLength();
     }
 
-    private static class S3InputStream extends InputStream {
+    private static class S3CurrentOpenStream extends InputStream {
 
         private final ResponseInputStream<GetObjectResponse> responseStream;
         private final long start;
@@ -183,7 +183,7 @@ class S3RetryingInputStream extends RetryingInputStream {
         private boolean eof;
         private boolean aborted;
 
-        private S3InputStream(ResponseInputStream<GetObjectResponse> responseStream, long start, long end) {
+        private S3CurrentOpenStream(ResponseInputStream<GetObjectResponse> responseStream, long start, long end) {
             this.responseStream = responseStream;
             this.start = start;
             this.end = end;
@@ -280,16 +280,16 @@ class S3RetryingInputStream extends RetryingInputStream {
 
     // exposed for testing
     boolean isEof() {
-        return ((S3InputStream) currentStream).isEof();
+        return ((S3CurrentOpenStream) currentStream).isEof();
     }
 
     // exposed for testing
     boolean isAborted() {
-        return ((S3InputStream) currentStream).isAborted();
+        return ((S3CurrentOpenStream) currentStream).isAborted();
     }
 
     // exposed for testing
     long tryGetStreamLength(GetObjectResponse getObjectResponse) {
-        return ((S3InputStream) currentStream).tryGetStreamLength(getObjectResponse);
+        return ((S3CurrentOpenStream) currentStream).tryGetStreamLength(getObjectResponse);
     }
 }

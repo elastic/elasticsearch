@@ -816,15 +816,15 @@ class NodeConstruction {
             )::onNewInfo
         );
 
-        clusterInfoService.addListener(
-            new WriteLoadConstraintMonitor(
-                clusterService.getClusterSettings(),
-                threadPool.relativeTimeInMillisSupplier(),
-                clusterService::state,
-                rerouteService,
-                telemetryProvider.getMeterRegistry()
-            )::onNewInfo
+        WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
+            clusterService.getClusterSettings(),
+            threadPool.relativeTimeInMillisSupplier(),
+            clusterService::state,
+            rerouteService,
+            telemetryProvider.getMeterRegistry()
         );
+        clusterInfoService.addListener(writeLoadConstraintMonitor::onNewInfo);
+        clusterService.addListener(writeLoadConstraintMonitor);
 
         IndicesModule indicesModule = new IndicesModule(
             pluginsService.filterPlugins(MapperPlugin.class).toList(),

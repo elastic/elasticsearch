@@ -12,9 +12,11 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -40,7 +42,7 @@ import java.util.function.Supplier;
  * Monitors the node-level write thread pool usage across the cluster and initiates a rebalancing round (via
  * {@link RerouteService#reroute}) whenever a node crosses the node-level write load thresholds.
  */
-public class WriteLoadConstraintMonitor {
+public class WriteLoadConstraintMonitor implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(WriteLoadConstraintMonitor.class);
     private static final int MAX_NODE_IDS_IN_MESSAGE = 3;
     private final WriteLoadConstraintSettings writeLoadConstraintSettings;
@@ -53,6 +55,7 @@ public class WriteLoadConstraintMonitor {
     public static final String HOTSPOT_NODES_COUNT_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot.current";
     public static final String HOTSPOT_DURATION_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot.duration.histogram";
 
+    private volatile boolean sendMetricsEnabled = false;
     private volatile long hotspotNodesCount = 0; // metrics source of hotspotting node count
     private final DoubleHistogram hotspotDurationHistogram;
 
@@ -200,8 +203,16 @@ public class WriteLoadConstraintMonitor {
         }
     }
 
+    public void clusterChanged(ClusterChangedEvent event) {
+        sendMetricsEnabled = event.localNodeMaster();
+    }
+
     private List<LongWithAttributes> getHotspotNodesCount() {
-        return List.of(new LongWithAttributes(hotspotNodesCount));
+        if (sendMetricsEnabled) {
+            return List.of(new LongWithAttributes(hotspotNodesCount));
+        } else {
+            return List.of();
+        }
     }
 
     private static String nodeSummary(Set<String> nodeIds) {

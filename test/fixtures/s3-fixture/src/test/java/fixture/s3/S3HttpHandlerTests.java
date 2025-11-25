@@ -32,14 +32,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.oneOf;
 
 public class S3HttpHandlerTests extends ESTestCase {
 
@@ -412,7 +411,7 @@ public class S3HttpHandlerTests extends ESTestCase {
 
     }
 
-    public void testPreventObjectOverwrite() throws InterruptedException {
+    public void testPreventObjectOverwrite() {
         final var handler = new S3HttpHandler("bucket", "path");
 
         var tasks = List.of(
@@ -422,12 +421,7 @@ public class S3HttpHandlerTests extends ESTestCase {
             createMultipartUploadTask(handler)
         );
 
-        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            tasks.forEach(task -> executor.submit(task.consumer));
-            executor.shutdown();
-            var done = executor.awaitTermination(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
-            assertTrue(done);
-        }
+        runInParallel(tasks.size(), i -> tasks.get(i).consumer.run());
 
         List<TestWriteTask> successfulTasks = tasks.stream().filter(task -> task.status == RestStatus.OK).toList();
         assertThat(successfulTasks, hasSize(1));
@@ -436,6 +430,7 @@ public class S3HttpHandlerTests extends ESTestCase {
             if (task.status == RestStatus.PRECONDITION_FAILED) {
                 assertNotNull(handler.getUpload(task.uploadId));
             } else {
+                assertThat(task.status, oneOf(RestStatus.OK, RestStatus.CONFLICT));
                 assertNull(handler.getUpload(task.uploadId));
             }
         });

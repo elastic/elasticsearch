@@ -340,6 +340,28 @@ employees      | 10093          | 3                 | null     | null
 null           | null           | null              | 4        | 172.21.3.15
 ;
 
+subqueryWithCountStarAndDateTrunc
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+
+FROM employees, (FROM sample_data
+                                | STATS cnt = count(*) by ts=date_trunc(1 hour, @timestamp)
+                                | SORT cnt DESC
+                                )
+           metadata _index
+| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+| SORT emp_no, ts
+| KEEP _index,  emp_no, languages, cnt, ts
+;
+
+_index:keyword | emp_no:integer | languages:integer | cnt:long | ts:datetime
+employees      | 10091          | 3                 | null     | null
+employees      | 10092          | 1                 | null     | null
+employees      | 10093          | 3                 | null     | null
+null           | null           | null              | 2        | 2023-10-23T12:00:00.000Z
+null           | null           | null              | 5        | 2023-10-23T13:00:00.000Z
+;
+
 subqueryInFromWithGrokInSubquery
 required_capability: fork_v9
 required_capability: subquery_in_from_command

@@ -89,9 +89,6 @@ public class MockNode extends Node {
             Tracer tracer,
             String nodeId
         ) {
-            if (pluginsService.filterPlugins(MockTransportService.TestPlugin.class).findAny().isEmpty()) {
-                return new TaskManager(settings, threadPool, taskHeaders, tracer, nodeId);
-            }
             return MockTaskManager.create(settings, threadPool, taskHeaders, tracer, nodeId);
         }
 

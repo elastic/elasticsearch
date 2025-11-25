@@ -55,6 +55,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -64,6 +65,7 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.parseProfile;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.readProfileFromResponse;
 import static org.hamcrest.Matchers.any;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -73,6 +75,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.Is.is;
@@ -729,19 +732,19 @@ public class RestEsqlIT extends RestEsqlTestCase {
     public void testSuggestedCast() throws IOException {
         // TODO: Figure out how best to make sure we don't leave out new types
         Map<DataType, String> typesAndValues = Map.ofEntries(
-            Map.entry(DataType.BOOLEAN, "\"true\""),
-            Map.entry(DataType.LONG, "-1234567890234567"),
-            Map.entry(DataType.INTEGER, "123"),
-            Map.entry(DataType.UNSIGNED_LONG, "1234567890234567"),
-            Map.entry(DataType.DOUBLE, "12.4"),
-            Map.entry(DataType.KEYWORD, "\"keyword\""),
-            Map.entry(DataType.TEXT, "\"some text\""),
-            Map.entry(DataType.DATE_NANOS, "\"2015-01-01T12:10:30.123456789Z\""),
-            Map.entry(DataType.DATETIME, "\"2015-01-01T12:10:30Z\""),
-            Map.entry(DataType.IP, "\"192.168.30.1\""),
-            Map.entry(DataType.VERSION, "\"8.19.0\""),
-            Map.entry(DataType.GEO_POINT, "[-71.34, 41.12]"),
-            Map.entry(DataType.GEO_SHAPE, """
+            entry(DataType.BOOLEAN, "\"true\""),
+            entry(DataType.LONG, "-1234567890234567"),
+            entry(DataType.INTEGER, "123"),
+            entry(DataType.UNSIGNED_LONG, "1234567890234567"),
+            entry(DataType.DOUBLE, "12.4"),
+            entry(DataType.KEYWORD, "\"keyword\""),
+            entry(DataType.TEXT, "\"some text\""),
+            entry(DataType.DATE_NANOS, "\"2015-01-01T12:10:30.123456789Z\""),
+            entry(DataType.DATETIME, "\"2015-01-01T12:10:30Z\""),
+            entry(DataType.IP, "\"192.168.30.1\""),
+            entry(DataType.VERSION, "\"8.19.0\""),
+            entry(DataType.GEO_POINT, "[-71.34, 41.12]"),
+            entry(DataType.GEO_SHAPE, """
                 {
                   "type": "Point",
                   "coordinates": [-77.03653, 38.897676]
@@ -814,17 +817,17 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 DataType suggestedCast = DataType.suggestedCast(Set.of(listOfTypes.get(i), listOfTypes.get(j)));
                 if (isMillisOrNanos(listOfTypes.get(i)) && isMillisOrNanos(listOfTypes.get(j))) {
                     // datetime and date_nanos are casted to date_nanos implicitly
-                    assertThat(columns, equalTo(List.of(Map.ofEntries(Map.entry("name", "my_field"), Map.entry("type", "date_nanos")))));
+                    assertThat(columns, equalTo(List.of(Map.ofEntries(entry("name", "my_field"), entry("type", "date_nanos")))));
                 } else {
                     assertThat(
                         columns,
                         equalTo(
                             List.of(
                                 Map.ofEntries(
-                                    Map.entry("name", "my_field"),
-                                    Map.entry("type", "unsupported"),
-                                    Map.entry("original_types", List.of(listOfTypes.get(i).typeName(), listOfTypes.get(j).typeName())),
-                                    Map.entry("suggested_cast", suggestedCast.typeName())
+                                    entry("name", "my_field"),
+                                    entry("type", "unsupported"),
+                                    entry("original_types", List.of(listOfTypes.get(i).typeName(), listOfTypes.get(j).typeName())),
+                                    entry("suggested_cast", suggestedCast.typeName())
                                 )
                             )
                         )
@@ -849,7 +852,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 List<?> castedColumns = (List<?>) castedResults.get("columns");
                 assertThat(
                     castedColumns,
-                    equalTo(List.of(Map.ofEntries(Map.entry("name", "my_field"), Map.entry("type", suggestedCast.typeName()))))
+                    equalTo(List.of(Map.ofEntries(entry("name", "my_field"), entry("type", suggestedCast.typeName()))))
                 );
             }
         }
@@ -1010,8 +1013,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("pages_emitted", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))
                 .entry("process_nanos", greaterThan(0))
-                .entry("processed_queries", List.of("*:*"))
-                .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
+                // *:* Can be wrapped in ConstantScore query
+                .entry("processed_queries", contains(containsString("*:*")))
+                .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"))
+                .entry("query_profile", contains(luceneQueryProfile()));
             case "ValuesSourceReaderOperator" -> basicProfile().entry("pages_received", greaterThan(0))
                 .entry("pages_emitted", greaterThan(0))
                 .entry("values_loaded", greaterThanOrEqualTo(0))
@@ -1061,6 +1066,37 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
         assertMap(o, expectedOp);
         return name;
+    }
+
+    private MapMatcher luceneQueryProfile() {
+        return matchesMap().entry("type", notNullValue())
+            .entry("description", notNullValue())
+            .entry("time_in_nanos", greaterThanOrEqualTo(0))
+            .entry("breakdown", luceneQueryProfileBreakdown())
+            .entry("children", instanceOf(List.class));
+    }
+
+    private MapMatcher luceneQueryProfileBreakdown() {
+        return matchesMap().entry("set_min_competitive_score_count", greaterThanOrEqualTo(0))
+            .entry("match_count", greaterThanOrEqualTo(0))
+            .entry("shallow_advance_count", greaterThanOrEqualTo(0))
+            .entry("set_min_competitive_score", greaterThanOrEqualTo(0))
+            .entry("next_doc", greaterThanOrEqualTo(0))
+            .entry("match", greaterThanOrEqualTo(0))
+            .entry("next_doc_count", greaterThanOrEqualTo(0))
+            .entry("score_count", greaterThanOrEqualTo(0))
+            .entry("compute_max_score_count", greaterThanOrEqualTo(0))
+            .entry("compute_max_score", greaterThanOrEqualTo(0))
+            .entry("advance", greaterThanOrEqualTo(0))
+            .entry("advance_count", greaterThanOrEqualTo(0))
+            .entry("count_weight_count", greaterThanOrEqualTo(0))
+            .entry("score", greaterThanOrEqualTo(0))
+            .entry("build_scorer_count", greaterThanOrEqualTo(0))
+            .entry("create_weight", greaterThanOrEqualTo(0))
+            .entry("shallow_advance", greaterThanOrEqualTo(0))
+            .entry("count_weight", greaterThanOrEqualTo(0))
+            .entry("create_weight_count", greaterThanOrEqualTo(0))
+            .entry("build_scorer", greaterThanOrEqualTo(0));
     }
 
     private MapMatcher basicProfile() {

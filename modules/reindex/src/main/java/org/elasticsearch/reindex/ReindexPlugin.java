@@ -46,9 +46,9 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
     public static final ActionType<ListTasksResponse> RETHROTTLE_ACTION = new ActionType<>("cluster:admin/reindex/rethrottle");
 
     /**
-     * A {@link FeatureFlag} to guard the work to make reindex more resilient while it is under development.
+     * Whether the feature flag to guard the work to make reindex more resilient while it is under development.
      */
-    static final FeatureFlag REINDEX_RESILIENCE_FEATURE_FLAG = new FeatureFlag("reindex_resilience");
+    static boolean REINDEX_RESILIENCE_ENABLED = new FeatureFlag("reindex_resilience").isEnabled();
 
     @Override
     public List<ActionHandler> getActions() {

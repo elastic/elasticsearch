@@ -48,11 +48,11 @@ import java.util.List;
  * @see StoredFieldsFormat
  */
 public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
-    private final StoredFieldsFormat storedFieldsFormat;
+    private final StoredFieldsFormat delegate;
     private final ES93BloomFilterStoredFieldsFormat bloomFilterStoredFieldsFormat;
 
-    public TSDBStoredFieldsFormat(StoredFieldsFormat storedFieldsFormat, ES93BloomFilterStoredFieldsFormat bloomFilterStoredFieldsFormat) {
-        this.storedFieldsFormat = storedFieldsFormat;
+    public TSDBStoredFieldsFormat(StoredFieldsFormat delegate, ES93BloomFilterStoredFieldsFormat bloomFilterStoredFieldsFormat) {
+        this.delegate = delegate;
         this.bloomFilterStoredFieldsFormat = bloomFilterStoredFieldsFormat;
     }
 
@@ -75,7 +75,7 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
             boolean success = false;
             List<Closeable> toClose = new ArrayList<>();
             try {
-                this.storedFieldsWriter = storedFieldsFormat.fieldsWriter(directory, si, context);
+                this.storedFieldsWriter = delegate.fieldsWriter(directory, si, context);
                 toClose.add(storedFieldsWriter);
                 this.bloomFilterStoredFieldsWriter = bloomFilterStoredFieldsFormat.fieldsWriter(directory, si, context);
                 toClose.add(bloomFilterStoredFieldsWriter);
@@ -208,7 +208,7 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
             boolean success = false;
             List<Closeable> toClose = new ArrayList<>();
             try {
-                this.storedFieldsReader = storedFieldsFormat.fieldsReader(directory, si, fn, context);
+                this.storedFieldsReader = delegate.fieldsReader(directory, si, fn, context);
                 toClose.add(this.storedFieldsReader);
                 this.bloomFilterStoredFieldsReader = bloomFilterStoredFieldsFormat.fieldsReader(directory, si, fn, context);
                 this.bloomFilter = (BloomFilter) bloomFilterStoredFieldsReader;

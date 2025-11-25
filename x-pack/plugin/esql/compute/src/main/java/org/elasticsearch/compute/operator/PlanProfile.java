@@ -45,7 +45,6 @@ public record PlanProfile(String description, String clusterName, String nodeNam
         if (out.getTransportVersion().supports(PLAN_PROFILE_VERSION)) {
             out.writeOptionalWriteable(planTimeProfile);
         }
-        planTimeProfile.writeTo(out);
     }
 
     @Override

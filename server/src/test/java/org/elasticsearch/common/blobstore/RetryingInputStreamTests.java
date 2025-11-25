@@ -144,9 +144,11 @@ public class RetryingInputStreamTests extends ESTestCase {
     }
 
     public void testNoSuchFileExceptionAndRangeNotSatisfiedTerminatesWithoutRetry() {
-        final var notRetriableException = randomBoolean()
-            ? new NoSuchFileException("This is not retry-able")
-            : new RequestedRangeNotSatisfiedException("This is not retry-able", randomLong(), randomLong());
+        final var notRetriableException = randomFrom(
+            new NoSuchFileException("This is not retry-able"),
+            new RequestedRangeNotSatisfiedException("This is not retry-able", randomLong(), randomLong()),
+            new IOException("This is not retry-able")
+        );
         final var retryableFailures = randomIntBetween(1, 5);
         final var failureCounter = new AtomicInteger(retryableFailures);
 
@@ -154,11 +156,7 @@ public class RetryingInputStreamTests extends ESTestCase {
             @Override
             public RetryingInputStream.SingleAttemptInputStream doGetInputStream(long start, long end) throws IOException {
                 if (failureCounter.getAndDecrement() > 0) {
-                    if (randomBoolean()) {
-                        throw new RuntimeException("This is retry-able");
-                    } else {
-                        throw new IOException("This is retry-able");
-                    }
+                    throw new RuntimeException("This is retry-able");
                 }
                 throw notRetriableException;
             }

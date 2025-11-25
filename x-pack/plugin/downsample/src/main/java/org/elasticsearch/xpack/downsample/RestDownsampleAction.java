@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.downsample;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -30,9 +31,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.INTERNAL)
 public class RestDownsampleAction extends BaseRestHandler {
 
-    private final Set<String> CAPABILITIES = Stream.of("downsample.sampling_mode.last_value")
-        .filter(Objects::nonNull)
-        .collect(Collectors.toSet());
+    public static final FeatureFlag EXPONENTIAL_HISTOGRAM_FEATURE = new FeatureFlag("exponential_histogram");
+
+    private final Set<String> CAPABILITIES = Stream.of(
+        "downsample.sampling_mode.last_value",
+        EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled() ? "downsampling.exponential_histograms" : null
+    ).filter(Objects::nonNull).collect(Collectors.toSet());
 
     @Override
     public List<Route> routes() {

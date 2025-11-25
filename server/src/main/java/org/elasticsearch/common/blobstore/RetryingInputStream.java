@@ -318,6 +318,10 @@ public abstract class RetryingInputStream extends InputStream {
      * will attempt to create a new one of these. If reading from it fails, it should not retry.
      */
     protected abstract static class SingleAttemptInputStream extends InputStream {
+
+        /**
+         * @return the offset of the first byte returned by this input stream
+         */
         protected abstract long getFirstOffset();
     }
 }

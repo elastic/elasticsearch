@@ -980,22 +980,20 @@ required_capability: ts_linreg_predict
 
 TS k8s
 | STATS 
-    predicted_cost = values(round(predict_linear(to_double(network.total_cost), 10), 5)),
-    hand_extrap_v2=values(round(last_over_time(to_double(network.total_cost)) + deriv(to_double(network.total_cost))*10, 5))
+    predicted_cost = max(round(predict_linear(to_double(network.total_cost), 10), 5)),
+    hand_extrap_v2=max(round(last_over_time(to_double(network.total_cost)) + deriv(to_double(network.total_cost))*10, 5))
 BY time_bucket = bucket(@timestamp,5minute), cluster
 | KEEP predicted_cost, hand_extrap_v2, time_bucket, cluster
 | SORT cluster, time_bucket
 | LIMIT 5
 ;
 
-predicted_cost:double          | hand_extrap_v2:double          | time_bucket:datetime     | cluster:keyword
-[24.59085, 24.5, 4.33094]      | [24.59085, 24.5, 4.33094]      | 2024-05-10T00:00:00.000Z | prod
-[35.00922, 27.15698, 55.61696] | [35.00922, 27.15698, 55.61696] | 2024-05-10T00:05:00.000Z | prod
-[27.90762, 35.84574, 97.49373] | [27.90762, 35.84574, 97.49373] | 2024-05-10T00:10:00.000Z | prod
-[61.0174, 7.45133, 20.23174]   | [61.0174, 7.45133, 20.23174]   | 2024-05-10T00:15:00.000Z | prod
-[74.66924, 19.40865]           | [74.66924, 19.40865]           | 2024-05-10T00:20:00.000Z | prod
-
-
+predicted_cost:double | hand_extrap_v2:double | time_bucket:datetime     | cluster:keyword
+24.59085              | 24.59085              | 2024-05-10T00:00:00.000Z | prod
+55.61696              | 55.61696              | 2024-05-10T00:05:00.000Z | prod
+97.49373              | 97.49373              | 2024-05-10T00:10:00.000Z | prod
+61.0174               | 61.0174               | 2024-05-10T00:15:00.000Z | prod
+74.66924              | 74.66924              | 2024-05-10T00:20:00.000Z | prod
 
 ;
 
@@ -1004,19 +1002,18 @@ required_capability: ts_command_v0
 required_capability: ts_linreg_predict
 
 TS k8s
-| STATS predicted_cost = values(round(predict_linear(to_double(network.total_cost), 10 minutes), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
+| STATS predicted_cost = max(round(predict_linear(to_double(network.total_cost), 10 minutes), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
 | KEEP predicted_cost, time_bucket, cluster
 | SORT cluster, time_bucket
 | LIMIT 5
 ;
 
-predicted_cost:double              | time_bucket:datetime     | cluster:keyword
-[66.82623, 592.375, -138.39388]    | 2024-05-10T00:00:00.000Z | prod
-[87.17805, 88.0436, 128.89239]     | 2024-05-10T00:05:00.000Z | prod
-[-7.04303, 48.86959, 215.12355]    | 2024-05-10T00:10:00.000Z | prod
-[150.54425, -61.79504, -238.97085] | 2024-05-10T00:15:00.000Z | prod
-[128.90425, 80.39371]              | 2024-05-10T00:20:00.000Z | prod
-
+predicted_cost:double | time_bucket:datetime     | cluster:keyword
+592.375               | 2024-05-10T00:00:00.000Z | prod
+128.8924              | 2024-05-10T00:05:00.000Z | prod
+215.1235              | 2024-05-10T00:10:00.000Z | prod
+150.5443              | 2024-05-10T00:15:00.000Z | prod
+128.9042              | 2024-05-10T00:20:00.000Z | prod
 ;
 
 predict_linear_with_int_and_timedelta
@@ -1025,7 +1022,7 @@ required_capability: ts_linreg_predict
 
 // tag::predict_linear[]
 TS k8s
-| STATS predicted_cost_int = VALUES(ROUND(PREDICT_LINEAR(TO_LONG(network.total_bytes_in), 10), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
+| STATS predicted_cost_int = MAX(ROUND(PREDICT_LINEAR(TO_LONG(network.total_bytes_in), 10), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
 // end::predict_linear[]
 | KEEP predicted_cost_int, time_bucket, cluster
 | SORT cluster, time_bucket
@@ -1033,11 +1030,11 @@ TS k8s
 ;
 
 // tag::predict_linear-result[]
-predicted_cost_int:double            | time_bucket:datetime     | cluster:keyword
-[1378.75586, 3105.0, 2469.44892]     | 2024-05-10T00:00:00.000Z | prod
-[2667.75766, 2659.69767, 4218.33168] | 2024-05-10T00:05:00.000Z | prod
-[6029.22491, 4288.41227, 5772.44801] | 2024-05-10T00:10:00.000Z | prod
+predicted_cost_int:double | time_bucket:datetime     | cluster:keyword
+3105.0                    | 2024-05-10T00:00:00.000Z | prod
+4218.332                  | 2024-05-10T00:05:00.000Z | prod
+6029.225                  | 2024-05-10T00:10:00.000Z | prod
 // end::predict_linear-result[]
-[9420.23165, 8149.68671, 9330.89915] | 2024-05-10T00:15:00.000Z | prod
-[24.29954, 10367.26268]              | 2024-05-10T00:20:00.000Z | prod
+9420.232                  | 2024-05-10T00:15:00.000Z | prod
+10367.26                  | 2024-05-10T00:20:00.000Z | prod
 ;

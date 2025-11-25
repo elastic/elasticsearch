@@ -84,7 +84,7 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
                     () -> new TestCaseSupplier.TestCase(
                         List.of(new TestCaseSupplier.TypedData(new BytesRef("2023-05-05T00:00:00.000Z"), dateType, "second")),
                         "DateParseConstantEvaluator[val=Attribute[channel=0], "
-                            + "formatter=format[strict_date_optional_time] zone[null] locale[], zoneId=Z, locale=]",
+                            + "formatter=format[strict_date_optional_time] locale[], zoneId=Z, locale=]",
                         DataType.DATETIME,
                         equalTo(1683244800000L)
                     ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
@@ -173,7 +173,7 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
                             ).forceLiteral()
                         ),
                         "DateParseConstantEvaluator[val=Attribute[channel=0], "
-                            + "formatter=format[strict_date_optional_time] zone[null] locale[en_US], zoneId=Z, locale=en_US]",
+                            + "formatter=format[strict_date_optional_time] locale[en_US], zoneId=Z, locale=en_US]",
                         DataType.DATETIME,
                         equalTo(1683244800000L)
                     )
@@ -355,7 +355,7 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
                             "options"
                         ).forceLiteral()
                     ),
-                    "DateParseConstantEvaluator[val=Attribute[channel=0], formatter=format[strict_date_optional_time] zone[null] locale["
+                    "DateParseConstantEvaluator[val=Attribute[channel=0], formatter=format[strict_date_optional_time] locale["
                         + locale
                         + "], zoneId="
                         + zoneId
@@ -384,7 +384,7 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
                             "options"
                         ).forceLiteral()
                     ),
-                    "DateParseConstantEvaluator[val=Attribute[channel=0], formatter=format[strict_date_optional_time] zone[null] locale["
+                    "DateParseConstantEvaluator[val=Attribute[channel=0], formatter=format[strict_date_optional_time] locale["
                         + locale
                         + "], zoneId="
                         + zoneId

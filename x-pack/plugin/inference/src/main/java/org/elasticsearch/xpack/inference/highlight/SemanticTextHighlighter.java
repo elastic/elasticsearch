@@ -33,7 +33,6 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
-import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.search.vectors.VectorData;
@@ -278,8 +277,6 @@ public class SemanticTextHighlighter implements Highlighter {
                     queries.add(new MatchAllDocsQuery());
                 } else if (query instanceof DenseVectorQuery.Floats floatsQuery) {
                     queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), similarity));
-                } else if (query instanceof IVFKnnFloatVectorQuery ivfQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(ivfQuery.getQuery()), similarity));
                 } else if (query instanceof RescoreKnnVectorQuery rescoreQuery) {
                     visitLeaf(rescoreQuery.innerQuery(), similarity);
                 } else if (query instanceof VectorSimilarityQuery similarityQuery) {

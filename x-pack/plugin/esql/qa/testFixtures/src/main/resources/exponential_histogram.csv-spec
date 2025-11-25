@@ -379,6 +379,7 @@ min:double | max:double | median:double | p75:double | sum:double  | avg:double
 
 timseriesAllAggsGroupedFiltered
 required_capability: exponential_histogram_pre_tech_preview_v5
+required_capability: ts_command_v0
 
 TS exp_histo_sample 
  | WHERE NOT STARTS_WITH(instance, "dummy") 

@@ -85,6 +85,7 @@ toc:
           children:
             - file: rest-apis/collapse-search-results.md
             - file: rest-apis/create-index-from-source.md
+            - file: rest-apis/explain-lifecycle.md
             - file: rest-apis/filter-search-results.md
             - file: rest-apis/rescore-search-results.md
             - file: rest-apis/find-text-structure-examples.md
@@ -114,6 +115,7 @@ toc:
                 - file: rest-apis/retrievers/rule-retriever.md
                 - file: rest-apis/retrievers/standard-retriever.md
                 - file: rest-apis/retrievers/text-similarity-reranker-retriever.md
+                - file: rest-apis/retrievers/diversify-retriever.md
                 - file: rest-apis/retrievers/retrievers-examples.md
             - file: rest-apis/search-multiple-data-streams-indices.md
             - file: rest-apis/search-profile.md

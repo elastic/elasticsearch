@@ -11,7 +11,9 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
@@ -58,10 +60,14 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.ignore_dynamic_field_names_beyond_limit"
     );
     static final NodeFeature EXCLUDE_VECTORS_DOCVALUE_BUGFIX = new NodeFeature("mapper.exclude_vectors_docvalue_bugfix");
+    static final NodeFeature BASE64_DENSE_VECTORS = new NodeFeature("mapper.base64_dense_vectors");
+    public static final NodeFeature GENERIC_VECTOR_FORMAT = new NodeFeature("mapper.vectors.generic_vector_format");
+    public static final NodeFeature FIX_DENSE_VECTOR_WRONG_FIELDS = new NodeFeature("mapper.fix_dense_vector_wrong_fields");
+    static final NodeFeature BBQ_DISK_STATS_SUPPORT = new NodeFeature("mapper.bbq_disk_stats_support");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(
+        var features = Set.of(
             RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
             IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
             SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
@@ -99,7 +105,15 @@ public class MapperFeatures implements FeatureSpecification {
             DISKBBQ_ON_DISK_RESCORING,
             PROVIDE_INDEX_SORT_SETTING_DEFAULTS,
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
-            EXCLUDE_VECTORS_DOCVALUE_BUGFIX
+            EXCLUDE_VECTORS_DOCVALUE_BUGFIX,
+            BASE64_DENSE_VECTORS,
+            FIX_DENSE_VECTOR_WRONG_FIELDS,
+            BBQ_DISK_STATS_SUPPORT
         );
+        if (ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()) {
+            features = new HashSet<>(features);
+            features.add(GENERIC_VECTOR_FORMAT);
+        }
+        return features;
     }
 }

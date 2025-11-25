@@ -11,6 +11,7 @@ package org.elasticsearch.simdvec;
 
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.internal.vectorization.BaseVectorizationTests;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
@@ -348,7 +349,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float[] v3 = generateRandomVector(vectorSize);
         float[] diff = generateRandomVector(vectorSize);
         float soarLambda = random().nextFloat();
-        float rnorm = random().nextFloat();
+        float rnorm = random().nextFloat(10);
         float[] expectedDistances = new float[4];
         float[] panamaDistances = new float[4];
         defaultedProvider.getVectorUtilSupport().soarDistanceBulk(query, v0, v1, v2, v3, diff, soarLambda, rnorm, expectedDistances);
@@ -436,6 +437,41 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         defaultedProvider.getVectorUtilSupport().transposeHalfByte(toPack, packedLegacy);
         defOrPanamaProvider.getVectorUtilSupport().transposeHalfByte(toPack, packed);
         assertArrayEquals(packedLegacy, packed);
+    }
+
+    public void testPackAsDibit() {
+        int dims = randomIntBetween(16, 2048);
+        int[] toPack = new int[dims];
+        for (int i = 0; i < dims; i++) {
+            toPack[i] = randomInt(3);
+        }
+        int length = ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dims);
+        ;
+        byte[] packed = new byte[length];
+        byte[] packedLegacy = new byte[length];
+        defaultedProvider.getVectorUtilSupport().packDibit(toPack, packedLegacy);
+        defOrPanamaProvider.getVectorUtilSupport().packDibit(toPack, packed);
+        assertArrayEquals(packedLegacy, packed);
+    }
+
+    public void testPackDibitCorrectness() {
+        // 5 bits
+        // binary lower bits 1 1 0 0 1
+        // binary upper bits 0 1 1 0 0
+        // resulting dibit 1 3 2 0 1
+        int[] toPack = new int[] { 1, 3, 2, 0, 1 };
+        byte[] packed = new byte[2];
+        ESVectorUtil.packDibit(toPack, packed);
+        assertArrayEquals(new byte[] { (byte) 0b11001000, (byte) 0b01100000 }, packed);
+
+        // 8 bits
+        // binary lower bits 1 1 0 0 1 0 1 0
+        // binary upper bits 0 1 1 0 0 1 0 1
+        // resulting dibit 1 3 2 0 1 2 1 2
+        toPack = new int[] { 1, 3, 2, 0, 1, 2, 1, 2 };
+        packed = new byte[2];
+        ESVectorUtil.packDibit(toPack, packed);
+        assertArrayEquals(new byte[] { (byte) 0b11001010, (byte) 0b01100101 }, packed);
     }
 
     private float[] generateRandomVector(int size) {

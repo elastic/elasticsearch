@@ -25,9 +25,12 @@ type make it simpler to perform semantic search on your data. The
 with [match](/reference/query-languages/query-dsl/query-dsl-match-query.md), [sparse_vector](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md)
 or [knn](/reference/query-languages/query-dsl/query-dsl-knn-query.md) queries.
 
-If you don’t specify an inference endpoint, the `inference_id` field defaults to
-`.elser-2-elasticsearch`, a preconfigured endpoint for the elasticsearch
-service.
+{applies_to}`serverless: ga` If you don’t specify an {{infer}} endpoint, the `inference_id` field defaults to
+`.elser-v2-elastic`, a preconfigured endpoint for the `elasticsearch` service.
+This endpoint uses the [Elastic {{infer-cap}} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
+
+{applies_to}`stack: ga 9.0` If you don’t specify an {{infer}} endpoint, the `inference_id` field defaults to
+`.elser-2-elasticsearch`, a preconfigured endpoint for the `elasticsearch` service.
 
 Using `semantic_text`, you won’t need to specify how to generate embeddings for
 your data, or how to index it. The {{infer}} endpoint automatically determines
@@ -43,10 +46,15 @@ You can use either preconfigured endpoints in your `semantic_text` fields which
 are ideal for most use cases or create custom endpoints and reference them in
 the field mappings.
 
-### Using the default ELSER endpoint
+:::::::{tab-set}
 
-If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up
-`semantic_text` with the following API request:
+::::::{tab-item} Default ELSER on EIS endpoint on {{serverless-short}}
+
+```{applies_to}
+serverless: ga
+```
+
+If you use the default `.elser-v2-elastic` endpoint that runs on EIS, you can set up `semantic_text` with the following API request:
 
 ```console
 PUT my-index-000001
@@ -62,10 +70,58 @@ PUT my-index-000001
 ```
 % TEST[skip:Requires inference endpoint]
 
+::::::
+
+::::::{tab-item} Preconfigured ELSER on EIS endpoint in Cloud
+
+```{applies_to}
+stack: ga 9.2
+deployment:
+  self: unavailable
+```
+
+If you use the preconfigured `.elser-v2-elastic` endpoint that runs on EIS, you can set up `semantic_text` with the following API request:
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
+        "type": "semantic_text",
+        "inference_id": ".elser-v2-elastic"
+      }
+    }
+  }
+}
+```
+
+::::::
+
+::::::{tab-item} Default ELSER endpoint
+
+If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up `semantic_text` with the following API request:
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+```
+
+::::::
+
+:::::::
+
 ### Using a custom endpoint
 
-To use a custom {{infer}} endpoint instead of the default
-`.elser-2-elasticsearch`, you
+To use a custom {{infer}} endpoint instead of the default, you
 must [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
 and specify its `inference_id` when setting up the `semantic_text` field type.
 
@@ -110,13 +166,47 @@ PUT my-index-000003
 % TEST[skip:Requires inference endpoint]
 
 ### Using ELSER on EIS
+
 ```{applies_to}
-stack: preview 9.1
-serverless: preview
+stack: preview 9.1, ga 9.2
+deployment:
+  self: unavailable
+serverless: ga
 ```
 
 If you use the preconfigured `.elser-2-elastic` endpoint that utilizes the ELSER model as a service through the Elastic Inference Service ([ELSER on EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis)), you can
 set up `semantic_text` with the following API request:
+
+:::::::{tab-set}
+
+::::::{tab-item} Using ELSER on EIS on Serverless
+
+```{applies_to}
+serverless: ga
+```
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+```
+
+::::::
+
+::::::{tab-item} Using ELSER on EIS in Cloud
+
+```{applies_to}
+stack: ga 9.2
+deployment:
+  self: unavailable
+```
 
 ```console
 PUT my-index-000001
@@ -133,10 +223,9 @@ PUT my-index-000001
 ```
 % TEST[skip:Requires inference endpoint]
 
-::::{note}
-While we do encourage experimentation, we do not recommend implementing production use cases on top of this feature while it is in Technical Preview.
+::::::
 
-::::
+:::::::
 
 ## Parameters for `semantic_text` fields [semantic-text-params]
 
@@ -191,24 +280,7 @@ endpoint associated with `inference_id`.
 If chunking settings are updated, they will not be applied to existing documents
 until they are reindexed.
 To completely disable chunking, use the `none` chunking strategy.
-
-    **Valid values for `chunking_settings`**:
-
-    `strategy`
-    :   Indicates the strategy of chunking strategy to use. Valid values are `none`, `word` or
-    `sentence`. Required.
-
-    `max_chunk_size`
-    :   The maximum number of words in a chunk. Required for `word` and `sentence` strategies.
-
-    `overlap`
-    :   The number of overlapping words allowed in chunks. This cannot be defined as
-    more than half of the `max_chunk_size`. Required for `word` type chunking
-    settings.
-
-    `sentence_overlap`
-    :   The number of overlapping sentences allowed in chunks. Valid values are `0`
-    or `1`. Required for `sentence` type chunking settings
+Defaults to the optimal chunking settings for [Elastic Rerank](docs-content:///explore-analyze/machine-learning/nlp/ml-nlp-rerank.md). Refer to the [Inference API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for valid values for `chunking_settings`. 
 
 ::::{warning}
 When using the `none` chunking strategy, if the input exceeds the maximum token
@@ -424,21 +496,29 @@ POST test-index/_search
 
 ## Updates and partial updates for `semantic_text` fields [semantic-text-updates]
 
-When updating documents that contain `semantic_text` fields, it’s important to understand how inference is triggered:
+When updating documents that contain `semantic_text` fields, it's important to understand how inference is triggered:
 
-* **Full document updates**
-  When you perform a full document update, **all `semantic_text` fields will re-run inference** even if their values did not change. This ensures that the embeddings are always consistent with the current document state but can increase ingestion costs.
+Full document updates
+:   Full document updates re-run inference on all `semantic_text` fields, even if their values did not change. This ensures that embeddings remain consistent with the current document state but can increase ingestion costs.
 
-* **Partial updates using the Bulk API**
-  Partial updates that **omit `semantic_text` fields** and are submitted through the [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk) will **reuse the existing embeddings** stored in the index. In this case, inference is **not triggered** for fields that were not updated, which can significantly reduce processing time and cost.
+Partial updates using the Bulk API
+:   Partial updates submitted through the [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk) reuse existing embeddings when you omit `semantic_text` fields. Inference does not run for omitted fields, which can significantly reduce processing time and cost.
 
-* **Partial updates using the Update API**
-  When using the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update) with a `doc` object that **omits `semantic_text` fields**, inference **will still run** on all `semantic_text` fields. This means that even if the field values are not changed, embeddings will be re-generated.
+Partial updates using the Update API
+:   Partial updates submitted through the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update) re-run inference on all `semantic_text` fields, even when you omit them from the `doc` object. Embeddings are re-generated regardless of whether field values changed.
 
-If you want to avoid unnecessary inference and keep existing embeddings:
+To preserve existing embeddings and avoid unnecessary inference costs:
 
-    * Use **partial updates through the Bulk API**.
-    * Omit any `semantic_text` fields that did not change from the `doc` object in your request.
+ * Use partial updates with the Bulk API.
+ * Omit any `semantic_text` fields that did not change from the `doc` object in your request.
+
+### Scripted updates
+
+For indices containing `semantic_text` fields, updates that use scripts have the
+following behavior:
+
+- ✅ **Supported:** [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update)
+- ❌ **Not supported:** [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk-1). Scripted updates will fail even if the script targets non-`semantic_text` fields.
 
 ## Returning semantic field embeddings in `_source`
 
@@ -447,9 +527,14 @@ stack: ga 9.2
 serverless: ga
 ```
 
+:::{important}
+Starting with {{es}} 9.2, the recommended method for retrieving embeddings has changed from that used in previous versions.
+For instructions on retrieving embeddings in versions earlier than 9.2, refer to [Returning semantic field embeddings using `fields`](#return-embeddings-fields).
+:::
+
 By default, the embeddings generated for `semantic_text` fields are stored internally and **not included in `_source`** when retrieving documents.
 
-To include the full inference fields, including their embeddings, in `_source`, set the `_source.exclude_vectors` option to `false`.
+To include the full {{infer}} fields, including their embeddings, in `_source`, set the `_source.exclude_vectors` option to `false`.
 This works with the
 [Get](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get),
 [Search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search),
@@ -468,11 +553,12 @@ POST my-index/_search
   }
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 The embeddings will appear under `_inference_fields` in `_source`.
 
 **Use cases**
+
 Including embeddings in `_source` is useful when you want to:
 
 * Reindex documents into another index **with the same `inference_id`** without re-running inference.
@@ -480,6 +566,10 @@ Including embeddings in `_source` is useful when you want to:
 * Inspect or debug the raw embeddings generated for your content.
 
 ### Example: Reindex while preserving embeddings
+```{applies_to}
+stack: ga 9.2
+serverless: ga
+```
 
 ```console
 POST _reindex
@@ -495,7 +585,7 @@ POST _reindex
   }
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 1. Sends the source documents with their stored embeddings to the destination index.
 
@@ -505,16 +595,110 @@ the documents will **fail the reindex task**.
 Matching `inference_id` values are required to reuse the existing embeddings.
 ::::
 
-This allows documents to be re-indexed without triggering inference again, **as long as the target `semantic_text` field uses the same `inference_id` as the source**.
+This allows documents to be re-indexed without triggering {{infer}} again, **as long as the target `semantic_text` field uses the same `inference_id` as the source**.
 
-::::{note}
-**For versions prior to 9.2.0**
+### Example: Troubleshooting semantic_text fields [troubleshooting-semantic-text-fields]
+```{applies_to}
+stack: ga 9.2
+serverless: ga
+```
 
-Older versions do not support the `exclude_vectors` option to retrieve the embeddings of the semantic text fields.
-To return the `_inference_fields`, use the `fields` option in a search request instead:
+To verify that your embeddings look correct, you can retrieve the {{infer}} data that `semantic_text` normally hides from search results.
+
+To retrieve the stored embeddings in {{es}} 9.2 and later, set the `exclude_vectors` parameter to `false` in the `_source` field. This ensures that the vector data, which is excluded by default, is included in the search response.
 
 ```console
 POST test-index/_search
+{
+  "_source": {
+    "exclude_vectors": false
+  },
+  "query": {
+    "match": {
+      "my_semantic_field": "Which country is Paris in?"
+    }
+  }
+}
+```
+% TEST[skip:Requires {{infer}} endpoint]
+
+This will return verbose chunked embeddings content that is used to perform
+semantic search for `semantic_text` fields:
+
+```console-response
+{
+  "took": 18,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": { "value": 1, "relation": "eq" },
+    "max_score": 16.532316,
+    "hits": [
+      {
+        "_index": "test-index",
+        "_id": "1",
+        "_score": 16.532316,
+        "_source": {
+          "my_semantic_field": "Paris is the capital of France.",
+          "_inference_fields": {
+            "my_semantic_field": {
+              "inference": {
+                "inference_id": ".elser-2-elasticsearch", <1>
+                "model_settings": { <2>
+                  "service": "elasticsearch",
+                  "task_type": "sparse_embedding"
+                },
+                "chunks": {
+                  "my_semantic_field": [
+                    {
+                      "start_offset": 0,
+                      "end_offset": 31,
+                      "embeddings": { <3>
+                        "airport": 0.12011719,
+                        "brussels": 0.032836914,
+                        "capital": 2.1328125,
+                        "capitals": 0.6386719,
+                        "capitol": 1.2890625,
+                        "cities": 0.78125,
+                        "city": 1.265625,
+                        "continent": 0.26953125,
+                        "country": 0.59765625,
+                        ...
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+```
+% TEST[skip:Requires {{infer}} endpoint]
+1. The {{infer}} endpoint used to generate embeddings.
+2. Lists details about the model used to generate embeddings, such as the service name and task type.
+3. The embeddings generated for this chunk.
+
+## Returning semantic field embeddings using `fields` [return-embeddings-fields]
+
+:::{important}
+This method for returning semantic field embeddings is recommended only for {{es}} versions earlier than 9.2.
+For version 9.2 and later, use the [`exclude_vectors`](#troubleshooting-semantic-text-fields) parameter instead.
+:::
+
+To retrieve stored embeddings, use the `fields` parameter with `_inference_fields`. This lets you include the vector data that is not shown by default in the response.
+The `fields` parameter only works with the `_search` endpoint.  
+
+```console
+POST my-index/_search
 {
   "query": {
     "match": {
@@ -526,11 +710,7 @@ POST test-index/_search
   ]
 }
 ```
-% TEST[skip:Requires inference endpoint]
-
-This returns the chunked embeddings used for semantic search under `_inference_fields` in `_source`.
-Note that the `fields` option is **not** available for the Reindex API.
-::::
+% TEST[skip:Requires {{infer}} endpoint]
 
 ## Customizing `semantic_text` indexing [custom-indexing]
 
@@ -577,18 +757,6 @@ PUT my-index-000004
 }
 ```
 % TEST[skip:Requires inference endpoint]
-
-## Updates to `semantic_text` fields [update-script]
-
-For indices containing `semantic_text` fields, updates that use scripts have the
-following behavior:
-
-* Are supported through
-  the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update).
-* Are not supported through
-  the [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk-1)
-  and will fail. Even if the script targets non-`semantic_text` fields, the
-  update will fail when the index contains a `semantic_text` field.
 
 ## `copy_to` and multi-fields support [copy-to-support]
 
@@ -656,30 +824,6 @@ You can query `semantic_text` fields using the following query types:
 
 - [Semantic query](/reference/query-languages/query-dsl/query-dsl-semantic-query.md): We don't recommend this legacy query type for _new_ projects, because the alternatives in this list enable more flexibility and customization. The `semantic` query remains available to support existing implementations.
 
-
-## Troubleshooting semantic_text fields [troubleshooting-semantic-text-fields]
-
-If you want to verify that your embeddings look correct, you can view the
-inference data that `semantic_text` typically hides using `fields`.
-
-```console
-POST test-index/_search
-{
-  "query": {
-    "match": {
-      "my_semantic_field": "Which country is Paris in?"
-    }
-  },
-  "fields": [
-    "_inference_fields"
-  ]
-}
-```
-% TEST[skip:Requires inference endpoint]
-
-This will return verbose chunked embeddings content that is used to perform
-semantic search for `semantic_text` fields.
-
 ### Document count discrepancy in `_cat/indices`
 
 When an index contains a `semantic_text` field, the `docs.count` value returned by the [`_cat/indices`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-indices) API may be higher than the number of documents you indexed. 
@@ -721,6 +865,7 @@ POST local-index,remote-cluster:remote-index/_search
   of [nested fields](/reference/elasticsearch/mapping-reference/nested.md).
 * `semantic_text` fields can’t currently be set as part
   of [dynamic templates](docs-content://manage-data/data-store/mapping/dynamic-templates.md).
+* `semantic_text` fields are not supported in indices created prior to 8.11.0.
 * `semantic_text` fields do not support [Cross-Cluster Search (CCS)](docs-content://solutions/search/cross-cluster-search.md) when [`ccs_minimize_roundtrips`](docs-content://solutions/search/cross-cluster-search.md#ccs-network-delays) is set to `false`.
 * `semantic_text` fields do not support [Cross-Cluster Search (CCS)](docs-content://solutions/search/cross-cluster-search.md) in [ES|QL](/reference/query-languages/esql.md).
 * `semantic_text` fields do not support [Cross-Cluster Replication (CCR)](docs-content://deploy-manage/tools/cross-cluster-replication.md).

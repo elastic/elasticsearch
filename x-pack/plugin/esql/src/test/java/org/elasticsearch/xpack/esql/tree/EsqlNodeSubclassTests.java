@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -96,8 +97,9 @@ import java.util.jar.JarInputStream;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomEsIndex;
-import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomIndexNameWithModes;
+import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomEsIndex;
+import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexNameWithModes;
+import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomRemotesWithIndices;
 import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomFieldAttributes;
 import static org.elasticsearch.xpack.esql.plan.physical.LookupJoinExecSerializationTests.randomJoinOnExpression;
 import static org.mockito.Mockito.mock;
@@ -150,7 +152,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             .toList();
     }
 
-    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class, Fork.class);
+    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class, Fork.class, UnionAll.class);
 
     // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
     private static final List<Class<?>> UNRESOLVED_CLASSES = List.of(
@@ -181,7 +183,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
          */
         expectedCount -= 1;
 
-        assertEquals(expectedCount, info(node).properties().size());
+        assertEquals("Wrong number of info parameters for " + subclass.getSimpleName(), expectedCount, info(node).properties().size());
     }
 
     /**
@@ -449,7 +451,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomInt();
         } else if (argClass == JoinType.class) {
             return JoinTypes.LEFT;
-        } else if (List.of(Fork.class, MergeExec.class).contains(toBuildClass) && argType == LogicalPlan.class) {
+        } else if (List.of(Fork.class, MergeExec.class, UnionAll.class).contains(toBuildClass) && argType == LogicalPlan.class) {
             // limit recursion of plans, in order to prevent stackoverflow errors
             return randomEsRelation();
         }
@@ -732,6 +734,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             SourceTests.randomSource(),
             randomIdentifier(),
             randomFrom(IndexMode.values()),
+            randomRemotesWithIndices(),
+            randomRemotesWithIndices(),
             randomIndexNameWithModes(),
             randomFieldAttributes(0, 10, false)
         );

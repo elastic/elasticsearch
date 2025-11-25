@@ -1234,10 +1234,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("row a = 1 metadata _index", "line 1:20: extraneous input '_index' expecting <EOF>");
         expectError("show info metadata _index", "line 1:11: token recognition error at: 'm'");
         if (EsqlCapabilities.Cap.EXPLAIN.isEnabled()) {
-            expectError(
-                "explain ( from foo ) metadata _index",
-                "line 1:22: mismatched input 'metadata' expecting {'|', ',', ')', 'metadata'}"
-            );
+            expectError("explain ( from foo ) metadata _index", "line 1:22: token recognition error at: 'm'");
         }
     }
 
@@ -1366,6 +1363,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "line 1:16: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
                 + "[Invalid sequence - escape character is not followed by special wildcard char]"
         );
+    }
+
+    public void testIdentifierPatternTooComplex() {
+        // It is incredibly unlikely that we will see this limit hit in practice
+        // The repetition value 2450 was a ballpark estimate and validated experimentally
+        String explodingWildcard = "a*".repeat(2450);
+        expectError("FROM a | KEEP " + explodingWildcard, "Pattern was too complex to determinize");
     }
 
     public void testEnrich() {
@@ -4059,7 +4063,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testExplainErrors() {
         assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         // TODO this one is incorrect
-        expectError("explain ( from test ) | limit 1", "line 1:23: mismatched input '|' expecting {'|', ',', ')', 'metadata'}");
+        expectError("explain ( from test ) | limit 1", "line 1:1: EXPLAIN does not support downstream commands");
         expectError(
             "explain (row x=\"Elastic\" | eval y=concat(x,to_upper(\"search\"))) | mv_expand y",
             "line 1:1: EXPLAIN does not support downstream commands"
@@ -4229,13 +4233,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionMissingOptions() {
-        expectError("FROM foo* | COMPLETION targetField = prompt", "line 1:44: Missing mandatory option [inference_id] in COMPLETION");
+        expectError("FROM foo* | COMPLETION targetField = prompt", "line 1:13: Missing mandatory option [inference_id] in COMPLETION");
     }
 
     public void testCompletionEmptyOptions() {
         expectError(
             "FROM foo* | COMPLETION targetField = prompt WITH { }",
-            "line 1:45: Missing mandatory option [inference_id] in COMPLETION"
+            "line 1:13: Missing mandatory option [inference_id] in COMPLETION"
         );
     }
 
@@ -5308,8 +5312,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectSuccessForBracketsWithinQuotes(pattern);
         }
 
-        expectError("from test)", "line 1:10: extraneous input ')' expecting <EOF>");
-        expectError("from te()st", "line 1:8: token recognition error at: '('");
+        expectError("from test)", "line -1:-1: Invalid query [from test)]");
+        expectError("from te()st", "line 1:8: mismatched input '(' expecting {<EOF>, '|', ',', 'metadata'");
         expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
         expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");
         if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {

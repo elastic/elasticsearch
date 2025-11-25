@@ -17,7 +17,6 @@ import org.elasticsearch.compute.aggregation.FirstLongByTimestampAggregatorFunct
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -28,17 +27,19 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class FirstOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
+public class FirstOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "FirstOverTime",
@@ -58,26 +59,23 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
     )
     public FirstOverTime(
         Source source,
-        @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double" }) Expression field
+        @Param(
+            name = "field",
+            type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double" }
+        ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the first over time value",
+            optional = true
+        ) Expression window,
+        Expression timestamp
     ) {
-        this(
-            source,
-            field,
-            new UnresolvedTimestamp(source, "First Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
-        );
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
     }
 
-    public FirstOverTime(Source source, Expression field, Expression timestamp) {
-        this(source, field, Literal.TRUE, timestamp);
-    }
-
-    // compatibility constructor used when reading from the stream
-    private FirstOverTime(Source source, Expression field, Expression filter, List<Expression> children) {
-        this(source, field, filter, children.getFirst());
-    }
-
-    private FirstOverTime(Source source, Expression field, Expression filter, Expression timestamp) {
-        super(source, field, filter, List.of(timestamp));
+    public FirstOverTime(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+        super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
     }
 
@@ -86,7 +84,8 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class)
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
         );
     }
 
@@ -97,21 +96,17 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
 
     @Override
     protected NodeInfo<FirstOverTime> info() {
-        return NodeInfo.create(this, FirstOverTime::new, field(), timestamp);
+        return NodeInfo.create(this, FirstOverTime::new, field(), filter(), window(), timestamp);
     }
 
     @Override
     public FirstOverTime replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            assert false : "expected 3 children for field, filter, @timestamp; got " + newChildren;
-            throw new IllegalArgumentException("expected 3 children for field, filter, @timestamp; got " + newChildren);
-        }
-        return new FirstOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new FirstOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public FirstOverTime withFilter(Expression filter) {
-        return new FirstOverTime(source(), field(), filter, timestamp);
+        return new FirstOverTime(source(), field(), filter, window(), timestamp);
     }
 
     @Override
@@ -153,10 +148,11 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
 
     @Override
     public String toString() {
-        return "first_over_time(" + field() + ")";
+        return "first_over_time(" + field() + ", " + timestamp() + ")";
     }
 
-    Expression timestamp() {
+    @Override
+    public Expression timestamp() {
         return timestamp;
     }
 }

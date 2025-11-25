@@ -118,6 +118,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithD
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
@@ -1124,7 +1125,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var analyzer = makeAnalyzer("mapping-all-types.json");
         // Check for every possible query data type
         for (DataType fieldDataType : fieldDataTypes) {
-            if (DataType.UNDER_CONSTRUCTION.contains(fieldDataType)) {
+            if (DataType.UNDER_CONSTRUCTION.contains(fieldDataType) || fieldDataType == NULL) {
                 continue;
             }
 
@@ -1285,7 +1286,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         String query = """
             from test
             | where KNN(dense_vector, [0.1, 0.2, 0.3],
-                { "similarity": 0.001, "min_candidates": 5000, "rescore_oversample": 7, "boost": 3.5 })
+                {"k": 10, "min_candidates": 20, "rescore_oversample": 1.5, "similarity": 0.5, "boost": 2.0, "visit_percentage": 0.25})
+            | limit 50
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
@@ -1296,12 +1298,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var expectedQuery = new KnnVectorQueryBuilder(
             "dense_vector",
             new float[] { 0.1f, 0.2f, 0.3f },
-            5000,
-            5000,
-            null,
-            new RescoreVectorBuilder(7),
-            0.001f
-        ).boost(3.5f);
+            10,
+            20,
+            0.25f,
+            new RescoreVectorBuilder(1.5f),
+            0.5f
+        ).boost(2.0f);
         assertEquals(expectedQuery.toString(), planStr.get());
     }
 
@@ -1321,10 +1323,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertEquals(expectedQuery.toString(), planStr.get());
     }
 
-    public void testKnnKAndMinCandidatesLowerK() {
+    public void testKnnKOverridesLimitK() {
         String query = """
             from test
-            | where KNN(dense_vector, [0.1, 0.2, 0.3], {"min_candidates": 50})
+            | where KNN(dense_vector, [0.1, 0.2, 0.3], {"k": 20})
             | limit 10
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
@@ -1333,23 +1335,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
 
-        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 50, 50, null, null, null);
-        assertEquals(expectedQuery.toString(), planStr.get());
-    }
-
-    public void testKnnKAndMinCandidatesHigherK() {
-        String query = """
-            from test
-            | where KNN(dense_vector, [0.1, 0.2, 0.3], {"min_candidates": 10})
-            | limit 50
-            """;
-        var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
-
-        AtomicReference<String> planStr = new AtomicReference<>();
-        plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
-
-        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 50, 50, null, null, null);
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 20, null, null, null, null);
         assertEquals(expectedQuery.toString(), planStr.get());
     }
 

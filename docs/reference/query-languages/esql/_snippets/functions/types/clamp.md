@@ -7,10 +7,22 @@
 | boolean | boolean | boolean | boolean |
 | date | date | date | date |
 | double | double | double | double |
+| double | integer | integer | double |
+| double | long | long | double |
+| double | unsigned_long | unsigned_long | double |
+| integer | double | double | double |
 | integer | integer | integer | integer |
+| integer | long | long | long |
+| integer | unsigned_long | unsigned_long | unsigned_long |
 | ip | ip | ip | ip |
 | keyword | keyword | keyword | keyword |
+| long | double | double | double |
+| long | integer | integer | long |
 | long | long | long | long |
+| long | unsigned_long | unsigned_long | unsigned_long |
+| unsigned_long | double | double | double |
+| unsigned_long | integer | integer | unsigned_long |
+| unsigned_long | long | long | long |
 | unsigned_long | unsigned_long | unsigned_long | unsigned_long |
 | version | version | version | version |
 

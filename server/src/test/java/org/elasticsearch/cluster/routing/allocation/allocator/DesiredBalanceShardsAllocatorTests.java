@@ -185,7 +185,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             reconcileAction,
             EMPTY_NODE_ALLOCATION_STATS,
             TEST_ONLY_EXPLAINER,
-            DesiredBalanceMetrics.NOOP
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP
         );
         assertValidStats(desiredBalanceShardsAllocator.getStats());
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator(allocateUnassigned));
@@ -314,7 +315,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             reconcileAction,
             EMPTY_NODE_ALLOCATION_STATS,
             TEST_ONLY_EXPLAINER,
-            DesiredBalanceMetrics.NOOP
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP
         );
         var allocationService = new AllocationService(
             new AllocationDeciders(List.of()),
@@ -398,7 +400,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
         };
@@ -433,7 +435,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             },
             reconcileAction,
             EMPTY_NODE_ALLOCATION_STATS,
-            DesiredBalanceMetrics.NOOP
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP
         );
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
         allocationServiceRef.set(allocationService);
@@ -561,7 +564,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             },
             reconcileAction,
             EMPTY_NODE_ALLOCATION_STATS,
-            DesiredBalanceMetrics.NOOP
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP
         );
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
         allocationServiceRef.set(allocationService);
@@ -665,7 +669,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             },
             reconcileAction,
             EMPTY_NODE_ALLOCATION_STATS,
-            DesiredBalanceMetrics.NOOP
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP
         );
 
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
@@ -758,7 +763,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             desiredBalanceComputer,
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             EMPTY_NODE_ALLOCATION_STATS,
-            DesiredBalanceMetrics.NOOP
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP
         );
 
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());
@@ -852,7 +858,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
         };
@@ -868,7 +874,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             (reconcilerClusterState, rerouteStrategy) -> allocationServiceRef.get()
                 .executeWithRoutingAllocation(reconcilerClusterState, "reconcile-desired-balance", rerouteStrategy),
             EMPTY_NODE_ALLOCATION_STATS,
-            DesiredBalanceMetrics.NOOP
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP
         ) {
             @Override
             protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
@@ -1073,7 +1080,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             desiredBalanceComputer,
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             EMPTY_NODE_ALLOCATION_STATS,
-            DesiredBalanceMetrics.NOOP
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP
         );
 
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());
@@ -1128,7 +1136,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             desiredBalanceComputer,
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             EMPTY_NODE_ALLOCATION_STATS,
-            DesiredBalanceMetrics.NOOP
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP
         ) {
             @Override
             public void resetDesiredBalance() {
@@ -1224,7 +1233,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             },
             (clusterState, rerouteStrategy) -> null,
             EMPTY_NODE_ALLOCATION_STATS,
-            DesiredBalanceMetrics.NOOP
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP
         ) {
 
             private ActionListener<Void> lastListener;
@@ -1350,7 +1360,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
         };

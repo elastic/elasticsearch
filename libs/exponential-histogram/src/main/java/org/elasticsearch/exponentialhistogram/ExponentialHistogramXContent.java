@@ -21,9 +21,16 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Types;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * Handles the serialization of an {@link ExponentialHistogram} to XContent.
@@ -48,11 +55,18 @@ public class ExponentialHistogramXContent {
      * @param histogram the ExponentialHistogram to serialize
      * @throws IOException if the XContentBuilder throws an IOException
      */
-    public static void serialize(XContentBuilder builder, ExponentialHistogram histogram) throws IOException {
+    public static void serialize(XContentBuilder builder, @Nullable ExponentialHistogram histogram) throws IOException {
+        if (histogram == null) {
+            builder.nullValue();
+            return;
+        }
         builder.startObject();
 
         builder.field(SCALE_FIELD, histogram.scale());
-        builder.field(SUM_FIELD, histogram.sum());
+
+        if (histogram.sum() != 0.0 || histogram.valueCount() > 0) {
+            builder.field(SUM_FIELD, histogram.sum());
+        }
         if (Double.isNaN(histogram.min()) == false) {
             builder.field(MIN_FIELD, histogram.min());
         }
@@ -101,4 +115,63 @@ public class ExponentialHistogramXContent {
         b.endObject();
     }
 
+    /**
+     * Parses an {@link ExponentialHistogram} from the provided {@link XContentParser}.
+     * This method is neither optimized, nor does it do any validation of the parsed content.
+     * No estimation for missing sum/min/max is done.
+     * Therefore only intended for testing!
+     *
+     * @param xContent the serialized histogram to read
+     * @return the deserialized histogram
+     * @throws IOException if the XContentParser throws an IOException
+     */
+    public static ExponentialHistogram parseForTesting(XContentParser xContent) throws IOException {
+        if (xContent.currentToken() == null) {
+            xContent.nextToken();
+        }
+        if (xContent.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return null;
+        }
+        return parseForTesting(xContent.map());
+    }
+
+    /**
+     * Parses an {@link ExponentialHistogram} from a {@link Map}.
+     * This method is neither optimized, nor does it do any validation of the parsed content.
+     * No estimation for missing sum/min/max is done.
+     * Therefore only intended for testing!
+     *
+     * @param xContent the serialized histogram as a map
+     * @return the deserialized histogram
+     */
+    public static ExponentialHistogram parseForTesting(@Nullable Map<String, Object> xContent) {
+        if (xContent == null) {
+            return null;
+        }
+        int scale = ((Number) xContent.get(SCALE_FIELD)).intValue();
+        ExponentialHistogramBuilder builder = ExponentialHistogram.builder(scale, ExponentialHistogramCircuitBreaker.noop());
+
+        Map<String, Number> zero = Types.forciblyCast(xContent.getOrDefault(ZERO_FIELD, Collections.emptyMap()));
+        double zeroThreshold = zero.getOrDefault(ZERO_THRESHOLD_FIELD, 0).doubleValue();
+        long zeroCount = zero.getOrDefault(ZERO_COUNT_FIELD, 0).longValue();
+        builder.zeroBucket(ZeroBucket.create(zeroThreshold, zeroCount));
+
+        builder.sum(((Number) xContent.getOrDefault(SUM_FIELD, 0)).doubleValue());
+        builder.min(((Number) xContent.getOrDefault(MIN_FIELD, Double.NaN)).doubleValue());
+        builder.max(((Number) xContent.getOrDefault(MAX_FIELD, Double.NaN)).doubleValue());
+
+        parseBuckets(Types.forciblyCast(xContent.getOrDefault(NEGATIVE_FIELD, Collections.emptyMap())), builder::setNegativeBucket);
+        parseBuckets(Types.forciblyCast(xContent.getOrDefault(POSITIVE_FIELD, Collections.emptyMap())), builder::setPositiveBucket);
+
+        return builder.build();
+    }
+
+    private static void parseBuckets(Map<String, List<Number>> serializedBuckets, BiConsumer<Long, Long> bucketSetter) {
+        List<Number> indices = serializedBuckets.getOrDefault(BUCKET_INDICES_FIELD, Collections.emptyList());
+        List<Number> counts = serializedBuckets.getOrDefault(BUCKET_COUNTS_FIELD, Collections.emptyList());
+        assert indices.size() == counts.size();
+        for (int i = 0; i < indices.size(); i++) {
+            bucketSetter.accept(indices.get(i).longValue(), counts.get(i).longValue());
+        }
+    }
 }

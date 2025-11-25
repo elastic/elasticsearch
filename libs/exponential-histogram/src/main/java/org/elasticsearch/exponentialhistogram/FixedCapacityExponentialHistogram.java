@@ -30,6 +30,10 @@ import java.util.OptionalLong;
  * <br>
  * Consumers must ensure that if the histogram is mutated, all previously acquired {@link BucketIterator}
  * instances are no longer used.
+ * <br>
+ * This implementation is thread-safe for all operations provided via {@link ReleasableExponentialHistogram} and its superclasses,
+ * as long as it is not mutated concurrently using any of the methods declared in addition in this class
+ * (e.g. {@link #tryAddBucket(long, long, boolean)}).
  */
 final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogram implements ReleasableExponentialHistogram {
 
@@ -243,8 +247,10 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
 
         private final boolean isPositive;
         private int numBuckets;
-        private int cachedValueSumForNumBuckets;
-        private long cachedValueSum;
+
+        private record CachedCountsSum(int numBuckets, long countsSum) {}
+
+        private CachedCountsSum cachedCountsSum;
 
         /**
          * @param isPositive true, if this object should represent the positive bucket range, false for the negative range
@@ -263,8 +269,7 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
 
         final void reset() {
             numBuckets = 0;
-            cachedValueSumForNumBuckets = 0;
-            cachedValueSum = 0;
+            cachedCountsSum = null;
         }
 
         boolean tryAddBucket(long index, long count) {
@@ -297,12 +302,26 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
 
         @Override
         public long valueCount() {
-            int startSlot = startSlot();
-            while (cachedValueSumForNumBuckets < numBuckets) {
-                cachedValueSum += bucketCounts[startSlot + cachedValueSumForNumBuckets];
-                cachedValueSumForNumBuckets++;
+            // copy a reference to the field to avoid problems with concurrent updates
+            CachedCountsSum cachedVal = cachedCountsSum;
+            if (cachedVal != null && cachedVal.numBuckets == numBuckets) {
+                return cachedVal.countsSum;
             }
-            return cachedValueSum;
+
+            long countsSum = 0;
+            int position = 0;
+            if (cachedVal != null) {
+                countsSum = cachedVal.countsSum;
+                position = cachedVal.numBuckets;
+            }
+
+            int startSlot = startSlot();
+            while (position < numBuckets) {
+                countsSum += bucketCounts[startSlot + position];
+                position++;
+            }
+            this.cachedCountsSum = new CachedCountsSum(position, countsSum);
+            return countsSum;
         }
 
         @Override

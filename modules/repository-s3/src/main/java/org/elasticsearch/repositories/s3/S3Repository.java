@@ -249,6 +249,11 @@ class S3Repository extends MeteredBlobStoreRepository {
         Setting.Property.Dynamic
     );
 
+    static final Setting<Boolean> UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES = Setting.boolSetting(
+        "unsafely_incompatible_with_s3_conditional_writes",
+        false
+    );
+
     private final S3Service service;
 
     private final String bucket;
@@ -270,6 +275,13 @@ class S3Repository extends MeteredBlobStoreRepository {
      * See {@link #COOLDOWN_PERIOD} for details.
      */
     private final TimeValue coolDown;
+
+    /**
+     * Some storage claims S3-compatibility despite failing to support the {@code If-Match} and {@code If-None-Match} functionality
+     * properly. We allow to disable the use of this functionality, making all writes unconditional, using the
+     * {@link #UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES} setting.
+     */
+    private final boolean supportsConditionalWrites;
 
     private final Executor snapshotExecutor;
 
@@ -347,6 +359,19 @@ class S3Repository extends MeteredBlobStoreRepository {
         }
 
         coolDown = COOLDOWN_PERIOD.get(metadata.settings());
+        supportsConditionalWrites = UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.get(metadata.settings()) == Boolean.FALSE;
+
+        if (supportsConditionalWrites == false) {
+            logger.warn(
+                """
+                    repository [{}] is configured to unsafely avoid conditional writes which may lead to repository corruption; to resolve \
+                    this warning, upgrade your storage to a system that is fully compatible with AWS S3 and then remove the [{}] \
+                    repository setting; for more information, see [{}]""",
+                metadata.name(),
+                UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey(),
+                ReferenceDocs.S3_COMPATIBLE_REPOSITORIES
+            );
+        }
 
         logger.debug(
             "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], "
@@ -485,6 +510,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             maxCopySizeBeforeMultipart,
             cannedACL,
             storageClass,
+            supportsConditionalWrites,
             metadata,
             bigArrays,
             threadPool,

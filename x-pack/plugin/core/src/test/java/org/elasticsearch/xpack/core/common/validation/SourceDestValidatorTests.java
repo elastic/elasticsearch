@@ -67,7 +67,9 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_
 import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.DESTINATION_IN_SOURCE_VALIDATION;
 import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.DESTINATION_PIPELINE_MISSING_VALIDATION;
 import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.DESTINATION_SINGLE_INDEX_VALIDATION;
+import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_SOURCE_NOT_SUPPORTED_VALIDATION;
 import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SOURCE_MISSING_VALIDATION;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -665,6 +667,51 @@ public class SourceDestValidatorTests extends ESTestCase {
             c -> { assertNull(c.getValidationException()); },
             null
         );
+    }
+
+    public void testRemoteSourceNotSupportedValidationWithLocalIndex() throws InterruptedException {
+        Context context = spy(
+            new SourceDestValidator.Context(
+                CLUSTER_STATE,
+                indexNameExpressionResolver,
+                remoteClusterService,
+                remoteClusterLicenseCheckerBasic,
+                ingestService,
+                new String[] { SOURCE_1 },
+                "dest",
+                null,
+                "node_id",
+                "license"
+            )
+        );
+
+        assertValidationWithContext(listener -> REMOTE_SOURCE_NOT_SUPPORTED_VALIDATION.validate(context, listener), c -> {
+            assertNull(c.getValidationException());
+        }, null);
+    }
+
+    public void testRemoteSourceNotSupportedValidationWithRemoteIndex() throws InterruptedException {
+        Context context = spy(
+            new SourceDestValidator.Context(
+                CLUSTER_STATE,
+                indexNameExpressionResolver,
+                remoteClusterService,
+                remoteClusterLicenseCheckerBasic,
+                ingestService,
+                new String[] { REMOTE_BASIC + ":" + SOURCE_1 },
+                "dest",
+                null,
+                "node_id",
+                "license"
+            )
+        );
+
+        assertValidationWithContext(listener -> REMOTE_SOURCE_NOT_SUPPORTED_VALIDATION.validate(context, listener), c -> {
+            assertThat(
+                c.getValidationException().getMessage(),
+                containsString("remote source and cross-project indices are not supported")
+            );
+        }, null);
     }
 
     public void testRemoteSourcePlatinum() throws InterruptedException {

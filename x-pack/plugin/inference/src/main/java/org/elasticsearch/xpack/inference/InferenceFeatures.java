@@ -29,6 +29,7 @@ import static org.elasticsearch.xpack.inference.queries.LegacySemanticKnnVectorQ
 import static org.elasticsearch.xpack.inference.queries.LegacySemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
 import static org.elasticsearch.xpack.inference.queries.LegacySemanticMatchQueryRewriteInterceptor.SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
 import static org.elasticsearch.xpack.inference.queries.LegacySemanticSparseVectorQueryRewriteInterceptor.SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankDoc.TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_SNIPPETS;
 
 /**
@@ -38,6 +39,9 @@ public class InferenceFeatures implements FeatureSpecification {
 
     private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER = new NodeFeature("semantic_text.highlighter");
     private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER_DEFAULT = new NodeFeature("semantic_text.highlighter.default");
+    private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER_DISKBBQ_SIMILARITY_SUPPORT = new NodeFeature(
+        "semantic_text.highlighter.bbq_and_similarity_support"
+    );
     private static final NodeFeature TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE = new NodeFeature(
         "test_reranking_service.parse_text_as_score"
     );
@@ -53,11 +57,13 @@ public class InferenceFeatures implements FeatureSpecification {
     private static final NodeFeature SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT = new NodeFeature("semantic_text.fields_chunks_format");
 
     public static final NodeFeature INFERENCE_ENDPOINT_CACHE = new NodeFeature("inference.endpoint.cache");
+    public static final NodeFeature INFERENCE_CCM_CACHE = new NodeFeature("inference.ccm.cache");
     public static final NodeFeature SEARCH_USAGE_EXTENDED_DATA = new NodeFeature("search.usage.extended_data");
+    public static final NodeFeature INFERENCE_AUTH_POLLER_PERSISTENT_TASK = new NodeFeature("inference.auth_poller.persistent_task");
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(INFERENCE_ENDPOINT_CACHE);
+        return Set.of(INFERENCE_ENDPOINT_CACHE, INFERENCE_CCM_CACHE, INFERENCE_AUTH_POLLER_PERSISTENT_TASK);
     }
 
     @Override
@@ -95,12 +101,14 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS,
                 SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT,
                 SEMANTIC_TEXT_UPDATABLE_INFERENCE_ID,
+                SEMANTIC_TEXT_HIGHLIGHTER_DISKBBQ_SIMILARITY_SUPPORT,
                 SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS,
                 SemanticQueryBuilder.SEMANTIC_QUERY_FILTER_FIELD_CAPS_FIX,
                 InterceptedInferenceQueryBuilder.NEW_SEMANTIC_QUERY_INTERCEPTORS,
                 TEXT_SIMILARITY_RERANKER_SNIPPETS,
                 ModelStats.SEMANTIC_TEXT_USAGE,
-                SEARCH_USAGE_EXTENDED_DATA
+                SEARCH_USAGE_EXTENDED_DATA,
+                TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS
             )
         );
         testFeatures.addAll(getFeatures());

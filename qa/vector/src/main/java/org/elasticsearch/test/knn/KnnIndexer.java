@@ -35,10 +35,13 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
+import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.PrintStreamInfoStream;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.index.StandardIOBehaviorHint;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
@@ -51,12 +54,14 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 
@@ -241,9 +246,19 @@ class KnnIndexer {
     static Directory getDirectory(Path indexPath) throws IOException {
         Directory dir = FSDirectory.open(indexPath);
         if (dir instanceof MMapDirectory mmapDir) {
+            mmapDir.setReadAdvice(getReadAdviceFunc()); // enable madvise
             return new FsDirectoryFactory.HybridDirectory(NativeFSLockFactory.INSTANCE, mmapDir, 64);
         }
         return dir;
+    }
+
+    private static BiFunction<String, IOContext, Optional<ReadAdvice>> getReadAdviceFunc() {
+        return (name, context) -> {
+            if (context.hints().contains(StandardIOBehaviorHint.INSTANCE) || name.endsWith(".cfs")) {
+                return Optional.of(ReadAdvice.NORMAL);
+            }
+            return MMapDirectory.ADVISE_BY_CONTEXT.apply(name, context);
+        };
     }
 
     static class IndexerThread extends Thread {

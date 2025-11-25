@@ -29,7 +29,7 @@ public record PlanProfile(String description, String clusterName, String nodeNam
         String nodeName = in.readString();
         String planTree = in.readString();
         PlanTimeProfile profile = null;
-        if( in.getTransportVersion().supports(PLAN_PROFILE_VERSION)) {
+        if (in.getTransportVersion().supports(PLAN_PROFILE_VERSION)) {
             profile = in.readOptionalWriteable(PlanTimeProfile::new);
         }
 

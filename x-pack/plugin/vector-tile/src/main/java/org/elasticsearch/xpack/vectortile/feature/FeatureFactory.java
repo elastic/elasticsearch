@@ -127,6 +127,14 @@ public class FeatureFactory {
         return byteFeatures;
     }
 
+    /**
+     * Testing purposes only
+     */
+    org.locationtech.jts.geom.Geometry getMvtGeometry(Geometry geometry) {
+        // Get geometry in pixel coordinates
+        return geometry.visit(mvtGeometryBuilder);
+    }
+
     private record MVTGeometryBuilder(
         GeometryFactory geomFactory,
         org.locationtech.jts.geom.Geometry clipTile,

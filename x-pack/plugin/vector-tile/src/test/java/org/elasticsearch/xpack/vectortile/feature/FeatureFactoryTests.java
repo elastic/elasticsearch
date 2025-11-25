@@ -34,6 +34,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
@@ -292,17 +293,42 @@ public class FeatureFactoryTests extends ESTestCase {
         assertThat(builder.getFeatures(geometry), iterableWithSize(1));
     }
 
-    public void testVectorTilesAreCorrect() throws IOException, ParseException {
+    public void testVectorTilesDoNotContainOriginWithSimplifiableGeometries() throws IOException, ParseException {
+        Polygon polygon = new Polygon(
+            new LinearRing(
+                new double[] { -94.491034, -94.493892, -94.399587, -94.483604, -94.491034 },
+                new double[] { -72.522177, -72.491761, -72.607412, -72.545519, -72.522177 }
+            )
+        );
+
+        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096, 5);
+
+        var mvtGeometry = builder.getMvtGeometry(polygon);
+        var coordinates = mvtGeometry.getCoordinates();
+        var containsCenter = Arrays.stream(coordinates).anyMatch(c -> c.x == 2048 && c.y == 2048);
+        assertFalse(containsCenter);
+    }
+
+    public void testVectorTilesDoNotContainOriginWithComplexGeometries() throws IOException, ParseException {
         // make sure we can parse big polygons
         var is = new GZIPInputStream(getClass().getResourceAsStream("Antarctica.wkt.gz"));
         final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
         final Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, reader.readLine());
         final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096, 5);
-        List<byte[]> bytes = builder.getFeatures(geometry);
-        assertThat(bytes.size(), equalTo(1));
-        final VectorTile.Tile.Feature feature = VectorTile.Tile.Feature.parseFrom(bytes.get(0));
-        assertThat(feature.getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POLYGON));
-        assertThat(feature.getGeometryCount(), equalTo(9071));
+
+        var mvtGeometry = builder.getMvtGeometry(geometry);
+        var coordinates = mvtGeometry.getCoordinates();
+        var containsCenter = Arrays.stream(coordinates).anyMatch(c -> c.x == 2048 && c.y == 2048);
+        assertFalse(containsCenter);
+    }
+
+    public void testVectorTilesDoNotContainOriginWithNonSimplifiableGeometries() throws IOException, ParseException {
+        Polygon polygon = new Polygon(new LinearRing(new double[] { -10, 10, 10, -10, -10 }, new double[] { -10, -10, 10, 10, -10 }));
+        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096, 5);
+        var mvtGeometry = builder.getMvtGeometry(polygon);
+        var coordinates = mvtGeometry.getCoordinates();
+        var containsCenter = Arrays.stream(coordinates).anyMatch(c -> c.x == 2048 && c.y == 2048);
+        assertFalse(containsCenter);
     }
 
     public void testPolygonOrientation() throws IOException {

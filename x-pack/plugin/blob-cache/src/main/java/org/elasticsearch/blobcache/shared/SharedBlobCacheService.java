@@ -1663,6 +1663,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             decayAndNewEpochTask.close();
         }
 
+        // used by tests
         int getFreq(CacheFileRegion<KeyType> cacheFileRegion) {
             return keyMapping.get(cacheFileRegion.regionKey.file().shardId(), cacheFileRegion.regionKey).freq;
         }

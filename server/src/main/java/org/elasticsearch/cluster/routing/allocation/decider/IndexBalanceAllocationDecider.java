@@ -116,8 +116,9 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         assert totalShards > 0;
         final double idealAllocation = Math.ceil((double) totalShards / eligibleNodes.size());
 
-        // The built-in "eligibleNodes.size() - 1" offers just enough buffer so threshold is not rounded down by integer division.
-        // But not too much so that threshold does not get an automatic 1 shard extra allowance.
+        // Adding the excess shards before division ensures that with tolerance 1 we get:
+        // 2 shards, 2 nodes, allow 2 on each
+        // 3 shards, 2 nodes, allow 2 on each (prior version 3, but there is already 1 shard wiggle room). etc.
         final int threshold = Math.ceilDiv(totalShards + indexBalanceConstraintSettings.getExcessShards(), eligibleNodes.size());
         final int currentAllocation = node.numberOfOwningShardsForIndex(index);
 

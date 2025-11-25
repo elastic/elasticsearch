@@ -29,7 +29,7 @@ public class RequestUtils {
         return "Bearer " + apiKey;
     }
 
-    public static Header createApiKeyHeader(SecureString apiKey) {
+    public static Header createAuthApiKeyHeader(SecureString apiKey) {
         return new BasicHeader(HttpHeaders.AUTHORIZATION, apiKey(apiKey.toString()));
     }
 

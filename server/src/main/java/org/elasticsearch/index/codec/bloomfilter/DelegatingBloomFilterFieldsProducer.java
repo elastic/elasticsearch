@@ -21,12 +21,17 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Set;
 
-public class BloomFilterFieldsProducer extends FieldsProducer {
+/**
+ * A FieldsProducer that uses a Bloom filter for fast term existence checks before
+ * delegating exact lookups to the underlying FieldsProducer. This avoids a potentially
+ * expensive seek operations for non-existent terms.
+ */
+public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
     private static final Set<String> FIELD_NAMES = Set.of(IdFieldMapper.NAME);
     private final FieldsProducer delegate;
     private final BloomFilter bloomFilter;
 
-    public BloomFilterFieldsProducer(FieldsProducer delegate, BloomFilter bloomFilter) {
+    public DelegatingBloomFilterFieldsProducer(FieldsProducer delegate, BloomFilter bloomFilter) {
         assert bloomFilter.isFilterAvailable();
         this.delegate = delegate;
         this.bloomFilter = bloomFilter;

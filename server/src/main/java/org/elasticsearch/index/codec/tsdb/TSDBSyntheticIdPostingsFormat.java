@@ -17,7 +17,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.bloomfilter.BloomFilter;
-import org.elasticsearch.index.codec.bloomfilter.BloomFilterFieldsProducer;
+import org.elasticsearch.index.codec.bloomfilter.DelegatingBloomFilterFieldsProducer;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.SyntheticIdField;
@@ -52,7 +52,7 @@ public class TSDBSyntheticIdPostingsFormat extends PostingsFormat {
             docValuesProducer = codec.docValuesFormat().fieldsProducer(new SegmentReadState(state, ""));
             var fieldsProducer = new TSDBSyntheticIdFieldsProducer(state, docValuesProducer);
             success = true;
-            return bloomFilter == null ? fieldsProducer : new BloomFilterFieldsProducer(fieldsProducer, bloomFilter);
+            return bloomFilter == null ? fieldsProducer : new DelegatingBloomFilterFieldsProducer(fieldsProducer, bloomFilter);
         } finally {
             if (success == false) {
                 IOUtils.close(docValuesProducer);

@@ -546,13 +546,13 @@ public class EsqlFunctionRegistry {
                 def(SumOverTime.class, uni(SumOverTime::new), "sum_over_time"),
                 def(StdDevOverTime.class, uni(StdDevOverTime::new), "stddev_over_time"),
                 def(VarianceOverTime.class, uni(VarianceOverTime::new), "variance_over_time", "stdvar_over_time"),
-                def(CountOverTime.class, uni(CountOverTime::new), "count_over_time"),
+                def(CountOverTime.class, bi(CountOverTime::new), "count_over_time"),
                 def(CountDistinctOverTime.class, bi(CountDistinctOverTime::new), "count_distinct_over_time"),
                 def(PresentOverTime.class, uni(PresentOverTime::new), "present_over_time"),
                 def(AbsentOverTime.class, uni(AbsentOverTime::new), "absent_over_time"),
                 def(AvgOverTime.class, bi(AvgOverTime::new), "avg_over_time"),
                 defTS3(LastOverTime.class, LastOverTime::new, "last_over_time"),
-                defTS(FirstOverTime.class, bi(FirstOverTime::new), "first_over_time"),
+                defTS3(FirstOverTime.class, FirstOverTime::new, "first_over_time"),
                 def(PercentileOverTime.class, bi(PercentileOverTime::new), "percentile_over_time"),
                 // dense vector function
                 def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };

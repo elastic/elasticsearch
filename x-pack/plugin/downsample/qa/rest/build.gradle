@@ -21,6 +21,7 @@ dependencies {
   clusterModules project(':modules:data-streams')
   clusterModules project(':modules:aggregations')
   clusterModules project(':modules:ingest-common')
+  clusterModules project(xpackModule('mapper-exponential-histogram'))
 }
 
 restResources {

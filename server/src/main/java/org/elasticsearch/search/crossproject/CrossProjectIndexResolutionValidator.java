@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
@@ -123,9 +124,11 @@ public class CrossProjectIndexResolutionValidator {
                             if (v == null) {
                                 v = new ArrayList<>();
                             }
-                            v.add(localResolvedIndices.original());
+                            v.add(originalExpression);
                             return v;
                         });
+                    } else {
+                        notFoundException = localException;
                     }
                 }
                 // qualified linked project expression
@@ -142,15 +145,18 @@ public class CrossProjectIndexResolutionValidator {
                         indicesOptions
                     );
                     if (remoteException != null) {
-                        var wrapped = remoteException instanceof ElasticsearchSecurityException
-                            ? new ElasticsearchSecurityException(
-                                "indices [{}] are unauthorized for project [{}]",
-                                remoteException,
-                                resource,
-                                projectAlias
-                            )
-                            : remoteException;
-                        exception = recordException(exception, wrapped);
+                        if (remoteException instanceof ElasticsearchSecurityException) {
+                            authorizationExceptions.putIfAbsent(projectAlias, remoteException);
+                            unauthorizedIndices.compute(projectAlias, (k, v) -> {
+                                if (v == null) {
+                                    v = new ArrayList<>();
+                                }
+                                v.add(remoteExpression);
+                                return v;
+                            });
+                        } else {
+                            if (notFoundException == null) notFoundException = remoteException;
+                        }
                     }
                 }
             } else {
@@ -184,32 +190,64 @@ public class CrossProjectIndexResolutionValidator {
                         foundFlat = true;
                         break;
                     }
-                    if (false == isUnauthorized && remoteException instanceof ElasticsearchSecurityException) {
+                    if (remoteException instanceof ElasticsearchSecurityException) {
                         isUnauthorized = true;
-                        var wrapped = new ElasticsearchSecurityException(
-                            "indices [{}] are unauthorized for project [{}]",
-                            remoteException,
-                            resource,
-                            projectAlias
-                        );
-                        exception = recordException(exception, wrapped);
+                        authorizationExceptions.putIfAbsent(projectAlias, remoteException);
+                        unauthorizedIndices.compute(projectAlias, (k, v) -> {
+                            if (v == null) {
+                                v = new ArrayList<>();
+                            }
+                            v.add(remoteExpression);
+                            return v;
+                        });
                     }
                 }
                 if (foundFlat) {
                     continue;
                 }
                 if (isUnauthorized) {
-                    exception = recordException(exception, localException);
+                    authorizationExceptions.putIfAbsent("_local", localException);
+                    unauthorizedIndices.compute("_local", (k, v) -> {
+                        if (v == null) {
+                            v = new ArrayList<>();
+                        }
+                        v.add(originalExpression);
+                        return v;
+                    });
                     continue;
                 }
-                exception = recordException(exception, new IndexNotFoundException(originalExpression));
+                notFoundException = new IndexNotFoundException(originalExpression);
             }
         }
 
-        if (authorizationException != null) {
-            return authorizationException;
+        if (authorizationExceptions.isEmpty()) {
+            return notFoundException;
+        } else {
+            var firstException = authorizationExceptions.get("_local");
+            var indices = unauthorizedIndices.get("_local");
+            firstException = firstException != null
+                ? new ElasticsearchSecurityException(
+                    Strings.replace(firstException.getMessage(), "-*", Strings.collectionToCommaDelimitedString(indices))
+                )
+                : null;
+
+            for (var e : authorizationExceptions.entrySet()) {
+                if (Objects.equals(e.getKey(), "_local") == false) {
+                    var exception = e.getValue();
+                    var remoteIndices = unauthorizedIndices.get(e.getKey());
+                    exception = new ElasticsearchSecurityException(
+                        Strings.replace(exception.getMessage(), "-*", Strings.collectionToCommaDelimitedString(remoteIndices))
+                    );
+                    if (firstException == null) {
+                        firstException = exception;
+                    } else {
+                        firstException.addSuppressed(exception);
+                    }
+                }
+            }
+
+            return firstException;
         }
-        return notFoundException;
     }
 
     public static IndicesOptions indicesOptionsForCrossProjectFanout(IndicesOptions indicesOptions) {

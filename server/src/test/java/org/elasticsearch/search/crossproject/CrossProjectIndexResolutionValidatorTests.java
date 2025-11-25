@@ -22,11 +22,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
@@ -136,7 +134,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
     }
 
     public void testUnauthorizedFlatExpressionWithStrictIgnoreUnavailable() {
-        final var exception = new ElasticsearchSecurityException("authorization errors while resolving [logs]");
+        final var exception = new ElasticsearchSecurityException("authorization errors while resolving [-*]");
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
             List.of(
                 new ResolvedIndexExpression(
@@ -170,7 +168,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
         var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), null, local, remote);
         assertNotNull(e);
-        assertThat(e, is(exception));
+        assertThat(e.getMessage(), equalTo("authorization errors while resolving [logs]"));
     }
 
     public void testQualifiedExpressionWithStrictIgnoreUnavailableMatchingInOriginProject() {
@@ -316,7 +314,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             )
         );
 
-        final var exception = new ElasticsearchSecurityException("action is unauthorized for indices [logs]");
+        final var exception = new ElasticsearchSecurityException("action is unauthorized for indices [-*]");
         var remote = Map.of(
             "P1",
             new ResolvedIndexExpressions(
@@ -341,8 +339,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             remote
         );
         assertNotNull(e);
-        assertThat(e.getMessage(), equalTo("indices [logs] are unauthorized for project [P1]"));
-        assertThat(e.getCause(), is(exception));
+        assertThat(e.getMessage(), equalTo("action is unauthorized for indices [P1:logs]"));
     }
 
     public void testFlatExpressionWithStrictAllowNoIndicesMatchingInOriginProject() {
@@ -667,8 +664,6 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
         assertThat(e.getMessage(), containsString("no such index [" + original + "]"));
-        assertThat(e.getSuppressed(), arrayWithSize(1));
-        assertThat(e.getSuppressed()[0].getMessage(), equalTo("no such index [P1:logs*]"));
     }
 
     public void testUnauthorizedQualifiedExpressionWithStrictAllowNoIndices() {

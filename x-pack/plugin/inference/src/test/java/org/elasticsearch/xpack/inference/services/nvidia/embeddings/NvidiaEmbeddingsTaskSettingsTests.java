@@ -173,7 +173,7 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         MatcherAssert.assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
     }
 
-    public void testOf_KeepsOriginalValuesWhenRequestSettingsAreNull() {
+    public void testOf_KeepsOriginalValuesWhenRequestSettingsAreEmpty() {
         var taskSettings = new NvidiaEmbeddingsTaskSettings(InputType.INGEST, Truncation.START);
         var overriddenTaskSettings = NvidiaEmbeddingsTaskSettings.of(taskSettings, NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS);
         MatcherAssert.assertThat(overriddenTaskSettings, is(taskSettings));

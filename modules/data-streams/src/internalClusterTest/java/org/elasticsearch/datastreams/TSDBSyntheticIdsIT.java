@@ -261,6 +261,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         flush(dataStreamName);
 
+        // TODO: Restart the node or relocate the shard randomly
+
         // TODO: fix IndexDiskUsageStats to take into account synthetic _id terms
         var checkDiskUsage = false;
         if (checkDiskUsage) {

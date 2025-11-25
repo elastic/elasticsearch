@@ -1055,9 +1055,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("slice_max", 0)
                 .entry("slice_min", 0)
                 .entry("process_nanos", greaterThan(0))
-                .entry("processed_queries", List.of("*:*"))
+                .entry("processed_queries", contains(containsString("*:*")))
                 .entry("slice_index", 0)
-                .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
+                .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"))
+                .entry("query_profile", contains(luceneQueryProfile()));
             default -> throw new AssertionError("unexpected status: " + o);
         };
         MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name));

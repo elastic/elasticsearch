@@ -30,6 +30,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -76,7 +77,7 @@ public abstract class LuceneOperator extends SourceOperator {
      * Count of rows this operator has emitted.
      */
     long rowsEmitted;
-    private Map<String, List<ProfileResult>> profileResultPerShard = new HashMap<>();
+    private Map<String, QueryProfiler> profilerPerShard = new HashMap<>();
 
     protected LuceneOperator(
         IndexedByShardId<? extends RefCounted> refCounteds,
@@ -168,10 +169,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 if (currentSlice != null) {
                     var profiler = currentSlice.shardContext().profiler();
                     if (profiler != null) {
-                        List<ProfileResult> profileResults = profileResultPerShard.computeIfAbsent(
-                            currentSlice.shardContext().shardIdentifier(),
-                            k -> new ArrayList<>());
-                        profileResults.addAll(profiler.getTree());
+                        profilerPerShard.put(currentSlice.shardContext().shardIdentifier(), profiler);
                     }
                 }
 
@@ -344,7 +342,11 @@ public abstract class LuceneOperator extends SourceOperator {
             pagesEmitted = operator.pagesEmitted;
             rowsEmitted = operator.rowsEmitted;
             partitioningStrategies = operator.sliceQueue.partitioningStrategies();
-            profilePerShard = operator.profileResultPerShard;
+            profilePerShard = new HashMap<>();
+            for (Map.Entry<String, QueryProfiler> profilerPerShard : operator.profilerPerShard.entrySet()) {
+                List<ProfileResult> profileResults = profilePerShard.computeIfAbsent(profilerPerShard.getKey(), k -> new ArrayList<>());
+                profileResults.addAll(profilerPerShard.getValue().getTree());
+            }
         }
 
         Status(

@@ -8,12 +8,6 @@
  */
 package org.elasticsearch.repositories.s3;
 
-import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.core.exception.SdkException;
-import software.amazon.awssdk.core.exception.SdkServiceException;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -22,6 +16,12 @@ import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
 import org.elasticsearch.rest.RestStatus;
+
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -173,7 +173,6 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
 
     private static class S3SingleAttemptInputStream extends SingleAttemptInputStream<Void> {
 
-        private final ResponseInputStream<GetObjectResponse> responseStream;
         private final long start;
         private final long end;
         private final long lastOffset;
@@ -183,7 +182,7 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
         private boolean aborted;
 
         private S3SingleAttemptInputStream(ResponseInputStream<GetObjectResponse> responseStream, long start, long end) {
-            this.responseStream = responseStream;
+            super(responseStream);
             this.start = start;
             this.end = end;
             lastOffset = getStreamLength(responseStream.response(), start, end);
@@ -192,7 +191,7 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
         @Override
         public int read() throws IOException {
             ensureOpen();
-            int result = responseStream.read();
+            int result = in.read();
             if (result == -1) {
                 eof = true;
             } else {
@@ -204,7 +203,7 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
             ensureOpen();
-            final int bytesRead = responseStream.read(b, off, len);
+            final int bytesRead = in.read(b, off, len);
             if (bytesRead == -1) {
                 eof = true;
             } else {
@@ -221,11 +220,12 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
             }
         }
 
+        @SuppressWarnings("unchecked")
         @Override
         public void close() throws IOException {
-            maybeAbort(responseStream);
+            maybeAbort((ResponseInputStream<GetObjectResponse>) in);
             try {
-                responseStream.close();
+                in.close();
             } finally {
                 closed = true;
             }

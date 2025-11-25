@@ -16,6 +16,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
@@ -318,7 +319,11 @@ public abstract class RetryingInputStream<V> extends InputStream {
      * Represents an {@link InputStream} for a single attempt to read a blob. Each retry
      * will attempt to create a new one of these. If reading from it fails, it should not retry.
      */
-    protected abstract static class SingleAttemptInputStream<V> extends InputStream {
+    protected abstract static class SingleAttemptInputStream<V> extends FilterInputStream {
+
+        protected SingleAttemptInputStream(InputStream in) {
+            super(in);
+        }
 
         /**
          * @return the offset of the first byte returned by this input stream

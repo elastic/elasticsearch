@@ -169,7 +169,6 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
     // We have to implement our own validation logic here
     static final class ContentLengthValidatingInputStream extends SingleAttemptInputStream<Long> {
 
-        private final InputStream in;
         private final long firstOffset;
         private final long generation;
         private final long contentLength;
@@ -181,7 +180,7 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
         }
 
         ContentLengthValidatingInputStream(InputStream in, long firstOffset, Long generation, long contentLength) {
-            this.in = in;
+            super(in);
             this.firstOffset = firstOffset;
             this.generation = generation;
             this.contentLength = contentLength;

@@ -39,7 +39,7 @@ public abstract class RetryingInputStream extends InputStream {
     private long currentStreamFirstOffset;
     private int attempt = 1;
     private int failuresAfterMeaningfulProgress = 0;
-    private int currentOffset = 0;
+    private long currentOffset = 0;
     private boolean closed = false;
 
     protected RetryingInputStream(BlobStoreServices blobStoreServices, OperationPurpose purpose) throws IOException {

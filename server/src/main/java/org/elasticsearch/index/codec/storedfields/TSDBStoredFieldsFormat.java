@@ -251,6 +251,9 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
 
         @Override
         public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+            // Some clients of this API expect that the _id is read before other fields,
+            // therefore we call first to the bloom filter reader so we can synthesize the _id
+            // and read it in the expected order.
             bloomFilterStoredFieldsReader.document(docID, visitor);
             storedFieldsReader.document(docID, visitor);
         }

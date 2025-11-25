@@ -222,7 +222,7 @@
     }
   ],
   "examples" : [
-    "TS k8s\n| STATS predicted_cost_int = VALUES(ROUND(PREDICT_LINEAR(TO_LONG(network.total_bytes_in), 10), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster"
+    "TS k8s\n| STATS predicted_cost_int = MAX(ROUND(PREDICT_LINEAR(TO_LONG(network.total_bytes_in), 10), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster"
   ],
   "preview" : true,
   "snapshot_only" : false

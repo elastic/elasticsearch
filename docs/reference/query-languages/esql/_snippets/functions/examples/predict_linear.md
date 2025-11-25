@@ -4,13 +4,13 @@
 
 ```esql
 TS k8s
-| STATS predicted_cost_int = VALUES(ROUND(PREDICT_LINEAR(TO_LONG(network.total_bytes_in), 10), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
+| STATS predicted_cost_int = MAX(ROUND(PREDICT_LINEAR(TO_LONG(network.total_bytes_in), 10), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
 ```
 
 | predicted_cost_int:double | time_bucket:datetime | cluster:keyword |
 | --- | --- | --- |
-| [1378.75586, 3105.0, 2469.44892] | 2024-05-10T00:00:00.000Z | prod |
-| [2667.75766, 2659.69767, 4218.33168] | 2024-05-10T00:05:00.000Z | prod |
-| [6029.22491, 4288.41227, 5772.44801] | 2024-05-10T00:10:00.000Z | prod |
+| 3105.0 | 2024-05-10T00:00:00.000Z | prod |
+| 4218.332 | 2024-05-10T00:05:00.000Z | prod |
+| 6029.225 | 2024-05-10T00:10:00.000Z | prod |
 
 

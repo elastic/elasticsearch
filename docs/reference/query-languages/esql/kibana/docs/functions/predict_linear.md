@@ -5,5 +5,5 @@ Predicts the value of a time series at `t` seconds in the future.
 
 ```esql
 TS k8s
-| STATS predicted_cost_int = VALUES(ROUND(PREDICT_LINEAR(TO_LONG(network.total_bytes_in), 10), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
+| STATS predicted_cost_int = MAX(ROUND(PREDICT_LINEAR(TO_LONG(network.total_bytes_in), 10), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
 ```

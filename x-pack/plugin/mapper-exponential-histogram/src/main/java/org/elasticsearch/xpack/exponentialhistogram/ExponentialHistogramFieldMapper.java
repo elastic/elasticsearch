@@ -288,7 +288,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
                         @Override
                         public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
-                            throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not " + "support scripts");
+                            throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not support scripts");
                         }
 
                         @Override

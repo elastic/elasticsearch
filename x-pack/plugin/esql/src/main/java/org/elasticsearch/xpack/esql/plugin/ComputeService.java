@@ -511,7 +511,9 @@ public class ComputeService {
                 final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
                     String clusterAlias = cluster.clusterAlias();
-                    EsqlExecutionInfo.Cluster.Status clusterStatus = Build.current().isSnapshot()
+                    // Check the initial cluster status set by planning phase before executing the data node plan on remote clusters,
+                    // only if it is behind a snapshot build and this is a fork or subquery branch (exchangeSinkSupplier is not null).
+                    EsqlExecutionInfo.Cluster.Status clusterStatus = Build.current().isSnapshot() && exchangeSinkSupplier != null
                         ? initialClusterStatuses.get(clusterAlias)
                         : execInfo.getCluster(clusterAlias).getStatus();
                     if (clusterStatus != EsqlExecutionInfo.Cluster.Status.RUNNING) {

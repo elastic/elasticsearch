@@ -44,6 +44,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureTests.createMockCCMFeature;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMServiceTests.createMockCCMService;
 import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.createAuthorizedEndpoint;
+import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.createInvalidTaskTypeAuthorizedEndpoint;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -336,7 +337,7 @@ public class AuthorizationPollerTests extends ESTestCase {
 
     public void testDoesNotAttemptToStoreModelIds_ThatHaveATaskTypeThatTheEISIntegration_DoesNotSupport() {
         var url = "eis-url";
-        var completionModel = createAuthorizedEndpoint(TaskType.COMPLETION);
+        var invalidTaskTypeEndpoint = createInvalidTaskTypeAuthorizedEndpoint();
 
         var mockRegistry = mock(ModelRegistry.class);
         when(mockRegistry.isReady()).thenReturn(true);
@@ -345,7 +346,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
             ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntity(List.of(completionModel)), url));
+            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntity(List.of(invalidTaskTypeEndpoint)), url));
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 

@@ -203,7 +203,15 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             var authResponse = listener.actionGet(TIMEOUT);
             assertThat(
                 authResponse.getTaskTypes(),
-                is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING, TaskType.RERANK))
+                is(
+                    EnumSet.of(
+                        TaskType.CHAT_COMPLETION,
+                        TaskType.SPARSE_EMBEDDING,
+                        TaskType.TEXT_EMBEDDING,
+                        TaskType.RERANK,
+                        TaskType.COMPLETION
+                    )
+                )
             );
             assertThat(authResponse.getEndpointIds(), containsInAnyOrder(responseData.inferenceIds().toArray(String[]::new)));
             assertTrue(authResponse.isAuthorized());

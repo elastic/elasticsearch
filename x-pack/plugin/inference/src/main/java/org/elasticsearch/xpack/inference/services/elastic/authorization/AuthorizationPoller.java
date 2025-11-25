@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsActi
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
@@ -61,7 +60,6 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
     private final ElasticInferenceServiceSettings elasticInferenceServiceSettings;
     private final AtomicBoolean initialized = new AtomicBoolean(false);
-    private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
     private final Client client;
     private final CountDownLatch receivedFirstAuthResponseLatch = new CountDownLatch(1);
     private final CCMFeature ccmFeature;
@@ -118,9 +116,6 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         this.authorizationHandler = Objects.requireNonNull(authorizationRequestHandler);
         this.sender = Objects.requireNonNull(sender);
         this.elasticInferenceServiceSettings = Objects.requireNonNull(elasticInferenceServiceSettings);
-        this.elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
-            elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
-        );
         this.modelRegistry = Objects.requireNonNull(modelRegistry);
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ClientHelper.INFERENCE_ORIGIN);
         this.ccmFeature = Objects.requireNonNull(ccmFeature);

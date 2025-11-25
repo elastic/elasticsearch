@@ -493,6 +493,23 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
         );
     }
 
+    public static AuthorizationResponseEntity.AuthorizedEndpoint createInvalidTaskTypeAuthorizedEndpoint() {
+        var id = randomAlphaOfLength(10);
+        var name = randomAlphaOfLength(10);
+        var status = randomFrom("ga", "beta", "preview");
+
+        return new AuthorizationResponseEntity.AuthorizedEndpoint(
+            id,
+            name,
+            createTaskTypeObject("invalid/task/type", TaskType.ANY.toString()),
+            status,
+            null,
+            "",
+            "",
+            null
+        );
+    }
+
     public static AuthorizationResponseEntity.AuthorizedEndpoint createAuthorizedEndpoint(TaskType taskType) {
         var id = randomAlphaOfLength(10);
         var name = randomAlphaOfLength(10);
@@ -572,7 +589,15 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
 
             assertThat(
                 authModel.getTaskTypes(),
-                is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING, TaskType.RERANK))
+                is(
+                    EnumSet.of(
+                        TaskType.CHAT_COMPLETION,
+                        TaskType.SPARSE_EMBEDDING,
+                        TaskType.TEXT_EMBEDDING,
+                        TaskType.RERANK,
+                        TaskType.COMPLETION
+                    )
+                )
             );
             assertThat(
                 authModel.getEndpoints(responseData.inferenceIds()),

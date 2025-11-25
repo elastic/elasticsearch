@@ -60,7 +60,11 @@ public class NvidiaChatCompletionRequestEntityTests extends ESTestCase {
             """, INPUT_VALUE, ROLE_VALUE, MODEL_VALUE, isStreaming));
     }
 
-    public void testCreateRequestEntity_ModelIdNull_ThrowsException() {
+    public void testCreateRequestEntity_NoInput_ThrowsException() {
+        assertThrows(NullPointerException.class, () -> new NvidiaChatCompletionRequestEntity(null, MODEL_VALUE));
+    }
+
+    public void testCreateRequestEntity_NoModelId_ThrowsException() {
         assertThrows(NullPointerException.class, () -> new NvidiaChatCompletionRequestEntity(mock(UnifiedChatInput.class), null));
     }
 

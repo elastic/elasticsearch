@@ -52,7 +52,15 @@ public class NvidiaRerankRequestEntityTests extends ESTestCase {
         assertThat(result, is(stripWhitespace(expected)));
     }
 
-    public void testCreateRequestEntity_ModelIdNull_ThrowsException() {
+    public void testCreateRequestEntity_NoModelId_ThrowsException() {
         expectThrows(NullPointerException.class, () -> new NvidiaRerankRequestEntity(null, QUERY_VALUE, PASSAGES_VALUE));
+    }
+
+    public void testCreateRequestEntity_NoQuery_ThrowsException() {
+        expectThrows(NullPointerException.class, () -> new NvidiaRerankRequestEntity(MODEL_VALUE, null, PASSAGES_VALUE));
+    }
+
+    public void testCreateRequestEntity_NoPassages_ThrowsException() {
+        expectThrows(NullPointerException.class, () -> new NvidiaRerankRequestEntity(MODEL_VALUE, QUERY_VALUE, null));
     }
 }

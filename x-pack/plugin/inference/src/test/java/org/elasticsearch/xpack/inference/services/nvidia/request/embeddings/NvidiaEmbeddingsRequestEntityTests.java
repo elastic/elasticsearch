@@ -63,10 +63,24 @@ public class NvidiaEmbeddingsRequestEntityTests extends ESTestCase {
             """, FIRST_INPUT_VALUE, SECOND_INPUT_VALUE, MODEL_VALUE, INPUT_TYPE_NVIDIA_VALUE))));
     }
 
-    public void testCreateRequestEntity_ModelIdNull_ThrowsException() {
+    public void testCreateRequestEntity_NoInput_ThrowsException() {
+        expectThrows(
+            NullPointerException.class,
+            () -> new NvidiaEmbeddingsRequestEntity(null, MODEL_VALUE, INPUT_TYPE_EXPEDIA_VALUE, TRUNCATE_EXPEDIA_VALUE)
+        );
+    }
+
+    public void testCreateRequestEntity_NoModelId_ThrowsException() {
         expectThrows(
             NullPointerException.class,
             () -> new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, null, INPUT_TYPE_EXPEDIA_VALUE, TRUNCATE_EXPEDIA_VALUE)
+        );
+    }
+
+    public void testCreateRequestEntity_NoInputType_ThrowsException() {
+        expectThrows(
+            NullPointerException.class,
+            () -> new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, null, TRUNCATE_EXPEDIA_VALUE)
         );
     }
 

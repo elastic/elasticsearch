@@ -293,7 +293,7 @@ public class FeatureFactoryTests extends ESTestCase {
         assertThat(builder.getFeatures(geometry), iterableWithSize(1));
     }
 
-    public void testVectorTilesDoNotContainOriginWithSimplifiableGeometries() throws IOException, ParseException {
+    public void testVectorTilesDoNotContainOriginWithSimplifiableGeometries() {
         Polygon polygon = new Polygon(
             new LinearRing(
                 new double[] { -94.491034, -94.493892, -94.399587, -94.483604, -94.491034 },
@@ -306,7 +306,7 @@ public class FeatureFactoryTests extends ESTestCase {
         var mvtGeometry = builder.getMvtGeometry(polygon);
         var coordinates = mvtGeometry.getCoordinates();
         var containsCenter = Arrays.stream(coordinates).anyMatch(c -> c.x == 2048 && c.y == 2048);
-        assertFalse(containsCenter);
+        assertFalse("Coordinate (2048,2048) only occurs if we are converting the first / last coordinate twice", containsCenter);
     }
 
     public void testVectorTilesDoNotContainOriginWithComplexGeometries() throws IOException, ParseException {
@@ -319,16 +319,16 @@ public class FeatureFactoryTests extends ESTestCase {
         var mvtGeometry = builder.getMvtGeometry(geometry);
         var coordinates = mvtGeometry.getCoordinates();
         var containsCenter = Arrays.stream(coordinates).anyMatch(c -> c.x == 2048 && c.y == 2048);
-        assertFalse(containsCenter);
+        assertFalse("Coordinate (2048,2048) only occurs if we are converting the first / last coordinate twice", containsCenter);
     }
 
-    public void testVectorTilesDoNotContainOriginWithNonSimplifiableGeometries() throws IOException, ParseException {
+    public void testVectorTilesDoNotContainOriginWithNonSimplifiableGeometries() {
         Polygon polygon = new Polygon(new LinearRing(new double[] { -10, 10, 10, -10, -10 }, new double[] { -10, -10, 10, 10, -10 }));
         final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096, 5);
         var mvtGeometry = builder.getMvtGeometry(polygon);
         var coordinates = mvtGeometry.getCoordinates();
         var containsCenter = Arrays.stream(coordinates).anyMatch(c -> c.x == 2048 && c.y == 2048);
-        assertFalse(containsCenter);
+        assertFalse("Coordinate (2048,2048) only occurs if we are converting the first / last coordinate twice", containsCenter);
     }
 
     public void testPolygonOrientation() throws IOException {

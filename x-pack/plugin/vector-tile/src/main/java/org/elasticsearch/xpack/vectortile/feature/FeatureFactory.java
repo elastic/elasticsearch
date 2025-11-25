@@ -111,7 +111,7 @@ public class FeatureFactory {
      * Returns a List {@code byte[]} containing the mvt representation of the provided geometry
      */
     public List<byte[]> getFeatures(Geometry geometry) {
-        // Get geometry in pixel coordinates
+        // Get clipped and simplified geometry in pixel coordinates
         final org.locationtech.jts.geom.Geometry mvtGeometry = geometry.visit(mvtGeometryBuilder);
         if (mvtGeometry == null) {
             return List.of();
@@ -128,10 +128,11 @@ public class FeatureFactory {
     }
 
     /**
-     * Testing purposes only
+     * Testing purposes only, allowing us to test the impact of the geometry clipping and simplification
+     * without needing to parse the protobuffer results.
      */
     org.locationtech.jts.geom.Geometry getMvtGeometry(Geometry geometry) {
-        // Get geometry in pixel coordinates
+        // Get clipped and simplified geometry in pixel coordinates
         return geometry.visit(mvtGeometryBuilder);
     }
 
@@ -340,6 +341,8 @@ public class FeatureFactory {
 
         @Override
         public void filter(CoordinateSequence seq, int i) {
+            // JTS can sometimes close polygons using references to the starting coordinate, which can lead to that coordinate
+            // being converted twice. We need to detect if the end is the same actual Coordinate, and not do the conversion again.
             if (i != 0 && i == seq.size() - 1 && seq.getCoordinate(0) == seq.getCoordinate(i)) {
                 return;
             }

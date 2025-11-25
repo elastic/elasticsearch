@@ -90,7 +90,6 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
 
     private final BigArrays bigArrays;
     private final String bloomFilterFieldName;
-    private boolean enabled;
     private final int numHashFunctions;
     private final int bloomFilterSizeInBits;
 
@@ -103,18 +102,8 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
     }
 
     public ES93BloomFilterStoredFieldsFormat(BigArrays bigArrays, ByteSizeValue bloomFilterSize, String bloomFilterFieldName) {
-        this(bigArrays, bloomFilterSize, bloomFilterFieldName, true);
-    }
-
-    public ES93BloomFilterStoredFieldsFormat(
-        BigArrays bigArrays,
-        ByteSizeValue bloomFilterSize,
-        String bloomFilterFieldName,
-        boolean enabled
-    ) {
         this.bigArrays = bigArrays;
         this.bloomFilterFieldName = bloomFilterFieldName;
-        this.enabled = enabled;
         this.numHashFunctions = DEFAULT_NUM_HASH_FUNCTIONS;
 
         if (bloomFilterSize.getBytes() <= 0) {
@@ -136,16 +125,7 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
         assert numHashFunctions > 0;
         assert bloomFilterSizeInBits > 0;
         // TODO: compute the bloom filter size based on heuristics and oversize factor
-        return new Writer(
-            directory,
-            si,
-            context,
-            bigArrays,
-            numHashFunctions,
-            this::getBloomFilterSizeInBits,
-            bloomFilterFieldName,
-            enabled
-        );
+        return new Writer(directory, si, context, bigArrays, numHashFunctions, this::getBloomFilterSizeInBits, bloomFilterFieldName);
     }
 
     int getBloomFilterSizeInBits() {
@@ -173,7 +153,6 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
         private final IOContext context;
         private final BigArrays bigArrays;
         private final IntSupplier defaultBloomFilterSizeInBitsSupplier;
-        private final boolean enabled;
         private final int numHashFunctions;
         private final String bloomFilterFieldName;
         private final List<Closeable> toClose = new ArrayList<>();
@@ -188,15 +167,13 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
             BigArrays bigArrays,
             int numHashFunctions,
             IntSupplier defaultBloomFilterSizeInBitsSupplier,
-            String bloomFilterFieldName,
-            boolean enabled
+            String bloomFilterFieldName
         ) throws IOException {
             this.directory = directory;
             this.segmentInfo = segmentInfo;
             this.context = context;
             this.bigArrays = bigArrays;
             this.defaultBloomFilterSizeInBitsSupplier = defaultBloomFilterSizeInBitsSupplier;
-            this.enabled = enabled;
             assert numHashFunctions <= PRIMES.length
                 : "Number of hash functions must be <= " + PRIMES.length + " but was " + numHashFunctions;
 
@@ -285,9 +262,6 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
 
         private void addToBloomFilter(FieldInfo info, BytesRef value) throws IOException {
             assert info.getName().equals(bloomFilterFieldName) : "Expected " + bloomFilterFieldName + " but got " + info;
-            if (enabled == false) {
-                return;
-            }
             maybeInitializeBloomFilterWriter(info, getBloomFilterSizeInBits());
             bloomFilterWriter.add(value);
         }

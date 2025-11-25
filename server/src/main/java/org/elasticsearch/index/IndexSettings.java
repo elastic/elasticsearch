@@ -735,57 +735,6 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final boolean USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID_FEATURE_FLAG = new FeatureFlag("stored_field_bloom_filter")
-        .isEnabled();
-    public static final Setting<Boolean> USE_STORED_FIELD_BLOOM_FILTER_ID = Setting.boolSetting(
-        "index.mapping.use_stored_field_bloom_filter_id",
-        false,
-        new Setting.Validator<>() {
-            @Override
-            public void validate(Boolean enabled) {
-                if (enabled) {
-                    if (USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID_FEATURE_FLAG == false) {
-                        throw new IllegalArgumentException(
-                            String.format(
-                                Locale.ROOT,
-                                "The setting [%s] is only permitted when the feature flag is enabled.",
-                                USE_STORED_FIELD_BLOOM_FILTER_ID.getKey()
-                            )
-                        );
-                    }
-                }
-            }
-
-            @Override
-            public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
-                if (enabled) {
-                    // Verify if index mode is TIME_SERIES
-                    var indexMode = (IndexMode) settings.get(MODE);
-                    if (indexMode != IndexMode.TIME_SERIES) {
-                        throw new IllegalArgumentException(
-                            String.format(
-                                Locale.ROOT,
-                                "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
-                                USE_STORED_FIELD_BLOOM_FILTER_ID.getKey(),
-                                MODE.getKey(),
-                                IndexMode.TIME_SERIES.name(),
-                                indexMode.name()
-                            )
-                        );
-                    }
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                List<Setting<?>> list = List.of(MODE);
-                return list.iterator();
-            }
-        },
-        Property.IndexScope,
-        Property.Final
-    );
-
     /**
      * The {@link IndexMode "mode"} of the index.
      */
@@ -1071,7 +1020,6 @@ public final class IndexSettings {
     private final boolean useTimeSeriesSyntheticId;
     private final boolean useTimeSeriesDocValuesFormat;
     private final boolean useEs812PostingsFormat;
-    private final boolean useStoredFieldsBloomFilterForId;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1281,12 +1229,6 @@ public final class IndexSettings {
             useTimeSeriesSyntheticId = true;
         } else {
             useTimeSeriesSyntheticId = false;
-        }
-        useStoredFieldsBloomFilterForId = IndexSettings.USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID_FEATURE_FLAG
-            && scopedSettings.get(USE_STORED_FIELD_BLOOM_FILTER_ID);
-        if (useStoredFieldsBloomFilterForId) {
-            assert indexMetadata.getIndexMode() == IndexMode.TIME_SERIES : indexMetadata.getIndexMode();
-            assert indexMetadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID);
         }
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {
@@ -2025,13 +1967,6 @@ public final class IndexSettings {
      */
     public boolean useTimeSeriesSyntheticId() {
         return useTimeSeriesSyntheticId;
-    }
-
-    /**
-     * @return whether _id fields are stored as bloom filters in time-series indices for fast lookups.
-     */
-    public boolean useStoredFieldsBloomFilterForId() {
-        return useStoredFieldsBloomFilterForId;
     }
 
     /**

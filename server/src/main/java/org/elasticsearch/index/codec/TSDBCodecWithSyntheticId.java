@@ -37,15 +37,14 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 abstract class TSDBCodecWithSyntheticId extends FilterCodec {
     private final TSDBStoredFieldsFormat storedFieldsFormat;
 
-    TSDBCodecWithSyntheticId(String name, Codec delegate, BigArrays bigArrays, boolean bloomFilterEnabled) {
+    TSDBCodecWithSyntheticId(String name, Codec delegate, BigArrays bigArrays) {
         super(name, new TSDBSyntheticIdCodec(delegate));
         this.storedFieldsFormat = new TSDBStoredFieldsFormat(
             delegate.storedFieldsFormat(),
             new ES93BloomFilterStoredFieldsFormat(
                 bigArrays,
                 ES93BloomFilterStoredFieldsFormat.DEFAULT_BLOOM_FILTER_SIZE,
-                IdFieldMapper.NAME,
-                bloomFilterEnabled
+                IdFieldMapper.NAME
             )
         );
     }

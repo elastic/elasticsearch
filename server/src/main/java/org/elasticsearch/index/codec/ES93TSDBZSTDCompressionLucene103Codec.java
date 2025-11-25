@@ -14,10 +14,10 @@ import org.elasticsearch.common.util.BigArrays;
 public class ES93TSDBZSTDCompressionLucene103Codec extends TSDBCodecWithSyntheticId {
     /** Public no-arg constructor, needed for SPI loading at read-time. */
     public ES93TSDBZSTDCompressionLucene103Codec() {
-        this(new Elasticsearch92Lucene103Codec(), null, true);
+        this(new Elasticsearch92Lucene103Codec(), null);
     }
 
-    ES93TSDBZSTDCompressionLucene103Codec(Elasticsearch92Lucene103Codec delegate, BigArrays bigArrays, boolean bloomFilterEnabled) {
-        super("ES93TSDBZSTDCompressionLucene103Codec", delegate, bigArrays, bloomFilterEnabled);
+    ES93TSDBZSTDCompressionLucene103Codec(Elasticsearch92Lucene103Codec delegate, BigArrays bigArrays) {
+        super("ES93TSDBZSTDCompressionLucene103Codec", delegate, bigArrays);
     }
 }

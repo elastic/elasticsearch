@@ -104,10 +104,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
     public void testSyntheticId() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-        assumeTrue("Test should only run with feature flag", IndexSettings.USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID_FEATURE_FLAG);
         final var dataStreamName = randomIdentifier();
-        final var enableStoredFieldsBloomFilter = randomBoolean();
-        putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5), enableStoredFieldsBloomFilter);
+        putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5));
 
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
@@ -271,13 +269,12 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             for (var index : indices) {
                 var diskUsage = diskUsage(index);
                 var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
-                // If the _id stored fields bloom filter is enabled, IndexDiskUsageStats won't account for anything since
-                // the bloom filter it's not exposed through the Reader API.
-                if (enableStoredFieldsBloomFilter) {
-                    assertThat(diskUsageIdField, nullValue());
-                } else {
-                    assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
-                }
+                // When _id's are only used to populate the bloom filter,
+                // IndexDiskUsageStats won't account for anything since
+                // the bloom filter it's not exposed through the Reader API and
+                // the analyzer expects to get documents with fields to do the
+                // disk usage accounting.
+                assertThat(diskUsageIdField, nullValue());
             }
         }
     }
@@ -285,8 +282,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     public void testGetFromTranslogBySyntheticId() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var dataStreamName = randomIdentifier();
-        final var enableStoredFieldsBloomFilter = randomBoolean();
-        putDataStreamTemplate(dataStreamName, 1, enableStoredFieldsBloomFilter);
+        putDataStreamTemplate(dataStreamName, 1);
 
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
@@ -393,13 +389,12 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             for (var index : indices) {
                 var diskUsage = diskUsage(index);
                 var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
-                // If the _id stored fields bloom filter is enabled, IndexDiskUsageStats won't account for anything since
-                // the bloom filter it's not exposed through the Reader API.
-                if (enableStoredFieldsBloomFilter) {
-                    assertThat(diskUsageIdField, nullValue());
-                } else {
-                    assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
-                }
+                // When _id's are only used to populate the bloom filter,
+                // IndexDiskUsageStats won't account for anything since
+                // the bloom filter it's not exposed through the Reader API and
+                // the analyzer expects to get documents with fields to do the
+                // disk usage accounting.
+                assertThat(diskUsageIdField, nullValue());
             }
         }
 
@@ -437,12 +432,11 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         return bulkResponse.getItems();
     }
 
-    private static void putDataStreamTemplate(String indexPattern, int shards, boolean enableStoredFieldsBloomFilter) throws IOException {
+    private static void putDataStreamTemplate(String indexPattern, int shards) throws IOException {
         final var settings = indexSettings(shards, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-            .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
-            .put(IndexSettings.USE_STORED_FIELD_BLOOM_FILTER_ID.getKey(), enableStoredFieldsBloomFilter);
+            .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
 
         final var mappings = """
             {

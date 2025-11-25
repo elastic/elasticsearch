@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -51,11 +52,10 @@ public class CodecService implements CodecProvider {
         boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG
             && mapperService != null
             && mapperService.getIndexSettings().useTimeSeriesSyntheticId()
+            && mapperService.getIndexSettings()
+                .getIndexVersionCreated()
+                .onOrAfter(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID)
             && mapperService.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
-
-        boolean syntheticIdBloomFilterEnabled = IndexSettings.USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID_FEATURE_FLAG
-            && mapperService != null
-            && mapperService.getIndexSettings().useStoredFieldsBloomFilterForId();
 
         var legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, bigArrays);
         if (ZSTD_STORED_FIELDS_FEATURE_FLAG) {
@@ -66,47 +66,37 @@ public class CodecService implements CodecProvider {
             );
             codecs.put(
                 DEFAULT_CODEC,
-                useSyntheticId
-                    ? new ES93TSDBZSTDCompressionLucene103Codec(defaultZstdCodec, bigArrays, syntheticIdBloomFilterEnabled)
-                    : defaultZstdCodec
+                useSyntheticId ? new ES93TSDBZSTDCompressionLucene103Codec(defaultZstdCodec, bigArrays) : defaultZstdCodec
             );
         } else {
             codecs.put(
                 DEFAULT_CODEC,
-                useSyntheticId
-                    ? new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec, bigArrays, syntheticIdBloomFilterEnabled)
-                    : legacyBestSpeedCodec
+                useSyntheticId ? new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec, bigArrays) : legacyBestSpeedCodec
             );
         }
 
         codecs.put(
             LEGACY_DEFAULT_CODEC,
-            useSyntheticId
-                ? new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec, bigArrays, syntheticIdBloomFilterEnabled)
-                : legacyBestSpeedCodec
+            useSyntheticId ? new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec, bigArrays) : legacyBestSpeedCodec
         );
 
         var bestCompressionCodec = new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays);
         codecs.put(
             BEST_COMPRESSION_CODEC,
-            useSyntheticId
-                ? new ES93TSDBZSTDCompressionLucene103Codec(bestCompressionCodec, bigArrays, syntheticIdBloomFilterEnabled)
-                : bestCompressionCodec
+            useSyntheticId ? new ES93TSDBZSTDCompressionLucene103Codec(bestCompressionCodec, bigArrays) : bestCompressionCodec
         );
 
         var legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays);
         codecs.put(
             LEGACY_BEST_COMPRESSION_CODEC,
             useSyntheticId
-                ? new ES93TSDBDefaultCompressionLucene103Codec(legacyBestCompressionCodec, bigArrays, syntheticIdBloomFilterEnabled)
+                ? new ES93TSDBDefaultCompressionLucene103Codec(legacyBestCompressionCodec, bigArrays)
                 : legacyBestCompressionCodec
         );
 
         codecs.put(
             LUCENE_DEFAULT_CODEC,
-            useSyntheticId
-                ? new ES93TSDBLuceneDefaultCodec(Codec.getDefault(), bigArrays, syntheticIdBloomFilterEnabled)
-                : Codec.getDefault()
+            useSyntheticId ? new ES93TSDBLuceneDefaultCodec(Codec.getDefault(), bigArrays) : Codec.getDefault()
         );
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));

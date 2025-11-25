@@ -38,8 +38,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
-
 /**
  * Transforms the response from {@link ElasticInferenceServiceAuthorizationRequestHandler} into a format for consumption by the service.
  */
@@ -81,7 +79,8 @@ public class AuthorizationModel {
             }
 
             return switch (taskType) {
-                case CHAT_COMPLETION -> createCompletionModel(authorizedEndpoint, components);
+                case CHAT_COMPLETION -> createCompletionModel(authorizedEndpoint, TaskType.CHAT_COMPLETION, components);
+                case COMPLETION -> createCompletionModel(authorizedEndpoint, TaskType.COMPLETION, components);
                 case SPARSE_EMBEDDING -> createSparseEmbeddingsModel(authorizedEndpoint, components);
                 case TEXT_EMBEDDING -> createDenseTextEmbeddingsModel(authorizedEndpoint, components);
                 case RERANK -> createRerankModel(authorizedEndpoint, components);
@@ -112,11 +111,12 @@ public class AuthorizationModel {
 
     private static ElasticInferenceServiceCompletionModel createCompletionModel(
         AuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
+        TaskType taskType,
         ElasticInferenceServiceComponents components
     ) {
         return new ElasticInferenceServiceCompletionModel(
             authorizedEndpoint.id(),
-            CHAT_COMPLETION,
+            taskType,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(authorizedEndpoint.modelName()),
             EmptyTaskSettings.INSTANCE,

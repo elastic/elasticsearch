@@ -51,6 +51,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
 
     // gp-llm-v2
     public static final String GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID = ".gp-llm-v2-chat_completion";
+    public static final String GP_LLM_V2_COMPLETION_ENDPOINT_ID = ".gp-llm-v2-completion";
     public static final String GP_LLM_V2_MODEL_NAME = "gp-llm-v2";
 
     // elser-2
@@ -191,6 +192,19 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
               "release_date": "2024-05-01"
             },
             {
+              "id": ".gp-llm-v2-completion",
+              "model_name": "gp-llm-v2",
+              "task_types": {
+                "eis": "chat",
+                "elasticsearch": "completion"
+              },
+              "status": "ga",
+              "properties": [
+                "multilingual"
+              ],
+              "release_date": "2024-05-01"
+            },
+            {
               "id": ".elser-2-elastic",
               "model_name": "elser_model_2",
               "task_types": {
@@ -300,7 +314,8 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
     public static EisAuthorizationResponse getEisAuthorizationResponseWithMultipleEndpoints(String url) {
         var authorizedEndpoints = List.of(
             createRainbowSprinklesAuthorizedEndpoint(),
-            createGpLlmV2AuthorizedEndpoint(),
+            createGpLlmV2ChatCompletionAuthorizedEndpoint(),
+            createGpLlmV2CompletionAuthorizedEndpoint(),
             createElserAuthorizedEndpoint(),
             createJinaEmbedAuthorizedEndpoint(),
             new AuthorizationResponseEntity.AuthorizedEndpoint(
@@ -322,7 +337,8 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             new AuthorizationResponseEntity(authorizedEndpoints),
             List.of(
                 createRainbowSprinklesExpectedEndpoint(url),
-                createGpLlmV2ExpectedEndpoint(url),
+                createGpLlmV2ChatCompletionExpectedEndpoint(url),
+                createGpLlmV2CompletionExpectedEndpoint(url),
                 createElserExpectedEndpoint(url),
                 createJinaExpectedEndpoint(url),
                 new ElasticInferenceServiceRerankModel(
@@ -352,7 +368,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
         );
     }
 
-    private static ElasticInferenceServiceModel createGpLlmV2ExpectedEndpoint(String url) {
+    private static ElasticInferenceServiceModel createGpLlmV2ChatCompletionExpectedEndpoint(String url) {
         return new ElasticInferenceServiceCompletionModel(
             GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID,
             TaskType.CHAT_COMPLETION,
@@ -364,11 +380,36 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
         );
     }
 
-    private static AuthorizationResponseEntity.AuthorizedEndpoint createGpLlmV2AuthorizedEndpoint() {
+    private static ElasticInferenceServiceModel createGpLlmV2CompletionExpectedEndpoint(String url) {
+        return new ElasticInferenceServiceCompletionModel(
+            GP_LLM_V2_COMPLETION_ENDPOINT_ID,
+            TaskType.COMPLETION,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceCompletionServiceSettings(GP_LLM_V2_MODEL_NAME),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url)
+        );
+    }
+
+    private static AuthorizationResponseEntity.AuthorizedEndpoint createGpLlmV2ChatCompletionAuthorizedEndpoint() {
         return new AuthorizationResponseEntity.AuthorizedEndpoint(
             GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID,
             GP_LLM_V2_MODEL_NAME,
             createTaskTypeObject(EIS_CHAT_PATH, "chat_completion"),
+            "ga",
+            List.of("multilingual"),
+            "2024-05-01",
+            null,
+            null
+        );
+    }
+
+    private static AuthorizationResponseEntity.AuthorizedEndpoint createGpLlmV2CompletionAuthorizedEndpoint() {
+        return new AuthorizationResponseEntity.AuthorizedEndpoint(
+            GP_LLM_V2_COMPLETION_ENDPOINT_ID,
+            GP_LLM_V2_MODEL_NAME,
+            createTaskTypeObject(EIS_CHAT_PATH, "completion"),
             "ga",
             List.of("multilingual"),
             "2024-05-01",

@@ -237,7 +237,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         final String masterAndIndexNode = startMasterAndIndexNode(nodeSettings);
         final String searchNode = startSearchNode(nodeSettings);
 
-        final String loggerName = "org.elasticsearch.repositories.s3.S3RetryingInputStream";
+        final String loggerName = "org.elasticsearch.common.blobstore.RetryingInputStream";
 
         enum Status {
             STARTED, // On initial and subsequent failure messages before seeing the success message
@@ -385,7 +385,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         final String masterAndIndexNode = startMasterAndIndexNode(nodeSettings);
         final String searchNode = startSearchNode(nodeSettings);
 
-        final String loggerName = "org.elasticsearch.repositories.s3.S3RetryingInputStream";
+        final String loggerName = "org.elasticsearch.common.blobstore.RetryingInputStream";
 
         try (var mockLogAppender = MockLog.capture(loggerName)) {
             mockLogAppender.addExpectation(

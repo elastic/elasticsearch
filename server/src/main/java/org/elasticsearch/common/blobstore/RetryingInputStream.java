@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 
 import java.io.IOException;
@@ -23,30 +24,31 @@ import java.util.List;
 
 import static org.elasticsearch.core.Strings.format;
 
-public abstract class RetryingInputStream extends InputStream {
+public abstract class RetryingInputStream<V> extends InputStream {
 
     private static final Logger logger = LogManager.getLogger(RetryingInputStream.class);
 
     public static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
 
-    private final BlobStoreServices blobStoreServices;
+    private final BlobStoreServices<V> blobStoreServices;
     private final OperationPurpose purpose;
     private final long start;
     private final long end;
     private final List<Exception> failures;
 
-    protected SingleAttemptInputStream currentStream;
+    protected SingleAttemptInputStream<V> currentStream;
     private long offset = 0;
     private int attempt = 1;
     private int failuresAfterMeaningfulProgress = 0;
     private boolean closed = false;
 
-    protected RetryingInputStream(BlobStoreServices blobStoreServices, OperationPurpose purpose) throws IOException {
+    protected RetryingInputStream(BlobStoreServices<V> blobStoreServices, OperationPurpose purpose) throws IOException {
         this(blobStoreServices, purpose, 0L, Long.MAX_VALUE - 1L);
     }
 
     @SuppressWarnings("this-escape") // TODO: We can do better than this but I don't want to touch the tests for the first implementation
-    protected RetryingInputStream(BlobStoreServices blobStoreServices, OperationPurpose purpose, long start, long end) throws IOException {
+    protected RetryingInputStream(BlobStoreServices<V> blobStoreServices, OperationPurpose purpose, long start, long end)
+        throws IOException {
         if (start < 0L) {
             throw new IllegalArgumentException("start must be non-negative");
         }
@@ -69,7 +71,11 @@ public abstract class RetryingInputStream extends InputStream {
                 assert start + offset <= end : "requesting beyond end, start = " + start + " offset=" + offset + " end=" + end;
             }
             try {
-                currentStream = blobStoreServices.getInputStream(Math.addExact(start, offset), end);
+                currentStream = blobStoreServices.getInputStream(
+                    currentStream != null ? currentStream.getVersion() : null,
+                    Math.addExact(start, offset),
+                    end
+                );
                 return;
             } catch (NoSuchFileException | RequestedRangeNotSatisfiedException e) {
                 throw e;
@@ -279,12 +285,15 @@ public abstract class RetryingInputStream extends InputStream {
 
     /**
      * This implements all the behavior that is blob-store-specific
+     *
+     * @param <V> The type of the version used
      */
-    protected interface BlobStoreServices {
+    protected interface BlobStoreServices<V> {
 
         /**
-         * Get an input stream for the blob at the given position
+         * Get an input stream for the given version
          *
+         * @param version The version to request, or null if the latest version should be used
          * @param start   The start of the range to read, inclusive
          * @param end     The end of the range to read, exclusive, or {@code Long.MAX_VALUE - 1} if the end of the blob should be used
          * @return An input stream for the given version
@@ -292,7 +301,7 @@ public abstract class RetryingInputStream extends InputStream {
          * @throws NoSuchFileException                 if the blob does not exist, this is not retry-able
          * @throws RequestedRangeNotSatisfiedException if the requested range is not valid, this is not retry-able
          */
-        SingleAttemptInputStream getInputStream(long start, long end) throws IOException;
+        SingleAttemptInputStream<V> getInputStream(@Nullable V version, long start, long end) throws IOException;
 
         void onRetryStarted(String action);
 
@@ -309,11 +318,20 @@ public abstract class RetryingInputStream extends InputStream {
      * Represents an {@link InputStream} for a single attempt to read a blob. Each retry
      * will attempt to create a new one of these. If reading from it fails, it should not retry.
      */
-    protected abstract static class SingleAttemptInputStream extends InputStream {
+    protected abstract static class SingleAttemptInputStream<V> extends InputStream {
 
         /**
          * @return the offset of the first byte returned by this input stream
          */
         protected abstract long getFirstOffset();
+
+        /**
+         * Get the version of this input stream
+         */
+        protected abstract V getVersion();
+    }
+
+    public static boolean willRetry(OperationPurpose purpose) {
+        return purpose != OperationPurpose.REPOSITORY_ANALYSIS;
     }
 }

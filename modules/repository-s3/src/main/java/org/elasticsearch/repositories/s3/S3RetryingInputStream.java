@@ -36,7 +36,7 @@ import static org.elasticsearch.repositories.s3.S3BlobStore.configureRequestForM
  *
  * See https://github.com/aws/aws-sdk-java/issues/856 for the related SDK issue
  */
-class S3RetryingInputStream extends RetryingInputStream {
+class S3RetryingInputStream extends RetryingInputStream<Void> {
 
     private static final Logger logger = LogManager.getLogger(S3RetryingInputStream.class);
 
@@ -49,10 +49,10 @@ class S3RetryingInputStream extends RetryingInputStream {
         super(new S3BlobStoreServices(blobStore, blobKey, purpose), purpose, start, end);
     }
 
-    private record S3BlobStoreServices(S3BlobStore blobStore, String blobKey, OperationPurpose purpose) implements BlobStoreServices {
+    private record S3BlobStoreServices(S3BlobStore blobStore, String blobKey, OperationPurpose purpose) implements BlobStoreServices<Void> {
 
         @Override
-        public S3SingleAttemptInputStream getInputStream(long start, long end) throws IOException {
+        public S3SingleAttemptInputStream getInputStream(Void version, long start, long end) throws IOException {
             try (AmazonS3Reference clientReference = blobStore.clientReference()) {
                 final var getObjectRequestBuilder = GetObjectRequest.builder().bucket(blobStore.bucket()).key(blobKey);
                 configureRequestForMetrics(getObjectRequestBuilder, blobStore, Operation.GET_OBJECT, purpose);
@@ -171,7 +171,7 @@ class S3RetryingInputStream extends RetryingInputStream {
         return getObjectResponse.contentLength();
     }
 
-    private static class S3SingleAttemptInputStream extends SingleAttemptInputStream {
+    private static class S3SingleAttemptInputStream extends SingleAttemptInputStream<Void> {
 
         private final ResponseInputStream<GetObjectResponse> responseStream;
         private final long start;
@@ -280,6 +280,11 @@ class S3RetryingInputStream extends RetryingInputStream {
         @Override
         protected long getFirstOffset() {
             return start;
+        }
+
+        @Override
+        protected Void getVersion() {
+            return null;
         }
     }
 

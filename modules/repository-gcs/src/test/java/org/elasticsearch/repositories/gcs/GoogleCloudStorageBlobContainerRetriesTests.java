@@ -85,6 +85,7 @@ import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryInte
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStore.MAX_DELETES_PER_BATCH;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.TOKEN_URI_SETTING;
 import static org.hamcrest.Matchers.anyOf;
@@ -146,6 +147,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         if (readTimeout != null) {
             clientSettings.put(READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(client).getKey(), readTimeout);
         }
+        if (maxRetries != null) {
+            clientSettings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace(client).getKey(), maxRetries);
+        }
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setFile(CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(client).getKey(), createServiceAccount(random()));
@@ -155,7 +159,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             @Override
             StorageOptions createStorageOptions(
                 final GoogleCloudStorageClientSettings gcsClientSettings,
-                final HttpTransportOptions httpTransportOptions
+                final HttpTransportOptions httpTransportOptions,
+                final RetryBehaviour retryBehaviour
             ) {
                 final HttpTransportOptions requestCountingHttpTransportOptions = new HttpTransportOptions(
                     HttpTransportOptions.newBuilder()
@@ -182,7 +187,11 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                         };
                     }
                 };
-                final StorageOptions options = super.createStorageOptions(gcsClientSettings, requestCountingHttpTransportOptions);
+                final StorageOptions options = super.createStorageOptions(
+                    gcsClientSettings,
+                    requestCountingHttpTransportOptions,
+                    retryBehaviour
+                );
                 final RetrySettings.Builder retrySettingsBuilder = RetrySettings.newBuilder()
                     .setTotalTimeout(options.getRetrySettings().getTotalTimeout())
                     .setInitialRetryDelay(Duration.ofMillis(10L))
@@ -191,10 +200,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                     .setJittered(false)
                     .setInitialRpcTimeout(Duration.ofSeconds(1))
                     .setRpcTimeoutMultiplier(options.getRetrySettings().getRpcTimeoutMultiplier())
-                    .setMaxRpcTimeout(Duration.ofSeconds(1));
-                if (maxRetries != null) {
-                    retrySettingsBuilder.setMaxAttempts(maxRetries + 1);
-                }
+                    .setMaxRpcTimeout(Duration.ofSeconds(1))
+                    .setMaxAttempts(options.getRetrySettings().getMaxAttempts());
                 return options.toBuilder()
                     .setStorageRetryStrategy(getRetryStrategy())
                     .setHost(options.getHost())
@@ -273,7 +280,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             exchange.close();
         });
 
-        try (InputStream inputStream = blobContainer.readBlob(randomPurpose(), "large_blob_retries")) {
+        try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "large_blob_retries")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
         }
     }
@@ -600,10 +607,10 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         byte[] initialValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
         container.writeBlob(randomPurpose(), key, new BytesArray(initialValue), true);
 
-        BytesReference reference = readFully(container.readBlob(randomPurpose(), key));
+        BytesReference reference = readFully(container.readBlob(randomRetryingPurpose(), key));
         assertEquals(new BytesArray(initialValue), reference);
 
-        try (InputStream inputStream = container.readBlob(randomPurpose(), key)) {
+        try (InputStream inputStream = container.readBlob(randomRetryingPurpose(), key)) {
             // Trigger the first chunk to load
             int read = inputStream.read();
             assert read != -1;

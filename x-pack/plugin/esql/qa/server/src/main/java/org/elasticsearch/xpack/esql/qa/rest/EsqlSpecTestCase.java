@@ -171,7 +171,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected static boolean testClustersOk = true;
 
     @Before
-    public void setup() throws IOException {
+    public void setup() {
         assumeTrue("test clusters were broken", testClustersOk);
         INGEST.protectedBlock(() -> {
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)

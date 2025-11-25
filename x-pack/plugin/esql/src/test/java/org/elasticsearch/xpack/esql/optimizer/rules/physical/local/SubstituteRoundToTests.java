@@ -15,7 +15,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -82,8 +81,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-// FIXME(gal, NOCOMMIT) remove, for debugging only
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTests {
     public SubstituteRoundToTests(String name, Configuration config) {
         super(name, config);

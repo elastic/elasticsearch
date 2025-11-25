@@ -17,20 +17,24 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
+import static org.hamcrest.Matchers.equalTo;
 
-public class ToStringTests extends AbstractScalarFunctionTestCase {
+public class ToStringTests extends AbstractConfigurationFunctionTestCase {
     public ToStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -172,8 +176,41 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
+    private static List<TestCaseSupplier> casesFor(
+        String date,
+        String zoneIdString,
+        String expectedString
+    ) {
+        ZoneId zoneId = ZoneId.of(zoneIdString);
+        long dateAsLong = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(date);
+
+        return List.of(
+            new TestCaseSupplier(
+                date + ", " + zoneIdString + ", " + expectedString,
+                List.of(DataType.DATETIME),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(dateAsLong, DataType.DATETIME, "date")),
+                    "ToStringFromDatetimeEvaluator[datetime=Attribute[channel=0]]",
+                    DataType.KEYWORD,
+                    equalTo(expectedString)
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
+            ),
+
+            new TestCaseSupplier(
+                date + ", " + zoneIdString + ", " + expectedString,
+                List.of(DataType.DATE_NANOS),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(dateAsLong, DataType.DATE_NANOS, "date")),
+                    "ToStringFromDatetimeEvaluator[datetime=Attribute[channel=0]]",
+                    DataType.KEYWORD,
+                    equalTo(expectedString)
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
+            )
+        );
+    }
+
     @Override
-    protected Expression build(Source source, List<Expression> args) {
-        return new ToString(source, args.get(0));
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
+        return new ToString(source, args.get(0), configuration);
     }
 }

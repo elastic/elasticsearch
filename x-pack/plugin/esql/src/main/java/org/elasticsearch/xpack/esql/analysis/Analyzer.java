@@ -520,7 +520,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case Insist i -> resolveInsist(i, childrenOutput, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
-                case Rerank r -> resolveRerank(r, childrenOutput);
+                case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
@@ -928,7 +928,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return fork.replaceSubPlansAndOutput(newSubPlans, newOutput);
         }
 
-        private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput) {
+        private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput, AnalyzerContext context) {
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
 
@@ -943,7 +943,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (castRerankFieldsAsString
                         && rerank.isValidRerankField(resolved)
                         && DataType.isString(resolved.dataType()) == false) {
-                        resolved = resolved.replaceChild(new ToString(resolved.child().source(), resolved.child()));
+                        resolved = resolved.replaceChild(new ToString(resolved.child().source(), resolved.child(), context.configuration()));
                     }
                 }
 

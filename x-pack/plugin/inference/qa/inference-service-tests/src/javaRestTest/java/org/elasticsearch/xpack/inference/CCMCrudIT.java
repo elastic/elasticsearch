@@ -60,7 +60,7 @@ public class CCMCrudIT extends CCMRestBaseIT {
     }
 
     @After
-    public void cleanup() throws IOException {
+    public void cleanup() {
         try {
             // Disable CCM after each test to ensure a clean state
             client().performRequest(new Request(DELETE_METHOD, INFERENCE_CCM_PATH));

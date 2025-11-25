@@ -565,13 +565,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         ) throws IOException {
             int remainingCount = count;
             int nextDoc = firstDoc;
+            int blockDocOffset = 0;
+            int blockByteOffset = 0;
             long[] offsets = new long[count + 1];
-            int docsAdded = 0;
-            int currBlockByteOffset = 0;
             List<BytesRef> decompressedBlocks = new ArrayList<>();
 
             while (remainingCount > 0) {
-
                 long blockId = nextDoc < limitDocNumForBlock ? lastBlockId : findAndUpdateBlock(this.docOffsets, lastBlockId, nextDoc, numBlocks);
                 assert blockId >= 0;
 
@@ -592,16 +591,15 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 int startOffset = uncompressedDocStarts[idxFirstDocInBlock];
                 int endOffset = uncompressedDocStarts[idxFirstDocInBlock + countInBlock];
                 int lenValuesInBlock = endOffset - startOffset;
-                int offsetIdx = 0;
-                for (int i = idxFirstDocInBlock; i < idxFirstDocInBlock + countInBlock; i++) {
-                    offsets[docsAdded + offsetIdx+1] = uncompressedDocStarts[i+1] - startOffset + currBlockByteOffset;
-                    offsetIdx++;
+                for (int i = 0; i < countInBlock; i++) {
+                    int byteOffsetInBlock = uncompressedDocStarts[idxFirstDocInBlock + i + 1] - startOffset;
+                    offsets[blockDocOffset + i + 1] = byteOffsetInBlock + blockByteOffset;
                 }
 
                 nextDoc += countInBlock;
                 remainingCount -= countInBlock;
-                docsAdded += countInBlock;
-                currBlockByteOffset += lenValuesInBlock;
+                blockDocOffset += countInBlock;
+                blockByteOffset += lenValuesInBlock;
 
                 if (remainingCount == 0) {
                     // avoid making a copy if this was the last block to be decompressed

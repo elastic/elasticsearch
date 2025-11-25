@@ -83,7 +83,7 @@ public class HashAggregationOperator implements Operator {
     private boolean finished;
     private Page output;
 
-    private final BlockHash blockHash;
+    final BlockHash blockHash;
 
     protected final List<GroupingAggregator> aggregators;
 
@@ -240,7 +240,7 @@ public class HashAggregationOperator implements Operator {
             var evaluationContext = evaluationContext(blockHash, keys);
             for (int i = 0; i < aggregators.size(); i++) {
                 var aggregator = aggregators.get(i);
-                aggregator.evaluate(blocks, offset, selected, evaluationContext);
+                evaluateAggregator(aggregator, blocks, offset, selected, evaluationContext);
                 offset += aggBlockCounts[i];
             }
             output = new Page(blocks);
@@ -255,6 +255,16 @@ public class HashAggregationOperator implements Operator {
             }
             emitNanos += System.nanoTime() - startInNanos;
         }
+    }
+
+    protected void evaluateAggregator(
+        GroupingAggregator aggregator,
+        Block[] blocks,
+        int offset,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext evaluationContext
+    ) {
+        aggregator.evaluate(blocks, offset, selected, evaluationContext);
     }
 
     protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash, Block[] keys) {

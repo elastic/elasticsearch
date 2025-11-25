@@ -107,50 +107,6 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         );
     }
 
-    /**
-     * Tests {@code LENGTH} on a field that comes from a {@code LOOKUP JOIN}.
-     */
-    public void testLengthNotPushedToLookupJoinKeyword() throws IOException {
-        initLookupIndex();
-        test(
-            b -> b.startObject("main_matching").field("type", "keyword").endObject(),
-            b -> b.field("main_matching", "lookup"),
-            """
-                | LOOKUP JOIN lookup ON matching == main_matching
-                | EVAL test = LENGTH(test)
-                """,
-            matchesList().item(1),
-            matchesMap().entry("main_matching:column_at_a_time:BytesRefsFromOrds.Singleton", 1), //
-            sig -> {}
-        );
-    }
-
-    /**
-     * Tests {@code LENGTH} on a field that comes from a {@code LOOKUP JOIN} with
-     * the added complexity that the field also exists in the index, but we're not
-     * querying it.
-     */
-    public void testLengthNotPushedToLookupJoinKeywordSameName() throws IOException {
-        assumeFalse("fix in 137679 - we push to the index but that's just wrong!", true);
-        String value = "v".repeat(between(0, 256));
-        initLookupIndex();
-        test(b -> {
-            b.startObject("test").field("type", "keyword").endObject();
-            b.startObject("main_matching").field("type", "keyword").endObject();
-        },
-            b -> b.field("test", value).field("main_matching", "lookup"),
-            """
-                | DROP test
-                | LOOKUP JOIN lookup ON matching == main_matching
-                | EVAL test = LENGTH(test)
-                """,
-            matchesList().item(1), // <--- This is incorrectly returning value.length()
-            matchesMap().entry("main_matching:column_at_a_time:BytesRefsFromOrds.Singleton", 1),
-            // ^^^^ This is incorrectly returning test:column_at_a_time:Utf8CodePointsFromOrds.Singleton
-            sig -> {}
-        );
-    }
-
     public void testVCosine() throws IOException {
         test(
             justType("dense_vector"),
@@ -178,6 +134,248 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             "| EVAL test = V_HAMMING(test, [0, 100, 100])",
             matchesList().item(6.0),
             matchesMap().entry("test:column_at_a_time:BitDenseVectorFromDocValues.V_HAMMING", 1)
+        );
+    }
+
+    //
+    // Tests for more complex shapes.
+    //
+
+    /**
+     * Tests {@code LENGTH} on a field that comes from a {@code LOOKUP JOIN}.
+     */
+    public void testLengthNotPushedToLookupJoinKeyword() throws IOException {
+        initLookupIndex();
+        test(
+            b -> b.startObject("main_matching").field("type", "keyword").endObject(),
+            b -> b.field("main_matching", "lookup"),
+            """
+                | LOOKUP JOIN lookup ON matching == main_matching
+                | EVAL test = LENGTH(test)
+                """,
+            matchesList().item(1),
+            matchesMap().entry("main_matching:column_at_a_time:BytesRefsFromOrds.Singleton", 1),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
+                    .item("LookupOperator")
+                    .item("EvalOperator") // this one just renames the field
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            )
+        );
+    }
+
+    /**
+     * Tests {@code LENGTH} on a field that comes from a {@code LOOKUP JOIN} with
+     * the added complexity that the field also exists in the index, but we're not
+     * querying it.
+     */
+    public void testLengthNotPushedToLookupJoinKeywordSameName() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        initLookupIndex();
+        test(b -> {
+            b.startObject("test").field("type", "keyword").endObject();
+            b.startObject("main_matching").field("type", "keyword").endObject();
+        },
+            b -> b.field("test", value).field("main_matching", "lookup"),
+            """
+                | DROP test
+                | LOOKUP JOIN lookup ON matching == main_matching
+                | EVAL test = LENGTH(test)
+                """,
+            matchesList().item(1),
+            matchesMap().entry("main_matching:column_at_a_time:BytesRefsFromOrds.Singleton", 1),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
+                    .item("LookupOperator")
+                    .item("EvalOperator") // this one just renames the field
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            )
+        );
+    }
+
+    /**
+     * Tests {@code LENGTH} on a field that comes from a {@code LOOKUP JOIN}.
+     */
+    public void testLengthPushedInsideInlineStats() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        test(
+            justType("keyword"),
+            b -> b.field("test", value),
+            """
+                | INLINE STATS max_length = MAX(LENGTH(test))
+                | EVAL test = LENGTH(test)
+                | WHERE test == max_length
+                """,
+            matchesList().item(value.length()),
+            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
+            sig -> {
+                // There are two data node plans, one for each phase.
+                if (sig.contains("FilterOperator")) {
+                    assertMap(
+                        sig,
+                        matchesList().item("LuceneSourceOperator")
+                            .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
+                            .item("FilterOperator")
+                            .item("EvalOperator") // this one just renames the field
+                            .item("AggregationOperator")
+                            .item("ExchangeSinkOperator")
+                    );
+                } else {
+                    assertMap(
+                        sig,
+                        matchesList().item("LuceneSourceOperator")
+                            .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
+                            .item("EvalOperator") // this one just renames the field
+                            .item("AggregationOperator")
+                            .item("ExchangeSinkOperator")
+                    );
+                }
+            }
+        );
+    }
+
+    /**
+     * Tests {@code LENGTH} on a field that comes from a {@code LOOKUP JOIN}.
+     */
+    public void testLengthNotPushedToInlineStatsResults() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        test(justType("keyword"), b -> b.field("test", value), """
+            | INLINE STATS test2 = VALUES(test)
+            | EVAL test = LENGTH(test2)
+            """, matchesList().item(value.length()), matchesMap().entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1), sig -> {
+            // There are two data node plans, one for each phase.
+            if (sig.contains("EvalOperator")) {
+                assertMap(
+                    sig,
+                    matchesList().item("LuceneSourceOperator")
+                        .item("EvalOperator") // The second phase of the INLINE STATS
+                        .item("AggregationOperator")
+                        .item("ExchangeSinkOperator")
+                );
+            } else {
+                assertMap(
+                    sig,
+                    matchesList().item("LuceneSourceOperator")
+                        .item("ValuesSourceReaderOperator")
+                        .item("AggregationOperator")
+                        .item("ExchangeSinkOperator")
+                );
+            }
+        });
+    }
+
+    /**
+     * Tests {@code LENGTH} on a field that comes from a {@code LOOKUP JOIN}.
+     */
+    public void testLengthNotPushedToGroupedInlineStatsResults() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
+            b.startObject("test").field("type", "keyword").endObject();
+            b.startObject("group").field("type", "keyword").endObject();
+        };
+        test(mapping, b -> b.field("test", value).field("group", "g"), """
+            | INLINE STATS test2 = VALUES(test) BY group
+            | EVAL test = LENGTH(test2)
+            """, matchesList().item(value.length()), matchesMap().extraOk(), sig -> {
+            // There are two data node plans, one for each phase.
+            if (sig.contains("EvalOperator")) {
+                assertMap(
+                    sig,
+                    matchesList().item("LuceneSourceOperator")
+                        .item("ValuesSourceReaderOperator")
+                        .item("RowInTableLookup")
+                        .item("ColumnLoad")
+                        .item("ProjectOperator")
+                        .item("EvalOperator")
+                        .item("AggregationOperator")
+                        .item("ExchangeSinkOperator")
+                );
+            } else {
+                assertMap(
+                    sig,
+                    matchesList().item("LuceneSourceOperator")
+                        .item("ValuesSourceReaderOperator")
+                        .item("HashAggregationOperator")
+                        .item("ExchangeSinkOperator")
+                );
+            }
+        });
+    }
+
+    /**
+     * LENGTH not pushed when on a fork branch.
+     */
+    public void testLengthNotPushedToFork() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        test(
+            justType("keyword"),
+            b -> b.field("test", value),
+            """
+                | FORK
+                    (EVAL test = LENGTH(test) + 1)
+                    (EVAL test = LENGTH(test) + 2)
+                """,
+            matchesList().item(List.of(value.length() + 1, value.length() + 2)),
+            matchesMap().entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("ProjectOperator")
+                    .item("ExchangeSinkOperator")
+            )
+        );
+    }
+
+    public void testLengthNotPushedBeforeFork() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        test(
+            justType("keyword"),
+            b -> b.field("test", value),
+            """
+                | EVAL test = LENGTH(test)
+                | FORK
+                    (EVAL j = 1)
+                    (EVAL j = 2)
+                """,
+            matchesList().item(value.length()),
+            matchesMap().entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("ProjectOperator")
+                    .item("ExchangeSinkOperator")
+            )
+        );
+    }
+
+    public void testLengthNotPushedAfterFork() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        test(
+            justType("keyword"),
+            b -> b.field("test", value),
+            """
+                | FORK
+                    (EVAL j = 1)
+                    (EVAL j = 2)
+                | EVAL test = LENGTH(test)
+                """,
+            matchesList().item(value.length()),
+            matchesMap().entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("ProjectOperator")
+                    .item("ExchangeSinkOperator")
+            )
         );
     }
 
@@ -217,7 +415,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query("""
             FROM test
             """ + eval + """
-            | STATS test = VALUES(test)
+            | STATS test = MV_SORT(VALUES(test))
             """);
         /*
          * TODO if you just do KEEP test then the load is in the data node reduce driver and not merged:
@@ -265,6 +463,9 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 }
                 case "node_reduce" -> logger.info("node_reduce {}", sig);
                 case "final" -> logger.info("final {}", sig);
+                case "main.final" -> logger.info("main final {}", sig);
+                case "subplan-0.final" -> logger.info("subplan-0 final {}", sig);
+                case "subplan-1.final" -> logger.info("subplan-1 final {}", sig);
                 default -> throw new IllegalArgumentException("can't match " + description);
             }
         }

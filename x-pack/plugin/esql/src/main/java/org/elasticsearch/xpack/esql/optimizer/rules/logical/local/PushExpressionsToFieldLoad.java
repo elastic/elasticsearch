@@ -114,10 +114,9 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
         }
 
         private Expression replaceFieldsForFieldTransformations(Expression e, BlockLoaderExpression.PushedBlockLoaderExpression fuse) {
-            // Change the similarity function to a reference of a transformation on the field
+            // Change the expression to a reference of the pushed down function on the field
             FunctionEsField functionEsField = new FunctionEsField(fuse.field().field(), e.dataType(), fuse.config());
             var name = rawTemporaryName(fuse.field().name(), fuse.config().function().toString(), String.valueOf(fuse.config().hashCode()));
-            // TODO: Check if exists before adding, retrieve the previous one
             var newFunctionAttr = new FieldAttribute(
                 fuse.field().source(),
                 fuse.field().parentName(),

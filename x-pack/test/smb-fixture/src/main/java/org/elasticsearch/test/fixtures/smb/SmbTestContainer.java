@@ -47,5 +47,4 @@ public final class SmbTestContainer extends DockerEnvironmentAwareTestContainer 
     public String getAdLdapGcUrl() {
         return "ldaps://localhost:" + getMappedPort(AD_LDAP_GC_PORT);
     }
-
 }

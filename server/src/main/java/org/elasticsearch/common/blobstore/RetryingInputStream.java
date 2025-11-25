@@ -36,9 +36,9 @@ public abstract class RetryingInputStream extends InputStream {
     private final List<Exception> failures;
 
     protected SingleAttemptInputStream currentStream;
+    private long offset = 0;
     private int attempt = 1;
     private int failuresAfterMeaningfulProgress = 0;
-    private long currentOffset = 0;
     private boolean closed = false;
 
     protected RetryingInputStream(BlobStoreServices blobStoreServices, OperationPurpose purpose) throws IOException {
@@ -65,12 +65,11 @@ public abstract class RetryingInputStream extends InputStream {
 
     private void openStreamWithRetry() throws IOException {
         while (true) {
-            if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
-                assert start + currentOffset <= end
-                    : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
+            if (offset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
+                assert start + offset <= end : "requesting beyond end, start = " + start + " offset=" + offset + " end=" + end;
             }
             try {
-                currentStream = blobStoreServices.getInputStream(Math.addExact(start, currentOffset), end);
+                currentStream = blobStoreServices.getInputStream(Math.addExact(start, offset), end);
                 return;
             } catch (NoSuchFileException | RequestedRangeNotSatisfiedException e) {
                 throw e;
@@ -92,7 +91,7 @@ public abstract class RetryingInputStream extends InputStream {
             try {
                 final int result = currentStream.read();
                 if (result != -1) {
-                    currentOffset += 1;
+                    offset += 1;
                 }
                 maybeLogAndRecordMetricsForSuccess(initialAttempt, "read");
                 return result;
@@ -113,7 +112,7 @@ public abstract class RetryingInputStream extends InputStream {
             try {
                 final int bytesRead = currentStream.read(b, off, len);
                 if (bytesRead != -1) {
-                    currentOffset += bytesRead;
+                    offset += bytesRead;
                 }
                 maybeLogAndRecordMetricsForSuccess(initialAttempt, "read");
                 return bytesRead;
@@ -170,7 +169,7 @@ public abstract class RetryingInputStream extends InputStream {
                 "failed %s [%s] at offset [%s] with purpose [%s]",
                 action,
                 blobStoreServices.getBlobDescription(),
-                start + currentOffset,
+                start + offset,
                 purpose.getKey()
             ),
             e
@@ -188,7 +187,7 @@ public abstract class RetryingInputStream extends InputStream {
                     retries; the maximum number of read attempts which do not make meaningful progress is [%s]""",
                 action,
                 blobStoreServices.getBlobDescription(),
-                start + currentOffset,
+                start + offset,
                 purpose.getKey(),
                 attempt,
                 currentStreamProgress(),
@@ -217,7 +216,7 @@ public abstract class RetryingInputStream extends InputStream {
         if (currentStream == null) {
             return 0L;
         }
-        return Math.subtractExact(Math.addExact(start, currentOffset), currentStream.getFirstOffset());
+        return Math.subtractExact(Math.addExact(start, offset), currentStream.getFirstOffset());
     }
 
     private boolean shouldRetry(int attempt) {

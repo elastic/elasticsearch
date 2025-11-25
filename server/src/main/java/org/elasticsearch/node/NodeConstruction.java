@@ -209,7 +209,6 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
-import org.elasticsearch.search.crossproject.CrossProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
@@ -1015,7 +1014,7 @@ class NodeConstruction {
 
         final var projectRoutingResolver = pluginsService.loadSingletonServiceProvider(
             ProjectRoutingResolver.class,
-            CrossProjectRoutingResolver::new
+            () -> ProjectRoutingResolver.NOOP
         );
 
         PluginServiceInstances pluginServices = new PluginServiceInstances(

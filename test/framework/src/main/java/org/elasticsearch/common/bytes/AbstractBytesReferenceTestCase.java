@@ -33,6 +33,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.greaterThan;
+
 public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
     protected static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
@@ -376,6 +378,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         BytesRef ref;
         BytesRefBuilder builder = new BytesRefBuilder();
         while ((ref = iterator.next()) != null) {
+            assertThat(ref.length, greaterThan(0));
             builder.append(ref);
         }
         assertArrayEquals(BytesReference.toBytes(pbr), BytesRef.deepCopyOf(builder.toBytesRef()).bytes);
@@ -388,9 +391,10 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         int sliceLength = randomIntBetween(0, pbr.length() - sliceOffset);
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
         BytesRefIterator iterator = slice.iterator();
-        BytesRef ref = null;
+        BytesRef ref;
         BytesRefBuilder builder = new BytesRefBuilder();
         while ((ref = iterator.next()) != null) {
+            assertThat(ref.length, greaterThan(0));
             builder.append(ref);
         }
         assertArrayEquals(BytesReference.toBytes(slice), BytesRef.deepCopyOf(builder.toBytesRef()).bytes);
@@ -409,9 +413,10 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             pbr = new BytesArray(pbr.toBytesRef());
         }
         BytesRefIterator iterator = pbr.iterator();
-        BytesRef ref = null;
+        BytesRef ref;
         BytesRefBuilder builder = new BytesRefBuilder();
         while ((ref = iterator.next()) != null) {
+            assertThat(ref.length, greaterThan(0));
             builder.append(ref);
         }
         assertArrayEquals(BytesReference.toBytes(pbr), BytesRef.deepCopyOf(builder.toBytesRef()).bytes);
@@ -683,6 +688,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         BytesRef bytesRef;
         int offset = 0;
         while ((bytesRef = iterator.next()) != null) {
+            assertThat(bytesRef.length, greaterThan(0));
             final int len = Math.min(bytesRef.length, length - offset);
             System.arraycopy(bytes, offset, bytesRef.bytes, bytesRef.offset, len);
             offset += len;

@@ -55,18 +55,19 @@ public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
     @Override
     public Terms terms(String field) throws IOException {
         assert FIELD_NAMES.contains(field) : "Expected one of " + FIELD_NAMES + " but got " + field;
-        return new FilterLeafReader.FilterTerms(delegate.terms(field)) {
+        final Terms terms = delegate.terms(field);
+        return new FilterLeafReader.FilterTerms(terms) {
             @Override
             public TermsEnum iterator() throws IOException {
                 return new LazyFilterTermsEnum() {
-                    private TermsEnum delegate;
+                    private TermsEnum termsEnum;
 
                     @Override
                     protected TermsEnum getDelegate() throws IOException {
-                        if (delegate == null) {
-                            delegate = in.iterator();
+                        if (termsEnum == null) {
+                            termsEnum = terms.iterator();
                         }
-                        return delegate;
+                        return termsEnum;
                     }
 
                     @Override

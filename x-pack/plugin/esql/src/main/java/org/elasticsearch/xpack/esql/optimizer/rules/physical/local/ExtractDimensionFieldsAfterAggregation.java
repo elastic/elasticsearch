@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -87,14 +86,8 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                             throw new IllegalStateException("expected one intermediate attribute for [" + af + "] but got [" + size + "]");
                         }
                         Attribute oldAttr = oldIntermediates.get(intermediateOffset);
-                        // _timeseries = to_string(_tsid)
-                        if (dimensionField.name().equals(MetadataAttribute.TIMESERIES)) {
-                            var timeSeries = new ToBase64(dimensionField.source(), tsidField(oldAgg));
-                            aliases.add(new Alias(agg.source(), agg.name(), timeSeries, oldAttr.id()));
-                        } else {
-                            aliases.add(new Alias(agg.source(), agg.name(), dimensionField, oldAttr.id()));
-                            dimensionFields.add(dimensionField);
-                        }
+                        aliases.add(new Alias(agg.source(), agg.name(), dimensionField, oldAttr.id()));
+                        dimensionFields.add(dimensionField);
                     } else {
                         for (int i = 0; i < size; i++) {
                             newIntermediates.add(oldIntermediates.get(intermediateOffset + i));
@@ -146,16 +139,8 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
         return null;
     }
 
-    private static Attribute tsidField(TimeSeriesAggregateExec stats) {
-        for (Attribute attribute : stats.output()) {
-            if (attribute.name().equals(MetadataAttribute.TSID_FIELD)) {
-                return attribute;
-            }
-        }
-        throw new IllegalStateException("_tsid field is not found in the time-series aggregation");
-    }
-
     private static int intermediateStateSize(AggregateFunction af) {
         return AggregateMapper.intermediateStateDesc(af, true).size();
     }
+
 }

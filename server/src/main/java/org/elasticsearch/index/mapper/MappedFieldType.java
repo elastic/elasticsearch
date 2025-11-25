@@ -713,6 +713,14 @@ public abstract class MappedFieldType {
         default BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
             return null;
         }
+
+        /**
+         * Returns a list of dimension field names from a MappingLookup.
+         */
+        @Nullable
+        default List<String> dimensionFields() {
+            return null;
+        }
     }
 
 }

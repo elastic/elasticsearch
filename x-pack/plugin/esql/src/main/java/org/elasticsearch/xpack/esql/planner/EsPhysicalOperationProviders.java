@@ -40,10 +40,13 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -549,6 +552,21 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 @Override
                 public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
                     return blockLoaderFunctionConfig;
+                }
+
+                @Override
+                public List<String> dimensionFields() {
+                    MappingLookup mappingLookup = ctx.getMappingLookup();
+                    List<String> dimensionFields = new ArrayList<>();
+                    for (Mapper mapper : mappingLookup.fieldMappers()) {
+                        if (mapper instanceof FieldMapper fieldMapper) {
+                            MappedFieldType fieldType = fieldMapper.fieldType();
+                            if (fieldType.isDimension()) {
+                                dimensionFields.add(fieldType.name());
+                            }
+                        }
+                    }
+                    return dimensionFields;
                 }
             });
             if (loader == null) {

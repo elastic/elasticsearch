@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 
 import java.io.IOException;
@@ -24,32 +23,31 @@ import java.util.List;
 
 import static org.elasticsearch.core.Strings.format;
 
-public abstract class RetryingInputStream<V> extends InputStream {
+public abstract class RetryingInputStream extends InputStream {
 
     private static final Logger logger = LogManager.getLogger(RetryingInputStream.class);
 
     public static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
 
-    private final BlobStoreServices<V> blobStoreServices;
+    private final BlobStoreServices blobStoreServices;
     private final OperationPurpose purpose;
     private final long start;
     private final long end;
     private final List<Exception> failures;
 
-    protected InputStreamAtVersion<V> currentStream;
+    protected InputStream currentStream;
     private long currentStreamFirstOffset;
     private int attempt = 1;
     private int failuresAfterMeaningfulProgress = 0;
     private int currentOffset = 0;
     private boolean closed = false;
 
-    protected RetryingInputStream(BlobStoreServices<V> blobStoreServices, OperationPurpose purpose) throws IOException {
+    protected RetryingInputStream(BlobStoreServices blobStoreServices, OperationPurpose purpose) throws IOException {
         this(blobStoreServices, purpose, 0L, Long.MAX_VALUE - 1L);
     }
 
     @SuppressWarnings("this-escape") // TODO: We can do better than this but I don't want to touch the tests for the first implementation
-    protected RetryingInputStream(BlobStoreServices<V> blobStoreServices, OperationPurpose purpose, long start, long end)
-        throws IOException {
+    protected RetryingInputStream(BlobStoreServices blobStoreServices, OperationPurpose purpose, long start, long end) throws IOException {
         if (start < 0L) {
             throw new IllegalArgumentException("start must be non-negative");
         }
@@ -74,11 +72,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
             }
             try {
                 this.currentStreamFirstOffset = Math.addExact(start, currentOffset);
-                currentStream = blobStoreServices.getInputStreamAtVersion(
-                    currentStream != null ? currentStream.version : null,
-                    currentStreamFirstOffset,
-                    end
-                );
+                currentStream = blobStoreServices.getInputStream(currentStreamFirstOffset, end);
                 return;
             } catch (NoSuchFileException | RequestedRangeNotSatisfiedException e) {
                 throw e;
@@ -98,7 +92,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
         final int initialAttempt = attempt;
         while (true) {
             try {
-                final int result = currentStream.inputStream.read();
+                final int result = currentStream.read();
                 if (result != -1) {
                     currentOffset += 1;
                 }
@@ -119,7 +113,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
         final int initialAttempt = attempt;
         while (true) {
             try {
-                final int bytesRead = currentStream.inputStream.read(b, off, len);
+                final int bytesRead = currentStream.read(b, off, len);
                 if (bytesRead != -1) {
                     currentOffset += bytesRead;
                 }
@@ -147,7 +141,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
             failuresAfterMeaningfulProgress += 1;
         }
         final long delayInMillis = maybeLogAndComputeRetryDelay("reading", e);
-        IOUtils.closeWhileHandlingException(currentStream.inputStream);
+        IOUtils.closeWhileHandlingException(currentStream);
 
         delayBeforeRetry(delayInMillis);
         openStreamWithRetry();
@@ -266,7 +260,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
     @Override
     public void close() throws IOException {
         try {
-            currentStream.inputStream.close();
+            currentStream.close();
         } finally {
             closed = true;
         }
@@ -275,7 +269,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
     @Override
     public long skip(long n) throws IOException {
         ensureOpen();
-        return currentStream.inputStream.skip(n);
+        return currentStream.skip(n);
     }
 
     @Override
@@ -292,15 +286,12 @@ public abstract class RetryingInputStream<V> extends InputStream {
 
     /**
      * This implements all the behavior that is blob-store-specific
-     *
-     * @param <V> The type of the version used
      */
-    protected interface BlobStoreServices<V> {
+    protected interface BlobStoreServices {
 
         /**
-         * Get an input stream for the given version
+         * Get an input stream for the blob at the given position
          *
-         * @param version The version to request, or null if the latest version should be used
          * @param start   The start of the range to read, inclusive
          * @param end     The end of the range to read, exclusive, or {@code Long.MAX_VALUE - 1} if the end of the blob should be used
          * @return An input stream for the given version
@@ -308,7 +299,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
          * @throws NoSuchFileException                 if the blob does not exist, this is not retry-able
          * @throws RequestedRangeNotSatisfiedException if the requested range is not valid, this is not retry-able
          */
-        InputStreamAtVersion<V> getInputStreamAtVersion(@Nullable V version, long start, long end) throws IOException;
+        InputStream getInputStream(long start, long end) throws IOException;
 
         void onRetryStarted(String action);
 
@@ -319,11 +310,5 @@ public abstract class RetryingInputStream<V> extends InputStream {
         int getMaxRetries();
 
         String getBlobDescription();
-    }
-
-    protected record InputStreamAtVersion<V>(InputStream inputStream, V version) {
-        // Make the default constructor public
-        public InputStreamAtVersion {}
-
     }
 }

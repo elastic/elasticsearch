@@ -84,6 +84,8 @@ public class S3HttpHandler implements HttpHandler {
      */
     private static final Set<String> METHODS_HAVING_NO_REQUEST_BODY = Set.of("GET", "HEAD", "DELETE");
 
+    private static final String SHA_256_ETAG_PREFIX = "es-test-sha-256-";
+
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         // Remove custom query parameters before processing the request. This simulates how S3 ignores them.
@@ -188,10 +190,11 @@ public class S3HttpHandler implements HttpHandler {
 
             } else if (request.isCompleteMultipartUploadRequest()) {
                 final byte[] responseBody;
-                boolean preconditionFailed = false;
+                final boolean preconditionFailed;
                 synchronized (uploads) {
                     final var upload = getUpload(request.getQueryParamOnce("uploadId"));
                     if (upload == null) {
+                        preconditionFailed = false;
                         if (Randomness.get().nextBoolean()) {
                             responseBody = null;
                         } else {
@@ -207,14 +210,7 @@ public class S3HttpHandler implements HttpHandler {
                     } else {
                         final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
 
-                        if (isProtectOverwrite(exchange)) {
-                            var previousValue = blobs.putIfAbsent(request.path(), blobContents);
-                            if (previousValue != null) {
-                                preconditionFailed = true;
-                            }
-                        } else {
-                            blobs.put(request.path(), blobContents);
-                        }
+                        preconditionFailed = updateBlobContents(exchange, request.path(), blobContents) == false;
 
                         if (preconditionFailed == false) {
                             responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -268,15 +264,7 @@ public class S3HttpHandler implements HttpHandler {
                     }
                 } else {
                     final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                    boolean preconditionFailed = false;
-                    if (isProtectOverwrite(exchange)) {
-                        var previousValue = blobs.putIfAbsent(request.path(), blob.v2());
-                        if (previousValue != null) {
-                            preconditionFailed = true;
-                        }
-                    } else {
-                        blobs.put(request.path(), blob.v2());
-                    }
+                    final var preconditionFailed = updateBlobContents(exchange, request.path(), blob.v2()) == false;
 
                     if (preconditionFailed) {
                         exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), -1);
@@ -336,6 +324,9 @@ public class S3HttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     return;
                 }
+
+                exchange.getResponseHeaders().add("ETag", getEtagFromContents(blob));
+
                 final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
                 if (rangeHeader == null) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
@@ -411,6 +402,29 @@ public class S3HttpHandler implements HttpHandler {
             logger.error("exception in request " + request, e);
             throw e;
         }
+    }
+
+    /**
+     * Update the blob contents if and only if the preconditions in the request are satisfied.
+     *
+     * @return whether the blob contents were updated: if {@code false} then a requested precondition was not satisfied.
+     */
+    private boolean updateBlobContents(HttpExchange exchange, String path, BytesReference newContents) {
+        if (isProtectOverwrite(exchange)) {
+            return blobs.putIfAbsent(path, newContents) == null;
+        } else {
+            blobs.put(path, newContents);
+            return true;
+        }
+    }
+
+    /**
+     * Etags are opaque identifiers for the contents of an object.
+     *
+     * @see <a href="https://en.wikipedia.org/wiki/HTTP_ETag">HTTP ETag on Wikipedia</a>.
+     */
+    public static String getEtagFromContents(BytesReference blobContents) {
+        return '"' + SHA_256_ETAG_PREFIX + MessageDigests.toHexString(MessageDigests.digest(blobContents, MessageDigests.sha256())) + '"';
     }
 
     public Map<String, BytesReference> blobs() {
@@ -490,7 +504,7 @@ public class S3HttpHandler implements HttpHandler {
                     );
                 }
             }
-            return Tuple.tuple(MessageDigests.toHexString(MessageDigests.digest(bytesReference, MessageDigests.md5())), bytesReference);
+            return Tuple.tuple(getEtagFromContents(bytesReference), bytesReference);
         } catch (Exception e) {
             logger.error("exception in parseRequestBody", e);
             exchange.sendResponseHeaders(500, 0);

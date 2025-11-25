@@ -359,9 +359,9 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         ActionRequestValidationException validationException = null;
         boolean scroll = scroll() != null;
 
-        boolean allowPartialSearchResults = allowPartialSearchResults() == null ?
-            DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS :
-            allowPartialSearchResults();
+        boolean allowPartialSearchResults = allowPartialSearchResults() == null
+            ? DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
+            : allowPartialSearchResults();
 
         if (source != null) {
             validationException = source.validate(validationException, scroll, allowPartialSearchResults);

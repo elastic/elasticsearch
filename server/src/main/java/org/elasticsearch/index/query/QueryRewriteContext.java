@@ -86,7 +86,8 @@ public class QueryRewriteContext {
     private Long timeRangeFilterFromMillis;
     private boolean trackTimeRangeFilterFrom = true;
 
-    // FIXME: somehow this has to be wired through for at least retrievers ... but goodnight there's a lot of spidered ways in which these contexts get created.
+    // FIXME: somehow this has to be wired through for at least retrievers ... but goodnight there's a lot of spidered ways in which these
+    // contexts get created.
     private final boolean allowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS;
 
     public QueryRewriteContext(

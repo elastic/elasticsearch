@@ -237,14 +237,15 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         for (ShardSearchFailure shardFailure : shardFailures) {
             if (shardFailure != null) {
                 int shardFailureStatusCode = ExceptionsHelper.status(shardFailure.getCause()).getStatus();
-                failures.add(processInnerItemFailureException(
-                    new ElasticsearchStatusException(
-                        "failed to retrieve data from shard ["
-                            + shardFailure.shardId()
-                            + "] with message: "
-                            + shardFailure.getCause().getMessage(),
-                        RestStatus.fromCode(shardFailureStatusCode)
-                    )
+                failures.add(
+                    processInnerItemFailureException(
+                        new ElasticsearchStatusException(
+                            "failed to retrieve data from shard ["
+                                + shardFailure.shardId()
+                                + "] with message: "
+                                + shardFailure.getCause().getMessage(),
+                            RestStatus.fromCode(shardFailureStatusCode)
+                        )
                     )
                 );
                 statusCode = Math.max(shardFailureStatusCode, statusCode);

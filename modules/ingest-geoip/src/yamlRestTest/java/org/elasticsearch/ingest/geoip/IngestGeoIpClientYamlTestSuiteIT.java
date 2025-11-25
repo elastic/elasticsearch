@@ -160,6 +160,7 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             // ensure that the extra config database has been set up, too:
             assertThat(node.get("config_databases"), equalTo(List.of("asn.mmdb")));
             // Downloading all four databases may take some time, so we set a longer timeout here.
+            // If 20 seconds prove insufficient, we should first investigate whether we can speed up the database downloader.
         }, 20, TimeUnit.SECONDS);
     }
 

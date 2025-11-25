@@ -58,8 +58,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt
 public class DateDiff extends EsqlConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "DateDiff", DateDiff::new);
 
-    public static final ZoneId UTC = org.elasticsearch.xpack.esql.core.util.DateUtils.UTC;
-
     private final Expression unit;
     private final Expression startTimestamp;
     private final Expression endTimestamp;

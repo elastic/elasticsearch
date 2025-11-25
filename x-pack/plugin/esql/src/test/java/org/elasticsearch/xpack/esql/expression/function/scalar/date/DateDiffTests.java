@@ -339,7 +339,7 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
 
     @Override
     protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
-        return new DateDiff(source, args.get(0), args.get(1), args.get(2), configuration); // TODO: Add config here
+        return new DateDiff(source, args.get(0), args.get(1), args.get(2), configuration);
     }
 
     @Override

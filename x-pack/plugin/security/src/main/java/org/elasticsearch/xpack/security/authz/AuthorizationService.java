@@ -727,7 +727,10 @@ public class AuthorizationService {
                                     authzInfo,
                                     action,
                                     request,
-                                    IndexAuthorizationResult.getFailureDescription(List.of(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER), restrictedIndices),
+                                    IndexAuthorizationResult.getFailureDescription(
+                                        List.of(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER),
+                                        restrictedIndices
+                                    ),
                                     null
                                 )
                             );

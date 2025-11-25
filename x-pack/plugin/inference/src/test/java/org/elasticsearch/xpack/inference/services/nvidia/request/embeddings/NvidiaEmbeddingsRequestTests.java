@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModelTests;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.List;
@@ -81,15 +80,15 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         int size = 3;
-        assertThat(requestMap.get(INPUT_FIELD_NAME), Matchers.is(List.of(INPUT_VALUE)));
-        assertThat(requestMap.get(MODEL_FIELD_NAME), Matchers.is(MODEL_VALUE));
-        assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(expectedInputType));
+        assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_VALUE)));
+        assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
+        assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), is(expectedInputType));
         if (expectedTruncation != null) {
             size++;
-            assertThat(requestMap.get(TRUNCATE_FIELD_NAME), Matchers.is(expectedTruncation));
+            assertThat(requestMap.get(TRUNCATE_FIELD_NAME), is(expectedTruncation));
         }
         assertThat(requestMap, aMapWithSize(size));
-        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), Matchers.is(Strings.format("Bearer %s", API_KEY_VALUE)));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", API_KEY_VALUE)));
     }
 
     public void testCreateRequest_NoModel_ThrowsException() {
@@ -106,9 +105,9 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(3));
-        assertThat(requestMap.get(INPUT_FIELD_NAME), Matchers.is(List.of(INPUT_VALUE.substring(0, INPUT_VALUE.length() / 2))));
-        assertThat(requestMap.get(MODEL_FIELD_NAME), Matchers.is(MODEL_VALUE));
-        assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(INPUT_TYPE_NVIDIA_DEFAULT_VALUE));
+        assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_VALUE.substring(0, INPUT_VALUE.length() / 2))));
+        assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
+        assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), is(INPUT_TYPE_NVIDIA_DEFAULT_VALUE));
     }
 
     public void testIsTruncated_ReturnsTrue() {
@@ -122,11 +121,8 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
     private HttpPost validateRequestUrlAndContentType(HttpRequest request, String expectedUrl) {
         assertThat(request.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) request.httpRequestBase();
-        assertThat(httpPost.getURI().toString(), Matchers.is(expectedUrl));
-        assertThat(
-            httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(),
-            Matchers.is(XContentType.JSON.mediaTypeWithoutParameters())
-        );
+        assertThat(httpPost.getURI().toString(), is(expectedUrl));
+        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
         return httpPost;
     }
 

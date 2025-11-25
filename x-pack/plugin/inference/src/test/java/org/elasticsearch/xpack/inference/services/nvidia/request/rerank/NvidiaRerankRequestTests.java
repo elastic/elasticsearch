@@ -14,7 +14,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModelTests;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,7 +55,7 @@ public class NvidiaRerankRequestTests extends ESTestCase {
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-        assertThat(httpPost.getURI().toString(), Matchers.is(expectedUrl));
+        assertThat(httpPost.getURI().toString(), is(expectedUrl));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", API_KEY_VALUE)));
 

@@ -14,7 +14,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
-import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -108,18 +107,18 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     }
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {
-        MatcherAssert.assertThat(
+        assertThat(
             NvidiaEmbeddingsTaskSettings.fromMap(buildTaskSettingsMap(null, null)),
             is(sameInstance(NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS))
         );
     }
 
     public void testFromMap_CreatesEmptySettings_WhenMapIsNull() {
-        MatcherAssert.assertThat(NvidiaEmbeddingsTaskSettings.fromMap(null), is(NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS));
+        assertThat(NvidiaEmbeddingsTaskSettings.fromMap(null), is(NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS));
     }
 
     public void testFromMap_CreatesSettings_WhenAllFieldsOfSettingsArePresent() {
-        MatcherAssert.assertThat(
+        assertThat(
             NvidiaEmbeddingsTaskSettings.fromMap(buildTaskSettingsMap(INPUT_TYPE_INITIAL_VALUE, TRUNCATE_INITIAL_VALUE)),
             is(new NvidiaEmbeddingsTaskSettings(INPUT_TYPE_INITIAL_VALUE, TRUNCATE_INITIAL_VALUE))
         );
@@ -131,7 +130,7 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             () -> NvidiaEmbeddingsTaskSettings.fromMap(buildTaskSettingsMap(INPUT_TYPE_INVALID_VALUE, null))
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             exception.getMessage(),
             is(
                 Strings.format(
@@ -149,7 +148,7 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             () -> NvidiaEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(TRUNCATE_FIELD_NAME, TRUNCATE_INVALID_VALUE)))
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             exception.getMessage(),
             is(
                 Strings.format(
@@ -170,13 +169,13 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     public void testXContent_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
         var thrownException = expectThrows(AssertionError.class, () -> new NvidiaEmbeddingsTaskSettings(INPUT_TYPE_INVALID_VALUE, null));
-        MatcherAssert.assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
+        assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
     }
 
     public void testOf_KeepsOriginalValuesWhenRequestSettingsAreEmpty() {
         var taskSettings = new NvidiaEmbeddingsTaskSettings(InputType.INGEST, Truncation.START);
         var overriddenTaskSettings = NvidiaEmbeddingsTaskSettings.of(taskSettings, NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS);
-        MatcherAssert.assertThat(overriddenTaskSettings, is(taskSettings));
+        assertThat(overriddenTaskSettings, is(taskSettings));
     }
 
     public void testOf_UsesRequestTaskSettings() {
@@ -186,7 +185,7 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             new NvidiaEmbeddingsTaskSettings(InputType.INGEST, Truncation.START)
         );
 
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new NvidiaEmbeddingsTaskSettings(InputType.INGEST, Truncation.START)));
+        assertThat(overriddenTaskSettings, is(new NvidiaEmbeddingsTaskSettings(InputType.INGEST, Truncation.START)));
     }
 
     @Override

@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModelTests;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -372,10 +371,10 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         int size = 3;
         assertThat(requestMap.get(INPUT_FIELD_NAME), is(INPUT_VALUE));
         assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
-        assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(expectedInputType));
+        assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), is(expectedInputType));
         if (expectedTruncation != null) {
             size++;
-            assertThat(requestMap.get(TRUNCATE_FIELD_NAME), Matchers.is(expectedTruncation));
+            assertThat(requestMap.get(TRUNCATE_FIELD_NAME), is(expectedTruncation));
         }
         assertThat(requestMap, aMapWithSize(size));
     }
@@ -607,7 +606,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
                 assertThat(requestMap, aMapWithSize(3));
                 assertThat(requestMap.get(INPUT_FIELD_NAME), is(INPUT_VALUE));
                 assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
-                assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(INPUT_TYPE_DEFAULT_NVIDIA_VALUE));
+                assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), is(INPUT_TYPE_DEFAULT_NVIDIA_VALUE));
             }
             {
                 assertThat(webServer.requests().get(1).getUri().getQuery(), is(nullValue()));
@@ -617,7 +616,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
                 assertThat(requestMap, aMapWithSize(3));
                 assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_ENTRY_VALUE.substring(0, 2))));
                 assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
-                assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(INPUT_TYPE_DEFAULT_NVIDIA_VALUE));
+                assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), is(INPUT_TYPE_DEFAULT_NVIDIA_VALUE));
             }
         }
     }
@@ -664,7 +663,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
                 assertThat(firstRequestMap, aMapWithSize(3));
                 assertThat(firstRequestMap.get(INPUT_FIELD_NAME), is(INPUT_VALUE));
                 assertThat(firstRequestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
-                assertThat(firstRequestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(INPUT_TYPE_DEFAULT_NVIDIA_VALUE));
+                assertThat(firstRequestMap.get(INPUT_TYPE_FIELD_NAME), is(INPUT_TYPE_DEFAULT_NVIDIA_VALUE));
             }
             {
                 var secondRequest = webServer.requests().get(1);
@@ -673,7 +672,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
                 assertThat(secondRequestMap, aMapWithSize(3));
                 assertThat(secondRequestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_ENTRY_VALUE.substring(0, 2))));
                 assertThat(secondRequestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
-                assertThat(secondRequestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(INPUT_TYPE_DEFAULT_NVIDIA_VALUE));
+                assertThat(secondRequestMap.get(INPUT_TYPE_FIELD_NAME), is(INPUT_TYPE_DEFAULT_NVIDIA_VALUE));
             }
         }
     }
@@ -715,7 +714,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             assertThat(requestMap, aMapWithSize(3));
             assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_TO_TRUNCATE.substring(0, 3))));
             assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
-            assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(INPUT_TYPE_DEFAULT_NVIDIA_VALUE));
+            assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), is(INPUT_TYPE_DEFAULT_NVIDIA_VALUE));
         }
     }
 

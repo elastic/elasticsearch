@@ -62,13 +62,15 @@ public class ZeroBytesReference extends AbstractBytesReference {
         final byte[] buffer = new byte[Math.min(length, PageCacheRecycler.BYTE_PAGE_SIZE)];
         return new BytesRefIterator() {
             int remaining = length;
+            boolean once = true;
 
             @Override
             public BytesRef next() {
                 if (IntStream.range(0, buffer.length).map(i -> buffer[i]).anyMatch(b -> b != 0)) {
                     throw new AssertionError("Internal pages from ZeroBytesReference must be zero");
                 }
-                if (remaining > 0) {
+                if (remaining > 0 || once) {
+                    once = false;
                     final int nextLength = Math.min(remaining, buffer.length);
                     remaining -= nextLength;
                     return new BytesRef(buffer, 0, nextLength);

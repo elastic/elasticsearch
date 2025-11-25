@@ -44,13 +44,13 @@ final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer 
                 continue;
             }
             switch (fieldProducer) {
-                case MetricFieldProducer.AggregateGaugeMetricFieldProducer producer -> {
+                case NumericMetricFieldProducer.AggregateGaugeMetricFieldProducer producer -> {
                     builder.field("max", producer.max);
                     builder.field("min", producer.min);
                     builder.field("sum", producer.sum.value());
                     builder.field("value_count", producer.count);
                 }
-                case MetricFieldProducer.AggregateSubMetricFieldProducer producer -> {
+                case NumericMetricFieldProducer.AggregateSubMetricFieldProducer producer -> {
                     switch (producer.metric) {
                         case max -> builder.field("max", producer.max);
                         case min -> builder.field("min", producer.min);

@@ -367,11 +367,11 @@ class DownsampleShardIndexer {
             final List<AbstractDownsampleFieldProducer> nonMetricProducers = new ArrayList<>();
             final List<FormattedDocValues> formattedDocValues = new ArrayList<>();
 
-            final List<MetricFieldProducer> metricProducers = new ArrayList<>();
+            final List<NumericMetricFieldProducer> metricProducers = new ArrayList<>();
             final List<SortedNumericDoubleValues> numericDocValues = new ArrayList<>();
             for (var fieldValueFetcher : fieldValueFetchers) {
                 var fieldProducer = fieldValueFetcher.fieldProducer();
-                if (fieldProducer instanceof MetricFieldProducer metricFieldProducer) {
+                if (fieldProducer instanceof NumericMetricFieldProducer metricFieldProducer) {
                     metricProducers.add(metricFieldProducer);
                     numericDocValues.add(fieldValueFetcher.getNumericLeaf(ctx));
                 } else {
@@ -385,7 +385,7 @@ class DownsampleShardIndexer {
                 docCountProvider,
                 nonMetricProducers.toArray(new AbstractDownsampleFieldProducer[0]),
                 formattedDocValues.toArray(new FormattedDocValues[0]),
-                metricProducers.toArray(new MetricFieldProducer[0]),
+                metricProducers.toArray(new NumericMetricFieldProducer[0]),
                 numericDocValues.toArray(new SortedNumericDoubleValues[0])
             );
             leafBucketCollectors.add(leafBucketCollector);
@@ -407,7 +407,7 @@ class DownsampleShardIndexer {
             final FormattedDocValues[] formattedDocValues;
             final AbstractDownsampleFieldProducer[] nonMetricProducers;
 
-            final MetricFieldProducer[] metricProducers;
+            final NumericMetricFieldProducer[] metricProducers;
             final SortedNumericDoubleValues[] numericDocValues;
 
             // Capture the first timestamp in order to determine which leaf collector's leafBulkCollection() is invoked first.
@@ -420,7 +420,7 @@ class DownsampleShardIndexer {
                 DocCountProvider docCountProvider,
                 AbstractDownsampleFieldProducer[] nonMetricProducers,
                 FormattedDocValues[] formattedDocValues,
-                MetricFieldProducer[] metricProducers,
+                NumericMetricFieldProducer[] metricProducers,
                 SortedNumericDoubleValues[] numericDocValues
             ) {
                 assert nonMetricProducers.length == formattedDocValues.length;
@@ -506,7 +506,7 @@ class DownsampleShardIndexer {
                     fieldProducer.collect(docValues, docIdBuffer);
                 }
                 for (int i = 0; i < metricProducers.length; i++) {
-                    MetricFieldProducer metricFieldProducer = metricProducers[i];
+                    NumericMetricFieldProducer metricFieldProducer = metricProducers[i];
                     SortedNumericDoubleValues numericDoubleValues = numericDocValues[i];
                     metricFieldProducer.collect(numericDoubleValues, docIdBuffer);
                 }

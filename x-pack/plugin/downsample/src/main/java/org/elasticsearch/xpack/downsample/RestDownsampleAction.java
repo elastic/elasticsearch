@@ -30,9 +30,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.INTERNAL)
 public class RestDownsampleAction extends BaseRestHandler {
 
-    private final Set<String> CAPABILITIES = Stream.of(
-        "downsample.sampling_mode.last_value",
-    ).filter(Objects::nonNull).collect(Collectors.toSet());
+    private final Set<String> CAPABILITIES = Stream.of("downsample.sampling_mode.last_value")
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet());
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(POST, "/{index}/_downsample/{target_index}"));

@@ -18,20 +18,21 @@ import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleField
 import java.io.IOException;
 
 /**
- * Class that collects all raw values for a metric field and computes its aggregate (downsampled)
+ * Class that collects all raw values for a numeric metric field and computes its aggregate (downsampled)
  * values. Based on the supported metric types, the subclasses of this class compute values for
  * gauge and metric types.
  */
-abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProducer {
+abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleFieldProducer {
 
-    MetricFieldProducer(String name) {
+    NumericMetricFieldProducer(String name) {
         super(name);
     }
 
     @Override
     public void collect(FormattedDocValues docValues, IntArrayList buffer) throws IOException {
-        assert false : "MetricFieldProducer does not support formatted doc values";
-        throw new UnsupportedOperationException();
+        String errorMessage = "MetricFieldProducer does not support formatted doc values";
+        assert false : errorMessage;
+        throw new UnsupportedOperationException(errorMessage);
     }
 
     public abstract void collect(SortedNumericDoubleValues docValues, IntArrayList buffer) throws IOException;
@@ -47,9 +48,9 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
     static final double MIN_NO_VALUE = Double.MAX_VALUE;
 
     /**
-     * {@link MetricFieldProducer} implementation for creating an aggregate gauge metric field
+     * {@link NumericMetricFieldProducer} implementation for creating an aggregate gauge metric field
      */
-    static final class AggregateGaugeMetricFieldProducer extends MetricFieldProducer {
+    static final class AggregateGaugeMetricFieldProducer extends NumericMetricFieldProducer {
 
         double max = MAX_NO_VALUE;
         double min = MIN_NO_VALUE;
@@ -102,7 +103,7 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
     }
 
     // For downsampling downsampled indices:
-    static final class AggregateSubMetricFieldProducer extends MetricFieldProducer {
+    static final class AggregateSubMetricFieldProducer extends NumericMetricFieldProducer {
 
         final AggregateMetricDoubleFieldMapper.Metric metric;
 

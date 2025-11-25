@@ -212,7 +212,6 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
             vector,
             10,
             10,
-            10f,
             null,
             0.85f
         );

@@ -473,15 +473,19 @@ public class ReverseNestedIT extends ESIntegTestCase {
     public void testNonExistingNestedField() throws Exception {
         assertNoFailuresAndResponse(
             prepareSearch("idx2").setQuery(matchAllQuery())
-                .addAggregation(nested("nested2", "nested1.nested2").subAggregation(reverseNested("incorrect").path("nested3"))),
+                .addAggregation(nested("nested2", "nested1.nested2"))
+                .addAggregation(nested("incorrect", "nested1.incorrect")),
             response -> {
 
                 Nested nested = response.getAggregations().get("nested2");
                 assertThat(nested, notNullValue());
                 assertThat(nested.getName(), equalTo("nested2"));
+                assertThat(nested.getDocCount(), is(27L));
 
-                ReverseNested reverseNested = nested.getAggregations().get("incorrect");
-                assertThat(reverseNested.getDocCount(), is(0L));
+                Nested incorrect = response.getAggregations().get("incorrect");
+                assertThat(incorrect, notNullValue());
+                assertThat(incorrect.getName(), equalTo("incorrect"));
+                assertThat(incorrect.getDocCount(), is(0L));
             }
         );
 

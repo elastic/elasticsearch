@@ -82,6 +82,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     private static final String ENABLE_DEBUG_JVM_ARGS = "-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=";
     private static final String ENTITLEMENT_POLICY_YAML = "entitlement-policy.yaml";
     private static final String PLUGIN_DESCRIPTOR_PROPERTIES = "plugin-descriptor.properties";
+    public static final String FIRST_DISTRO_WITH_JDK_21 = "8.11.0";
 
     private final DistributionResolver distributionResolver;
 
@@ -441,12 +442,17 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
                 // Patch jvm.options file to update paths
                 String content = Files.readString(jvmOptionsFile);
-                Map<String, String> expansions = getJvmOptionsReplacements();
-                for (String key : expansions.keySet()) {
+                Map<ReplacementKey, String> expansions = getJvmOptionsReplacements();
+                for (var entry : expansions.entrySet()) {
+                    ReplacementKey replacement = entry.getKey();
+                    String key = replacement.key();
                     if (content.contains(key) == false) {
-                        throw new IOException("Template property '" + key + "' not found in template.");
+                        key = replacement.fallback();
+                        if (content.contains(key) == false) {
+                            throw new IOException("Template property '" + replacement + "' not found in template.");
+                        }
                     }
-                    content = content.replace(key, expansions.get(key));
+                    content = content.replace(key, entry.getValue());
                 }
                 Files.writeString(jvmOptionsFile, content);
             } catch (IOException e) {
@@ -862,6 +868,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private Map<String, String> getEnvironmentVariables() {
             Map<String, String> environment = new HashMap<>(spec.resolveEnvironment());
+            String esFallbackJavaHome = System.getenv("ES_FALLBACK_JAVA_HOME");
+            if (jdkIsIncompatible(spec.getVersion()) && esFallbackJavaHome != null && esFallbackJavaHome.isEmpty() == false) {
+                environment.put("ES_JAVA_HOME", esFallbackJavaHome);
+            }
             environment.put("ES_PATH_CONF", configDir.toString());
             environment.put("ES_TMPDIR", workingDir.resolve("tmp").toString());
             // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
@@ -912,15 +922,47 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             return environment;
         }
 
-        private Map<String, String> getJvmOptionsReplacements() {
-            return Map.of(
-                "-XX:HeapDumpPath=data",
-                "-XX:HeapDumpPath=" + logsDir,
-                "logs/gc.log",
-                logsDir.resolve("gc.log").toString(),
-                "-XX:ErrorFile=logs/hs_err_pid%p.log",
-                "-XX:ErrorFile=" + logsDir.resolve("hs_err_pid%p.log")
-            );
+        private boolean jdkIsIncompatible(Version version) {
+            return version.after("0.0.0") && version.before(FIRST_DISTRO_WITH_JDK_21);
+        }
+
+        private record ReplacementKey(String key, String fallback) {
+            ReplacementKey {
+                assert fallback == null || fallback.isEmpty() == false; // no empty fallback, which would match anything
+            }
+        }
+
+        private Map<ReplacementKey, String> getJvmOptionsReplacements() {
+            var expansions = new HashMap<ReplacementKey, String>();
+            var version = spec.getVersion();
+
+            ReplacementKey heapDumpPathSub;
+            if (version.before("8.19.0") && version.onOrAfter("6.3.0")) {
+                heapDumpPathSub = new ReplacementKey("-XX:HeapDumpPath=data", null);
+            } else {
+                // temporarily fall back to the old substitution so both old and new work during backport
+                heapDumpPathSub = new ReplacementKey("# -XX:HeapDumpPath=/heap/dump/path", "-XX:HeapDumpPath=data");
+            }
+            expansions.put(heapDumpPathSub, "-XX:HeapDumpPath=" + logsDir);
+
+            ReplacementKey gcLogSub;
+            if (version.before("8.19.0") && version.onOrAfter("6.2.0")) {
+                gcLogSub = new ReplacementKey("logs/gc.log", null);
+            } else {
+                // temporarily check the old substitution first so both old and new work during backport
+                gcLogSub = new ReplacementKey("logs/gc.log", "gc.log");
+            }
+            expansions.put(gcLogSub, logsDir.resolve("gc.log").toString());
+
+            ReplacementKey errorFileSub;
+            if (version.before("8.19.0") && version.getMajor() >= 7) {
+                errorFileSub = new ReplacementKey("-XX:ErrorFile=logs/hs_err_pid%p.log", null);
+            } else {
+                // temporarily check the old substitution first so both old and new work during backport
+                errorFileSub = new ReplacementKey("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=hs_err_pid%p.log");
+            }
+            expansions.put(errorFileSub, "-XX:ErrorFile=" + logsDir.resolve("hs_err_pid%p.log"));
+            return expansions;
         }
 
         private void runToolScript(String tool, String input, String... args) {

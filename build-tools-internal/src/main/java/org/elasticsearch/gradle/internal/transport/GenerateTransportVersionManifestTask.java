@@ -10,37 +10,51 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import org.gradle.api.DefaultTask;
-import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.provider.Property;
+import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.InputDirectory;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 
 public abstract class GenerateTransportVersionManifestTask extends DefaultTask {
+
+    @ServiceReference("transportVersionResources")
+    abstract Property<TransportVersionResourcesService> getTransportResources();
+
     @InputDirectory
-    public abstract DirectoryProperty getDefinitionsDirectory();
+    @Optional
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public Path getDefinitionsDirectory() {
+        return getTransportResources().get().getDefinitionsDir();
+    }
 
     @OutputFile
     public abstract RegularFileProperty getManifestFile();
 
     @TaskAction
     public void generateTransportVersionManifest() throws IOException {
-        Path constantsDir = getDefinitionsDirectory().get().getAsFile().toPath();
+        Path definitionsDir = getDefinitionsDirectory();
         Path manifestFile = getManifestFile().get().getAsFile().toPath();
         try (var writer = Files.newBufferedWriter(manifestFile)) {
-            try (var stream = Files.list(constantsDir)) {
-                for (String filename : stream.map(p -> p.getFileName().toString()).toList()) {
-                    if (filename.equals(manifestFile.getFileName().toString())) {
-                        // don't list self
-                        continue;
-                    }
-                    writer.write(filename + "\n");
+            Files.walkFileTree(definitionsDir, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path path, BasicFileAttributes attrs) throws IOException {
+                    String subPath = definitionsDir.relativize(path).toString().replace('\\', '/');
+                    writer.write(subPath + "\n");
+                    return FileVisitResult.CONTINUE;
                 }
-            }
+            });
         }
     }
 }

@@ -1,0 +1,77 @@
+[[release-notes-8.19.7]]
+== {es} version 8.19.7
+
+coming[8.19.7]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.7]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Reject invalid `reverse_nested` aggs {es-pull}137047[#137047]
+
+Authorization::
+* Grants `kibana_system` the ability to forcemerge certain indices {es-pull}135795[#135795]
+* Handle ._original stored fields with fls {es-pull}137442[#137442]
+
+ES|QL::
+* Fix `ReplaceAliasingEvalWithProject` in case of shadowing {es-pull}137025[#137025] (issue: {es-issue}137019[#137019])
+
+Geo::
+* Fix `ignore_unmapped` setting when using `geo_shape` query with a pre-indexed shape {es-pull}136961[#136961] (issue: {es-issue}136954[#136954])
+
+Indices APIs::
+* Fix mapping conflicts in clone/split/shrink APIs {es-pull}137096[#137096]
+* Reindex-from-remote: Fail on manual slicing param {es-pull}137275[#137275] (issue: {es-issue}136269[#136269])
+
+Infra/Node Lifecycle::
+* Start readiness service after http is started {es-pull}136729[#136729]
+
+Ingest Node::
+* Improve concurrency design of `EnterpriseGeoIpDownloader` {es-pull}134223[#134223] (issue: {es-issue}126124[#126124])
+
+Machine Learning::
+* Do not create inference endpoint if ID is used in existing mappings {es-pull}137055[#137055] (issue: {es-issue}124272[#124272])
+* Fix NPE when `date_buckets` aggregation is missing in the response {es-pull}128974[#128974]
+* Perform query field validation for rerank task type {es-pull}137219[#137219]
+
+Mapping::
+* Fix dropped ignore above fields {es-pull}137394[#137394] (issue: {es-issue}137360[#137360])
+* Fixed geo point block loader slowness {es-pull}136147[#136147]
+
+Recovery::
+* Catch exceptions from `mapperService` in `StoreRecovery.recoverFromLocalShards` {es-pull}137077[#137077]
+
+Search::
+* [LTR] Fix feature display order when using explain {es-pull}137671[#137671]
+
+Security::
+* Configurable HTTP read and connect timeouts for url based SAML metadata resolution {es-pull}136058[#136058]
+
+Transform::
+* Handle missing geotile buckets {es-pull}137476[#137476] (issue: {es-issue}126591[#126591])
+
+[[enhancement-8.19.7]]
+[float]
+=== Enhancements
+
+Authorization::
+* [Cyera] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` {es-pull}134894[#134894] (issue: {es-issue}134183[#134183])
+* [Sentinel One] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third-party agent indices in the `Kibana system` to support the threat event data stream. {es-pull}137222[#137222] (issue: {es-issue}240901[#240901])
+
+Infra/Plugins::
+* Error if installed plugin is inside plugins folder {es-pull}137398[#137398] (issue: {es-issue}27401[#27401])
+
+[[upgrade-8.19.7]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Upgrade ASM to 9.9 {es-pull}136963[#136963]
+
+Packaging::
+* Update bundled JDK to Java 25.0.1+8 {es-pull}137640[#137640]
+
+

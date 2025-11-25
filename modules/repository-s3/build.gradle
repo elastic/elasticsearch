@@ -10,6 +10,11 @@ import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -90,7 +95,7 @@ restResources {
   }
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: 'annotations',              to: 'aws-sdk-2'
   mapping from: 'apache-client',            to: 'aws-sdk-2'
   mapping from: 'arns',                     to: 'aws-sdk-2'

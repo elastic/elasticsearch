@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
@@ -65,6 +64,11 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  * and executing these computes on the data nodes.
  */
 final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRequest> {
+
+    private static final TransportVersion ESQL_RETRY_ON_SHARD_LEVEL_FAILURE = TransportVersion.fromName(
+        "esql_retry_on_shard_level_failure"
+    );
+
     private final ComputeService computeService;
     private final ClusterService clusterService;
     private final SearchService searchService;
@@ -502,6 +506,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     }
 
     static boolean supportShardLevelRetryFailure(TransportVersion transportVersion) {
-        return transportVersion.onOrAfter(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE_BACKPORT_8_19);
+        return transportVersion.supports(ESQL_RETRY_ON_SHARD_LEVEL_FAILURE);
     }
 }

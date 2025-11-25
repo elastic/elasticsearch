@@ -93,7 +93,7 @@ public class TypeParsersTests extends ESTestCase {
             type -> typeParser,
             type -> null,
             olderVersion,
-            () -> TransportVersions.MINIMUM_COMPATIBLE,
+            () -> TransportVersion.minimumCompatible(),
             null,
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),

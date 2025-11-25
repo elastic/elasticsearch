@@ -11,7 +11,6 @@ import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointResponse;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -60,6 +59,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSim
 public class ElasticTextEmbeddingPayload implements ElasticPayload {
     private static final EnumSet<TaskType> SUPPORTED_TASKS = EnumSet.of(TaskType.TEXT_EMBEDDING);
     private static final ParseField EMBEDDING = new ParseField("embedding");
+
+    private static final TransportVersion ML_INFERENCE_SAGEMAKER_ELASTIC = TransportVersion.fromName("ml_inference_sagemaker_elastic");
 
     @Override
     public EnumSet<TaskType> supportedTasks() {
@@ -250,7 +251,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ML_INFERENCE_SAGEMAKER_ELASTIC_8_19;
+            return ML_INFERENCE_SAGEMAKER_ELASTIC;
         }
 
         @Override

@@ -58,7 +58,7 @@ class CliToolLauncher {
         String toolname = getToolName(pinfo.sysprops());
         String libs = pinfo.sysprops().getOrDefault("cli.libs", "");
 
-        command = CliToolProvider.load(toolname, libs).create();
+        command = CliToolProvider.load(pinfo.sysprops(), toolname, libs).create();
         Terminal terminal = Terminal.DEFAULT;
         Runtime.getRuntime().addShutdownHook(createShutdownHook(terminal, command));
 

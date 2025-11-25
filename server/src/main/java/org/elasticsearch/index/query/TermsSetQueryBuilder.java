@@ -481,6 +481,6 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

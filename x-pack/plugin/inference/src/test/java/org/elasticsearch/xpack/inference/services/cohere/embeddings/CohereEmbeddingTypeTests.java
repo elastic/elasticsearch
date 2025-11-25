@@ -15,6 +15,11 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.is;
 
 public class CohereEmbeddingTypeTests extends ESTestCase {
+
+    private static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = TransportVersion.fromName(
+        "cohere_bit_embedding_type_support_added"
+    );
+
     public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeByteEnumAddition_WhenSpecifyingByte() {
         assertThat(
             CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BYTE, new TransportVersion(8_613_00_0)),
@@ -57,22 +62,16 @@ public class CohereEmbeddingTypeTests extends ESTestCase {
         );
     }
 
-    public void testTranslateToVersion_ReturnsBit_WhenVersionOnBitEnumAddition_WhenSpecifyingBit() {
+    public void testTranslateToVersion_ReturnsBit_WhenVersionOnBitEnumAdditionPatch_WhenSpecifyingBit() {
         assertThat(
-            CohereEmbeddingType.translateToVersion(
-                CohereEmbeddingType.BIT,
-                TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X
-            ),
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED),
             is(CohereEmbeddingType.BIT)
         );
     }
 
     public void testTranslateToVersion_ReturnsFloat_WhenVersionOnBitEnumAddition_WhenSpecifyingFloat() {
         assertThat(
-            CohereEmbeddingType.translateToVersion(
-                CohereEmbeddingType.FLOAT,
-                TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X
-            ),
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.FLOAT, COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED),
             is(CohereEmbeddingType.FLOAT)
         );
     }

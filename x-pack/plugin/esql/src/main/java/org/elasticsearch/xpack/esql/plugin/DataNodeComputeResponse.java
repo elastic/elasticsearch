@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -18,12 +19,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
-
 /**
  * The compute result of {@link DataNodeRequest}
  */
 final class DataNodeComputeResponse extends TransportResponse {
+
+    private static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = TransportVersion.fromName(
+        "esql_documents_found_and_values_loaded"
+    );
+
     private final DriverCompletionInfo completionInfo;
     private final Map<ShardId, Exception> shardLevelFailures;
 
@@ -33,7 +37,7 @@ final class DataNodeComputeResponse extends TransportResponse {
     }
 
     DataNodeComputeResponse(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19)) {
+        if (in.getTransportVersion().supports(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
             this.completionInfo = DriverCompletionInfo.readFrom(in);
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
             return;
@@ -49,7 +53,7 @@ final class DataNodeComputeResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19)) {
+        if (out.getTransportVersion().supports(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
             completionInfo.writeTo(out);
             out.writeMap(shardLevelFailures, (o, v) -> v.writeTo(o), StreamOutput::writeException);
             return;

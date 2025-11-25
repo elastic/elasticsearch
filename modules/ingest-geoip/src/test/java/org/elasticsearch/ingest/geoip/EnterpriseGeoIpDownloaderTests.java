@@ -518,6 +518,84 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Tests that if an exception is thrown while {@link EnterpriseGeoIpDownloader#runOnDemand()} is running subsequent calls still proceed.
+     * This ensures that the "lock" mechanism used to prevent concurrent runs is released properly.
+     */
+    public void testRequestRunOnDemandReleasesLock() throws Exception {
+        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()));
+        when(clusterService.state()).thenReturn(state);
+        // Track the number of calls to runDownloader.
+        AtomicInteger calls = new AtomicInteger();
+        // Create a GeoIpDownloader that throws an exception on the first call to runDownloader.
+        geoIpDownloader = new EnterpriseGeoIpDownloader(
+            client,
+            httpClient,
+            clusterService,
+            threadPool,
+            1,
+            "",
+            "",
+            "",
+            EMPTY_TASK_ID,
+            Map.of(),
+            () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
+            (type) -> "password".toCharArray()
+        ) {
+            @Override
+            synchronized void runDownloader() {
+                if (calls.incrementAndGet() == 1) {
+                    throw new RuntimeException("test exception");
+                }
+                super.runDownloader();
+            }
+        };
+        geoIpDownloader.setState(EnterpriseGeoIpTaskState.EMPTY);
+        geoIpDownloader.requestRunOnDemand();
+        assertBusy(() -> assertEquals(1, calls.get()));
+        geoIpDownloader.requestRunOnDemand();
+        assertBusy(() -> assertEquals(2, calls.get()));
+    }
+
+    /**
+     * Tests that if an exception is thrown while {@link EnterpriseGeoIpDownloader#runPeriodic()} is running subsequent calls still proceed.
+     * This ensures that the "lock" mechanism used to prevent concurrent runs is released properly.
+     */
+    public void testRestartPeriodicRunReleasesLock() throws Exception {
+        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()));
+        when(clusterService.state()).thenReturn(state);
+        // Track the number of calls to runDownloader.
+        AtomicInteger calls = new AtomicInteger();
+        // Create a GeoIpDownloader that throws an exception on the first call to runDownloader.
+        geoIpDownloader = new EnterpriseGeoIpDownloader(
+            client,
+            httpClient,
+            clusterService,
+            threadPool,
+            1,
+            "",
+            "",
+            "",
+            EMPTY_TASK_ID,
+            Map.of(),
+            () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
+            (type) -> "password".toCharArray()
+        ) {
+            @Override
+            synchronized void runDownloader() {
+                if (calls.incrementAndGet() == 1) {
+                    throw new RuntimeException("test exception");
+                }
+                super.runDownloader();
+            }
+        };
+        geoIpDownloader.setState(EnterpriseGeoIpTaskState.EMPTY);
+        geoIpDownloader.restartPeriodicRun();
+        assertBusy(() -> assertEquals(1, calls.get()));
+        geoIpDownloader.restartPeriodicRun();
+        assertBusy(() -> assertEquals(2, calls.get()));
+    }
+
     private static class MockClient extends NoOpClient {
 
         private final Map<ActionType<?>, BiConsumer<? extends ActionRequest, ? extends ActionListener<?>>> handlers = new HashMap<>();

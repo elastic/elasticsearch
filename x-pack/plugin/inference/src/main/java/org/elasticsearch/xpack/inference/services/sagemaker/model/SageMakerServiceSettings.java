@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.sagemaker.model;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -58,6 +57,7 @@ record SageMakerServiceSettings(
     private static final String TARGET_CONTAINER_HOSTNAME = "target_container_hostname";
     private static final String INFERENCE_COMPONENT_NAME = "inference_component_name";
     private static final String BATCH_SIZE = "batch_size";
+    private static final TransportVersion ML_INFERENCE_SAGEMAKER = TransportVersion.fromName("ml_inference_sagemaker");
 
     SageMakerServiceSettings {
         Objects.requireNonNull(endpointName);
@@ -111,7 +111,7 @@ record SageMakerServiceSettings(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_SAGEMAKER_8_19;
+        return ML_INFERENCE_SAGEMAKER;
     }
 
     @Override

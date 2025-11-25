@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -34,6 +35,8 @@ import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
 public class Configuration implements Writeable {
 
     public static final int QUERY_COMPRESS_THRESHOLD_CHARS = KB.toIntBytes(5);
+
+    private static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS = TransportVersion.fromName("esql_support_partial_results");
 
     private final String clusterName;
     private final String username;
@@ -110,7 +113,7 @@ public class Configuration implements Writeable {
         } else {
             this.queryStartTimeNanos = -1;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19)) {
+        if (in.getTransportVersion().supports(ESQL_SUPPORT_PARTIAL_RESULTS)) {
             this.allowPartialResults = in.readBoolean();
         } else {
             this.allowPartialResults = false;
@@ -139,7 +142,7 @@ public class Configuration implements Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeLong(queryStartTimeNanos);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19)) {
+        if (out.getTransportVersion().supports(ESQL_SUPPORT_PARTIAL_RESULTS)) {
             out.writeBoolean(allowPartialResults);
         }
     }

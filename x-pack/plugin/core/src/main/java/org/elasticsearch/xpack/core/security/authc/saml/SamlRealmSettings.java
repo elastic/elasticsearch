@@ -63,6 +63,18 @@ public class SamlRealmSettings {
         key -> Setting.boolSetting(key, false, Setting.Property.NodeScope)
     );
 
+    public static final Setting.AffixSetting<TimeValue> IDP_METADATA_HTTP_CONNECT_TIMEOUT = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        IDP_METADATA_SETTING_PREFIX + "http.connect_timeout",
+        key -> Setting.timeSetting(key, TimeValue.timeValueSeconds(5), Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<TimeValue> IDP_METADATA_HTTP_READ_TIMEOUT = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        IDP_METADATA_SETTING_PREFIX + "http.read_timeout",
+        key -> Setting.timeSetting(key, TimeValue.timeValueSeconds(10), Setting.Property.NodeScope)
+    );
+
     public static final Setting.AffixSetting<Boolean> IDP_SINGLE_LOGOUT = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "idp.use_single_logout",
@@ -200,6 +212,8 @@ public class SamlRealmSettings {
             IDP_METADATA_HTTP_REFRESH,
             IDP_METADATA_HTTP_MIN_REFRESH,
             IDP_METADATA_HTTP_FAIL_ON_ERROR,
+            IDP_METADATA_HTTP_CONNECT_TIMEOUT,
+            IDP_METADATA_HTTP_READ_TIMEOUT,
             IDP_SINGLE_LOGOUT,
             SP_ENTITY_ID,
             SP_ACS,

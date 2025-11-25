@@ -1710,10 +1710,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
-            SnapshotsService.class,
+            SnapshotsServiceUtils.class,
             new MockLog.SeenEventExpectation(
                 "INFO log",
-                SnapshotsService.class.getCanonicalName(),
+                SnapshotsServiceUtils.class.getCanonicalName(),
                 Level.INFO,
                 "*failed to create snapshot*the following indices have unassigned primary shards*"
             )
@@ -1781,16 +1781,16 @@ public class SnapshotResiliencyTests extends ESTestCase {
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
-            SnapshotsService.class,
+            SnapshotsServiceUtils.class,
             new MockLog.SeenEventExpectation(
-                "INFO log",
-                SnapshotsService.class.getCanonicalName(),
+                "failed create snapshot INFO log",
+                SnapshotsServiceUtils.class.getCanonicalName(),
                 Level.INFO,
                 Strings.format("*failed to create snapshot*%s", expectedMessage)
             ),
             new MockLog.SeenEventExpectation(
-                "INFO log",
-                SnapshotsService.class.getCanonicalName(),
+                "failed clone snapshot INFO log",
+                SnapshotsServiceUtils.class.getCanonicalName(),
                 Level.INFO,
                 Strings.format("*failed to clone snapshot*%s", expectedMessage)
             )
@@ -1840,10 +1840,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
-            SnapshotsService.class,
+            SnapshotsServiceUtils.class,
             new MockLog.SeenEventExpectation(
                 "INFO log",
-                SnapshotsService.class.getCanonicalName(),
+                SnapshotsServiceUtils.class.getCanonicalName(),
                 Level.INFO,
                 Strings.format("failed to create snapshot: no such index [%s]", indexName)
             )
@@ -1892,10 +1892,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
-            SnapshotsService.class,
+            SnapshotsServiceUtils.class,
             new MockLog.SeenEventExpectation(
                 "INFO log",
-                SnapshotsService.class.getCanonicalName(),
+                SnapshotsServiceUtils.class.getCanonicalName(),
                 Level.INFO,
                 Strings.format("*failed to create snapshot*other feature states were requested: [none, none]", "")
             )

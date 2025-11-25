@@ -75,6 +75,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     private static final Logger LOGGER = LogManager.getLogger(DataStream.class);
 
+    private static final TransportVersion SETTINGS_IN_DATA_STREAMS = TransportVersion.fromName("settings_in_data_streams");
+
     public static final NodeFeature DATA_STREAM_FAILURE_STORE_FEATURE = new NodeFeature("data_stream.failure_store");
     public static final boolean LOGS_STREAM_FEATURE_FLAG = new FeatureFlag("logs_stream").isEnabled();
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
@@ -191,7 +193,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             lifecycle,
             dataStreamOptions,
             new DataStreamIndices(BACKING_INDEX_PREFIX, List.copyOf(indices), rolloverOnWrite, autoShardingEvent),
-            new DataStreamIndices(FAILURE_STORE_PREFIX, List.copyOf(failureIndices), false, null)
+            new DataStreamIndices(
+                FAILURE_STORE_PREFIX,
+                List.copyOf(failureIndices),
+                (replicated == false && failureIndices.isEmpty()),
+                null
+            )
         );
     }
 
@@ -260,8 +267,15 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             backingIndicesBuilder.setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            failureIndicesBuilder.setRolloverOnWrite(in.readBoolean())
+            // Read the rollover on write flag from the stream, but force it on if the failure indices are empty and we're not replicating
+            boolean failureStoreRolloverOnWrite = in.readBoolean() || (replicated == false && failureIndices.isEmpty());
+            failureIndicesBuilder.setRolloverOnWrite(failureStoreRolloverOnWrite)
                 .setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
+        } else {
+            // If we are reading from an older version that does not have these fields, just default
+            // to a reasonable value for rollover on write for the failure store
+            boolean failureStoreRolloverOnWrite = replicated == false && failureIndices.isEmpty();
+            failureIndicesBuilder.setRolloverOnWrite(failureStoreRolloverOnWrite);
         }
         DataStreamOptions dataStreamOptions;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
@@ -272,7 +286,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             dataStreamOptions = failureStoreEnabled ? DataStreamOptions.FAILURE_STORE_ENABLED : null;
         }
         final Settings settings;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
+        if (in.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {
             settings = Settings.readSettingsFromStream(in);
         } else {
             settings = Settings.EMPTY;
@@ -1320,7 +1334,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getTransportVersion().onOrAfter(DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
             out.writeOptionalWriteable(dataStreamOptions.isEmpty() ? null : dataStreamOptions);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
+        if (out.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {
             settings.writeTo(out);
         }
     }
@@ -1371,7 +1385,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             new DataStreamIndices(
                 FAILURE_STORE_PREFIX,
                 args[13] != null ? (List<Index>) args[13] : List.of(),
-                args[14] != null && (boolean) args[14],
+                // If replicated (args[5]) is null or exists and is false, and the failure index list (args[13]) is null or
+                // exists and is empty, then force the rollover on write field to true. If none of those conditions are met,
+                // then use the rollover on write value (args[14]) present in the parser.
+                ((args[5] == null || ((boolean) args[5] == false)) && (args[13] == null || ((List<Index>) args[13]).isEmpty()))
+                    || (args[14] != null && (boolean) args[14]),
                 (DataStreamAutoShardingEvent) args[15]
             )
         )

@@ -447,6 +447,34 @@ setup:
   - not_exists: fields.dense_field.inference.chunks.text
   - not_exists: fields.dense_field.inference.chunks
   - not_exists: fields.dense_field.inference
+
+---
+"Field caps with semantic query does not fail":
+  - requires:
+      cluster_features: "semantic_query.filter_field_caps_fix"
+      reason: "fixed bug with semantic query filtering in field_caps (#116106)"
+  # We need at least one document present to exercise can-match phase
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      field_caps:
+        index: test-index
+        fields: "*"
+        body:
+          index_filter:
+            semantic:
+              field: "sparse_field"
+              query: "test"
+
+  - match: { indices: [ "test-index" ] }
+  - match: { fields.sparse_field.text.searchable: true }
+
 ---
 "Users can set dense vector index options and index documents using those options":
   - requires:

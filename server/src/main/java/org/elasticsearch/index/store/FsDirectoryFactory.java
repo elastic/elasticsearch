@@ -27,6 +27,8 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
@@ -35,7 +37,24 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.apache.lucene.store.MMapDirectory.SHARED_ARENA_MAX_PERMITS_SYSPROP;
+
 public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
+    private static final Logger Log = LogManager.getLogger(FsDirectoryFactory.class);
+
+    private static final int sharedArenaMaxPermits;
+    static {
+        String prop = System.getProperty(SHARED_ARENA_MAX_PERMITS_SYSPROP);
+        int value = 1;
+        if (prop != null) {
+            try {
+                value = Integer.parseInt(prop); // ensure it's a valid integer
+            } catch (NumberFormatException e) {
+                Log.warn(() -> "unable to parse system property [" + SHARED_ARENA_MAX_PERMITS_SYSPROP + "] with value [" + prop + "]", e);
+            }
+        }
+        sharedArenaMaxPermits = value; // default to 1
+    }
 
     private static final FeatureFlag MADV_RANDOM_FEATURE_FLAG = new FeatureFlag("madv_random");
 
@@ -70,6 +89,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 if (primaryDirectory instanceof MMapDirectory mMapDirectory) {
+                    mMapDirectory = adjustSharedArenaGrouping(mMapDirectory);
                     Directory dir = new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions));
                     if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
                         dir = disableRandomAdvice(dir);
@@ -79,7 +99,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                     return primaryDirectory;
                 }
             case MMAPFS:
-                Directory dir = setPreload(new MMapDirectory(location, lockFactory), lockFactory, preLoadExtensions);
+                MMapDirectory mMapDirectory = adjustSharedArenaGrouping(new MMapDirectory(location, lockFactory));
+                Directory dir = setPreload(mMapDirectory, lockFactory, preLoadExtensions);
                 if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
                     dir = disableRandomAdvice(dir);
                 }
@@ -101,6 +122,13 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             } else {
                 return new PreLoadMMapDirectory(mMapDirectory, lockFactory, preLoadExtensions);
             }
+        }
+        return mMapDirectory;
+    }
+
+    public MMapDirectory adjustSharedArenaGrouping(MMapDirectory mMapDirectory) {
+        if (sharedArenaMaxPermits <= 1) {
+            mMapDirectory.setGroupingFunction(MMapDirectory.NO_GROUPING);
         }
         return mMapDirectory;
     }
@@ -187,7 +215,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
 
         /**
-         * Force not using mmap if file is tmp fdt file.
+         * Force not using mmap if file is a tmp fdt, disi or address-data file.
          * The tmp fdt file only gets created when flushing stored
          * fields to disk and index sorting is active.
          * <p>
@@ -210,12 +238,16 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
          * mmap-ing that should still be ok even is memory is scarce.
          * The fdt file is large and tends to cause more page faults when memory is scarce.
          *
+         * For disi and address-data files, in es819 tsdb doc values codec, docids and offsets are first written to a tmp file and
+         * read and written into new segment.
+         *
          * @param name      The name of the file in Lucene index
          * @param extension The extension of the in Lucene index
          * @return whether to avoid using delegate if the file is a tmp fdt file.
          */
         static boolean avoidDelegateForFdtTempFiles(String name, LuceneFilesExtensions extension) {
-            return extension == LuceneFilesExtensions.TMP && name.contains("fdt");
+            return extension == LuceneFilesExtensions.TMP
+                && (name.contains("fdt") || name.contains("disi") || name.contains("address-data"));
         }
 
         MMapDirectory getDelegate() {

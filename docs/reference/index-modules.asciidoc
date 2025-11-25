@@ -378,6 +378,10 @@ pipeline attempts to change the `_index` field, the indexing request will fail.
     per request through the use of the `expand_wildcards` parameter. Possible values are
     `true` and `false` (default).
 
+[[index-esql-stored-fields-sequential-proportion]] `index.esql.stored_fields_sequential_proportion`::
+
+    Tuning parameter for deciding when ES|QL will load <<search-fields-request,stored fields>> using a strategy tuned for loading dense sequence of documents. Allows values between 0.0 and 1.0 and defaults to 0.2. Indices with documents smaller than 10kb may see speed improvements loading `text` fields by setting this lower.
+
 [discrete]
 === Settings in other index modules
 

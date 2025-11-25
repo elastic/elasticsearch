@@ -22,6 +22,9 @@ public class FilterPath {
     private static final String WILDCARD = "*";
     private static final String DOUBLE_WILDCARD = "**";
 
+    // This is ridiculously large, but we can be 100% certain that if any filter tries to exceed this depth then it is a mistake
+    static final int MAX_TREE_DEPTH = 500;
+
     private final Map<String, FilterPath> termsChildren;
     private final FilterPath[] wildcardChildren;
     private final String pattern;
@@ -132,6 +135,7 @@ public class FilterPath {
     }
 
     private static class FilterPathBuilder {
+
         private static class BuildNode {
             private final Map<String, BuildNode> children;
             private final boolean isFinalNode;
@@ -145,14 +149,19 @@ public class FilterPath {
         private final BuildNode root = new BuildNode(false);
 
         void insert(String filter) {
-            insertNode(filter, root);
+            insertNode(filter, root, 0);
         }
 
         FilterPath build() {
             return buildPath("", root);
         }
 
-        static void insertNode(String filter, BuildNode node) {
+        static void insertNode(String filter, BuildNode node, int depth) {
+            if (depth > MAX_TREE_DEPTH) {
+                throw new IllegalArgumentException(
+                    "Filter exceeds maximum depth at [" + (filter.length() > 100 ? filter.substring(0, 100) : filter) + "]"
+                );
+            }
             int end = filter.length();
             int splitPosition = -1;
             boolean findEscapes = false;
@@ -171,7 +180,7 @@ public class FilterPath {
                 String field = findEscapes ? filter.substring(0, splitPosition).replace("\\.", ".") : filter.substring(0, splitPosition);
                 BuildNode child = node.children.computeIfAbsent(field, f -> new BuildNode(false));
                 if (false == child.isFinalNode) {
-                    insertNode(filter.substring(splitPosition + 1), child);
+                    insertNode(filter.substring(splitPosition + 1), child, depth + 1);
                 }
             } else {
                 String field = findEscapes ? filter.replace("\\.", ".") : filter;

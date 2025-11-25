@@ -46,6 +46,9 @@ public interface PainlessScript {
      * @return The generated ScriptException.
      */
     default ScriptException convertToScriptException(Throwable t, Map<String, List<String>> extraMetadata) {
+        if (t instanceof PainlessWrappedException) {
+            t = t.getCause();
+        }
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
         ScriptException.Position pos = null;

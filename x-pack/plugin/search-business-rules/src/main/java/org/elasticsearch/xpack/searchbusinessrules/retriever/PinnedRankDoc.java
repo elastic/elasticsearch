@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchbusinessrules.retriever;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankDoc;
@@ -19,6 +18,7 @@ import java.util.Objects;
 
 public class PinnedRankDoc extends RankDoc {
     public static final String NAME = "pinned_rank_doc";
+    private static final TransportVersion PINNED_RETRIEVER = TransportVersion.fromName("pinned_retriever");
 
     private final boolean isPinned;
 
@@ -76,6 +76,6 @@ public class PinnedRankDoc extends RankDoc {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.PINNED_RETRIEVER_8_19;
+        return PINNED_RETRIEVER;
     }
 }

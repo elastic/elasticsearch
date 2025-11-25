@@ -275,6 +275,7 @@ public class ClusterStateTests extends ESTestCase {
                             "indices": {
                               "index": {
                                 "version": 1,
+                                "transport_version" : "0",
                                 "mapping_version": 1,
                                 "settings_version": 1,
                                 "aliases_version": 1,
@@ -549,6 +550,7 @@ public class ClusterStateTests extends ESTestCase {
                         "indices" : {
                           "index" : {
                             "version" : 1,
+                            "transport_version" : "0",
                             "mapping_version" : 1,
                             "settings_version" : 1,
                             "aliases_version" : 1,
@@ -825,6 +827,7 @@ public class ClusterStateTests extends ESTestCase {
                         "indices" : {
                           "index" : {
                             "version" : 1,
+                            "transport_version" : "0",
                             "mapping_version" : 1,
                             "settings_version" : 1,
                             "aliases_version" : 1,
@@ -1010,6 +1013,7 @@ public class ClusterStateTests extends ESTestCase {
                 "indices" : {
                   "index" : {
                     "version" : 2,
+                    "transport_version" : "0",
                     "mapping_version" : 1,
                     "settings_version" : 1,
                     "aliases_version" : 1,
@@ -1221,7 +1225,7 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     public void testGetMinTransportVersion() throws IOException {
-        assertEquals(TransportVersions.MINIMUM_COMPATIBLE, ClusterState.EMPTY_STATE.getMinTransportVersion());
+        assertEquals(TransportVersion.minimumCompatible(), ClusterState.EMPTY_STATE.getMinTransportVersion());
 
         var builder = ClusterState.builder(buildClusterState());
         int numNodes = randomIntBetween(2, 20);
@@ -1237,7 +1241,7 @@ public class ClusterStateTests extends ESTestCase {
         assertThat(newState.getMinTransportVersion(), equalTo(minVersion));
 
         assertEquals(
-            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersion.minimumCompatible(),
             ClusterState.builder(newState)
                 .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
                 .build()

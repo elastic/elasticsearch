@@ -179,24 +179,6 @@ tests:
   - class: org.elasticsearch.threadpool.SimpleThreadPoolIT
     method: testThreadPoolMetrics
     issue: https://github.com/elastic/elasticsearch/issues/108320
-  - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues SYNC}
-    issue: https://github.com/elastic/elasticsearch/issues/116945
-  - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues ASYNC}
-    issue: https://github.com/elastic/elasticsearch/issues/116945
-  - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues}
-    issue: https://github.com/elastic/elasticsearch/issues/116945
-  - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues SYNC}
-    issue: https://github.com/elastic/elasticsearch/issues/116945
-  - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues ASYNC}
-    issue: https://github.com/elastic/elasticsearch/issues/116945
-  - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues}
-    issue: https://github.com/elastic/elasticsearch/issues/116945
   - class: org.elasticsearch.xpack.inference.InferenceRestIT
     method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
     issue: https://github.com/elastic/elasticsearch/issues/117027
@@ -317,9 +299,6 @@ tests:
     issue: https://github.com/elastic/elasticsearch/issues/121117
   - class: org.elasticsearch.xpack.ml.integration.PyTorchModelIT
     issue: https://github.com/elastic/elasticsearch/issues/121165
-  - class: org.elasticsearch.xpack.transform.integration.TransformAuditorIT
-    method: testAuditorWritesAudits
-    issue: https://github.com/elastic/elasticsearch/issues/121241
   - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
     method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
     issue: https://github.com/elastic/elasticsearch/issues/120950
@@ -382,12 +361,6 @@ tests:
   - class: org.elasticsearch.repositories.blobstore.testkit.analyze.GCSRepositoryAnalysisRestIT
     method: testRepositoryAnalysis
     issue: https://github.com/elastic/elasticsearch/issues/125668
-  - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
-    method: testEnterpriseDownloaderTask
-    issue: https://github.com/elastic/elasticsearch/issues/126124
-  - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
-    method: testSearchWithRandomDisconnects
-    issue: https://github.com/elastic/elasticsearch/issues/122707
   - class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
     method: test {p0=/11_nodes/Test cat nodes output}
     issue: https://github.com/elastic/elasticsearch/issues/125906
@@ -406,9 +379,6 @@ tests:
   - class: org.elasticsearch.test.index.IndexVersionUtilsTests
     method: testIndexCompatibleVersionMatches
     issue: https://github.com/elastic/elasticsearch/issues/120760
-  - class: org.elasticsearch.search.CCSDuelIT
-    method: testTerminateAfter
-    issue: https://github.com/elastic/elasticsearch/issues/126085
   - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
     method: test {yaml=reference/search/retriever/line_906}
     issue: https://github.com/elastic/elasticsearch/issues/131041
@@ -427,3 +397,12 @@ tests:
   - class: org.elasticsearch.packaging.test.PackageTests
     method: test42BundledJdkRemoved
     issue: https://github.com/elastic/elasticsearch/issues/131890
+  - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+    method: test {yaml=reference/search/retriever/line_983}
+    issue: https://github.com/elastic/elasticsearch/issues/132854
+  - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
+    method: testSearchWhileRelocating
+    issue: https://github.com/elastic/elasticsearch/issues/128500
+  - class: org.elasticsearch.xpack.inference.InferenceRestIT
+    method: test {p0=inference/70_text_similarity_rank_retriever/Text similarity reranker with min_score zero includes all docs}
+    issue: https://github.com/elastic/elasticsearch/issues/137732

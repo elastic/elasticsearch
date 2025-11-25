@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.evaluator;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -103,6 +104,11 @@ public final class EvalMapper {
             record BooleanLogicExpressionEvaluator(BinaryLogic bl, ExpressionEvaluator leftEval, ExpressionEvaluator rightEval)
                 implements
                     ExpressionEvaluator {
+
+                private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(
+                    BooleanLogicExpressionEvaluator.class
+                );
+
                 @Override
                 public Block eval(Page page) {
                     try (Block lhs = leftEval.eval(page); Block rhs = rightEval.eval(page)) {
@@ -113,6 +119,11 @@ public final class EvalMapper {
                         }
                         return eval(lhs, rhs);
                     }
+                }
+
+                @Override
+                public long baseRamBytesUsed() {
+                    return BASE_RAM_BYTES_USED;
                 }
 
                 /**
@@ -171,11 +182,18 @@ public final class EvalMapper {
         @Override
         public ExpressionEvaluator.Factory map(FoldContext foldCtx, Attribute attr, Layout layout, List<ShardContext> shardContexts) {
             record Attribute(int channel) implements ExpressionEvaluator {
+                private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Attribute.class);
+
                 @Override
                 public Block eval(Page page) {
                     Block block = page.getBlock(channel);
                     block.incRef();
                     return block;
+                }
+
+                @Override
+                public long baseRamBytesUsed() {
+                    return BASE_RAM_BYTES_USED;
                 }
 
                 @Override
@@ -206,6 +224,8 @@ public final class EvalMapper {
         @Override
         public ExpressionEvaluator.Factory map(FoldContext foldCtx, Literal lit, Layout layout, List<ShardContext> shardContexts) {
             record LiteralsEvaluator(DriverContext context, Literal lit) implements ExpressionEvaluator {
+                private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LiteralsEvaluator.class);
+
                 @Override
                 public Block eval(Page page) {
                     return block(lit, context.blockFactory(), page.getPositionCount());
@@ -214,6 +234,11 @@ public final class EvalMapper {
                 @Override
                 public String toString() {
                     return "LiteralsEvaluator[lit=" + lit + ']';
+                }
+
+                @Override
+                public long baseRamBytesUsed() {
+                    return BASE_RAM_BYTES_USED + lit.ramBytesUsed();
                 }
 
                 @Override

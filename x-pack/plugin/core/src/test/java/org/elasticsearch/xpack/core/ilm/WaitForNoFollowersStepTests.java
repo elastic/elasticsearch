@@ -84,7 +84,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
@@ -118,7 +118,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
@@ -152,7 +152,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
@@ -193,7 +193,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
@@ -233,7 +233,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         }).when(indicesClient).stats(any(), any());
 
         final SetOnce<Exception> exceptionHolder = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 fail(

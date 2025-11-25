@@ -138,10 +138,14 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         var s = source();
         var field = field();
         if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
-            return new Sum(s, FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.SUM));
+            return new Sum(
+                s,
+                FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.SUM),
+                filter()
+            );
         }
 
         // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
-        return field.foldable() ? new Mul(s, new MvSum(s, field), new Count(s, Literal.keyword(s, StringUtils.WILDCARD))) : null;
+        return field.foldable() ? new Mul(s, new MvSum(s, field), new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter())) : null;
     }
 }

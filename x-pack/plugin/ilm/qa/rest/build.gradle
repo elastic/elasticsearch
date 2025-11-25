@@ -1,9 +1,10 @@
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
-apply plugin: 'elasticsearch.authenticated-testclusters'
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
-  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  yamlRestTestImplementation project(':x-pack:qa')
+
+  clusterModules project(xpackModule('ilm'))
 }
 
 restResources {
@@ -12,9 +13,14 @@ restResources {
   }
 }
 
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.autoconfiguration.enabled', 'false'
+configurations {
+  basicRestSpecs {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
+artifacts {
+  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }

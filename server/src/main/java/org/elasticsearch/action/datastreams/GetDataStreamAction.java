@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.action.datastreams;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -208,6 +209,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
 
+        private static final TransportVersion INTRODUCE_FAILURES_DEFAULT_RETENTION = TransportVersion.fromName(
+            "introduce_failures_default_retention"
+        );
+        private static final TransportVersion INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM = TransportVersion.fromName(
+            "include_index_mode_in_get_data_stream"
+        );
+
         public static class DataStreamInfo implements SimpleDiffable<DataStreamInfo>, ToXContentObject {
 
             public static final ParseField STATUS_FIELD = new ParseField("status");
@@ -278,10 +286,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             @SuppressWarnings("unchecked")
             DataStreamInfo(StreamInput in) throws IOException {
                 this.dataStream = DataStream.read(in);
-                this.failureStoreEffectivelyEnabled = in.getTransportVersion()
-                    .onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)
-                        ? in.readBoolean()
-                        : dataStream.isFailureStoreExplicitlyEnabled(); // Revert to the behaviour before this field was added
+                this.failureStoreEffectivelyEnabled = in.getTransportVersion().supports(TransportVersions.V_8_18_0)
+                    ? in.readBoolean()
+                    : dataStream.isFailureStoreExplicitlyEnabled(); // Revert to the behaviour before this field was added
                 this.dataStreamStatus = ClusterHealthStatus.readFrom(in);
                 this.indexTemplate = in.readOptionalString();
                 this.ilmPolicyName = in.readOptionalString();
@@ -293,9 +300,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     : Map.of();
                 this.templatePreferIlmValue = in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readBoolean() : true;
                 this.maximumTimestamp = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalVLong() : null;
-                this.indexMode = in.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM_BACKPORT_8_19)
-                    ? in.readOptionalString()
-                    : null;
+                this.indexMode = in.getTransportVersion().supports(INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM) ? in.readOptionalString() : null;
             }
 
             public DataStream getDataStream() {
@@ -346,7 +351,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)) {
+                if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                     out.writeBoolean(failureStoreEffectivelyEnabled);
                 }
                 dataStreamStatus.writeTo(out);
@@ -362,7 +367,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                     out.writeOptionalVLong(maximumTimestamp);
                 }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM_BACKPORT_8_19)) {
+                if (out.getTransportVersion().supports(INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
                     out.writeOptionalString(indexMode);
                 }
             }
@@ -600,9 +605,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     in.readBoolean(),
                     in.readOptionalString(),
                     in.readEnum(ManagedBy.class),
-                    in.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM_BACKPORT_8_19)
-                        ? in.readOptionalString()
-                        : "unknown"
+                    in.getTransportVersion().supports(INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM) ? in.readOptionalString() : "unknown"
                 );
             }
 
@@ -611,7 +614,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeBoolean(preferIlm);
                 out.writeOptionalString(ilmPolicyName);
                 out.writeEnum(managedBy);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM_BACKPORT_8_19)) {
+                if (out.getTransportVersion().supports(INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
                     out.writeOptionalString(indexMode);
                 }
             }
@@ -648,7 +651,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 : null;
             DataStreamGlobalRetention dataGlobalRetention = null;
             DataStreamGlobalRetention failuresGlobalRetention = null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION_BACKPORT_8_19)) {
+            if (in.getTransportVersion().supports(INTRODUCE_FAILURES_DEFAULT_RETENTION)) {
                 var defaultRetention = in.readOptionalTimeValue();
                 var maxRetention = in.readOptionalTimeValue();
                 var failuresDefaultRetention = in.readOptionalTimeValue();
@@ -687,7 +690,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
             // A version 9.x cluster will never read this, so we only need to include the patch version here.
-            if (out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION_BACKPORT_8_19)) {
+            if (out.getTransportVersion().supports(INTRODUCE_FAILURES_DEFAULT_RETENTION)) {
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.defaultRetention());
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.maxRetention());
                 out.writeOptionalTimeValue(failuresGlobalRetention == null ? null : failuresGlobalRetention.defaultRetention());

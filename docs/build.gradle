@@ -2013,6 +2013,101 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
           refresh: true
           body: |'''
 
+  buildRestTests.setups['failure-store-recipes-1'] = '''
+  - do:
+      ingest.put_pipeline:
+        id: ingest-step-1
+        body: >
+          {
+            "processors": [
+              {
+                "remove": {
+                  "field": "important.info"
+                }
+              },
+              {
+                "pipeline": {
+                  "name": "ingest-step-2"
+                }
+              }
+            ]
+          }
+
+  - do:
+      ingest.put_pipeline:
+        id: ingest-step-2
+        body: >
+          {
+            "processors": [
+              {
+                "set": {
+                  "field": "copy.info",
+                  "copy_from": "important.info"
+                }
+              }
+            ]
+          }
+
+  - do:
+      indices.put_index_template:
+        name: my-datastream-ingest-template
+        body:
+          index_patterns: my-datastream-ingest
+          data_stream: {}
+          template:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+              index:
+                default_pipeline: "ingest-step-1"
+            data_stream_options:
+              failure_store:
+                enabled: true'''
+
+  buildRestTests.teardowns['failure-store-recipes-1-td'] = '''
+  - do:
+      indices.delete_data_stream:
+        name: my-datastream-ingest
+
+  - do:
+      indices.delete_index_template:
+        name: my-datastream-ingest-template
+
+  - do:
+      ingest.delete_pipeline:
+        id: ingest-step-1
+
+  - do:
+      ingest.delete_pipeline:
+        id: ingest-step-2
+'''
+
+buildRestTests.setups['failure-store-recipes-2'] = '''
+  - do:
+      indices.put_index_template:
+        name: my-datastream-ingest-template
+        body:
+          index_patterns: my-datastream-ingest
+          data_stream: {}
+          template:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+              index:
+                default_pipeline: "complicated-processor"
+            data_stream_options:
+              failure_store:
+                enabled: true'''
+
+buildRestTests.teardowns['failure-store-recipes-2-td'] = '''
+  - do:
+      indices.delete_data_stream:
+        name: my-datastream-ingest
+
+  - do:
+      indices.delete_index_template:
+        name: my-datastream-ingest-template
+'''
 
   for (int i = 100; i < 200; i++) {
     def value = i

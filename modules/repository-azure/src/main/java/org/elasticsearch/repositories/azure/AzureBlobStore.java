@@ -17,7 +17,6 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import com.azure.core.http.HttpMethod;
-import com.azure.core.http.rest.ResponseBase;
 import com.azure.core.util.BinaryData;
 import com.azure.core.util.FluxUtil;
 import com.azure.core.util.logging.ClientLogger;
@@ -345,7 +344,21 @@ public class AzureBlobStore implements BlobStore {
         return false;
     }
 
-    public InputStream getInputStream(OperationPurpose purpose, String blob, long position, final @Nullable Long length) {
+    int getMaxReadRetries() {
+        return service.getMaxReadRetries(projectId, clientName);
+    }
+
+    /**
+     * Get an {@link InputStream} for reading the specified blob. The returned input stream will not retry on a read failure,
+     * to get an input stream that implements retries use {@link AzureBlobContainer#readBlob(OperationPurpose, String, long, long)}
+     */
+    AzureInputStream getInputStream(
+        OperationPurpose purpose,
+        String blob,
+        long position,
+        final @Nullable Long length,
+        @Nullable String eTag
+    ) throws IOException {
         logger.trace(() -> format("reading container [%s], blob [%s]", container, blob));
         final AzureBlobServiceClient azureBlobServiceClient = getAzureBlobServiceClientClient(purpose);
         final BlobServiceClient syncClient = azureBlobServiceClient.getSyncClient();
@@ -360,19 +373,15 @@ public class AzureBlobStore implements BlobStore {
             totalSize = position + length;
         }
         BlobAsyncClient blobAsyncClient = asyncClient.getBlobContainerAsyncClient(container).getBlobAsyncClient(blob);
-        int maxReadRetries = service.getMaxReadRetries(projectId, clientName);
-        try {
-            return new AzureInputStream(
-                blobAsyncClient,
-                position,
-                length == null ? totalSize : length,
-                totalSize,
-                maxReadRetries,
-                azureBlobServiceClient.getAllocator()
-            );
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return new AzureInputStream(
+            blobAsyncClient,
+            position,
+            length == null ? totalSize : length,
+            totalSize,
+            0,
+            azureBlobServiceClient.getAllocator(),
+            eTag
+        );
     }
 
     public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String keyPath, String prefix) throws IOException {
@@ -1076,11 +1085,12 @@ public class AzureBlobStore implements BlobStore {
         return requestMetricsRecorder;
     }
 
-    private static class AzureInputStream extends InputStream {
+    static class AzureInputStream extends InputStream {
         private final CancellableRateLimitedFluxIterator<ByteBuf> cancellableRateLimitedFluxIterator;
         private ByteBuf byteBuf;
         private boolean closed;
         private final ByteBufAllocator allocator;
+        private final String eTag;
 
         private AzureInputStream(
             final BlobAsyncClient client,
@@ -1088,15 +1098,21 @@ public class AzureBlobStore implements BlobStore {
             long rangeLength,
             long contentLength,
             int maxRetries,
-            ByteBufAllocator allocator
+            ByteBufAllocator allocator,
+            @Nullable String ifMatchETag
         ) throws IOException {
             rangeLength = Math.min(rangeLength, contentLength - rangeOffset);
             final BlobRange range = new BlobRange(rangeOffset, rangeLength);
-            DownloadRetryOptions downloadRetryOptions = new DownloadRetryOptions().setMaxRetryRequests(maxRetries);
-            Flux<ByteBuf> byteBufFlux = client.downloadWithResponse(range, downloadRetryOptions, null, false)
+            final DownloadRetryOptions downloadRetryOptions = new DownloadRetryOptions().setMaxRetryRequests(maxRetries);
+            final BlobRequestConditions requestConditions = new BlobRequestConditions().setIfMatch(ifMatchETag);
+            final AtomicReference<String> eTagRef = new AtomicReference<>();
+            Flux<ByteBuf> byteBufFlux = client.downloadWithResponse(range, downloadRetryOptions, requestConditions, false)
                 .flux()
-                .concatMap(ResponseBase::getValue) // it's important to use concatMap, since flatMap doesn't provide ordering
-                                                   // guarantees and that's not fun to debug :(
+                .concatMap(response -> {
+                    eTagRef.set(response.getDeserializedHeaders().getETag());
+                    return response.getValue();
+                }) // it's important to use concatMap, since flatMap doesn't provide ordering
+                   // guarantees and that's not fun to debug :(
                 .filter(Objects::nonNull)
                 .map(this::copyBuffer); // Sadly we have to copy the buffers since the memory is released after the flux execution
                                         // ends and we need that the byte buffer outlives that lifecycle. Since the SDK provides an
@@ -1112,6 +1128,9 @@ public class AzureBlobStore implements BlobStore {
             // blob doesn't exist
             byteBufFlux.subscribe(cancellableRateLimitedFluxIterator);
             getNextByteBuf();
+            assert eTagRef.get() != null : "eTag should have been set";
+            assert ifMatchETag == null || eTagRef.get().equals(ifMatchETag) : "eTag mismatch";
+            this.eTag = eTagRef.get();
         }
 
         private ByteBuf copyBuffer(ByteBuffer buffer) {
@@ -1171,6 +1190,10 @@ public class AzureBlobStore implements BlobStore {
                 closed = true;
                 releaseByteBuf(byteBuf);
             }
+        }
+
+        public String getETag() {
+            return eTag;
         }
 
         private void releaseByteBuf(ByteBuf buf) {

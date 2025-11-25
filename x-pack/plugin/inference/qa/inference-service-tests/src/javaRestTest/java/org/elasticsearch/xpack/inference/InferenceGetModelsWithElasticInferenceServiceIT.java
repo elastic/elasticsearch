@@ -41,18 +41,26 @@ public class InferenceGetModelsWithElasticInferenceServiceIT extends BaseMockEIS
     public void testGetDefaultEndpoints() throws IOException {
         var allModels = getAllModels();
         var chatCompletionModels = getModels("_all", TaskType.CHAT_COMPLETION);
+        var completionModels = getModels("_all", TaskType.COMPLETION);
 
-        assertThat(allModels, hasSize(7));
-        assertThat(chatCompletionModels, hasSize(1));
+        assertThat(allModels, hasSize(9));
+        assertThat(chatCompletionModels, hasSize(2));
+        assertThat(completionModels, hasSize(1));
 
         for (var model : chatCompletionModels) {
             assertEquals("chat_completion", model.get("task_type"));
         }
 
+        for (var model : completionModels) {
+            assertEquals("completion", model.get("task_type"));
+        }
+
         assertInferenceIdTaskType(allModels, ".rainbow-sprinkles-elastic", TaskType.CHAT_COMPLETION);
+        assertInferenceIdTaskType(allModels, ".gp-llm-v2-chat_completion", TaskType.CHAT_COMPLETION);
+        assertInferenceIdTaskType(allModels, ".gp-llm-v2-completion", TaskType.COMPLETION);
         assertInferenceIdTaskType(allModels, ".elser-2-elastic", TaskType.SPARSE_EMBEDDING);
         assertInferenceIdTaskType(allModels, ".jina-embeddings-v3", TaskType.TEXT_EMBEDDING);
-        assertInferenceIdTaskType(allModels, ".elastic-rerank-v1", TaskType.RERANK);
+        assertInferenceIdTaskType(allModels, ".jina-reranker-v2", TaskType.RERANK);
     }
 
     private static void assertInferenceIdTaskType(List<Map<String, Object>> models, String inferenceId, TaskType taskType) {

@@ -775,7 +775,7 @@ public class TestBlock implements BlockLoader.Block {
         private final BlockLoader.DoubleBuilder minima;
         private final BlockLoader.DoubleBuilder maxima;
         private final BlockLoader.DoubleBuilder sums;
-        private final BlockLoader.LongBuilder valueCounts;
+        private final BlockLoader.DoubleBuilder valueCounts;
         private final BlockLoader.DoubleBuilder zeroThresholds;
         private final BlockLoader.BytesRefBuilder encodedHistograms;
 
@@ -783,7 +783,7 @@ public class TestBlock implements BlockLoader.Block {
             minima = testFactory.doubles(expectedSize);
             maxima = testFactory.doubles(expectedSize);
             sums = testFactory.doubles(expectedSize);
-            valueCounts = testFactory.longs(expectedSize);
+            valueCounts = testFactory.doubles(expectedSize);
             zeroThresholds = testFactory.doubles(expectedSize);
             encodedHistograms = testFactory.bytesRefs(expectedSize);
         }
@@ -833,12 +833,13 @@ public class TestBlock implements BlockLoader.Block {
                 }
                 CompressedExponentialHistogram result = new CompressedExponentialHistogram();
                 try {
+                    Double sum = (Double) sums.get(i);
                     Double min = (Double) minima.get(i);
                     Double max = (Double) maxima.get(i);
                     result.reset(
                         (Double) zeroThresholds.get(i),
-                        (Long) valueCounts.get(i),
-                        (Double) sums.get(i),
+                        ((Double) valueCounts.get(i)).longValue(),
+                        sum == null ? 0.0 : sum,
                         min == null ? Double.NaN : min,
                         max == null ? Double.NaN : max,
                         (BytesRef) encodedHistograms.get(i)
@@ -886,7 +887,7 @@ public class TestBlock implements BlockLoader.Block {
         }
 
         @Override
-        public BlockLoader.LongBuilder valueCounts() {
+        public BlockLoader.DoubleBuilder valueCounts() {
             return valueCounts;
         }
 

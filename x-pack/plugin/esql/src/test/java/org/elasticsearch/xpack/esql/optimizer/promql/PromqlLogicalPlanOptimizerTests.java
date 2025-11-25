@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -41,7 +42,6 @@ import org.junit.BeforeClass;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -57,8 +57,6 @@ import static org.hamcrest.Matchers.instanceOf;
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug tests")
 public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
 
-    private static final String PARAM_FORMATTING = "%1$s";
-
     private static Analyzer tsAnalyzer;
 
     @BeforeClass
@@ -66,7 +64,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
 
         var timeSeriesMapping = loadMapping("k8s-mappings.json");
-        var timeSeriesIndex = IndexResolution.valid(new EsIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES), Set.of()));
+        var timeSeriesIndex = IndexResolution.valid(
+            new EsIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES), Map.of(), Map.of(), Set.of())
+        );
         tsAnalyzer = new Analyzer(
             new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
@@ -93,7 +93,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             )
             """);
 
-        logger.trace(plan);
     }
 
     public void testExplainPromqlSimple() {
@@ -106,7 +105,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | STATS AVG(AVG_OVER_TIME(network.bytes_in)) BY TBUCKET(1h)
             """);
 
-        logger.trace(plan);
     }
 
     /**
@@ -143,8 +141,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | promql step 1h ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
             | LIMIT 1000
             """);
-
-        logger.trace(plan);
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(3));
@@ -240,7 +236,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | LIMIT 1000
             """);
 
-        logger.trace(plan);
     }
 
     /**
@@ -270,9 +265,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | STATS avg(avg_over_time(network.bytes_in)) BY TBUCKET(1h)
             | LIMIT 1000
             """);
-
-        logger.trace(plan);
-
     }
 
     /**
@@ -306,7 +298,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | LIMIT 1000
             """);
 
-        logger.trace(plan);
     }
 
     /**
@@ -337,7 +328,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | promql step 1h ( max by (pod) (avg_over_time(network.bytes_in[1h])) )
             """);
 
-        logger.trace(plan);
     }
 
     @AwaitsFix(bugUrl = "Invalid call to dataType on an unresolved object ?RATE_$1")
@@ -353,7 +343,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
-        logger.trace(plan);
     }
 
     /**
@@ -385,8 +374,10 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
-        List<LogicalPlan> collect = plan.collect(Bucket.class::isInstance);
-        logger.trace(plan);
+        var filters = plan.collect(Filter.class::isInstance);
+        assertThat(filters, hasSize(1));
+        var filter = (Filter) filters.getFirst();
+        assertThat(filter.condition().collect(e -> e instanceof FieldAttribute a && a.name().equals("@timestamp")), hasSize(2));
     }
 
     /**
@@ -427,7 +418,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(filters, hasSize(1));
         var filter = (Filter) filters.getFirst();
         assertThat(filter.condition().anyMatch(In.class::isInstance), equalTo(true));
-        logger.trace(plan);
     }
 
     public void testLabelSelectorPrefix() {
@@ -448,7 +438,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var filter = (Filter) filters.getFirst();
         assertThat(filter.condition().anyMatch(StartsWith.class::isInstance), equalTo(true));
         assertThat(filter.condition().anyMatch(NotEquals.class::isInstance), equalTo(false));
-        logger.trace(plan);
     }
 
     public void testLabelSelectorProperPrefix() {
@@ -518,7 +507,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
-        logger.trace(plan);
     }
 
     @AwaitsFix(bugUrl = "only aggregations across timeseries are supported at this time (found [foo or bar])")
@@ -539,7 +527,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
-        logger.trace(plan);
     }
 
     // public void testPromqlArithmetricOperators() {
@@ -567,9 +554,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         query = query.replace("$now-1h", '"' + Instant.now().minus(1, ChronoUnit.HOURS).toString() + '"');
         query = query.replace("$now", '"' + Instant.now().toString() + '"');
         var analyzed = tsAnalyzer.analyze(parser.createStatement(query));
-        logger.trace(analyzed);
+        logger.trace("analyzed plan:\n{}", analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
-        logger.trace(optimized);
+        logger.trace("optimized plan:\n{}", optimized);
         return optimized;
     }
 }

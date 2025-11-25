@@ -64,6 +64,7 @@ import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
@@ -393,11 +394,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         private IndexType buildIndexType(FieldType fieldType) {
-            if (fieldType.indexOptions() == IndexOptions.NONE && fieldType.docValuesType() == DocValuesType.NONE) {
-                var docValuesParameters = docValuesParameters();
-                if (docValuesParameters.enabled() && docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.HIGH) {
-                    return IndexType.docValuesOnly();
-                }
+            var docValuesParameters = docValuesParameters();
+            if (docValuesParameters.enabled() && docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.HIGH) {
+                return IndexType.terms(fieldType.indexOptions() != IndexOptions.NONE, true);
             }
 
             return IndexType.terms(fieldType);
@@ -837,15 +836,21 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
-                if (storedInBinaryDocValues()) {
-                    throw new UnsupportedOperationException("TODO");
-                }
                 BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
                 if (cfg == null) {
-                    return new BytesRefsFromOrdsBlockLoader(name());
+                    if (storedInBinaryDocValues()) {
+                        return new BytesRefsFromCustomBinaryBlockLoader(binaryDocValuesName());
+                    } else {
+                        return new BytesRefsFromOrdsBlockLoader(name());
+                    }
                 }
                 if (cfg.function() == BlockLoaderFunctionConfig.Function.LENGTH) {
-                    return new Utf8CodePointsFromOrdsBlockLoader(((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(), name());
+                    if (storedInBinaryDocValues()) {
+                        // TODO: Support the length-only optimization for binary doc values
+                        return new BytesRefsFromCustomBinaryBlockLoader(binaryDocValuesName());
+                    } else {
+                        return new Utf8CodePointsFromOrdsBlockLoader(((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(), name());
+                    }
                 }
                 throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
             }

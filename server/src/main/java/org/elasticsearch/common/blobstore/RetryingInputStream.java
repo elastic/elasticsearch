@@ -73,12 +73,12 @@ public abstract class RetryingInputStream<V> extends InputStream {
                     : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
             }
             try {
+                this.currentStreamFirstOffset = Math.addExact(start, currentOffset);
                 currentStream = blobStoreServices.getInputStreamAtVersion(
                     currentStream != null ? currentStream.version : null,
-                    start + currentOffset,
+                    currentStreamFirstOffset,
                     end
                 );
-                this.currentStreamFirstOffset = Math.addExact(start, currentOffset);
                 return;
             } catch (NoSuchFileException | RequestedRangeNotSatisfiedException e) {
                 throw e;

@@ -24,8 +24,15 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
  *
  * <p>This class configures the codec to use the following formats:
  * <ul>
- *   <li>Use {@link TSDBSyntheticIdCodec} as the underlying codec for synthetic ID generation</li>
- *   <li>Apply {@link TSDBStoredFieldsFormat} with bloom filter optimization for efficient ID lookups</li>
+ *   <li>
+ *       Use {@link TSDBSyntheticIdCodec} as the underlying codec for synthesizing the `_id` field from
+ *       the values of other fields of the document (ex: _tsid, @timestamp, etc.) so that no inverted index
+ *       or stored field are required for the `_id`. As such, looking up documents by `_id` might be very
+ *       slow and that's why it is used along with a Bloom filter.
+ *   </li>
+ *   <li>
+ *       Apply {@link TSDBStoredFieldsFormat} with bloom filter optimization for efficient ID lookups
+ *   </li>
  * </ul>
  *
  * <p>Synthetic IDs in TSDB indices are generated from the document's dimensions and timestamp,

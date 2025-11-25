@@ -49,12 +49,12 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
 
     public void testCreateRequest_InputTypeFromTaskSettings_Success() throws IOException {
         var request = createRequest(URL_VALUE, MODEL_VALUE, INPUT_TYPE_ELASTIC_INITIAL_VALUE, TRUNCATE_ELASTIC_VALUE, null);
-        testCreateRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
+        assertCreateHttpRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
     }
 
     public void testCreateRequest_InputTypeFromRequest_Success() throws IOException {
         var request = createRequest(URL_VALUE, MODEL_VALUE, null, TRUNCATE_ELASTIC_VALUE, INPUT_TYPE_ELASTIC_INITIAL_VALUE);
-        testCreateRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
+        assertCreateHttpRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
     }
 
     public void testCreateRequest_InputTypeFromRequestPrioritized_Success() throws IOException {
@@ -65,16 +65,20 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
             TRUNCATE_ELASTIC_VALUE,
             INPUT_TYPE_ELASTIC_INITIAL_VALUE
         );
-        testCreateRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
+        assertCreateHttpRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
     }
 
     public void testCreateRequest_OnlyMandatoryAndDefaultFields_Success() throws IOException {
         var request = createRequest(null, MODEL_VALUE, null, null, null);
-        testCreateRequest(request, INPUT_TYPE_NVIDIA_DEFAULT_VALUE, null, URL_DEFAULT_VALUE);
+        assertCreateHttpRequest(request, INPUT_TYPE_NVIDIA_DEFAULT_VALUE, null, URL_DEFAULT_VALUE);
     }
 
-    private void testCreateRequest(NvidiaEmbeddingsRequest request, String expectedInputType, String expectedTruncation, String expectedUrl)
-        throws IOException {
+    private void assertCreateHttpRequest(
+        NvidiaEmbeddingsRequest request,
+        String expectedInputType,
+        String expectedTruncation,
+        String expectedUrl
+    ) throws IOException {
         var httpRequest = request.createHttpRequest();
         var httpPost = validateRequestUrlAndContentType(httpRequest, expectedUrl);
 
@@ -106,7 +110,7 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
         assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), is(INPUT_TYPE_NVIDIA_DEFAULT_VALUE));
     }
 
-    public void testIsTruncated_ReturnsTrue() {
+    public void testGetTruncationInfo() {
         var request = createRequest(URL_VALUE, MODEL_VALUE, null, null, null);
         assertThat(request.getTruncationInfo()[0], is(false));
 

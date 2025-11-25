@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -209,7 +210,8 @@ public class ComputeService {
 
         List<PhysicalPlan> subplans = subplansAndMainPlan.v1();
 
-        // take a snapshot of the initial cluster statuses, this will be checked when executing data node plan on remote clusters
+        // take a snapshot of the initial cluster statuses, this is the status after index resolutions,
+        // and it will be checked before executing data node plan on remote clusters
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses = new HashMap<>(execInfo.clusterInfo.size());
         for (Map.Entry<String, EsqlExecutionInfo.Cluster> entry : execInfo.clusterInfo.entrySet()) {
             initialClusterStatuses.put(entry.getKey(), entry.getValue().getStatus());
@@ -508,14 +510,16 @@ public class ComputeService {
                 // starts computes on remote clusters
                 final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
-                    EsqlExecutionInfo.Cluster.Status clusterStatus = initialClusterStatuses.get(cluster.clusterAlias());
+                    String clusterAlias = cluster.clusterAlias();
+                    EsqlExecutionInfo.Cluster.Status clusterStatus = Build.current().isSnapshot()
+                        ? initialClusterStatuses.get(clusterAlias)
+                        : execInfo.getCluster(clusterAlias).getStatus();
                     if (clusterStatus != EsqlExecutionInfo.Cluster.Status.RUNNING) {
                         // if the cluster is already in the terminal state from the planning stage, no need to call it
-                        // the initial cluster status is collected before the query is executed,
-                        // the execution time status does not affect whether a cluster is skipped or not.
+                        // the initial cluster status is collected before the query is executed
                         LOGGER.trace(
                             "skipping execution on remote cluster [{}] since its initial status is [{}]",
-                            cluster.clusterAlias(),
+                            clusterStatus,
                             clusterStatus
                         );
                         continue;

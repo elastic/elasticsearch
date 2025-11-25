@@ -11,7 +11,9 @@ if [[ -f /etc/profile.d/elastic-nvidia.sh ]]; then
 
   # Not running this before the tests results in an error when running the tests
   # No idea why...
-  nvidia-smi
+  if [[ "${BUILDKITE:-}" != "" && "${CI:-}" == "true" ]]; then
+    nvidia-smi
+  fi
 fi
 
 LIBCUVS_GCS_BUCKET="elasticsearch-cuvs-snapshots"

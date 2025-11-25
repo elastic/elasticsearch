@@ -34,40 +34,9 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporaryName;
 
 /**
- * Replaces {@link Expression}s that can be pushed to field loading with a field attribute
- * that calculates the expression during value loading. See {@link BlockLoaderExpression}
- * for more about how these loads are implemented and why we do this.
- * <p>
- *     This rule runs in one downward (aka output-to-read) pass, making four sorts
- *     of transformations:
- * </p>
- * <ul>
- *     <li>
- *         When we see a use of a <strong>new</strong> pushable function we build an
- *         attribute for the function, record that attribute, and discard it after use.
- *         For example, {@code EVAL l = LENGTH(message)} becomes
- *         {@code EVAL l = $$message$LENGTH$1324$$ | DROP $$message$LENGTH$1324$$ }.
- *         We need the {@code DROP} so we don't change the output schema.
- *     </li>
- *     <li>
- *         When we see a use of pushable function for which we already have an attribute
- *         we just use it. This looks like the {@code l} attribute in
- *         {@code EVAL l = LENGTH(message) | EVAL l2 = LENGTH(message)}
- *     </li>
- *     <li>
- *         When we see a PROJECT, add any new attributes to the projection so we can use
- *         them on previously visited nodes. So {@code KEEP foo | EVAL l = LENGTH(message)}
- *         becomes
- *         <pre>{@code
- *           | KEEP foo, $$message$LENGTH$1324$$
- *           | EVAL l = $$message$LENGTH$1324$$
- *           | DROP $$message$LENGTH$1324$$}
- *         }</pre>
- *     </li>
- *     <li>
- *         When we see a relation, add the attribute to it.
- *     </li>
- * </ul>
+ * Replaces vector similarity functions with a field attribute that applies
+ * the similarity function during value loading, when one side of the function is a literal.
+ * It also adds the new field function attribute to the EsRelation output, and adds a projection after it to remove it from the output.
  */
 public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
 
@@ -87,7 +56,7 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
          * The primary indices, lazily initialized.
          */
         private List<EsRelation> primaries;
-        private boolean addedNewAttribute = false;
+        private boolean planWasTransformed = false;
 
         private Rule(LocalLogicalOptimizerContext context, LogicalPlan plan) {
             this.context = context;
@@ -95,38 +64,37 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
         }
 
         private LogicalPlan doRule(LogicalPlan plan) {
-            addedNewAttribute = false;
+            planWasTransformed = false;
             if (plan instanceof Eval || plan instanceof Filter || plan instanceof Aggregate) {
-                return transformPotentialInvocation(plan);
-            }
-            if (addedAttrs.isEmpty()) {
-                return plan;
-            }
-            if (plan instanceof EsqlProject project) {
-                return transformProject(project);
-            }
-            if (plan instanceof EsRelation rel) {
-                return transformRelation(rel);
+                LogicalPlan transformedPlan = plan.transformExpressionsOnly(Expression.class, e -> {
+                    if (e instanceof BlockLoaderExpression ble) {
+                        return transformExpression(e, ble);
+                    }
+                    return e;
+                });
+
+                // TODO rebuild everything one time rather than after each find.
+                if (planWasTransformed == false) {
+                    return plan;
+                }
+
+                List<Attribute> previousAttrs = transformedPlan.output();
+                // Transforms EsRelation to extract the new attributes
+                List<Attribute> addedAttrsList = addedAttrs.values().stream().toList();
+                transformedPlan = transformedPlan.transformDown(EsRelation.class, esRelation -> {
+                    AttributeSet updatedOutput = esRelation.outputSet().combine(AttributeSet.of(addedAttrsList));
+                    return esRelation.withAttributes(updatedOutput.stream().toList());
+                });
+                // Transforms Projects so the new attribute is not discarded
+                transformedPlan = transformedPlan.transformDown(EsqlProject.class, esProject -> {
+                    List<NamedExpression> projections = new ArrayList<>(esProject.projections());
+                    projections.addAll(addedAttrsList);
+                    return esProject.withProjections(projections);
+                });
+
+                return new EsqlProject(Source.EMPTY, transformedPlan, previousAttrs);
             }
             return plan;
-        }
-
-        private LogicalPlan transformPotentialInvocation(LogicalPlan plan) {
-            LogicalPlan transformedPlan = plan.transformExpressionsOnly(Expression.class, e -> {
-                if (e instanceof BlockLoaderExpression ble) {
-                    return transformExpression(e, ble);
-                }
-                return e;
-            });
-            if (addedNewAttribute == false) {
-                /*
-                 * Either didn't see anything pushable or everything pushable already
-                 * has a pushed attribute.
-                 */
-                return plan;
-            }
-            // Found a new pushable attribute, discard it *after* use so we don't modify the output.
-            return new EsqlProject(Source.EMPTY, transformedPlan, transformedPlan.output());
         }
 
         private Expression transformExpression(Expression e, BlockLoaderExpression ble) {
@@ -141,21 +109,8 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
             if (context.searchStats().supportsLoaderConfig(fuse.field().fieldName(), fuse.config(), preference) == false) {
                 return e;
             }
-            addedNewAttribute = true;
+            planWasTransformed = true;
             return replaceFieldsForFieldTransformations(e, fuse);
-        }
-
-        private LogicalPlan transformProject(EsqlProject project) {
-            // Preserve any pushed attributes so we can use them later
-            List<NamedExpression> projections = new ArrayList<>(project.projections());
-            projections.addAll(addedAttrs.values());
-            return project.withProjections(projections);
-        }
-
-        private LogicalPlan transformRelation(EsRelation rel) {
-            // Add the pushed attribute
-            AttributeSet updatedOutput = rel.outputSet().combine(AttributeSet.of(addedAttrs.values()));
-            return rel.withAttributes(updatedOutput.stream().toList());
         }
 
         private Expression replaceFieldsForFieldTransformations(Expression e, BlockLoaderExpression.PushedBlockLoaderExpression fuse) {

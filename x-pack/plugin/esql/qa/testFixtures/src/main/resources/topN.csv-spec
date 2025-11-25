@@ -169,6 +169,23 @@ avg_worked_seconds:long | birth_date:date      | emp_no:i | gender:k | height:d 
 349086555               | 1961-09-01T00:00:00Z | 10056    | F        | 1.57     | 1.5700000524520874 | 1.5703125           | 1.57                  | 1990-02-01T00:00:00Z | [false, false, true] | [Senior Team Lead]  | 2           | 2                | 2                | 2                     | 33370    | [-5.17, 10.99]  | [-5, 10]            | [-5.17, 10.99]          | [-5, 10]             | true             | Brendon | Bernini      | Brendon
 ;
 
+sortingByTsidMetadataField
+required_capability: metadata_tsid_field
+
+FROM k8s METADATA _tsid
+| SORT network.bytes_in DESC NULLS LAST
+| LIMIT 5
+| KEEP network.bytes_in, @timestamp, cluster, pod 
+;
+
+network.bytes_in:long | @timestamp:datetime      | cluster:keyword | pod:keyword
+1021                  | 2024-05-10T00:15:21.000Z | qa              | two
+1018                  | 2024-05-10T00:18:33.000Z | prod            | three
+1009                  | 2024-05-10T00:20:03.000Z | staging         | two
+1007                  | 2024-05-10T00:19:48.000Z | prod            | two
+1006                  | 2024-05-10T00:13:50.000Z | qa              | one
+;
+
 
 redundantTopNBasic
 from employees 

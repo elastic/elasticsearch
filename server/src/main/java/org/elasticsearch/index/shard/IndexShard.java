@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -1714,12 +1715,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
+     * The supplier is aware of shard splits and will filter documents that have been moved to other shards
+     * according to the provided {@link SplitShardCountSummary}.
+     * @param splitShardCountSummary a summary of the shard routing state seen when the search request was created
+     * @return a searcher supplier
+     */
+    public Engine.SearcherSupplier acquireExternalSearcherSupplier(SplitShardCountSummary splitShardCountSummary) {
+        return acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL, splitShardCountSummary);
+    }
+
+    /**
+     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
     public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope) {
+        return acquireSearcherSupplier(scope, SplitShardCountSummary.UNSET);
+    }
+
+    public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope, SplitShardCountSummary splitShardCountSummary) {
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-        return engine.acquireSearcherSupplier(this::wrapSearcher, scope);
+        return engine.acquireSearcherSupplier(this::wrapSearcher, scope, splitShardCountSummary);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -2410,7 +2426,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false || mappedFieldType.name().equals(fieldName) == false) {
             return ShardLongFieldRange.UNKNOWN; // field is missing, an alias (as the field type has a different name) or not a date field
         }
-        if (mappedFieldType.indexType().hasPoints() == false) {
+        if (mappedFieldType.indexType().hasPoints() == false && mappedFieldType.indexType().hasDocValuesSkipper() == false) {
             return ShardLongFieldRange.UNKNOWN; // range information missing
         }
 

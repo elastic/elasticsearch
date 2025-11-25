@@ -1,7 +1,0 @@
-pr: 136961
-summary: Fix `ignore_unmapped` setting when using `geo_shape` query with a pre-indexed
-  shape
-area: Geo
-type: bug
-issues:
- - 136954

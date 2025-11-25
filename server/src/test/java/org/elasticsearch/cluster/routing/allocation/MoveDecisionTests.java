@@ -101,7 +101,9 @@ public class MoveDecisionTests extends ESTestCase {
         nodeDecisions.add(
             new NodeAllocationResult(
                 node2,
-                finalDecision.assignmentAllowed() ? randomFrom(Decision.NOT_PREFERRED, Decision.YES) : randomFrom(Decision.NO, Decision.THROTTLE),
+                finalDecision.assignmentAllowed()
+                    ? randomFrom(Decision.NOT_PREFERRED, Decision.YES)
+                    : randomFrom(Decision.NO, Decision.THROTTLE),
                 1
             )
         );

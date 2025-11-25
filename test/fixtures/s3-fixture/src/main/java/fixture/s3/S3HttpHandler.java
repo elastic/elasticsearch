@@ -409,7 +409,12 @@ public class S3HttpHandler implements HttpHandler {
     /**
      * Update the blob contents if and only if the preconditions in the request are satisfied.
      *
-     * @return whether the blob contents were updated: if {@code false} then a requested precondition was not satisfied.
+     * @return {@link RestStatus#OK} if the blob contents were updated, or else a different status code to indicate the error: possibly
+     *         {@link RestStatus#CONFLICT} in any case, but if not then either  {@link RestStatus#PRECONDITION_FAILED} if the object exists
+     *         but doesn't match the specified precondition, or {@link RestStatus#NOT_FOUND} if the object doesn't exist but is required to
+     *         do so by the precondition.
+     *
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html#conditional-error-response">AWS docs</a>
      */
     private RestStatus updateBlobContents(HttpExchange exchange, String path, BytesReference newContents) {
         if (isProtectOverwrite(exchange)) {

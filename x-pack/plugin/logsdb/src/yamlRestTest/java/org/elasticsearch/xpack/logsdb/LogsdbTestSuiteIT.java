@@ -35,7 +35,7 @@ public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
     public static final ElasticsearchCluster cluster = createCluster();
 
     private static ElasticsearchCluster createCluster() {
-        LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder =  ElasticsearchCluster.local()
+        LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .setting("xpack.security.enabled", "true")
             .user(USER, PASS)

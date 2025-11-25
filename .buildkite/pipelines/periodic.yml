@@ -753,9 +753,7 @@ steps:
 
   - label: example-plugins
     command: |-
-      cd $$WORKSPACE/plugins/examples
-
-      $$WORKSPACE/.ci/scripts/run-gradle.sh build
+      ./.ci/scripts/example-plugins.sh build
     timeout_in_minutes: 300
     agents:
       provider: gcp

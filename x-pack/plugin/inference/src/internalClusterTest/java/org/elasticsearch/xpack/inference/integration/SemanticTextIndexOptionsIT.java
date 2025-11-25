@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.inference.TaskType;
@@ -121,7 +120,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
             randomIntBetween(1, 100),
             randomIntBetween(1, 10_000),
             null,
-            ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled() && randomBoolean(),
+            randomBoolean(),
             null
         );
         assertAcked(

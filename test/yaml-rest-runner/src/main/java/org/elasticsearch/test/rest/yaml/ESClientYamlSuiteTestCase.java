@@ -108,6 +108,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private static ClientYamlSuiteRestSpec restSpecification;
 
+    private ESClientYamlSuitErrorCollector errorCollector;
+
     protected ESClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
         this.testCandidate = testCandidate;
     }
@@ -167,6 +169,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
+
+        errorCollector = new ESClientYamlSuitErrorCollector(restTestExecutionContext, testCandidate, logger);
     }
 
     /**
@@ -496,26 +500,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
                 executeSection(executableSection);
             }
-        } finally {
-            logger.debug("start teardown test [{}]", testCandidate.getTestPath());
-            for (ExecutableSection doSection : testCandidate.getTeardownSection().getDoSections()) {
-                executeSection(doSection);
-            }
-            logger.debug("end teardown test [{}]", testCandidate.getTestPath());
-        }
-    }
-
-    protected boolean skipSetupSections() {
-        return false;
-    }
-
-    /**
-     * Execute an {@link ExecutableSection}, careful to log its place of origin on failure.
-     */
-    private void executeSection(ExecutableSection executableSection) {
-        try {
-            executableSection.execute(restTestExecutionContext);
-        } catch (AssertionError | Exception e) {
+            errorCollector.verify();
+        } catch (AssertionError e) {
             // Dump the original yaml file, if available, for reference.
             Optional<Path> file = testCandidate.getRestTestSuite().getFile();
             if (file.isPresent()) {
@@ -533,16 +519,25 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                     .replace("\\r", "\r")
                     .replace("\\t", "\t")
             );
-            if (e instanceof AssertionError) {
-                throw new AssertionError(errorMessage(executableSection, e), e);
-            } else {
-                throw new RuntimeException(errorMessage(executableSection, e), e);
+            throw e;
+        } finally {
+            logger.debug("start teardown test [{}]", testCandidate.getTestPath());
+            for (ExecutableSection doSection : testCandidate.getTeardownSection().getDoSections()) {
+                executeSection(doSection);
             }
+            logger.debug("end teardown test [{}]", testCandidate.getTestPath());
         }
     }
 
-    private String errorMessage(ExecutableSection executableSection, Throwable t) {
-        return "Failure at [" + testCandidate.getSuitePath() + ":" + executableSection.getLocation().lineNumber() + "]: " + t.getMessage();
+    protected boolean skipSetupSections() {
+        return false;
+    }
+
+    /**
+     * Execute an {@link ExecutableSection}, careful to log its place of origin on failure.
+     */
+    private void executeSection(ExecutableSection executableSection) {
+        errorCollector.checkSucceeds(executableSection);
     }
 
     protected boolean randomizeContentType() {

@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -1035,13 +1036,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             | KEEP _fork, id, content
             """;
 
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-
-        request.pragmas(randomPragmas());
-        request.query(query);
-        request.profile(true);
-
-        try (var resp = run(request)) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(randomPragmas()).profile(true))) {
             EsqlQueryResponse.Profile profile = resp.profile();
             assertNotNull(profile);
 

@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.common.lucene.Lucene.additionalFileNames;
 import static org.elasticsearch.index.engine.ElasticsearchIndexDeletionPolicy.CommitsListener.listOfNewFileNames;
 
 /**
@@ -131,7 +132,7 @@ public class CombinedDeletionPolicy extends ElasticsearchIndexDeletionPolicy {
         assert assertSafeCommitUnchanged(safeCommit);
         if (commitsListener != null) {
             if (newCommit != null) {
-                final Set<String> additionalFiles = listOfNewFileNames(previousLastCommit, newCommit);
+                final Set<String> additionalFiles = additionalFileNames(previousLastCommit, newCommit);
                 commitsListener.onNewAcquiredCommit(newCommit, additionalFiles);
             }
             if (deletedCommits != null) {

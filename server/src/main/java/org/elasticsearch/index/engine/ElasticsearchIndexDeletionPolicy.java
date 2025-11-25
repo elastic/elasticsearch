@@ -48,10 +48,5 @@ public abstract class ElasticsearchIndexDeletionPolicy extends IndexDeletionPoli
         void onNewAcquiredCommit(IndexCommit commit, Set<String> additionalFiles);
 
         void onDeletedCommit(IndexCommit commit);
-
-        static Set<String> listOfNewFileNames(IndexCommit previous, IndexCommit current) throws IOException {
-            final Set<String> previousFiles = previous != null ? new HashSet<>(previous.getFileNames()) : Set.of();
-            return current.getFileNames().stream().filter(f -> previousFiles.contains(f) == false).collect(Collectors.toUnmodifiableSet());
-        }
     }
 }

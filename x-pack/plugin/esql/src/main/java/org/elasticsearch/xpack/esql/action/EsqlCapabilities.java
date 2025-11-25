@@ -320,6 +320,11 @@ public class EsqlCapabilities {
         AGG_TOP_WITH_OUTPUT_FIELD,
 
         /**
+         * Fix for a bug when surrogating a {@code TOP}  with limit 1 and output field.
+         */
+        FIX_AGG_TOP_WITH_OUTPUT_FIELD_SURROGATE,
+
+        /**
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,
@@ -1559,29 +1564,11 @@ public class EsqlCapabilities {
         PACK_DIMENSIONS_IN_TS,
 
         /**
-         * Support for exponential_histogram type
+         * Support for exponential_histogram type, before it is released into tech preview.
+         * When implementing changes on this type, we'll simply increment the version suffix at the end to prevent bwc tests from running.
+         * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          */
-        EXPONENTIAL_HISTOGRAM(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
-
-        /**
-         * Support for exponential_histogram type in TOPN
-         */
-        EXPONENTIAL_HISTOGRAM_TOPN(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
-
-        /**
-         * Support for exponential_histogram type in PERCENTILES aggregation.
-         */
-        EXPONENTIAL_HISTOGRAM_PERCENTILES_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
-
-        /**
-         * Support for exponential_histogram type in MIN/MAX aggregation.
-         */
-        EXPONENTIAL_HISTOGRAM_MINMAX_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
-
-        /**
-         * Support for exponential_histogram type in SUM and AVG aggregation.
-         */
-        EXPONENTIAL_HISTOGRAM_SUM_AVG_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+        EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V4(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
         /**
          * Create new block when filtering OrdinalBytesRefBlock
@@ -1669,7 +1656,7 @@ public class EsqlCapabilities {
         /**
          * Chunk function.
          */
-        CHUNK_FUNCTION(Build.current().isSnapshot()),
+        CHUNK_FUNCTION_V2(Build.current().isSnapshot()),
 
         /**
          * Support for vector similarity functtions pushdown
@@ -1695,8 +1682,17 @@ public class EsqlCapabilities {
         /**
          * Support grouping window in time-series for example: rate(counter, "1m") or avg_over_time(field, "5m")
          */
-        TIME_SERIES_WINDOW_V0,
+        TIME_SERIES_WINDOW_V1,
 
+        /**
+         * PromQL support in ESQL
+         */
+        PROMQL_V0(Build.current().isSnapshot()),
+
+        /**
+         * KNN function adds support for k and visit_percentage options
+         */
+        KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

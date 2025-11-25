@@ -78,7 +78,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
-import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -100,7 +99,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
@@ -976,19 +974,7 @@ public class EsqlSession {
         PhysicalPlanOptimizer physicalPlanOptimizer
     ) {
         PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan, physicalPlanOptimizer);
-        physicalPlan = physicalPlan.transformUp(FragmentExec.class, f -> {
-            QueryBuilder filter = request.filter();
-            if (filter != null) {
-                var fragmentFilter = f.esFilter();
-                // TODO: have an ESFilter and push down to EsQueryExec / EsSource
-                // This is an ugly hack to push the filter parameter to Lucene
-                // TODO: filter integration testing
-                filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
-                LOGGER.debug("Fold filter {} to EsQueryExec", filter);
-                f = f.withFilter(filter);
-            }
-            return f;
-        });
+        physicalPlan = PlannerUtils.integrateEsFilterIntoFragment(physicalPlan, request.filter());
         return EstimatesRowSize.estimateRowSize(0, physicalPlan);
     }
 

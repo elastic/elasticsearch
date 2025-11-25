@@ -62,7 +62,7 @@ public class HuggingFaceRequestManager extends BaseRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> inputs = inferenceInputs.castTo(EmbeddingsInput.class).getInputs();
+        List<String> inputs = inferenceInputs.castTo(EmbeddingsInput.class).getTextInputs();
         var truncatedInput = truncate(inputs, model.getTokenLimit());
         var request = new HuggingFaceEmbeddingsRequest(truncator, truncatedInput, model);
 

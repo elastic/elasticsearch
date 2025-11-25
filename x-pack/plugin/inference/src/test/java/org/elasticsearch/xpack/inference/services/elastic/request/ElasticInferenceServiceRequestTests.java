@@ -7,19 +7,37 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
+import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpRequestBase;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 
 import java.net.URI;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_ES_VERSION;
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ElasticInferenceServiceRequestTests extends ESTestCase {
+
+    public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithAuthorizationHeader() {
+        var secret = "secret";
+        var productOrigin = "elastic";
+        var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
+            new ElasticInferenceServiceRequestMetadata(productOrigin, null, null),
+            new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(new SecureString(secret.toCharArray()))
+        );
+        var httpRequest = elasticInferenceServiceRequestWrapper.createHttpRequest();
+
+        assertThat(httpRequest.httpRequestBase().getHeaders(HttpHeaders.AUTHORIZATION).length, equalTo(1));
+        assertThat(httpRequest.httpRequestBase().getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(apiKey(secret)));
+    }
 
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithProductOrigin() {
         var productOrigin = "elastic";
@@ -63,7 +81,14 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
     private static ElasticInferenceServiceRequest getDummyElasticInferenceServiceRequest(
         ElasticInferenceServiceRequestMetadata requestMetadata
     ) {
-        return new ElasticInferenceServiceRequest(requestMetadata) {
+        return getDummyElasticInferenceServiceRequest(requestMetadata, CCMAuthenticationApplierFactory.NOOP_APPLIER);
+    }
+
+    private static ElasticInferenceServiceRequest getDummyElasticInferenceServiceRequest(
+        ElasticInferenceServiceRequestMetadata requestMetadata,
+        CCMAuthenticationApplierFactory.AuthApplier authApplier
+    ) {
+        return new ElasticInferenceServiceRequest(requestMetadata, authApplier) {
             @Override
             protected HttpRequestBase createHttpRequestBase() {
                 return new HttpGet("http://localhost:8080");

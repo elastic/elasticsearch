@@ -26,6 +26,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class NvidiaEmbeddingsModelTests extends ESTestCase {
 
     private static final String URL_VALUE = "http://www.abc.com";
+    private static final String URL_DEFAULT_VALUE = "https://integrate.api.nvidia.com/v1/embeddings";
     private static final String API_KEY_VALUE = "test_api_key";
     private static final String MODEL_VALUE = "some_model";
     private static final InputType INPUT_TYPE_INITIAL_ELASTIC_VALUE = InputType.INGEST;
@@ -127,6 +128,21 @@ public class NvidiaEmbeddingsModelTests extends ESTestCase {
 
         assertThat(overriddenModel.getTaskSettings().getInputType(), is(expectedInputType));
         assertThat(overriddenModel.getTaskSettings().getTruncation(), is(expectedTruncate));
+    }
+
+    public void testCreateModel_NoUrl_DefaultUrl() {
+        var model = createEmbeddingsModel(
+            null,
+            API_KEY_VALUE,
+            MODEL_VALUE,
+            null,
+            null,
+            INPUT_TYPE_INITIAL_ELASTIC_VALUE,
+            TRUNCATE_INITIAL_ELASTIC_VALUE,
+            null
+        );
+
+        assertThat(model.getServiceSettings().uri().toString(), is(URL_DEFAULT_VALUE));
     }
 
 }

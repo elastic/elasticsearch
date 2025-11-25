@@ -7,15 +7,18 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia.completion;
 
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceSettings;
+import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.Objects;
 
@@ -27,6 +30,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOpti
  */
 public class NvidiaChatCompletionServiceSettings extends NvidiaServiceSettings {
     public static final String NAME = "nvidia_chat_completion_service_settings";
+    private static final URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https")
+        .setHost(NvidiaUtils.HOST)
+        .setPathSegments(NvidiaUtils.VERSION_1, NvidiaUtils.CHAT_PATH, NvidiaUtils.COMPLETIONS_PATH);
 
     /**
      * Creates a new instance of {@link NvidiaChatCompletionServiceSettings} from a map of settings.
@@ -67,6 +73,11 @@ public class NvidiaChatCompletionServiceSettings extends NvidiaServiceSettings {
      */
     public NvidiaChatCompletionServiceSettings(String modelId, @Nullable URI uri, @Nullable RateLimitSettings rateLimitSettings) {
         super(modelId, uri, rateLimitSettings);
+    }
+
+    @Override
+    protected URI buildDefaultUri() throws URISyntaxException {
+        return DEFAULT_URI_BUILDER.build();
     }
 
     /**

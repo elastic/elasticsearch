@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
 
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,10 +18,12 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceSettings;
+import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.Objects;
 
@@ -38,6 +41,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSim
  */
 public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
     public static final String NAME = "nvidia_embeddings_service_settings";
+    private static final URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https")
+        .setHost(NvidiaUtils.HOST)
+        .setPathSegments(NvidiaUtils.VERSION_1, NvidiaUtils.EMBEDDINGS_PATH);
 
     private final Integer dimensions;
     private final SimilarityMeasure similarity;
@@ -92,6 +98,11 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
         this.dimensions = in.readOptionalVInt();
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.maxInputTokens = in.readOptionalVInt();
+    }
+
+    @Override
+    protected URI buildDefaultUri() throws URISyntaxException {
+        return DEFAULT_URI_BUILDER.build();
     }
 
     /**

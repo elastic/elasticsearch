@@ -9,14 +9,11 @@ package org.elasticsearch.xpack.inference.services.nvidia.request.rerank;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.nvidia.NvidiaService;
-import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModel;
 
 import java.net.URI;
@@ -24,7 +21,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
 /**
@@ -36,9 +32,6 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * @param model the Nvidia rerank model configuration
  */
 public record NvidiaRerankRequest(String query, List<String> input, NvidiaRerankModel model) implements Request {
-    private static final URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https")
-        .setHost(NvidiaUtils.RERANK_HOST)
-        .setPathSegments(NvidiaUtils.VERSION_1, NvidiaUtils.RETRIEVAL_PATH, NvidiaUtils.NVIDIA_PATH, NvidiaUtils.RERANKING_PATH);
 
     public NvidiaRerankRequest {
         Objects.requireNonNull(input);
@@ -69,7 +62,7 @@ public record NvidiaRerankRequest(String query, List<String> input, NvidiaRerank
 
     @Override
     public URI getURI() {
-        return buildUri(model.getServiceSettings().uri(), NvidiaService.NAME, DEFAULT_URI_BUILDER::build);
+        return model.getServiceSettings().uri();
     }
 
     @Override

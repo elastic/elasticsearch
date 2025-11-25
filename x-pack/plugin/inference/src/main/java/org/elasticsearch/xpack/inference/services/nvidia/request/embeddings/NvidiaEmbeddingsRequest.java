@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.nvidia.request.embeddings;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -18,15 +17,12 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.nvidia.NvidiaService;
-import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModel;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
 /**
@@ -35,9 +31,6 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * It constructs an HTTP POST request with the necessary headers and body content.
  */
 public class NvidiaEmbeddingsRequest implements Request {
-    private static final URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https")
-        .setHost(NvidiaUtils.HOST)
-        .setPathSegments(NvidiaUtils.VERSION_1, NvidiaUtils.EMBEDDINGS_PATH);
     private final NvidiaEmbeddingsModel model;
     private final Truncator.TruncationResult truncationResult;
     private final Truncator truncator;
@@ -104,7 +97,7 @@ public class NvidiaEmbeddingsRequest implements Request {
 
     @Override
     public URI getURI() {
-        return buildUri(model.getServiceSettings().uri(), NvidiaService.NAME, DEFAULT_URI_BUILDER::build);
+        return model.getServiceSettings().uri();
     }
 
     @Override

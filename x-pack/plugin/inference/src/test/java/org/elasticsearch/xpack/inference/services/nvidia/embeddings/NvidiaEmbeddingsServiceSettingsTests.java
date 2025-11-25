@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
@@ -28,6 +27,8 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -111,7 +112,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             is(
                 new NvidiaEmbeddingsServiceSettings(
                     MODEL_VALUE,
-                    ServiceUtils.createOptionalUri(null),
+                    createOptionalUri(null),
                     DIMENSIONS_VALUE,
                     SIMILARITY_MEASURE_VALUE,
                     MAX_INPUT_TOKENS_VALUE,
@@ -483,7 +484,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         switch (between(0, 5)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
-            case 1 -> uri = randomValueOtherThan(uri, () -> ServiceUtils.createOptionalUri(randomAlphaOfLengthOrNull(15)));
+            case 1 -> uri = randomValueOtherThan(uri, () -> createUri(randomAlphaOfLength(15)));
             case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomBoolean() ? randomIntBetween(32, 256) : null);
             case 3 -> similarity = randomValueOtherThan(similarity, () -> randomBoolean() ? randomFrom(SimilarityMeasure.values()) : null);
             case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomBoolean() ? randomIntBetween(128, 256) : null);

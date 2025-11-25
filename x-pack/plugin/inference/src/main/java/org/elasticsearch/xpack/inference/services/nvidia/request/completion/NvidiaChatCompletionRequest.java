@@ -9,22 +9,18 @@ package org.elasticsearch.xpack.inference.services.nvidia.request.completion;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.nvidia.NvidiaService;
-import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModel;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
 /**
@@ -34,9 +30,6 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  */
 public class NvidiaChatCompletionRequest implements Request {
 
-    private static final URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https")
-        .setHost(NvidiaUtils.HOST)
-        .setPathSegments(NvidiaUtils.VERSION_1, NvidiaUtils.CHAT_PATH, NvidiaUtils.COMPLETIONS_PATH);
     private final NvidiaChatCompletionModel model;
     private final UnifiedChatInput chatInput;
 
@@ -63,7 +56,7 @@ public class NvidiaChatCompletionRequest implements Request {
 
     @Override
     public URI getURI() {
-        return buildUri(model.getServiceSettings().uri(), NvidiaService.NAME, DEFAULT_URI_BUILDER::build);
+        return model.getServiceSettings().uri();
     }
 
     @Override

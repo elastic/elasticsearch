@@ -32,11 +32,11 @@ import static org.hamcrest.Matchers.is;
 public class NvidiaRerankRequestTests extends ESTestCase {
 
     private static final String URL_VALUE = "http://www.abc.com";
+    private static final String URL_DEFAULT_VALUE = "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking";
     private static final String PASSAGE_VALUE = "some document";
     private static final String QUERY_VALUE = "some query";
     private static final String MODEL_VALUE = "some_model";
     private static final String API_KEY_VALUE = "test_api_key";
-    private static final String URL_DEFAULT_VALUE = "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking";
 
     public void testCreateRequest_AllFieldsSet() throws IOException {
         testCreateRequest(createRequest(MODEL_VALUE, URL_VALUE), URL_VALUE);

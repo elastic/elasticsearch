@@ -63,9 +63,9 @@ import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbedd
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsTaskSettingsTests;
+import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -82,9 +82,11 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.inference.TaskType.ANY;
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.inference.TaskType.COMPLETION;
 import static org.elasticsearch.inference.TaskType.RERANK;
+import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
@@ -110,6 +112,9 @@ import static org.mockito.Mockito.mock;
 public class NvidiaServiceTests extends AbstractInferenceServiceTests {
     private static final String API_KEY_FIELD_NAME = "api_key";
     private static final String URL_VALUE = "http://www.abc.com";
+    private static final String DEFAULT_COMPLETION_URL_VALUE = "https://integrate.api.nvidia.com/v1/chat/completions";
+    private static final String DEFAULT_EMBEDDINGS_URL_VALUE = "https://integrate.api.nvidia.com/v1/embeddings";
+    private static final String DEFAULT_RERANK_URL_VALUE = "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking";
     private static final String MODEL_VALUE = "some_model";
     private static final String ROLE_VALUE = "user";
     private static final String API_KEY_VALUE = "test_api_key";
@@ -132,11 +137,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
 
     public static TestConfiguration createTestConfiguration() {
         return new TestConfiguration.Builder(
-            new CommonConfig(
-                TaskType.TEXT_EMBEDDING,
-                TaskType.SPARSE_EMBEDDING,
-                EnumSet.of(TEXT_EMBEDDING, COMPLETION, CHAT_COMPLETION, RERANK)
-            ) {
+            new CommonConfig(TEXT_EMBEDDING, SPARSE_EMBEDDING, EnumSet.of(TEXT_EMBEDDING, COMPLETION, CHAT_COMPLETION, RERANK)) {
 
                 @Override
                 protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
@@ -170,7 +171,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
 
                 @Override
                 protected EnumSet<TaskType> supportedStreamingTasks() {
-                    return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.COMPLETION);
+                    return EnumSet.of(CHAT_COMPLETION, COMPLETION);
                 }
             }
         ).enableUpdateModelTests(new UpdateModelConfiguration() {
@@ -205,7 +206,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
     private static void assertTextEmbeddingModel(Model model, boolean modelIncludesSecrets) {
         var nvidiaModel = assertCommonModelFields(model, modelIncludesSecrets);
 
-        assertThat(nvidiaModel.getTaskType(), is(TaskType.TEXT_EMBEDDING));
+        assertThat(nvidiaModel.getTaskType(), is(TEXT_EMBEDDING));
         assertThat(model, instanceOf(NvidiaEmbeddingsModel.class));
         var embeddingsModel = (NvidiaEmbeddingsModel) model;
         assertThat(embeddingsModel.getTaskSettings(), is(NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS));
@@ -217,13 +218,13 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
     private static void assertCompletionModel(Model model, boolean modelIncludesSecrets) {
         var nvidiaModel = assertCommonModelFields(model, modelIncludesSecrets);
         assertThat(nvidiaModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-        assertThat(nvidiaModel.getTaskType(), Matchers.is(TaskType.COMPLETION));
+        assertThat(nvidiaModel.getTaskType(), is(COMPLETION));
     }
 
     private static void assertChatCompletionModel(Model model, boolean modelIncludesSecrets) {
         var nvidiaModel = assertCommonModelFields(model, modelIncludesSecrets);
         assertThat(nvidiaModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-        assertThat(nvidiaModel.getTaskType(), Matchers.is(TaskType.CHAT_COMPLETION));
+        assertThat(nvidiaModel.getTaskType(), is(CHAT_COMPLETION));
     }
 
     public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
@@ -277,7 +278,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
     private static NvidiaEmbeddingsModel createInternalEmbeddingModel(@Nullable SimilarityMeasure similarityMeasure) {
         return new NvidiaEmbeddingsModel(
             INFERENCE_ID_VALUE,
-            TaskType.TEXT_EMBEDDING,
+            TEXT_EMBEDDING,
             NvidiaService.NAME,
             new NvidiaEmbeddingsServiceSettings(
                 MODEL_VALUE,
@@ -323,7 +324,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
 
             service.parseRequestConfig(
                 INFERENCE_ID_VALUE,
-                TaskType.TEXT_EMBEDDING,
+                TEXT_EMBEDDING,
                 getRequestConfigMap(
                     createServiceSettingsMap(TEXT_EMBEDDING, ConfigurationParseContext.REQUEST),
                     chunkingSettings.asMap(),
@@ -348,7 +349,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
 
             service.parseRequestConfig(
                 INFERENCE_ID_VALUE,
-                TaskType.TEXT_EMBEDDING,
+                TEXT_EMBEDDING,
                 getRequestConfigMap(
                     createServiceSettingsMap(TEXT_EMBEDDING, ConfigurationParseContext.REQUEST),
                     getSecretSettingsMap(API_KEY_VALUE)
@@ -361,7 +362,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
     public void testParseRequestConfig_NoModelId_ThrowsException() throws IOException {
         try (var service = createService()) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
-                m -> fail("Expected exception, but got model: " + m),
+                model -> fail("Expected exception, but got model: " + model),
                 exception -> {
                     assertThat(exception, instanceOf(ValidationException.class));
                     assertThat(
@@ -373,29 +374,45 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
 
             service.parseRequestConfig(
                 INFERENCE_ID_VALUE,
-                TaskType.CHAT_COMPLETION,
+                CHAT_COMPLETION,
                 getRequestConfigMap(buildServiceSettingsMap(null, URL_VALUE, null, null, null, null), getSecretSettingsMap(API_KEY_VALUE)),
                 modelVerificationListener
             );
         }
     }
 
-    public void testParseRequestConfig_NoUrl_Success() throws IOException {
+    public void testParseRequestConfigCompletion_DefaultUrl_Success() throws IOException {
+        testParseRequestConfigWithDefaultUrl_ForTaskType_Success(DEFAULT_COMPLETION_URL_VALUE, COMPLETION, NvidiaChatCompletionModel.class);
+    }
+
+    public void testParseRequestConfigEmbeddings_DefaultUrl_Success() throws IOException {
+        testParseRequestConfigWithDefaultUrl_ForTaskType_Success(DEFAULT_EMBEDDINGS_URL_VALUE, TEXT_EMBEDDING, NvidiaEmbeddingsModel.class);
+    }
+
+    public void testParseRequestConfigRerank_DefaultUrl_Success() throws IOException {
+        testParseRequestConfigWithDefaultUrl_ForTaskType_Success(DEFAULT_RERANK_URL_VALUE, RERANK, NvidiaRerankModel.class);
+    }
+
+    private void testParseRequestConfigWithDefaultUrl_ForTaskType_Success(
+        String expectedUrl,
+        TaskType taskType,
+        Class<? extends NvidiaModel> expectedModelClass
+    ) throws IOException {
         try (var service = createService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(m -> {
-                assertThat(m, instanceOf(NvidiaChatCompletionModel.class));
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
+                assertThat(model, instanceOf(expectedModelClass));
 
-                var chatCompletionModel = (NvidiaChatCompletionModel) m;
+                var nvidiaModel = (NvidiaModel) model;
 
-                assertThat(chatCompletionModel.getServiceSettings().uri(), is(nullValue()));
-                assertThat(chatCompletionModel.getServiceSettings().modelId(), is(MODEL_VALUE));
-                assertThat(chatCompletionModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+                assertThat(nvidiaModel.getServiceSettings().uri().toString(), is(expectedUrl));
+                assertThat(nvidiaModel.getServiceSettings().modelId(), is(MODEL_VALUE));
+                assertThat(nvidiaModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
 
             }, exception -> fail("parse request should not fail " + exception.getMessage()));
 
             service.parseRequestConfig(
                 INFERENCE_ID_VALUE,
-                TaskType.CHAT_COMPLETION,
+                taskType,
                 getRequestConfigMap(
                     buildServiceSettingsMap(MODEL_VALUE, null, null, null, null, null),
                     getSecretSettingsMap(API_KEY_VALUE)
@@ -642,8 +659,8 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new NvidiaService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
-            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)));
-            assertThat(service.canStream(TaskType.ANY), is(false));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(COMPLETION, CHAT_COMPLETION)));
+            assertThat(service.canStream(ANY), is(false));
         }
     }
 
@@ -665,7 +682,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 }
             );
 
-            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -753,7 +770,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 assertThat(results.getFirst(), instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.getFirst();
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertThat(floatResult.chunks().getFirst().embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
+                assertThat(floatResult.chunks().getFirst().embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertThat(
                     Arrays.equals(
                         new float[] { 0.0089111328125f, -0.007049560546875f },
@@ -766,7 +783,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 assertThat(results.get(1), instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertThat(floatResult.chunks().getFirst().embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
+                assertThat(floatResult.chunks().getFirst().embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertThat(
                     Arrays.equals(
                         new float[] { -0.008544921875f, -0.0230712890625f },
@@ -788,7 +805,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             );
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            assertThat(requestMap.size(), Matchers.is(3));
+            assertThat(requestMap.size(), is(3));
             assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(FIRST_PART_OF_INPUT_VALUE, SECOND_PART_OF_INPUT_VALUE)));
             assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
             assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), is(INPUT_TYPE_NVIDIA_DEFAULT_VALUE));

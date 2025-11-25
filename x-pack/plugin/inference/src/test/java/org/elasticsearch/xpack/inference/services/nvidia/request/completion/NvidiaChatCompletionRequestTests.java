@@ -36,7 +36,7 @@ public class NvidiaChatCompletionRequestTests extends ESTestCase {
     private static final String MODEL_FIELD_NAME = "model";
     // Test values
     private static final String URL_VALUE = "http://www.abc.com";
-    private static final String DEFAULT_URL_VALUE = "https://integrate.api.nvidia.com/v1/chat/completions";
+    private static final String URL_DEFAULT_VALUE = "https://integrate.api.nvidia.com/v1/chat/completions";
     private static final String MODEL_VALUE = "some_model";
     private static final String ROLE_VALUE = "user";
     private static final String API_KEY_VALUE = "test_api_key";
@@ -86,7 +86,7 @@ public class NvidiaChatCompletionRequestTests extends ESTestCase {
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(request.getURI().toString(), is(DEFAULT_URL_VALUE));
+        assertThat(request.getURI().toString(), is(URL_DEFAULT_VALUE));
         assertThat(requestMap.get(STREAM_FIELD_NAME), is(false));
         assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
         assertThat(requestMap.get(N_FIELD_NAME), is(1));
@@ -108,7 +108,7 @@ public class NvidiaChatCompletionRequestTests extends ESTestCase {
 
     public void testGetUrl_Null_ReturnsDefault() {
         var request = createRequest(null, randomAlphaOfLength(5), true);
-        assertThat(request.getURI().toString(), is(DEFAULT_URL_VALUE));
+        assertThat(request.getURI().toString(), is(URL_DEFAULT_VALUE));
     }
 
     public void testGetUrl_ReturnsValue() {

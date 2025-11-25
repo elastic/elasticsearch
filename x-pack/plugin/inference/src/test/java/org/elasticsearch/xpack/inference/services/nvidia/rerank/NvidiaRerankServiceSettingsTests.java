@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
@@ -29,6 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -38,6 +38,7 @@ public class NvidiaRerankServiceSettingsTests extends AbstractBWCWireSerializati
     private static final String URL_VALUE = "http://www.abc.com";
     private static final String INVALID_URL_VALUE = "^^^";
     private static final int RATE_LIMIT_VALUE = 2;
+    private static final String URL_DEFAULT_VALUE = "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking";
 
     public void testFromMap_AllFields_Success() {
         var serviceSettings = NvidiaRerankServiceSettings.fromMap(
@@ -143,19 +144,20 @@ public class NvidiaRerankServiceSettingsTests extends AbstractBWCWireSerializati
         assertThat(xContentResult, is(expected));
     }
 
-    public void testToXContent_DoesNotWriteOptionalValues_DefaultRateLimit() throws IOException {
-        var serviceSettings = new NvidiaChatCompletionServiceSettings(MODEL_VALUE, createOptionalUri(null), null);
+    public void testToXContent_DefaultUrl_DefaultRateLimit() throws IOException {
+        var serviceSettings = new NvidiaRerankServiceSettings(MODEL_VALUE, createOptionalUri(null), null);
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
         var expected = XContentHelper.stripWhitespace(Strings.format("""
             {
                 "model_id": "%s",
+                "url": "%s",
                 "rate_limit": {
                     "requests_per_minute": 3000
                 }
             }
-            """, MODEL_VALUE));
+            """, MODEL_VALUE, URL_DEFAULT_VALUE));
         assertThat(xContentResult, is(expected));
     }
 
@@ -177,7 +179,7 @@ public class NvidiaRerankServiceSettingsTests extends AbstractBWCWireSerializati
 
         switch (between(0, 2)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
-            case 1 -> uri = randomValueOtherThan(uri, () -> createOptionalUri(randomAlphaOfLengthOrNull(15)));
+            case 1 -> uri = randomValueOtherThan(uri, () -> createUri(randomAlphaOfLength(15)));
             case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");
         }

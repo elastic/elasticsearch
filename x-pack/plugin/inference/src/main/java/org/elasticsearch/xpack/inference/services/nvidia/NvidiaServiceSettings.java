@@ -16,20 +16,20 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 /**
  * Represents the settings for an Nvidia service.
@@ -51,15 +51,17 @@ public abstract class NvidiaServiceSettings extends FilteredXContentObject imple
      */
     protected NvidiaServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
-        this.uri = createOptionalUri(in.readOptionalString());
+        this.uri = ServiceUtils.createUri(in.readString());
         this.rateLimitSettings = new RateLimitSettings(in);
     }
 
     protected NvidiaServiceSettings(String modelId, @Nullable URI uri, @Nullable RateLimitSettings rateLimitSettings) {
         this.modelId = Objects.requireNonNull(modelId);
-        this.uri = uri;
+        this.uri = buildUri(uri, NvidiaService.NAME, this::buildDefaultUri);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
+
+    protected abstract URI buildDefaultUri() throws URISyntaxException;
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
@@ -98,7 +100,7 @@ public abstract class NvidiaServiceSettings extends FilteredXContentObject imple
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
-        out.writeOptionalString(uri != null ? uri.toString() : null);
+        out.writeString(uri.toString());
         rateLimitSettings.writeTo(out);
     }
 
@@ -113,9 +115,7 @@ public abstract class NvidiaServiceSettings extends FilteredXContentObject imple
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(MODEL_ID, modelId);
-        if (uri != null) {
-            builder.field(URL, uri.toString());
-        }
+        builder.field(URL, uri.toString());
         rateLimitSettings.toXContent(builder, params);
         return builder;
     }
@@ -155,8 +155,8 @@ public abstract class NvidiaServiceSettings extends FilteredXContentObject imple
         ConfigurationParseContext context,
         ValidationException validationException
     ) {
-        var model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var uri = extractOptionalUri(map, URL, validationException);
+        var model = ServiceUtils.extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var uri = ServiceUtils.extractOptionalUri(map, URL, validationException);
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, NvidiaService.NAME, context);
         return new NvidiaCommonServiceSettings(model, uri, rateLimitSettings);
     }

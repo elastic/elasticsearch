@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 
 import java.io.IOException;
 
@@ -33,14 +34,25 @@ public class ES819TSDBLargeBlockDocValuesFormat extends ES819TSDBDocValuesFormat
     public ES819TSDBLargeBlockDocValuesFormat(
         int skipIndexIntervalSize,
         int minDocsPerOrdinalForRangeEncoding,
-        boolean enableOptimizedMerge
+        boolean enableOptimizedMerge,
+        BinaryDVCompressionMode binaryDVCompressionMode,
+        final boolean enablePerBlockCompression
     ) {
-        super(CODEC_NAME, skipIndexIntervalSize, minDocsPerOrdinalForRangeEncoding, enableOptimizedMerge);
+        super(
+            CODEC_NAME,
+            skipIndexIntervalSize,
+            minDocsPerOrdinalForRangeEncoding,
+            enableOptimizedMerge,
+            binaryDVCompressionMode,
+            enablePerBlockCompression
+        );
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
         return new ES819TSDBDocValuesConsumer(
+            binaryDVCompressionMode,
+            enablePerBlockCompression,
             state,
             skipIndexIntervalSize,
             minDocsPerOrdinalForRangeEncoding,

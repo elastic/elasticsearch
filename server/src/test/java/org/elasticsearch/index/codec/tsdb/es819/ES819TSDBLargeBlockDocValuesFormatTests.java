@@ -23,7 +23,9 @@ public class ES819TSDBLargeBlockDocValuesFormatTests extends ES87TSDBDocValuesFo
         final ES819TSDBLargeBlockDocValuesFormat docValuesFormat = new ES819TSDBLargeBlockDocValuesFormat(
             randomIntBetween(2, 4096),
             randomIntBetween(1, 512),
-            random().nextBoolean()
+            random().nextBoolean(),
+            ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode(),
+            true
         );
 
         @Override

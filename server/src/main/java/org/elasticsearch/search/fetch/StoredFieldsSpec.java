@@ -104,6 +104,10 @@ public record StoredFieldsSpec(
         );
     }
 
+    /**
+     * Returns the unique source paths that should be loaded from source. Other source paths may be filtered out.
+     * If an empty set is returned, then all source paths need to be loaded.
+     */
     private Set<String> mergeSourcePaths(StoredFieldsSpec other) {
         Set<String> mergedSourcePaths;
         if (this.sourcePaths.isEmpty() == false && other.sourcePaths.isEmpty() == false) {

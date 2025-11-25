@@ -20,6 +20,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -29,7 +31,9 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -70,6 +74,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         }
     }
 
+    enum ConnectionAttempt {
+        initial,
+        reconnect
+    }
+
     private final int maxPendingConnectionListeners;
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -78,6 +87,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     private final Object mutex = new Object();
     private List<ActionListener<Void>> listeners = new ArrayList<>();
     private final AtomicBoolean initialConnectionAttempted = new AtomicBoolean(false);
+    private final LongCounter connectionAttemptFailures;
 
     protected final TransportService transportService;
     protected final RemoteConnectionManager connectionManager;
@@ -92,7 +102,13 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         this.transportService = transportService;
         this.connectionManager = connectionManager;
         this.maxPendingConnectionListeners = config.maxPendingConnectionListeners();
+        this.connectionAttemptFailures = lookupConnectionFailureMetric(transportService.getTelemetryProvider());
         connectionManager.addListener(this);
+    }
+
+    private LongCounter lookupConnectionFailureMetric(TelemetryProvider telemetryProvider) {
+        final var meterRegistry = telemetryProvider == null ? null : telemetryProvider.getMeterRegistry();
+        return meterRegistry == null ? null : meterRegistry.getLongCounter(RemoteClusterService.CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME);
     }
 
     static ConnectionProfile buildConnectionProfile(LinkedProjectConfig config, String transportProfile) {
@@ -221,7 +237,15 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             logger.debug(msgSupplier);
         } else {
             logger.warn(msgSupplier, e);
-            // TODO: ES-12695: Increment either the initial or retry connection failure metric.
+            if (connectionAttemptFailures != null) {
+                final var attributesMap = new HashMap<String, Object>();
+                attributesMap.put("linked_project_id", linkedProjectId.toString());
+                attributesMap.put("linked_project_alias", clusterAlias);
+                attributesMap.put("attempt", (isInitialAttempt ? ConnectionAttempt.initial : ConnectionAttempt.reconnect).toString());
+                attributesMap.put("strategy", strategyType().toString());
+                addStrategySpecificConnectionErrorMetricAttributes(attributesMap);
+                connectionAttemptFailures.incrementBy(1, attributesMap);
+            }
         }
     }
 
@@ -234,6 +258,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected abstract boolean strategyMustBeRebuilt(LinkedProjectConfig config);
 
     protected abstract ConnectionStrategy strategyType();
+
+    /**
+     * Add strategy-specific attributes for a new connection error metric record.  The default implementation is a no-op.
+     */
+    protected void addStrategySpecificConnectionErrorMetricAttributes(Map<String, Object> attributesMap) {}
 
     @Override
     public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {

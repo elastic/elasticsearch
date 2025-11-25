@@ -219,10 +219,11 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         // flag that determines whether the low threshold checks below can be skipped. We use this for a primary shard that is freshly
-        // allocated and empty.
-        boolean skipLowThresholdChecks = shardRouting.primary()
+        // allocated and either empty or the result of cloning another shard.
+        final var isNewCloneTarget = isNewCloneTarget(shardRouting, allocation);
+        final var skipLowThresholdChecks = shardRouting.primary()
             && shardRouting.active() == false
-            && shardRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE;
+            && (isNewCloneTarget || shardRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE);
 
         if (freeBytes < diskThresholdSettings.getFreeBytesThresholdLowStage(total).getBytes()) {
             if (skipLowThresholdChecks == false) {
@@ -283,6 +284,18 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         // Secondly, check that allocating the shard to this node doesn't put it above the high watermark
+
+        if (isNewCloneTarget) {
+            // The clone will be a hard-linked copy of the original shard so will not meaningfully increase disk usage
+            return allocation.decision(
+                Decision.YES,
+                NAME,
+                "enough disk for freshly-cloned shard on node, free: [%s], used: [%s]",
+                freeBytesValue,
+                Strings.format1Decimals(usedDiskPercentage, "%")
+            );
+        }
+
         final long shardSize = getExpectedShardSize(shardRouting, 0L, allocation);
         assert shardSize >= 0 : shardSize;
         long freeBytesAfterShard = freeBytes - shardSize;
@@ -324,6 +337,23 @@ public class DiskThresholdDecider extends AllocationDecider {
             ByteSizeValue.ofBytes(shardSize),
             ByteSizeValue.ofBytes(freeBytesAfterShard)
         );
+    }
+
+    private static boolean isNewCloneTarget(ShardRouting shardRouting, RoutingAllocation allocation) {
+        if (shardRouting.unassigned() == false
+            || shardRouting.primary() == false
+            || shardRouting.recoverySource() != RecoverySource.LocalShardsRecoverySource.INSTANCE) {
+            return false;
+        }
+
+        final var targetMetadata = allocation.metadata().indexMetadata(shardRouting.index());
+        final var sourceIndex = targetMetadata.getResizeSourceIndex();
+        if (sourceIndex == null) {
+            return false;
+        }
+
+        final var sourceMetadata = allocation.metadata().indexMetadata(sourceIndex);
+        return sourceMetadata != null && sourceMetadata.getNumberOfShards() == targetMetadata.getNumberOfShards();
     }
 
     @Override

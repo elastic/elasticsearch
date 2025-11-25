@@ -160,7 +160,8 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         IndexWriterConfig config = new IndexWriterConfig();
         config.setCodec(getCodec());
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
-            int numValues = 128 + random().nextInt(1024); // > 2^7 to require two blocks
+            // requires two blocks
+            int numValues = ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE + random().nextInt(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE * 4);
             Document d = new Document();
             for (int i = 0; i < numValues; i++) {
                 d.add(new SortedSetDocValuesField("dv", new BytesRef("v-" + i)));

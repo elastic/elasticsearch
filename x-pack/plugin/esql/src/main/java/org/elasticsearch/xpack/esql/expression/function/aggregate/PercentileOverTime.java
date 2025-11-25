@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
-import java.io.IOException;
 import java.util.List;
 
 /**
@@ -44,15 +42,11 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction {
         ) Expression field,
         @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
     ) {
-        this(source, field, Literal.TRUE, percentile);
+        this(source, field, Literal.TRUE, NO_WINDOW, percentile);
     }
 
-    public PercentileOverTime(Source source, Expression field, Expression filter, Expression percentile) {
-        super(source, field, filter, List.of(percentile));
-    }
-
-    private PercentileOverTime(StreamInput in) throws IOException {
-        super(in);
+    public PercentileOverTime(Source source, Expression field, Expression filter, Expression window, Expression percentile) {
+        super(source, field, filter, window, List.of(percentile));
     }
 
     @Override
@@ -70,22 +64,22 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     protected NodeInfo<PercentileOverTime> info() {
-        return NodeInfo.create(this, PercentileOverTime::new, field(), filter(), children().get(2));
+        return NodeInfo.create(this, PercentileOverTime::new, field(), filter(), window(), children().get(3));
     }
 
     @Override
     public PercentileOverTime replaceChildren(List<Expression> newChildren) {
-        return new PercentileOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new PercentileOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public PercentileOverTime withFilter(Expression filter) {
-        return new PercentileOverTime(source(), field(), filter, children().get(2));
+        return new PercentileOverTime(source(), field(), filter, window(), children().get(3));
     }
 
     @Override
     public AggregateFunction perTimeSeriesAggregation() {
-        return new Percentile(source(), field(), filter(), children().get(2));
+        return new Percentile(source(), field(), filter(), window(), children().get(3));
     }
 
     @Override

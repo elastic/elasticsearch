@@ -123,7 +123,6 @@ setup:
   - match: {hits.hits.0.fields.vector5.0: [1, 111, -13, 15, -128]}
   - match: {hits.hits.0.fields.vector6.0: [-1, 11, 0, 12, 111]}
 
-
   - match: {hits.hits.1._id: "2"}
   - match: {hits.hits.1.fields.name.0: "moose.jpg"}
 
@@ -143,7 +142,6 @@ setup:
   - match: {hits.hits.1.fields.vector4.0: [-1, 50, -1, 1, 120]}
   - match: {hits.hits.1.fields.vector5.0: [1, 111, -13, 15, -128]}
 
-
   - match: {hits.hits.2._id: "3"}
   - match: {hits.hits.2.fields.name.0: "rabbit.jpg"}
 
@@ -161,3 +159,177 @@ setup:
   - close_to: { hits.hits.2.fields.vector2.0.4: { value: -100.0, error: 0.001 } }
 
   - match: {hits.hits.2.fields.vector3.0: [-1, 100, -13, 15, -128]}
+
+---
+"Dense vector cosine docvalue_fields with sparse documents after force merge":
+  - requires:
+      cluster_features: [ "mapper.fix_dense_vector_wrong_fields" ]
+      reason: Support for dense vector doc value fields capability required
+  - do:
+      indices.create:
+        index: test_cosine
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+              vec:
+                type: dense_vector
+                similarity: cosine
+
+  # Create sparse vector scenario - some docs have vectors, some don't
+  - do:
+      index:
+        index: test_cosine
+        id: "1"
+        body:
+          foo: "bar"
+
+  - do:
+      index:
+        index: test_cosine
+        id: "2"
+        body:
+          foo: "bar"
+
+  - do:
+      index:
+        index: test_cosine
+        id: "3"
+        body:
+          vec: [1, 2]
+
+  - do:
+      indices.refresh:
+        index: test_cosine
+
+  - do:
+      index:
+        index: test_cosine
+        id: "4"
+        body:
+          foo: "bar"
+
+  # Force merge to create the ord/docId mapping issue scenario
+  - do:
+      indices.forcemerge:
+        index: test_cosine
+        max_num_segments: 1
+
+  # Search with docvalue_fields to get the vector values
+  - do:
+      search:
+        index: test_cosine
+        body:
+          docvalue_fields: ["vec"]
+          query:
+            term:
+              _id: "3"
+
+  # Verify that _id=3's vector value is correctly returned as [1, 2]
+  # This test verifies that the ordToDoc fix works correctly
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "3" }
+  - length: { hits.hits.0.fields.vec.0: 2 }
+  - close_to: { hits.hits.0.fields.vec.0.0: { value: 1.0, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.vec.0.1: { value: 2.0, error: 0.001 } }
+
+---
+"dense_vector docvalues with bfloat16":
+  - requires:
+      cluster_features: [ "mapper.vectors.generic_vector_format" ]
+      reason: Needs generic vector support
+  - do:
+      indices.create:
+        index: test-bfloat16
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector7:
+                type: dense_vector
+                element_type: bfloat16
+                dims: 5
+                index: true
+              vector8:
+                type: dense_vector
+                element_type: bfloat16
+                dims: 5
+                index: false
+
+  - do:
+      index:
+        index: test-bfloat16
+        id: "1"
+        body:
+          name: cow.jpg
+          vector7: [230.0, 300.33, -34.8988, 15.555, -200.0]
+          vector8: [130.0, 115.0, -1.02, 15.555, -100.0]
+  - do:
+      index:
+        index: test-bfloat16
+        id: "2"
+        body:
+          name: moose.jpg
+          vector7: [-0.5, 100.0, -13, 14.8, -156.0]
+  - do:
+      index:
+        index: test-bfloat16
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector8: [130.0, 115.0, -1.02, 15.555, -100.0]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        _source: false
+        index: test-bfloat16
+        body:
+          docvalue_fields: [name, vector7, vector8]
+          sort: name
+
+  - match: {hits.hits.0._id: "1"}
+  - match: {hits.hits.0.fields.name.0: "cow.jpg"}
+
+  - length: {hits.hits.0.fields.vector7.0: 5}
+  - length: {hits.hits.0.fields.vector8.0: 5}
+
+  - close_to: { hits.hits.0.fields.vector7.0.0: { value: 230.0, error: 0.1 } }
+  - close_to: { hits.hits.0.fields.vector7.0.1: { value: 300.33, error: 0.1 } }
+  - close_to: { hits.hits.0.fields.vector7.0.2: { value: -34.8988, error: 0.1 } }
+  - close_to: { hits.hits.0.fields.vector7.0.3: { value: 15.555, error: 0.1 } }
+  - close_to: { hits.hits.0.fields.vector7.0.4: { value: -200.0, error: 0.1 } }
+
+  - close_to: { hits.hits.0.fields.vector8.0.0: { value: 130.0, error: 0.1 } }
+  - close_to: { hits.hits.0.fields.vector8.0.1: { value: 115.0, error: 0.1 } }
+  - close_to: { hits.hits.0.fields.vector8.0.2: { value: -1.02, error: 0.1 } }
+  - close_to: { hits.hits.0.fields.vector8.0.3: { value: 15.555, error: 0.1 } }
+  - close_to: { hits.hits.0.fields.vector8.0.4: { value: -100.0, error: 0.1 } }
+
+  - match: {hits.hits.1._id: "2"}
+  - match: {hits.hits.1.fields.name.0: "moose.jpg"}
+
+  - length: {hits.hits.1.fields.vector7.0: 5}
+  - match: {hits.hits.1.fields.vector8: null}
+
+  - close_to: { hits.hits.1.fields.vector7.0.0: { value: -0.5, error: 0.1 } }
+  - close_to: { hits.hits.1.fields.vector7.0.1: { value: 100.0, error: 0.1 } }
+  - close_to: { hits.hits.1.fields.vector7.0.2: { value: -13, error: 0.1 } }
+  - close_to: { hits.hits.1.fields.vector7.0.3: { value: 14.8, error: 0.1 } }
+  - close_to: { hits.hits.1.fields.vector7.0.4: { value: -156.0, error: 0.1 } }
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2.fields.name.0: "rabbit.jpg"}
+
+  - length: {hits.hits.2.fields.vector8.0: 5}
+  - match: {hits.hits.2.fields.vector7: null}
+
+  - close_to: { hits.hits.2.fields.vector8.0.0: { value: 130.0, error: 0.1 } }
+  - close_to: { hits.hits.2.fields.vector8.0.1: { value: 115.0, error: 0.1 } }
+  - close_to: { hits.hits.2.fields.vector8.0.2: { value: -1.02, error: 0.1 } }
+  - close_to: { hits.hits.2.fields.vector8.0.3: { value: 15.555, error: 0.1 } }
+  - close_to: { hits.hits.2.fields.vector8.0.4: { value: -100.0, error: 0.1 } }

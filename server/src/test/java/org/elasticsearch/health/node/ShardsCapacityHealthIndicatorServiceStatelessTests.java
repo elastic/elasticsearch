@@ -165,7 +165,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         final ClusterState clusterState = createClusterState(
             nodesWithIndexAndSearch(numIndexNodes, numSearchNodes),
             maxShardsPerNode,
-            new HealthMetadata(DISK_METADATA, new HealthMetadata.ShardLimits(maxShardsPerNode, 0)),
+            new HealthMetadata(DISK_METADATA, new HealthMetadata.ShardLimits(maxShardsPerNode, 0, 10, 5)),
             indexMetadata
         );
         ClusterServiceUtils.setState(clusterService, clusterState);

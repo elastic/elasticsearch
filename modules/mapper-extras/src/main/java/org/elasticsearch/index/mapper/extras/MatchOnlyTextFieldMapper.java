@@ -48,10 +48,10 @@ import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
@@ -168,7 +168,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             n,
             c.indexVersionCreated(),
             c.getIndexAnalyzers(),
-            SourceFieldMapper.isSynthetic(c.getIndexSettings()),
+            isSyntheticSourceStoredFieldInBinaryFormat(c.indexVersionCreated()),
             c.isWithinMultiField()
         )
     );
@@ -189,7 +189,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             boolean storedFieldInBinaryFormat,
             KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate
         ) {
-            super(name, true, false, false, tsi, meta, isSyntheticSource, withinMultiField);
+            super(name, IndexType.terms(true, false), false, tsi, meta, isSyntheticSource, withinMultiField);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
             this.textFieldType = new TextFieldType(name, isSyntheticSource, withinMultiField, syntheticSourceDelegate);
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
@@ -295,7 +295,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             String parentFieldName = searchExecutionContext.parentPath(name());
             var parent = searchExecutionContext.lookup().fieldType(parentFieldName);
 
-            if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent && keywordParent.ignoreAbove().isSet()) {
+            if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent
+                && keywordParent.ignoreAbove().valuesPotentiallyIgnored()) {
                 final String parentFallbackFieldName = keywordParent.syntheticSourceFallbackFieldName();
                 if (parent.isStored()) {
                     return storedFieldFetcher(parentFieldName, parentFallbackFieldName);
@@ -323,7 +324,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             final SearchExecutionContext searchExecutionContext,
             final KeywordFieldMapper.KeywordFieldType keywordDelegate
         ) {
-            if (keywordDelegate.ignoreAbove().isSet()) {
+            if (keywordDelegate.ignoreAbove().valuesPotentiallyIgnored()) {
                 // because we don't know whether the delegate field will be ignored during parsing, we must also check the current field
                 String fieldName = name();
                 String fallbackName = syntheticSourceFallbackFieldName();

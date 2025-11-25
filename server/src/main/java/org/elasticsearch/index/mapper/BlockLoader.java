@@ -408,6 +408,17 @@ public interface BlockLoader {
         BytesRefBuilder bytesRefs(int expectedCount);
 
         /**
+         * Build a specialized builder for singleton dense {@link BytesRef} fields with the following constraints:
+         * <ul>
+         *     <li>Only one value per document can be collected</li>
+         *     <li>No more than expectedCount values can be collected</li>
+         * </ul>
+         *
+         * @param expectedCount The maximum number of values to be collected.
+         */
+        SingletonBytesRefBuilder singletonBytesRefs(int expectedCount);
+
+        /**
          * Build a builder to load doubles as loaded from doc values.
          * Doc values load doubles in sorted order.
          */
@@ -511,6 +522,21 @@ public interface BlockLoader {
         SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count);
 
         AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count);
+
+        Block buildAggregateMetricDoubleDirect(Block minBlock, Block maxBlock, Block sumBlock, Block countBlock);
+
+        ExponentialHistogramBuilder exponentialHistogramBlockBuilder(int count);
+
+        Block buildExponentialHistogramBlockDirect(
+            Block minima,
+            Block maxima,
+            Block sums,
+            Block valueCounts,
+            Block zeroThresholds,
+            Block encodedHistograms
+        );
+
+        Block buildTDigestBlockDirect(Block encodedDigests, Block minima, Block maxima, Block sums, Block valueCounts);
     }
 
     /**
@@ -559,6 +585,22 @@ public interface BlockLoader {
          * Appends a BytesRef to the current entry.
          */
         BytesRefBuilder appendBytesRef(BytesRef value);
+    }
+
+    /**
+     * Specialized builder for collecting dense arrays of BytesRef values.
+     */
+    interface SingletonBytesRefBuilder extends Builder {
+        /**
+         * Append multiple BytesRef. Offsets contains offsets of each BytesRef in the byte array.
+         * The length of the offsets array is one more than the number of BytesRefs.
+         */
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) throws IOException;
+
+        /**
+         * Append multiple BytesRefs, all with the same length.
+         */
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long bytesRefLengths) throws IOException;
     }
 
     interface FloatBuilder extends Builder {
@@ -642,5 +684,31 @@ public interface BlockLoader {
         DoubleBuilder sum();
 
         IntBuilder count();
+    }
+
+    interface ExponentialHistogramBuilder extends Builder {
+        DoubleBuilder minima();
+
+        DoubleBuilder maxima();
+
+        DoubleBuilder sums();
+
+        DoubleBuilder valueCounts();
+
+        DoubleBuilder zeroThresholds();
+
+        BytesRefBuilder encodedHistograms();
+    }
+
+    interface TDigestBuilder extends Builder {
+        DoubleBuilder minima();
+
+        DoubleBuilder maxima();
+
+        DoubleBuilder sums();
+
+        LongBuilder valueCounts();
+
+        BytesRefBuilder encodedDigests();
     }
 }

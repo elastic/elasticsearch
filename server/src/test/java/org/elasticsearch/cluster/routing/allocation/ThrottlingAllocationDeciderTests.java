@@ -14,12 +14,12 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -38,10 +38,10 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
         RoutingNodes mutableRoutingNodes,
         RoutingNode mutableRoutingNode1,
         RoutingNode mutableRoutingNode2,
-        ShardRouting shardRouting1Primary,
-        ShardRouting shardRouting1Replica,
-        ShardRouting shardRouting2Primary,
-        ShardRouting shardRouting2Replica
+        ShardRouting unassignedShardRouting1Primary,
+        ShardRouting unassignedShardRouting1Replica,
+        ShardRouting unassignedShardRouting2Primary,
+        ShardRouting unassignedShardRouting2Replica
     ) {}
 
     private TestHarness setUpTwoNodesAndIndexWithTwoUnassignedPrimariesAndReplicas() {
@@ -76,20 +76,30 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
         routingNodesIterator.next(); // unused third node.
         assertFalse(routingNodesIterator.hasNext());
 
-        ShardRouting shardRouting1Primary = TestShardRouting.newShardRouting(testShardId1, null, null, true, ShardRoutingState.UNASSIGNED);
-        ShardRouting shardRouting2Primary = TestShardRouting.newShardRouting(testShardId2, null, null, true, ShardRoutingState.UNASSIGNED);
-        ShardRouting shardRouting1Replica = TestShardRouting.newShardRouting(testShardId1, null, null, false, ShardRoutingState.UNASSIGNED);
-        ShardRouting shardRouting2Replica = TestShardRouting.newShardRouting(testShardId2, null, null, false, ShardRoutingState.UNASSIGNED);
+        RoutingTable routingTable = clusterState.routingTable(ProjectId.DEFAULT);
+
+        assertThat(routingTable.shardRoutingTable(testShardId1).replicaShards().size(), equalTo(1));
+        assertThat(routingTable.shardRoutingTable(testShardId2).replicaShards().size(), equalTo(1));
+
+        ShardRouting unassignedShardRouting1Primary = routingTable.shardRoutingTable(testShardId1).primaryShard();
+        ShardRouting unassignedShardRouting1Replica = routingTable.shardRoutingTable(testShardId1).replicaShards().get(0);
+        ShardRouting unassignedShardRouting2Primary = routingTable.shardRoutingTable(testShardId2).primaryShard();
+        ShardRouting unassignedShardRouting2Replica = routingTable.shardRoutingTable(testShardId2).replicaShards().get(0);
+
+        assertFalse(unassignedShardRouting1Primary.assignedToNode());
+        assertFalse(unassignedShardRouting1Replica.assignedToNode());
+        assertFalse(unassignedShardRouting2Primary.assignedToNode());
+        assertFalse(unassignedShardRouting2Replica.assignedToNode());
 
         return new TestHarness(
             clusterState,
             mutableRoutingNodes,
             mutableRoutingNode1,
             mutableRoutingNode2,
-            shardRouting1Primary,
-            shardRouting1Replica,
-            shardRouting2Primary,
-            shardRouting2Replica
+            unassignedShardRouting1Primary,
+            unassignedShardRouting1Replica,
+            unassignedShardRouting2Primary,
+            unassignedShardRouting2Replica
         );
     }
 
@@ -122,11 +132,11 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
 
         // A single primary can be allocated.
         assertThat(
-            decider.canAllocate(harness.shardRouting1Primary, harness.mutableRoutingNode1, routingAllocation),
+            decider.canAllocate(harness.unassignedShardRouting1Primary, harness.mutableRoutingNode1, routingAllocation),
             equalTo(Decision.YES)
         );
         var shardRouting1PrimaryInitializing = harness.mutableRoutingNodes.initializeShard(
-            harness.shardRouting1Primary,
+            harness.unassignedShardRouting1Primary,
             harness.mutableRoutingNode1.nodeId(),
             null,
             0,
@@ -136,25 +146,34 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
         // Leaving the first shard's primary in an INITIALIZING state should THROTTLE further allocation.
         // Only 1 concurrent allocation is allowed.
         assertThat(
-            decider.canAllocate(harness.shardRouting2Primary, harness.mutableRoutingNode1, routingAllocation),
+            decider.canAllocate(harness.unassignedShardRouting2Primary, harness.mutableRoutingNode1, routingAllocation),
             equalTo(Decision.THROTTLE)
         );
 
         // The first shard's replica should receive a simple NO because the corresponding primary is not active yet.
-        assertThat(decider.canAllocate(harness.shardRouting1Replica, harness.mutableRoutingNode2, routingAllocation), equalTo(Decision.NO));
+        assertThat(
+            decider.canAllocate(harness.unassignedShardRouting1Replica, harness.mutableRoutingNode2, routingAllocation),
+            equalTo(Decision.NO)
+        );
 
         // Start the first shard's primary, and initialize the second shard's primary to again reach the 1 concurrency limit.
         harness.mutableRoutingNodes.startShard(shardRouting1PrimaryInitializing, NOOP, 0);
         assertThat(
-            decider.canAllocate(harness.shardRouting2Primary, harness.mutableRoutingNode2, routingAllocation),
+            decider.canAllocate(harness.unassignedShardRouting2Primary, harness.mutableRoutingNode2, routingAllocation),
             equalTo(Decision.YES)
         );
-        harness.mutableRoutingNodes.initializeShard(harness.shardRouting2Primary, harness.mutableRoutingNode2.nodeId(), null, 0, NOOP);
+        harness.mutableRoutingNodes.initializeShard(
+            harness.unassignedShardRouting2Primary,
+            harness.mutableRoutingNode2.nodeId(),
+            null,
+            0,
+            NOOP
+        );
 
         // The first shard's replica should receive THROTTLE now, since the primary is active.
         // There is still already 1 allocation in progress, which is the limit.
         assertThat(
-            decider.canAllocate(harness.shardRouting1Replica, harness.mutableRoutingNode2, routingAllocation),
+            decider.canAllocate(harness.unassignedShardRouting1Replica, harness.mutableRoutingNode2, routingAllocation),
             equalTo(Decision.THROTTLE)
         );
     }
@@ -189,27 +208,27 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
 
         // Primary path is unthrottled during simulation, regardless of the `node_initial_primaries_recoveries` setting
         assertThat(
-            decider.canAllocate(harness.shardRouting1Primary, harness.mutableRoutingNode1, routingAllocation),
+            decider.canAllocate(harness.unassignedShardRouting1Primary, harness.mutableRoutingNode1, routingAllocation),
             equalTo(Decision.YES)
         );
-        mutableRoutingNodes.initializeShard(harness.shardRouting1Primary, harness.mutableRoutingNode1.nodeId(), null, 0, NOOP);
+        mutableRoutingNodes.initializeShard(harness.unassignedShardRouting1Primary, harness.mutableRoutingNode1.nodeId(), null, 0, NOOP);
         assertThat(
-            decider.canAllocate(harness.shardRouting2Primary, harness.mutableRoutingNode1, routingAllocation),
+            decider.canAllocate(harness.unassignedShardRouting2Primary, harness.mutableRoutingNode1, routingAllocation),
             equalTo(Decision.YES)
         );
-        mutableRoutingNodes.initializeShard(harness.shardRouting2Primary, harness.mutableRoutingNode1.nodeId(), null, 0, NOOP);
+        mutableRoutingNodes.initializeShard(harness.unassignedShardRouting2Primary, harness.mutableRoutingNode1.nodeId(), null, 0, NOOP);
 
         // Replica path is unthrottled during simulation AND `unthrottle_replica_assignment_in_simulation` is set to true.
         assertThat(
-            decider.canAllocate(harness.shardRouting1Replica, harness.mutableRoutingNode2, routingAllocation),
+            decider.canAllocate(harness.unassignedShardRouting1Replica, harness.mutableRoutingNode2, routingAllocation),
             equalTo(Decision.YES)
         );
-        mutableRoutingNodes.initializeShard(harness.shardRouting1Replica, harness.mutableRoutingNode2.nodeId(), null, 0, NOOP);
+        mutableRoutingNodes.initializeShard(harness.unassignedShardRouting1Replica, harness.mutableRoutingNode2.nodeId(), null, 0, NOOP);
         assertThat(
-            decider.canAllocate(harness.shardRouting2Replica, harness.mutableRoutingNode2, routingAllocation),
+            decider.canAllocate(harness.unassignedShardRouting2Replica, harness.mutableRoutingNode2, routingAllocation),
             equalTo(Decision.YES)
         );
-        mutableRoutingNodes.initializeShard(harness.shardRouting2Replica, harness.mutableRoutingNode2.nodeId(), null, 0, NOOP);
+        mutableRoutingNodes.initializeShard(harness.unassignedShardRouting2Replica, harness.mutableRoutingNode2.nodeId(), null, 0, NOOP);
 
         // Note: INITIALIZING was chosen above, not STARTED, because the BalancedShardsAllocator only initializes. We want that path to be
         // unthrottled in simulation.

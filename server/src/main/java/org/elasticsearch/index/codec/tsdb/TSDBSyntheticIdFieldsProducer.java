@@ -288,25 +288,17 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
          * @throws IOException if any I/O exception occurs
          */
         private int findStartDocIDForTsIdOrd(int tsIdOrd) throws IOException {
-            final var skipper = docValuesProducer.getSkipper(tsIdFieldInfo);
+            var skipper = docValuesProducer.getSkipper(tsIdFieldInfo);
             assert skipper != null;
-            skipper.advance(0);
 
-            assert tsIdOrd >= skipper.minValue() : tsIdOrd + " < " + skipper.minValue();
-            assert skipper.maxValue() >= tsIdOrd : tsIdOrd + " > " + skipper.maxValue();
-
-            // check if the ordinal intersects the [min, max] value range
-            while (skipper.minDocID(0) != DocIdSetIterator.NO_MORE_DOCS
-                && (skipper.minValue(0) > tsIdOrd || tsIdOrd > skipper.maxValue(0))) {
-                int maxDocID = skipper.maxDocID(0);
-                int level = 1;
-                // check if next levels intersect to skip as many docs as possible
-                while (level < skipper.numLevels() && (skipper.minValue(level) > tsIdOrd || tsIdOrd > skipper.maxValue(level))) {
-                    maxDocID = skipper.maxDocID(level);
-                    level++;
-                }
-                skipper.advance(maxDocID + 1);
+            if (skipper.minValue() >= tsIdOrd) {
+                skipper.advance(0);
+                return skipper.minDocID(0);
+            } else if (tsIdOrd > skipper.maxValue()) {
+                return DocIdSetIterator.NO_MORE_DOCS;
             }
+
+            skipper.advance(tsIdOrd, Long.MAX_VALUE);
             return skipper.minDocID(0);
         }
 

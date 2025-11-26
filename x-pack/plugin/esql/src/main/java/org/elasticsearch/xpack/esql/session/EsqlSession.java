@@ -853,16 +853,7 @@ public class EsqlSession {
             indexResolver.resolveIndicesVersioned(
                 indexPattern.indexPattern(),
                 result.fieldNames,
-                // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
-                switch (indexMode) {
-                    case IndexMode.TIME_SERIES -> {
-                        var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
-                        yield requestFilter != null
-                            ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter)
-                            : indexModeFilter;
-                    }
-                    default -> requestFilter;
-                },
+                createQueryFilter(indexMode, requestFilter),
                 indexMode == IndexMode.TIME_SERIES,
                 preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                 preAnalysis.useDenseVectorWhenNotSupported(),
@@ -890,14 +881,7 @@ public class EsqlSession {
         indexResolver.resolveFlatIndicesVersioned(
             indexPattern.indexPattern(),
             result.fieldNames,
-            // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
-            switch (indexMode) {
-                case IndexMode.TIME_SERIES -> {
-                    var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
-                    yield requestFilter != null ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter) : indexModeFilter;
-                }
-                default -> requestFilter;
-            },
+            createQueryFilter(indexMode, requestFilter),
             indexMode == IndexMode.TIME_SERIES,
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
             preAnalysis.useDenseVectorWhenNotSupported(),
@@ -909,6 +893,17 @@ public class EsqlSession {
                 );
             })
         );
+    }
+
+    private static QueryBuilder createQueryFilter(IndexMode indexMode, QueryBuilder requestFilter) {
+        // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
+        return switch (indexMode) {
+            case IndexMode.TIME_SERIES -> {
+                var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+                yield requestFilter != null ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter) : indexModeFilter;
+            }
+            default -> requestFilter;
+        };
     }
 
     private void analyzeWithRetry(

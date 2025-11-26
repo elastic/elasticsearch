@@ -487,7 +487,8 @@ public class Stateless extends Plugin
     public Settings additionalSettings() {
         var settings = Settings.builder()
             .put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), StatelessElectionStrategy.NAME)
-            .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), 0);
+            .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), 0)
+            .put(SharedBlobCacheWarmingService.OFFLINE_WARMING_ENABLED_SETTING.getKey(), false);
         if (sharedCachedSettingExplicitlySet == false) {
             if (hasSearchRole) {
                 settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "90%")
@@ -1223,7 +1224,8 @@ public class Stateless extends Plugin
             SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
             SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
             StatelessThrottlingConcurrentRecoveriesAllocationDecider.MIN_HEAP_REQUIRED_FOR_CONCURRENT_PRIMARY_RECOVERIES_SETTING,
-            StatelessThrottlingConcurrentRecoveriesAllocationDecider.CONCURRENT_PRIMARY_RECOVERIES_PER_HEAP_GB
+            StatelessThrottlingConcurrentRecoveriesAllocationDecider.CONCURRENT_PRIMARY_RECOVERIES_PER_HEAP_GB,
+            SharedBlobCacheWarmingService.OFFLINE_WARMING_ENABLED_SETTING
         );
     }
 

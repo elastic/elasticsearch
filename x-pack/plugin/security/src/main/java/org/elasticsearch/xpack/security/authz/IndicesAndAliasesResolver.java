@@ -35,7 +35,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
-import org.elasticsearch.search.crossproject.CrossProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.transport.LinkedProjectConfig;
@@ -77,14 +76,14 @@ class IndicesAndAliasesResolver {
         Settings settings,
         LinkedProjectConfigService linkedProjectConfigService,
         IndexNameExpressionResolver resolver,
-        CrossProjectModeDecider crossProjectModeDecider
+        CrossProjectModeDecider crossProjectModeDecider,
+        ProjectRoutingResolver crossProjectRoutingResolver
     ) {
         this.nameExpressionResolver = resolver;
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
         this.remoteClusterResolver = new RemoteClusterResolver(settings, linkedProjectConfigService);
         this.crossProjectModeDecider = crossProjectModeDecider;
-        // TODO: This should be injected when we have the implementation provided from the serverless side
-        this.crossProjectRoutingResolver = new CrossProjectRoutingResolver();
+        this.crossProjectRoutingResolver = crossProjectRoutingResolver;
     }
 
     /**
@@ -340,10 +339,12 @@ class IndicesAndAliasesResolver {
             String allIndicesPatternSelector = null;
             if (indicesRequest.indices() != null && indicesRequest.indices().length > 0) {
                 // Always parse selectors, but do so lazily so that we don't spend a lot of time splitting strings each resolution
-                isAllIndices = IndexNameExpressionResolver.isAllIndices(
-                    indicesList(indicesRequest.indices()),
-                    (expr) -> IndexNameExpressionResolver.splitSelectorExpression(expr).v1()
-                );
+                isAllIndices = IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()), (expr) -> {
+                    var unprefixed = crossProjectModeDecider.resolvesCrossProject(replaceable)
+                        ? RemoteClusterAware.splitIndexName(expr)[1]
+                        : expr;
+                    return IndexNameExpressionResolver.splitSelectorExpression(unprefixed).v1();
+                });
                 if (isAllIndices) {
                     // This parses the single all-indices expression for a second time in this conditional branch, but this is better than
                     // parsing a potentially big list of indices on every request.
@@ -394,12 +395,14 @@ class IndicesAndAliasesResolver {
                             replaceable.getProjectRouting(),
                             authorizedProjects
                         );
-                        remoteIndices = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
+                        final var rewritten = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
                             indexExpression,
                             resolvedProjects.originProjectAlias(),
-                            resolvedProjects.allProjectAliases()
-                        ).remoteExpressions();
-                        if (resolvedProjects.originProject() == null) {
+                            resolvedProjects.allProjectAliases(),
+                            replaceable.getProjectRouting()
+                        );
+                        remoteIndices = rewritten.remoteExpressions();
+                        if (resolvedProjects.originProject() == null || rewritten.localExpression() == null) {
                             shouldExcludeLocalResolution = true;
                         }
                     }
@@ -445,7 +448,8 @@ class IndicesAndAliasesResolver {
                         authorizedIndices::all,
                         authorizedIndices::check,
                         resolvedProjects,
-                        indicesRequest.includeDataStreams()
+                        indicesRequest.includeDataStreams(),
+                        replaceable.getProjectRouting()
                     );
                     setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());

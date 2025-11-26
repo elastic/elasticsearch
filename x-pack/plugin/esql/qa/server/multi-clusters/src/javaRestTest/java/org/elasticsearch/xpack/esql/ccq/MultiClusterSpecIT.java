@@ -25,7 +25,9 @@ import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.SpecReader;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -421,5 +423,21 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     protected boolean supportsTook() throws IOException {
         // We don't read took properly in multi-cluster tests.
         return false;
+    }
+
+    @Override
+    protected boolean supportsExponentialHistograms() {
+        try {
+            return RestEsqlTestCase.hasCapabilities(
+                client(),
+                List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V4.capabilityName())
+            )
+                && RestEsqlTestCase.hasCapabilities(
+                    remoteClusterClient(),
+                    List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V4.capabilityName())
+                );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceAuthorizationRequest;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -317,7 +318,8 @@ public class HttpRequestSenderTests extends ESTestCase {
             var request = new ElasticInferenceServiceAuthorizationRequest(
                 getUrl(webServer),
                 new TraceContext("", ""),
-                randomElasticInferenceServiceRequestMetadata()
+                randomElasticInferenceServiceRequestMetadata(),
+                CCMAuthenticationApplierFactory.NOOP_APPLIER
             );
             var responseHandler = new ElasticInferenceServiceResponseHandler(
                 String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
@@ -354,7 +356,12 @@ public class HttpRequestSenderTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var thrownException = expectThrows(
                 AssertionError.class,
-                () -> sender.send(RequestManagerTests.createMock(), new EmbeddingsInput(List.of(), null), null, listener)
+                () -> sender.send(
+                    RequestManagerTests.createMockWithRateLimitingEnabled(),
+                    new EmbeddingsInput(List.of(), null),
+                    null,
+                    listener
+                )
             );
             assertThat(thrownException.getMessage(), is("call start() before sending a request"));
         }
@@ -375,7 +382,12 @@ public class HttpRequestSenderTests extends ESTestCase {
             sender.startSynchronously();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            sender.send(RequestManagerTests.createMock(), new EmbeddingsInput(List.of(), null), TimeValue.timeValueNanos(1), listener);
+            sender.send(
+                RequestManagerTests.createMockWithRateLimitingEnabled(),
+                new EmbeddingsInput(List.of(), null),
+                TimeValue.timeValueNanos(1),
+                listener
+            );
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -397,7 +409,12 @@ public class HttpRequestSenderTests extends ESTestCase {
             sender.startSynchronously();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            sender.send(RequestManagerTests.createMock(), new EmbeddingsInput(List.of(), null), TimeValue.timeValueNanos(1), listener);
+            sender.send(
+                RequestManagerTests.createMockWithRateLimitingEnabled(),
+                new EmbeddingsInput(List.of(), null),
+                TimeValue.timeValueNanos(1),
+                listener
+            );
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 

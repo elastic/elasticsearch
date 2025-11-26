@@ -1310,16 +1310,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             if (forcedRowByRow) {
                 assertMap(
                     readers,
-                    matchesMap().entry(
-                        "text_with_delegate:row_stride:Delegating[to=kwd, impl=BlockDocValuesReader.SingletonOrdinals]",
-                        segmentCount
-                    )
+                    matchesMap().entry("text_with_delegate:row_stride:Delegating[to=kwd, impl=BytesRefsFromOrds.Singleton]", segmentCount)
                 );
             } else {
                 assertMap(
                     readers,
                     matchesMap().entry(
-                        "text_with_delegate:column_at_a_time:Delegating[to=kwd, impl=BlockDocValuesReader.SingletonOrdinals]",
+                        "text_with_delegate:column_at_a_time:Delegating[to=kwd, impl=BytesRefsFromOrds.Singleton]",
                         lessThanOrEqualTo(pageCount)
                     )
                 );
@@ -1331,7 +1328,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 assertMap(
                     readers,
                     matchesMap().entry(
-                        "mv_text_with_delegate:row_stride:Delegating[to=mv_kwd, impl=BlockDocValuesReader.Ordinals]",
+                        "mv_text_with_delegate:row_stride:Delegating[to=mv_kwd, impl=BytesRefsFromOrds.SortedSet]",
                         equalTo(segmentCount)
                     )
                 );
@@ -1339,7 +1336,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 assertMap(
                     readers,
                     matchesMap().entry(
-                        "mv_text_with_delegate:column_at_a_time:Delegating[to=mv_kwd, impl=BlockDocValuesReader.Ordinals]",
+                        "mv_text_with_delegate:column_at_a_time:Delegating[to=mv_kwd, impl=BytesRefsFromOrds.SortedSet]",
                         lessThanOrEqualTo(pageCount)
                     )
                 );
@@ -1375,15 +1372,9 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             Map<?, ?> readers
         ) {
             if (forcedRowByRow) {
-                assertMap(
-                    readers,
-                    matchesMap().entry(name + ":row_stride:BlockDocValuesReader.Singleton" + type, lessThanOrEqualTo(segmentCount))
-                );
+                assertMap(readers, matchesMap().entry(name + ":row_stride:" + singleName(type), lessThanOrEqualTo(segmentCount)));
             } else {
-                assertMap(
-                    readers,
-                    matchesMap().entry(name + ":column_at_a_time:BlockDocValuesReader.Singleton" + type, lessThanOrEqualTo(pageCount))
-                );
+                assertMap(readers, matchesMap().entry(name + ":column_at_a_time:" + singleName(type), lessThanOrEqualTo(pageCount)));
             }
         }
 
@@ -1396,21 +1387,32 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             Map<?, ?> readers
         ) {
             if (forcedRowByRow) {
-                Integer singletons = (Integer) readers.remove(name + ":row_stride:BlockDocValuesReader.Singleton" + type);
+                Integer singletons = (Integer) readers.remove(name + ":row_stride:" + singleName(type));
                 if (singletons != null) {
                     segmentCount -= singletons;
                 }
-                assertMap(readers, matchesMap().entry(name + ":row_stride:BlockDocValuesReader." + type, segmentCount));
+                assertMap(readers, matchesMap().entry(name + ":row_stride:" + multiName(type), segmentCount));
             } else {
-                Integer singletons = (Integer) readers.remove(name + ":column_at_a_time:BlockDocValuesReader.Singleton" + type);
+                Integer singletons = (Integer) readers.remove(name + ":column_at_a_time:" + singleName(type));
                 if (singletons != null) {
                     pageCount -= singletons;
                 }
-                assertMap(
-                    readers,
-                    matchesMap().entry(name + ":column_at_a_time:BlockDocValuesReader." + type, lessThanOrEqualTo(pageCount))
-                );
+                assertMap(readers, matchesMap().entry(name + ":column_at_a_time:" + multiName(type), lessThanOrEqualTo(pageCount)));
             }
+        }
+
+        static String singleName(String type) {
+            return switch (type) {
+                case "Ordinals" -> "BytesRefsFromOrds.Singleton";
+                default -> type + "FromDocValues.Singleton";
+            };
+        }
+
+        static String multiName(String type) {
+            return switch (type) {
+                case "Ordinals" -> "BytesRefsFromOrds.SortedSet";
+                default -> type + "FromDocValues.Sorted";
+            };
         }
 
         static void id(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
@@ -1575,15 +1577,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         ft.setDocValuesType(DocValuesType.NONE);
         ft.setStored(true);
         ft.freeze();
-        return new KeywordFieldMapper.KeywordFieldType(
-            name,
-            ft,
-            Lucene.KEYWORD_ANALYZER,
-            Lucene.KEYWORD_ANALYZER,
-            Lucene.KEYWORD_ANALYZER,
-            new KeywordFieldMapper.Builder(name, IndexVersion.current()).docValues(false),
-            true // TODO randomize - load from stored keyword fields if stored even in synthetic source
-        );
+        return new KeywordFieldMapper.KeywordFieldType(name, ft, false);
     }
 
     private TextFieldMapper.TextFieldType storedTextField(String name) {
@@ -1711,7 +1705,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) op.status();
         assertMap(
             status.readersBuilt(),
-            matchesMap().entry("key:column_at_a_time:BlockDocValuesReader.SingletonInts", 1)
+            matchesMap().entry("key:column_at_a_time:IntsFromDocValues.Singleton", 1)
                 .entry("stored_text:column_at_a_time:null", 1)
                 .entry("stored_text:row_stride:BlockStoredFieldsReader.Bytes", 1)
                 .entry("stored_fields[requires_source:false, fields:1, sequential: " + sequential + "]", 1)

@@ -923,6 +923,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
+    /**
+     * Invoke {@code POST /_features/_reset?error_trace} with the given {@link RestClient}.
+     */
+    public static void performPostFeaturesReset(RestClient restClient) throws IOException {
+        final var request = new Request(HttpPost.METHOD_NAME, "/_features/_reset");
+        request.addParameter("error_trace", "true");
+        assertOK(restClient.performRequest(request));
+    }
+
     private void wipeCluster() throws Exception {
         waitForClusterUpdates();
 
@@ -949,8 +958,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         wipeSnapshots();
 
         if (resetFeatureStates()) {
-            final Request postRequest = new Request("POST", "/_features/_reset");
-            cleanupClient().performRequest(postRequest);
+            performPostFeaturesReset(cleanupClient());
         }
 
         // wipe data streams before indices so that the backing indices for data streams are handled properly
@@ -1230,6 +1238,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
+        wipeAllIndices(preserveSecurityIndices, cleanupClient());
+    }
+
+    protected static void wipeAllIndices(boolean preserveSecurityIndices, RestClient cleanupClient) throws IOException {
         try {
             // remove all indices except some history indices which can pop up after deleting all data streams but shouldn't interfere
             final List<String> indexPatterns = new ArrayList<>(
@@ -1248,7 +1260,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 RequestOptions.DEFAULT.toBuilder().setWarningsHandler(ESRestTestCase::ignoreSystemIndexAccessWarnings)
             );
 
-            final Response response = cleanupClient().performRequest(deleteRequest);
+            final Response response = cleanupClient.performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
             }

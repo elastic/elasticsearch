@@ -36,13 +36,11 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageRetryingInputStream.class);
     private static final StorageRetryStrategy STORAGE_RETRY_STRATEGY = GoogleCloudStorageService.createStorageRetryStrategy();
 
-    // Used for testing only
     GoogleCloudStorageRetryingInputStream(GoogleCloudStorageBlobStore blobStore, OperationPurpose purpose, BlobId blobId)
         throws IOException {
         this(blobStore, purpose, blobId, 0, Long.MAX_VALUE - 1);
     }
 
-    // Used for testing only
     GoogleCloudStorageRetryingInputStream(
         GoogleCloudStorageBlobStore blobStore,
         OperationPurpose purpose,

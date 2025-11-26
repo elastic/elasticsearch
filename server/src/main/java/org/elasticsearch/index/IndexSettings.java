@@ -677,7 +677,6 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting(
         "index.mapping.use_doc_values_skipper",
         true,
@@ -1204,7 +1203,7 @@ public final class IndexSettings {
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
-        useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
+        useDocValuesSkipper = scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);

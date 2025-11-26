@@ -215,6 +215,16 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
         return result;
     }
 
+    /**
+     * Initializes the aggregates and groupings for an AcrossSeriesAggregate.
+     *
+     * @param acrossAggregate the AcrossSeriesAggregate node
+     * @param target the target expression to aggregate
+     * @param aggs the list to populate with aggregate expressions
+     * @param groupings the list to populate with grouping expressions
+     * @param stepBucket the step bucket attribute
+     * @return the attribute representing the main aggregate value (e.g., avg(metric))
+     */
     private static Attribute initAggregatesAndGroupings(
         AcrossSeriesAggregate acrossAggregate,
         Expression target,

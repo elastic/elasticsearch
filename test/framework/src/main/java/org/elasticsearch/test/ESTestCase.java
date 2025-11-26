@@ -2925,6 +2925,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    public static void runInParallel(Runnable... tasks) {
+        runInParallel(tasks.length, i -> tasks[i].run());
+    }
+
     public static void ensureAllContextsReleased(SearchService searchService) {
         try {
             assertBusy(() -> {

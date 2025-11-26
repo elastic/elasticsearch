@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.regex.Regex;
@@ -23,6 +24,7 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
@@ -36,57 +38,67 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 class InferenceQueryUtils {
+    record InferenceInfo(int inferenceFieldCount, int indexCount, Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {}
+
     private InferenceQueryUtils() {}
 
-    static InferenceResultGatheringInfo gatherInferenceResults(
+    static PlainActionFuture<InferenceInfo> getInferenceInfo(
         QueryRewriteContext queryRewriteContext,
         Map<String, Float> fields,
         boolean resolveWildcards,
         boolean useDefaultFields,
+        @Nullable String query,
         @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        @Nullable SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
-        @Nullable FullyQualifiedInferenceId inferenceIdOverride,
-        @Nullable String query
+        @Nullable FullyQualifiedInferenceId inferenceIdOverride
     ) {
-        ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
-        Set<FullyQualifiedInferenceId> inferenceIds = getInferenceIdsForFields(
-            resolvedIndices.getConcreteLocalIndicesMetadata().values(),
-            queryRewriteContext.getLocalClusterAlias(),
-            fields,
-            resolveWildcards,
-            useDefaultFields
-        );
+        SetOnce<InferenceInfo> localInferenceInfoSupplier = new SetOnce<>();
+        SetOnce<Map<String, GetInferenceFieldsAction.Response>> remoteInferenceInfoSupplier = new SetOnce<>();
 
-        if (inferenceIds.isEmpty()) {
-            return new InferenceResultGatheringInfo(InferenceResultGatheringState.NO_INFERENCE_FIELDS, null);
-        } else if (inferenceResultsMapSupplier != null) {
-            InferenceResultGatheringState state = inferenceResultsMapSupplier.get() != null
-                ? InferenceResultGatheringState.COMPLETE
-                : InferenceResultGatheringState.PENDING;
-            return new InferenceResultGatheringInfo(state, inferenceResultsMapSupplier);
+        PlainActionFuture<InferenceInfo> inferenceInfoFuture = new PlainActionFuture<>();
+        try (var refs = new RefCountingListener(inferenceInfoFuture.delegateFailureAndWrap((l, v) -> {
+            l.onResponse(combineLocalAndRemoteInferenceInfo(localInferenceInfoSupplier.get(), remoteInferenceInfoSupplier.get()));
+        }))) {
+
         }
 
-        if (inferenceIdOverride != null) {
-            inferenceIds = Set.of(inferenceIdOverride);
-        }
+        return inferenceInfoFuture;
+    }
 
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> newInferenceResultsMapSupplier = getInferenceResults(
-            queryRewriteContext,
-            inferenceIds,
-            inferenceResultsMap,
-            query
+    private static InferenceInfo combineLocalAndRemoteInferenceInfo(
+        InferenceInfo localInferenceInfo,
+        Map<String, GetInferenceFieldsAction.Response> remoteInferenceInfo
+    ) {
+        int totalInferenceFieldCount = localInferenceInfo.inferenceFieldCount;
+        int totalIndexCount = localInferenceInfo.indexCount;
+        Map<FullyQualifiedInferenceId, InferenceResults> completeInferenceResultsMap = new HashMap<>(
+            localInferenceInfo.inferenceResultsMap
         );
 
-        InferenceResultGatheringState state = newInferenceResultsMapSupplier != null
-            ? InferenceResultGatheringState.PENDING
-            : InferenceResultGatheringState.COMPLETE;
-        return new InferenceResultGatheringInfo(state, inferenceResultsMapSupplier);
+        for (var entry : remoteInferenceInfo.entrySet()) {
+            String clusterAlias = entry.getKey();
+            var response = entry.getValue();
+            var inferenceFieldsMap = response.getInferenceFieldsMap();
+            var inferenceResultsMap = response.getInferenceResultsMap()
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(e -> new FullyQualifiedInferenceId(clusterAlias, e.getKey()), Map.Entry::getValue));
+
+            totalIndexCount += inferenceFieldsMap.size();
+            for (var value : inferenceFieldsMap.values()) {
+                totalInferenceFieldCount += value.size();
+            }
+
+            completeInferenceResultsMap.putAll(inferenceResultsMap);
+        }
+
+        return new InferenceInfo(totalInferenceFieldCount, totalIndexCount, completeInferenceResultsMap);
     }
 
     /**
@@ -297,15 +309,4 @@ class InferenceQueryUtils {
 
         return inferenceResults;
     }
-
-    enum InferenceResultGatheringState {
-        NO_INFERENCE_FIELDS,
-        PENDING,
-        COMPLETE
-    }
-
-    record InferenceResultGatheringInfo(
-        InferenceResultGatheringState state,
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier
-    ) {}
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
@@ -88,9 +89,9 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
                     final Long contentLength = resp.getHeaders().getContentLength();
                     InputStream content = resp.getContent();
                     if (contentLength != null) {
-                        return new ContentLengthValidatingInputStream(content, start, lastGeneration, contentLength);
+                        content = new ContentLengthValidatingInputStream(content, contentLength);
                     }
-                    return new ContentLengthValidatingInputStream(content, start, lastGeneration);
+                    return new SingleAttemptInputStream<>(content, start, lastGeneration);
                 } catch (IOException e) {
                     throw StorageException.translate(e);
                 }
@@ -167,22 +168,13 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
 
     // Google's SDK ignores the Content-Length header when no bytes are sent, see NetHttpResponse.SizeValidatingInputStream
     // We have to implement our own validation logic here
-    static final class ContentLengthValidatingInputStream extends SingleAttemptInputStream<Long> {
-
-        private final long firstOffset;
-        private final long generation;
+    static final class ContentLengthValidatingInputStream extends FilterInputStream {
         private final long contentLength;
 
         private long read = 0L;
 
-        ContentLengthValidatingInputStream(InputStream in, long firstOffset, Long generation) {
-            this(in, firstOffset, generation, -1L);
-        }
-
-        ContentLengthValidatingInputStream(InputStream in, long firstOffset, Long generation, long contentLength) {
+        ContentLengthValidatingInputStream(InputStream in, long contentLength) {
             super(in);
-            this.firstOffset = firstOffset;
-            this.generation = generation;
             this.contentLength = contentLength;
         }
 
@@ -219,16 +211,6 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
             if (read < contentLength) {
                 throw new IOException("Connection closed prematurely: read = " + read + ", Content-Length = " + contentLength);
             }
-        }
-
-        @Override
-        protected long getFirstOffset() {
-            return firstOffset;
-        }
-
-        @Override
-        protected Long getVersion() {
-            return generation;
         }
     }
 

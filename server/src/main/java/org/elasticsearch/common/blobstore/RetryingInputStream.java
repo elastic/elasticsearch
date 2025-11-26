@@ -319,21 +319,41 @@ public abstract class RetryingInputStream<V> extends InputStream {
      * Represents an {@link InputStream} for a single attempt to read a blob. Each retry
      * will attempt to create a new one of these. If reading from it fails, it should not retry.
      */
-    protected abstract static class SingleAttemptInputStream<V> extends FilterInputStream {
+    protected static final class SingleAttemptInputStream<V> extends FilterInputStream {
 
-        protected SingleAttemptInputStream(InputStream in) {
+        private final long firstOffset;
+        private final V version;
+
+        public SingleAttemptInputStream(InputStream in, long firstOffset, V version) {
             super(in);
+            this.firstOffset = firstOffset;
+            this.version = version;
         }
 
         /**
          * @return the offset of the first byte returned by this input stream
          */
-        protected abstract long getFirstOffset();
+        public long getFirstOffset() {
+            return firstOffset;
+        }
 
         /**
          * Get the version of this input stream
          */
-        protected abstract V getVersion();
+        public V getVersion() {
+            return version;
+        }
+
+        /**
+         * Unwrap the underlying input stream
+         *
+         * @param clazz The expected class of the underlying input stream
+         * @return The underlying input stream
+         * @param <T> The type of the underlying input stream
+         */
+        public <T> T unwrap(Class<T> clazz) {
+            return clazz.cast(in);
+        }
     }
 
     public static boolean willRetry(OperationPurpose purpose) {

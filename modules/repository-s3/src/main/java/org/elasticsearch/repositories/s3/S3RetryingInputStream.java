@@ -24,6 +24,7 @@ import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.Map;
 
@@ -52,7 +53,7 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
     private record S3BlobStoreServices(S3BlobStore blobStore, String blobKey, OperationPurpose purpose) implements BlobStoreServices<Void> {
 
         @Override
-        public S3SingleAttemptInputStream getInputStream(Void version, long start, long end) throws IOException {
+        public SingleAttemptInputStream<Void> getInputStream(Void version, long start, long end) throws IOException {
             try (AmazonS3Reference clientReference = blobStore.clientReference()) {
                 final var getObjectRequestBuilder = GetObjectRequest.builder().bucket(blobStore.bucket()).key(blobKey);
                 configureRequestForMetrics(getObjectRequestBuilder, blobStore, Operation.GET_OBJECT, purpose);
@@ -62,7 +63,7 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
                 }
                 final var getObjectRequest = getObjectRequestBuilder.build();
                 final var getObjectResponse = clientReference.client().getObject(getObjectRequest);
-                return new S3SingleAttemptInputStream(getObjectResponse, start, end);
+                return new SingleAttemptInputStream<>(new S3SingleAttemptInputStream(getObjectResponse, start, end), start, null);
             } catch (SdkException e) {
                 if (e instanceof SdkServiceException sdkServiceException) {
                     if (sdkServiceException.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
@@ -171,8 +172,9 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
         return getObjectResponse.contentLength();
     }
 
-    private static class S3SingleAttemptInputStream extends SingleAttemptInputStream<Void> {
+    private static class S3SingleAttemptInputStream extends InputStream {
 
+        private final ResponseInputStream<GetObjectResponse> responseStream;
         private final long start;
         private final long end;
         private final long lastOffset;
@@ -182,7 +184,7 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
         private boolean aborted;
 
         private S3SingleAttemptInputStream(ResponseInputStream<GetObjectResponse> responseStream, long start, long end) {
-            super(responseStream);
+            this.responseStream = responseStream;
             this.start = start;
             this.end = end;
             lastOffset = getStreamLength(responseStream.response(), start, end);
@@ -191,7 +193,7 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
         @Override
         public int read() throws IOException {
             ensureOpen();
-            int result = in.read();
+            int result = responseStream.read();
             if (result == -1) {
                 eof = true;
             } else {
@@ -203,7 +205,7 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
             ensureOpen();
-            final int bytesRead = in.read(b, off, len);
+            final int bytesRead = responseStream.read(b, off, len);
             if (bytesRead == -1) {
                 eof = true;
             } else {
@@ -220,12 +222,11 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
             }
         }
 
-        @SuppressWarnings("unchecked")
         @Override
         public void close() throws IOException {
-            maybeAbort((ResponseInputStream<GetObjectResponse>) in);
+            maybeAbort(responseStream);
             try {
-                in.close();
+                responseStream.close();
             } finally {
                 closed = true;
             }
@@ -250,12 +251,10 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
         }
 
         @Override
-        public long skip(long len) throws IOException {
+        public long skip(long n) throws IOException {
             // This could be optimized on a failure by re-opening stream directly to the preferred location. However, it is rarely called,
-            // so for now we will just delegate to the underlying stream.
-            final long n = in.skip(len);
-            offset += n;
-            return n;
+            // so for now we will rely on the default implementation which just discards bytes by reading.
+            return super.skip(n);
         }
 
         @Override
@@ -278,30 +277,20 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
         private long tryGetStreamLength(GetObjectResponse response) {
             return S3RetryingInputStream.tryGetStreamLength(response, start, end);
         }
-
-        @Override
-        protected long getFirstOffset() {
-            return start;
-        }
-
-        @Override
-        protected Void getVersion() {
-            return null;
-        }
     }
 
     // exposed for testing
     boolean isEof() {
-        return ((S3SingleAttemptInputStream) currentStream).isEof();
+        return currentStream.unwrap(S3SingleAttemptInputStream.class).isEof();
     }
 
     // exposed for testing
     boolean isAborted() {
-        return ((S3SingleAttemptInputStream) currentStream).isAborted();
+        return currentStream.unwrap(S3SingleAttemptInputStream.class).isAborted();
     }
 
     // exposed for testing
     long tryGetStreamLength(GetObjectResponse getObjectResponse) {
-        return ((S3SingleAttemptInputStream) currentStream).tryGetStreamLength(getObjectResponse);
+        return currentStream.unwrap(S3SingleAttemptInputStream.class).tryGetStreamLength(getObjectResponse);
     }
 }

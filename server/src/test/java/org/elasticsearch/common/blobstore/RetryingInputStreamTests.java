@@ -41,7 +41,7 @@ public class RetryingInputStreamTests extends ESTestCase {
             @Override
             public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
                 throws IOException {
-                return new FailureAtIndexInputStream(resourceBytes, eTag, (int) start, failureCounter.getAndDecrement() > 0);
+                return createSingleAttemptInputStream(resourceBytes, eTag, (int) start, failureCounter.getAndDecrement() > 0);
             }
         };
 
@@ -62,7 +62,7 @@ public class RetryingInputStreamTests extends ESTestCase {
             @Override
             public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
                 throws IOException {
-                return new FailureAtIndexInputStream(resourceBytes, eTag, (int) start, true);
+                return createSingleAttemptInputStream(resourceBytes, eTag, (int) start, true);
             }
         };
 
@@ -85,7 +85,7 @@ public class RetryingInputStreamTests extends ESTestCase {
             @Override
             public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
                 throws IOException {
-                return new FailureAtIndexInputStream(resourceBytes, eTag, (int) start, true);
+                return createSingleAttemptInputStream(resourceBytes, eTag, (int) start, true);
             }
         };
 
@@ -109,7 +109,7 @@ public class RetryingInputStreamTests extends ESTestCase {
             @Override
             public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
                 throws IOException {
-                return new FailureAtIndexInputStream(resourceBytes, eTag, (int) start, failureCounter.getAndDecrement() > 0);
+                return createSingleAttemptInputStream(resourceBytes, eTag, (int) start, failureCounter.getAndDecrement() > 0);
             }
         };
 
@@ -133,8 +133,8 @@ public class RetryingInputStreamTests extends ESTestCase {
             public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
                 throws IOException {
                 final var inputStream = meaningfulProgressAttemptsCounter.decrementAndGet() > 0
-                    ? new FailureAtIndexInputStream(resourceBytes, eTag, (int) start, true, meaningfulProgressSize, Integer.MAX_VALUE)
-                    : new FailureAtIndexInputStream(resourceBytes, eTag, (int) start, true, 1, meaningfulProgressSize - 1);
+                    ? createSingleAttemptInputStream(resourceBytes, eTag, (int) start, true, meaningfulProgressSize, Integer.MAX_VALUE)
+                    : createSingleAttemptInputStream(resourceBytes, eTag, (int) start, true, 1, meaningfulProgressSize - 1);
                 return inputStream;
             }
 
@@ -199,7 +199,7 @@ public class RetryingInputStreamTests extends ESTestCase {
                 } else {
                     assertNull(version);
                 }
-                return new FailureAtIndexInputStream(resourceBytes, eTag, (int) start, failureCounter.getAndDecrement() > 0);
+                return createSingleAttemptInputStream(resourceBytes, eTag, (int) start, failureCounter.getAndDecrement() > 0);
             }
         };
 
@@ -287,42 +287,50 @@ public class RetryingInputStreamTests extends ESTestCase {
         }
     }
 
-    private static class FailureAtIndexInputStream extends RetryingInputStream.SingleAttemptInputStream<String> {
+    private static RetryingInputStream.SingleAttemptInputStream<String> createSingleAttemptInputStream(
+        BytesReference bytesReference,
+        String version,
+        int startIndex,
+        boolean failBeforeEnd
+    ) throws IOException {
+        return createSingleAttemptInputStream(bytesReference, version, startIndex, failBeforeEnd, 1, Integer.MAX_VALUE);
+    }
 
-        private final long firstOffset;
-        private final String version;
-        private final InputStream delegate;
+    private static RetryingInputStream.SingleAttemptInputStream<String> createSingleAttemptInputStream(
+        BytesReference bytesReference,
+        String version,
+        int startIndex,
+        boolean failBeforeEnd,
+        int minimumSuccess,
+        int maximumSuccess
+    ) throws IOException {
+        if (failBeforeEnd) {
+            return new RetryingInputStream.SingleAttemptInputStream<>(
+                new FailureAtIndexInputStream(bytesReference, startIndex, minimumSuccess, maximumSuccess),
+                startIndex,
+                version
+            );
+        }
+        return new RetryingInputStream.SingleAttemptInputStream<>(inputStreamAtIndex(bytesReference, startIndex), startIndex, version);
+    }
+
+    private static class FailureAtIndexInputStream extends InputStream {
+
+        private final InputStream inputStream;
         private int readRemaining;
 
-        private FailureAtIndexInputStream(BytesReference bytesReference, String version, int startIndex, boolean failBeforeEnd)
+        private FailureAtIndexInputStream(BytesReference bytesReference, int startIndex, int minimumSuccess, int maximumSuccess)
             throws IOException {
-            this(bytesReference, version, startIndex, failBeforeEnd, 1, Integer.MAX_VALUE);
-        }
-
-        private FailureAtIndexInputStream(
-            BytesReference bytesReference,
-            String version,
-            int startIndex,
-            boolean failBeforeEnd,
-            int minimumSuccess,
-            int maximumSuccess
-        ) throws IOException {
+            this.inputStream = inputStreamAtIndex(bytesReference, startIndex);
             final int remainingBytes = bytesReference.length() - startIndex;
-            this.delegate = bytesReference.slice(startIndex, remainingBytes).streamInput();
-            if (failBeforeEnd) {
-                this.readRemaining = randomIntBetween(Math.max(1, minimumSuccess), Math.min(maximumSuccess, remainingBytes / 2));
-            } else {
-                this.readRemaining = Integer.MAX_VALUE;
-            }
-            this.firstOffset = startIndex;
-            this.version = version;
+            this.readRemaining = randomIntBetween(Math.max(1, minimumSuccess), Math.min(maximumSuccess, remainingBytes / 2));
         }
 
         @Override
         public int read() throws IOException {
             if (readRemaining > 0) {
                 readRemaining--;
-                return delegate.read();
+                return inputStream.read();
             } else {
                 throw new IOException("This is retry-able");
             }
@@ -332,16 +340,11 @@ public class RetryingInputStreamTests extends ESTestCase {
         public String toString() {
             return "Failing after " + readRemaining;
         }
+    }
 
-        @Override
-        protected long getFirstOffset() {
-            return firstOffset;
-        }
-
-        @Override
-        protected String getVersion() {
-            return version;
-        }
+    private static InputStream inputStreamAtIndex(BytesReference bytesReference, int startIndex) throws IOException {
+        final int remainingBytes = bytesReference.length() - startIndex;
+        return bytesReference.slice(startIndex, remainingBytes).streamInput();
     }
 
     public static OperationPurpose randomRetryingPurpose() {

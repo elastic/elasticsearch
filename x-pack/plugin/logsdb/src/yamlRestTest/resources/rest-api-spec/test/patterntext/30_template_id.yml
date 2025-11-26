@@ -64,7 +64,7 @@ Sort by template_id descending from index config setting:
         index: test
         body:
           docvalue_fields: [ "foo.template_id" ]
-          sort: ["_doc", "@timestamp"]
+          sort: [{ "_doc": {  } }, {"@timestamp": {"missing": "_last" }}]
           query: { match_all: {} }
 
   - match: { hits.total.value: 5 }

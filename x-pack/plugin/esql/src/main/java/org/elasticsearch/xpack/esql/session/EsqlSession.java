@@ -576,6 +576,7 @@ public class EsqlSession {
                         // iterate the index resolution and replace it with EMPTY_SUBQUERY if the index resolution is invalid
                         r.indexResolution.forEach((indexPattern, indexResolution) -> {
                             if (indexResolution.isValid() == false) {
+                                LOGGER.debug("Index pattern [{}] does not match valid indices, pruning the subquery", indexPattern);
                                 r.withIndices(indexPattern, IndexResolution.EMPTY_SUBQUERY);
                             }
                         });
@@ -589,13 +590,13 @@ public class EsqlSession {
                                         && ir.get().concreteIndices().get(clusterAlias).isEmpty() == false
                                 );
                             if (clusterHasValidIndex == false) {
+                                String errorMsg = "no valid indices found in any subquery " + EsqlCCSUtils.inClusterName(clusterAlias);
+                                LOGGER.debug(errorMsg);
                                 EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
                                     executionInfo,
                                     clusterAlias,
                                     EsqlExecutionInfo.Cluster.Status.SKIPPED,
-                                    new VerificationException(
-                                        "no valid indices found in any subquery " + EsqlCCSUtils.inClusterName(clusterAlias)
-                                    )
+                                    new VerificationException(errorMsg)
                                 );
                             }
                         });

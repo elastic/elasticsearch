@@ -7,6 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+  // This file contains implementations for basic vector processing functionalities,
+  // including support for "1st tier" vector capabilities; in the case of x64,
+  // this first tier include functions for processors supporting at least AVX2.
+
 #include <stddef.h>
 #include <stdint.h>
 #include <math.h>
@@ -116,7 +120,7 @@ EXPORT int vec_caps() {
     return 0;
 }
 
-static inline int32_t dot7u_inner(int8_t* a, int8_t* b, size_t dims) {
+static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     const __m256i ones = _mm256_set1_epi16(1);
 
     // Init accumulator(s) with 0
@@ -125,8 +129,8 @@ static inline int32_t dot7u_inner(int8_t* a, int8_t* b, size_t dims) {
 #pragma GCC unroll 4
     for(int i = 0; i < dims; i += STRIDE_BYTES_LEN) {
         // Load packed 8-bit integers
-        __m256i va1 = _mm256_loadu_si256(a + i);
-        __m256i vb1 = _mm256_loadu_si256(b + i);
+        __m256i va1 = _mm256_loadu_si256((const __m256i_u *)(a + i));
+        __m256i vb1 = _mm256_loadu_si256((const __m256i_u *)(b + i));
 
         // Perform multiplication and create 16-bit values
         // Vertically multiply each unsigned 8-bit integer from va with the corresponding
@@ -140,7 +144,7 @@ static inline int32_t dot7u_inner(int8_t* a, int8_t* b, size_t dims) {
     return hsum_i32_8(acc1);
 }
 
-EXPORT int32_t dot7u(int8_t* a, int8_t* b, size_t dims) {
+EXPORT int32_t vec_dot7u(int8_t* a, int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > STRIDE_BYTES_LEN) {
@@ -153,32 +157,32 @@ EXPORT int32_t dot7u(int8_t* a, int8_t* b, size_t dims) {
     return res;
 }
 
-EXPORT void dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, float_t* results) {
+EXPORT void vec_dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     int32_t res = 0;
     if (dims > STRIDE_BYTES_LEN) {
         const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
-        for (size_t c = 0; c < count; c++) {
+        for (int32_t c = 0; c < count; c++) {
             int i = limit;
             res = dot7u_inner(a, b, i);
             for (; i < dims; i++) {
                 res += a[i] * b[i];
             }
-            results[c] = (float_t)res;
+            results[c] = (f32_t)res;
             a += dims;
         }
     } else {
-        for (size_t c = 0; c < count; c++) {
+        for (int32_t c = 0; c < count; c++) {
             res = 0;
-            for (size_t i = 0; i < dims; i++) {
+            for (int32_t i = 0; i < dims; i++) {
                 res += a[i] * b[i];
             }
-            results[c] = (float_t)res;
+            results[c] = (f32_t)res;
             a += dims;
         }
     }
 }
 
-static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
+static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, const int32_t dims) {
     // Init accumulator(s) with 0
     __m256i acc1 = _mm256_setzero_si256();
 
@@ -187,8 +191,8 @@ static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
 #pragma GCC unroll 4
     for(int i = 0; i < dims; i += STRIDE_BYTES_LEN) {
         // Load packed 8-bit integers
-        __m256i va1 = _mm256_loadu_si256(a + i);
-        __m256i vb1 = _mm256_loadu_si256(b + i);
+        __m256i va1 = _mm256_loadu_si256((const __m256i_u *)(a + i));
+        __m256i vb1 = _mm256_loadu_si256((const __m256i_u *)(b + i));
 
         const __m256i dist1 = _mm256_sub_epi8(va1, vb1);
         const __m256i abs_dist1 = _mm256_sign_epi8(dist1, dist1);
@@ -200,7 +204,7 @@ static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
     return hsum_i32_8(acc1);
 }
 
-EXPORT int32_t sqr7u(int8_t* a, int8_t* b, size_t dims) {
+EXPORT int32_t vec_sqr7u(int8_t* a, int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > STRIDE_BYTES_LEN) {
@@ -217,7 +221,7 @@ EXPORT int32_t sqr7u(int8_t* a, int8_t* b, size_t dims) {
 // --- single precision floats
 
 // Horizontally add 8 float32 elements in a __m256 register
-static inline float hsum_f32_8(const __m256 v) {
+static inline f32_t hsum_f32_8(const __m256 v) {
     // First, add the low and high 128-bit lanes
     __m128 low  = _mm256_castps256_ps128(v);      // lower 128 bits
     __m128 high = _mm256_extractf128_ps(v, 1);    // upper 128 bits
@@ -233,10 +237,10 @@ static inline float hsum_f32_8(const __m256 v) {
     return _mm_cvtss_f32(sums);
 }
 
-// const float *a  pointer to the first float vector
-// const float *b  pointer to the second float vector
-// size_t elementCount  the number of floating point elements
-EXPORT float cosf32(const float *a, const float *b, size_t elementCount) {
+// const f32_t *a  pointer to the first float vector
+// const f32_t *b  pointer to the second float vector
+// const int32_t elementCount  the number of floating point elements
+EXPORT f32_t vec_cosf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     __m256 dot0 = _mm256_setzero_ps();
     __m256 dot1 = _mm256_setzero_ps();
     __m256 dot2 = _mm256_setzero_ps();
@@ -252,9 +256,9 @@ EXPORT float cosf32(const float *a, const float *b, size_t elementCount) {
     __m256 norm_b2 = _mm256_setzero_ps();
     __m256 norm_b3 = _mm256_setzero_ps();
 
-    size_t i = 0;
+    int32_t i = 0;
     // Each __m256 holds 8 floats, so unroll 4x = 32 floats per loop
-    size_t unrolled_limit = elementCount & ~31UL;
+    int32_t unrolled_limit = elementCount & ~31UL;
     for (; i < unrolled_limit; i += 32) {
         __m256 a0 = _mm256_loadu_ps(a + i);
         __m256 b0 = _mm256_loadu_ps(b + i);
@@ -286,38 +290,38 @@ EXPORT float cosf32(const float *a, const float *b, size_t elementCount) {
     __m256 norm_a_total = _mm256_add_ps(_mm256_add_ps(norm_a0, norm_a1), _mm256_add_ps(norm_a2, norm_a3));
     __m256 norm_b_total = _mm256_add_ps(_mm256_add_ps(norm_b0, norm_b1), _mm256_add_ps(norm_b2, norm_b3));
 
-    float dot_result = hsum_f32_8(dot_total);
-    float norm_a_result = hsum_f32_8(norm_a_total);
-    float norm_b_result = hsum_f32_8(norm_b_total);
+    f32_t dot_result = hsum_f32_8(dot_total);
+    f32_t norm_a_result = hsum_f32_8(norm_a_total);
+    f32_t norm_b_result = hsum_f32_8(norm_b_total);
 
     // Handle remaining tail with scalar loop
     for (; i < elementCount; ++i) {
-        float ai = a[i];
-        float bi = b[i];
+        f32_t ai = a[i];
+        f32_t bi = b[i];
         dot_result += ai * bi;
         norm_a_result += ai * ai;
         norm_b_result += bi * bi;
     }
 
-    float denom = sqrtf(norm_a_result) * sqrtf(norm_b_result);
+    f32_t denom = sqrtf(norm_a_result) * sqrtf(norm_b_result);
     if (denom == 0.0f) {
         return 0.0f;
     }
     return dot_result / denom;
 }
 
-// const float *a  pointer to the first float vector
-// const float *b  pointer to the second float vector
-// size_t elementCount  the number of floating point elements
-EXPORT float dotf32(const float *a, const float *b, size_t elementCount) {
+// const f32_t *a  pointer to the first float vector
+// const f32_t *b  pointer to the second float vector
+// const int32_t elementCount  the number of floating point elements
+EXPORT f32_t vec_dotf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     __m256 acc0 = _mm256_setzero_ps();
     __m256 acc1 = _mm256_setzero_ps();
     __m256 acc2 = _mm256_setzero_ps();
     __m256 acc3 = _mm256_setzero_ps();
 
-    size_t i = 0;
+    int32_t i = 0;
     // Each __m256 holds 8 floats, so unroll 4x = 32 floats per loop
-    size_t unrolled_limit = elementCount & ~31UL;
+    int32_t unrolled_limit = elementCount & ~31UL;
     for (; i < unrolled_limit; i += 32) {
         acc0 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i),      _mm256_loadu_ps(b + i),      acc0);
         acc1 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 8),  _mm256_loadu_ps(b + i + 8),  acc1);
@@ -327,7 +331,7 @@ EXPORT float dotf32(const float *a, const float *b, size_t elementCount) {
 
     // Combine all partial sums
     __m256 total_sum = _mm256_add_ps(_mm256_add_ps(acc0, acc1), _mm256_add_ps(acc2, acc3));
-    float result = hsum_f32_8(total_sum);
+    f32_t result = hsum_f32_8(total_sum);
 
     for (; i < elementCount; ++i) {
         result += a[i] * b[i];
@@ -336,17 +340,17 @@ EXPORT float dotf32(const float *a, const float *b, size_t elementCount) {
     return result;
 }
 
-// const float *a  pointer to the first float vector
-// const float *b  pointer to the second float vector
-// size_t elementCount  the number of floating point elements
-EXPORT float sqrf32(const float *a, const float *b, size_t elementCount) {
+// const f32_t *a  pointer to the first float vector
+// const f32_t *b  pointer to the second float vector
+// const int32_t elementCount  the number of floating point elements
+EXPORT f32_t vec_sqrf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     __m256 sum0 = _mm256_setzero_ps();
     __m256 sum1 = _mm256_setzero_ps();
     __m256 sum2 = _mm256_setzero_ps();
     __m256 sum3 = _mm256_setzero_ps();
 
-    size_t i = 0;
-    size_t unrolled_limit = elementCount & ~31UL;
+    int32_t i = 0;
+    int32_t unrolled_limit = elementCount & ~31UL;
     // Each __m256 holds 8 floats, so unroll 4x = 32 floats per loop
     for (; i < unrolled_limit; i += 32) {
         __m256 d0 = _mm256_sub_ps(_mm256_loadu_ps(a + i),      _mm256_loadu_ps(b + i));
@@ -362,10 +366,10 @@ EXPORT float sqrf32(const float *a, const float *b, size_t elementCount) {
 
     // reduce all partial sums
     __m256 total_sum = _mm256_add_ps(_mm256_add_ps(sum0, sum1), _mm256_add_ps(sum2, sum3));
-    float result = hsum_f32_8(total_sum);
+    f32_t result = hsum_f32_8(total_sum);
 
     for (; i < elementCount; ++i) {
-        float diff = a[i] - b[i];
+        f32_t diff = a[i] - b[i];
         result += diff * diff;
     }
 

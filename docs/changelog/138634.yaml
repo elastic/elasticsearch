@@ -1,0 +1,6 @@
+pr: 138634
+summary: Add "close_job" parameter to the stop datafeed API
+area: Machine Learning
+type: enhancement
+issues:
+ - 138010

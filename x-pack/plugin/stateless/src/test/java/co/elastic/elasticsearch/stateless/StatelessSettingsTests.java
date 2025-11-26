@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
+
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -143,6 +145,22 @@ public class StatelessSettingsTests extends ESTestCase {
         assertThat(
             statelessNode.additionalSettings().get(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey()),
             equalTo("0")
+        );
+    }
+
+    public void testOfflineWarmingDisabledByDefault() {
+        var statelessNode = new Stateless(
+            Settings.builder()
+                .put(Stateless.STATELESS_ENABLED.getKey(), true)
+                .put(
+                    NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                    randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()
+                )
+                .build()
+        );
+        assertThat(
+            statelessNode.additionalSettings().get(SharedBlobCacheWarmingService.OFFLINE_WARMING_ENABLED_SETTING.getKey()),
+            equalTo("false")
         );
     }
 

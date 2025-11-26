@@ -15,6 +15,10 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 
 import java.io.IOException;
 
+/**
+ * Wrapper around {@link BinaryDocValues} to decode the typical multivalued encoding used by
+ * {@link org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField}.
+ */
 public class MultiValuedSortedBinaryDocValues extends SortedBinaryDocValues {
 
     BinaryDocValues values;

@@ -60,7 +60,6 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableList;
 
-
 /**
  * This runner executes test suits against two clusters (a "write" (the remote) cluster and a
  * "search" cluster) connected via CCS.

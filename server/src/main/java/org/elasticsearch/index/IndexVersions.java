@@ -187,6 +187,7 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_TO_LUCENE_10_3_0 = def(9_038_0_00, Version.LUCENE_10_3_0);
     public static final IndexVersion IGNORED_SOURCE_COALESCED_ENTRIES = def(9_039_0_00, Version.LUCENE_10_3_0);
     public static final IndexVersion BACKPORT_UPGRADE_TO_LUCENE_10_3_1 = def(9_039_0_01, Version.LUCENE_10_3_1);
+    public static final IndexVersion BACKPORT_UPGRADE_TO_LUCENE_10_3_2 = def(9_039_0_02, Version.LUCENE_10_3_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

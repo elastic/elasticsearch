@@ -1,0 +1,6 @@
+pr: 137430
+summary: ES|QL - Full text functions accept null as field parameter
+area: "ES|QL"
+type: bug
+issues:
+ - 136608

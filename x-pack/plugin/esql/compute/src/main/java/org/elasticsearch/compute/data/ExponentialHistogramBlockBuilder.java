@@ -94,16 +94,26 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
         return encodedHistogramsBuilder;
     }
 
-    public ExponentialHistogramBlockBuilder append(ExponentialHistogram histogram) {
+    private record EncodedHistogramData(
+        double count,
+        double sum,
+        double min,
+        double max,
+        double zeroThreshold,
+        BytesRef encodedHistogram
+    ) {}
+
+    private static EncodedHistogramData encode(ExponentialHistogram histogram) {
         assert histogram != null;
-        // TODO: fix performance and correctness before using in production code
+        // TODO: check and potentially improve performance and correctness before moving out of tech-preview
         // The current implementation encodes the histogram into the format we use for storage on disk
         // This format is optimized for minimal memory usage at the cost of encoding speed
         // In addition, it only support storing the zero threshold as a double value, which is lossy when merging histograms
+        // In practice this currently occurs, as the zero threshold is usually 0.0 and not impacted by merges
+        // And even if it occurs, the error is usually tiny
         // We should add a dedicated encoding when building a block from computed histograms which do not originate from doc values
         // That encoding should be optimized for speed and support storing the zero threshold as (scale, index) pair
         ZeroBucket zeroBucket = histogram.zeroBucket();
-
         BytesStreamOutput encodedBytes = new BytesStreamOutput();
         try {
             CompressedExponentialHistogram.writeHistogramBytes(
@@ -115,26 +125,81 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
         } catch (IOException e) {
             throw new RuntimeException("Failed to encode histogram", e);
         }
-        if (Double.isNaN(histogram.min())) {
-            minimaBuilder.appendNull();
-        } else {
-            minimaBuilder.appendDouble(histogram.min());
-        }
-        if (Double.isNaN(histogram.max())) {
-            maximaBuilder.appendNull();
-        } else {
-            maximaBuilder.appendDouble(histogram.max());
-        }
+        double sum;
         if (histogram.valueCount() == 0) {
             assert histogram.sum() == 0.0 : "Empty histogram should have sum 0.0 but was " + histogram.sum();
+            sum = Double.NaN; // we store null/NaN for empty histograms to ensure avg is null/0.0 instead of 0.0/0.0
+        } else {
+            sum = histogram.sum();
+        }
+        return new EncodedHistogramData(
+            histogram.valueCount(),
+            sum,
+            histogram.min(),
+            histogram.max(),
+            zeroBucket.zeroThreshold(),
+            encodedBytes.bytes().toBytesRef()
+        );
+    }
+
+    public ExponentialHistogramBlockBuilder append(ExponentialHistogram histogram) {
+        EncodedHistogramData data = encode(histogram);
+        valueCountsBuilder.appendDouble(data.count);
+        if (Double.isNaN(data.min)) {
+            minimaBuilder.appendNull();
+        } else {
+            minimaBuilder.appendDouble(data.min);
+        }
+        if (Double.isNaN(data.max)) {
+            maximaBuilder.appendNull();
+        } else {
+            maximaBuilder.appendDouble(data.max);
+        }
+        if (Double.isNaN(data.sum)) {
             sumsBuilder.appendNull();
         } else {
-            sumsBuilder.appendDouble(histogram.sum());
+            sumsBuilder.appendDouble(data.sum);
         }
-        valueCountsBuilder.appendDouble(histogram.valueCount());
-        zeroThresholdsBuilder.appendDouble(zeroBucket.zeroThreshold());
-        encodedHistogramsBuilder.appendBytesRef(encodedBytes.bytes().toBytesRef());
+        zeroThresholdsBuilder.appendDouble(data.zeroThreshold);
+        encodedHistogramsBuilder.appendBytesRef(data.encodedHistogram);
         return this;
+    }
+
+    static ExponentialHistogramBlock createConstant(ExponentialHistogram histogram, int positionCount, BlockFactory blockFactory) {
+        EncodedHistogramData data = encode(histogram);
+        DoubleBlock minBlock = null;
+        DoubleBlock maxBlock = null;
+        DoubleBlock sumBlock = null;
+        DoubleBlock countBlock = null;
+        DoubleBlock zeroThresholdBlock = null;
+        BytesRefBlock encodedHistogramBlock = null;
+        boolean success = false;
+        try {
+            countBlock = blockFactory.newConstantDoubleBlockWith(data.count, positionCount);
+            if (Double.isNaN(data.min)) {
+                minBlock = (DoubleBlock) blockFactory.newConstantNullBlock(positionCount);
+            } else {
+                minBlock = blockFactory.newConstantDoubleBlockWith(data.min, positionCount);
+            }
+            if (Double.isNaN(data.max)) {
+                maxBlock = (DoubleBlock) blockFactory.newConstantNullBlock(positionCount);
+            } else {
+                maxBlock = blockFactory.newConstantDoubleBlockWith(data.max, positionCount);
+            }
+            if (Double.isNaN(data.sum)) {
+                sumBlock = (DoubleBlock) blockFactory.newConstantNullBlock(positionCount);
+            } else {
+                sumBlock = blockFactory.newConstantDoubleBlockWith(data.sum, positionCount);
+            }
+            zeroThresholdBlock = blockFactory.newConstantDoubleBlockWith(data.zeroThreshold, positionCount);
+            encodedHistogramBlock = blockFactory.newConstantBytesRefBlockWith(data.encodedHistogram, positionCount);
+            success = true;
+            return new ExponentialHistogramArrayBlock(minBlock, maxBlock, sumBlock, countBlock, zeroThresholdBlock, encodedHistogramBlock);
+        } finally {
+            if (success == false) {
+                Releasables.close(minBlock, maxBlock, sumBlock, countBlock, zeroThresholdBlock, encodedHistogramBlock);
+            }
+        }
     }
 
     /**

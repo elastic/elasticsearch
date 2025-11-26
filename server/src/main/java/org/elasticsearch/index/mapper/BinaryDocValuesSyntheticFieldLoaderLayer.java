@@ -31,13 +31,14 @@ public abstract class BinaryDocValuesSyntheticFieldLoaderLayer implements Compos
 
     @Override
     public long valueCount() {
-        return bytesValues.docValueCount();
+        return bytesValues == null ? 0 : bytesValues.docValueCount();
     }
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
         var docValues = leafReader.getBinaryDocValues(name);
         if (docValues == null) {
+            bytesValues = null;
             return null;
         }
 

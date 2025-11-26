@@ -103,10 +103,7 @@ public class PromqlVerifierTests extends ESTestCase {
             equalTo("")
         );
         assertThat(
-            error(
-                "PROMQL \"test\" step 5m (method_code_http_errors_rate5m / ignoring(code) group_left method_http_requests_rate5m)",
-                tsdb
-            ),
+            error("PROMQL \"test\" step 5m (method_code_http_errors_rate5m / ignoring(code) group_left method_http_requests_rate5m)", tsdb),
             equalTo("")
         );
     }

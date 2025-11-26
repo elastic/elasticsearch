@@ -1104,12 +1104,7 @@ public class WildcardFieldMapper extends FieldMapper {
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(() -> {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath()) {
-                @Override
-                protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
-                    b.utf8Value(value.bytes, value.offset, value.length);
-                }
-            });
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath()));
             if (ignoreAbove.valuesPotentiallyIgnored()) {
                 layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
                     @Override

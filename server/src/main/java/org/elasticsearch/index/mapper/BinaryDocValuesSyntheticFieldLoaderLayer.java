@@ -17,17 +17,15 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public abstract class BinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
+public final class BinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
     private final String name;
     private SortedBinaryDocValues bytesValues;
     private boolean hasValue;
 
-    protected BinaryDocValuesSyntheticFieldLoaderLayer(String name) {
+    public BinaryDocValuesSyntheticFieldLoaderLayer(String name) {
         this.name = name;
     }
-
-    protected abstract void writeValue(XContentBuilder b, BytesRef value) throws IOException;
 
     @Override
     public long valueCount() {
@@ -61,7 +59,10 @@ public abstract class BinaryDocValuesSyntheticFieldLoaderLayer implements Compos
             return;
         }
 
-        writeValue(b, bytesValues.nextValue());
+        for (int i = 0; i < bytesValues.docValueCount(); ++i) {
+            BytesRef value = bytesValues.nextValue();
+            b.utf8Value(value.bytes, value.offset, value.length);
+        }
     }
 
     @Override

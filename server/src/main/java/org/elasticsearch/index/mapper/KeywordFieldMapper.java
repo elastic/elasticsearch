@@ -1497,12 +1497,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else {
                 assert offsetsFieldName == null;
                 assert indexSettings.sourceKeepMode() == SourceKeepMode.NONE;
-                layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().binaryDocValuesName()) {
-                    @Override
-                    protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
-                        b.utf8Value(value.bytes, value.offset, value.length);
-                    }
-                });
+                layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().binaryDocValuesName()));
             }
         }
 
@@ -1510,12 +1505,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // extra copy of the field for supporting synthetic source. This layer will check that copy.
         if (fieldType().ignoreAbove.valuesPotentiallyIgnored()) {
             final String fieldName = fieldType().syntheticSourceFallbackFieldName();
-            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldName) {
-                @Override
-                public void writeValue(XContentBuilder b, BytesRef value) throws IOException {
-                    b.utf8Value(value.bytes, value.offset, value.length);
-                }
-            });
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldName));
         }
 
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);

@@ -120,8 +120,7 @@ public class QueryRewriteAsyncActionTests extends ESTestCase {
                     SetOnce<Boolean> hasRun = new SetOnce<>();
                     ctx.registerUniqueRewriteAction(
                         new TestQueryRewriteAsyncAction(ctx, actionLabel, execCounter), // we register the same action multiple times
-                        (obj) -> {
-                            Integer result = (Integer) obj;
+                        (result) -> {
                             // a consumer is executed only once
                             hasRun.set(true);
                             // when a consumer is executed, we add its label to the results map

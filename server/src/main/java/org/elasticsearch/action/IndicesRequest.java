@@ -44,22 +44,19 @@ public interface IndicesRequest {
     }
 
     /**
-     * Close PIT, Clear Scroll are LegacyActionRequest
-     * Reindex is essentially a LegacyActionRequest as well as CompositeIndicesRequest
-     * EsqlQueryRequest also a LegacyActionRequest and CompositeIndicesRequest
-     * SQL query request is similar to ESQL
-     * Painless execute request is SingleIndexNoWildcards which is an IndicesRequest
-     * Project tags is a LegacyActionRequest. This one does not need action filter work
+     * Interface for indicating potential work related to cross-project authentication and authorization.
      */
     interface CrossProjectCandidate {
 
         /**
          * Determines whether the request type can support cross-project processing. Cross-project processing entails
          * 1. UIAM authentication and authorization projects resolution.
-         * 2. Cross-project flat-world index resolution and error handling if applicable.
+         * 2. If applicable, cross-project flat-world index resolution and error handling
          * Note: this method only determines in the request _supports_ cross-project. Whether cross-project processing
-         * is actually performed depends on other factors such is whether CPS is enabled and {@link IndicesOptions} if
-         * the request is an {@link IndicesRequest}, see also {@link org.elasticsearch.search.crossproject.CrossProjectModeDecider}.
+         * is actually performed depends on other factors such as:
+         * - Whether CPS is enabled which impacts both 1 and 2.
+         * - Whether {@link IndicesOptions} supports it when the request is an {@link IndicesRequest}. This only impacts 2.
+         * See also {@link org.elasticsearch.search.crossproject.CrossProjectModeDecider}.
          */
         default boolean allowsCrossProject() {
             return false;

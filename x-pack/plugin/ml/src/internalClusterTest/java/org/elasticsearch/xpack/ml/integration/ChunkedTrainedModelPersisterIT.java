@@ -58,6 +58,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.startsWith;
@@ -143,7 +144,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
 
         TrainedModelConfig storedConfig = getTrainedModelFuture.actionGet();
 
-        assertThat(storedConfig.getCompressedDefinition(), equalTo(compressedDefinition));
+        assertThat(storedConfig.getCompressedDefinition(), equalBytes(compressedDefinition));
         assertThat(storedConfig.getEstimatedOperations(), equalTo((long) modelSizeInfo.numOperations()));
         assertThat(storedConfig.getModelSize(), equalTo(modelSizeInfo.ramBytesUsed()));
         assertThat(storedConfig.getMetadata(), hasKey("total_feature_importance"));
@@ -219,7 +220,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         trainedModelProvider.getTrainedModel(inferenceModelId, GetTrainedModelsAction.Includes.all(), null, getTrainedModelFuture);
 
         TrainedModelConfig storedConfig = getTrainedModelFuture.actionGet();
-        assertThat(storedConfig.getCompressedDefinition(), equalTo(compressedDefinition));
+        assertThat(storedConfig.getCompressedDefinition(), equalBytes(compressedDefinition));
         assertThat(storedConfig.getEstimatedOperations(), equalTo((long) modelSizeInfo.numOperations()));
         assertThat(storedConfig.getModelSize(), equalTo(modelSizeInfo.ramBytesUsed()));
         assertThat(storedConfig.getMetadata(), hasKey("total_feature_importance"));

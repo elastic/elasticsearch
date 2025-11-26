@@ -429,18 +429,24 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesEisChatCompletion_DoesNotRemoveEndpointWhenNoLongerAuthorized
   issue: https://github.com/elastic/elasticsearch/issues/138480
-- class: org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT
-  method: test {yaml=ingest_geoip/60_ip_location_databases/Test adding, getting, and removing ip location databases}
-  issue: https://github.com/elastic/elasticsearch/issues/138502
 - class: org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramFieldMapperTests
   method: testFormattedDocValues
   issue: https://github.com/elastic/elasticsearch/issues/138504
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLookupJoinIT
   method: testLookupExplosionBigString
   issue: https://github.com/elastic/elasticsearch/issues/138510
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:inlinestats.MvMinMvExpand}
+  issue: https://github.com/elastic/elasticsearch/issues/137679
 - class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
   method: testSubqueryWithCountStarAndDateTrunc {default}
   issue: https://github.com/elastic/elasticsearch/issues/138601
+- class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
+  method: testWaitForSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/138669
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=scroll/20_keep_alive/Max keep alive}
+  issue: https://github.com/elastic/elasticsearch/issues/138680
 
 # Examples:
 #

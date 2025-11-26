@@ -324,7 +324,7 @@ required_capability: qstr_function
 required_capability: query_string_function_options
 
 FROM logs
-| WHERE QSTR("@timestamp:2023-10-23T09:56:01.543 OR @timestamp:2023-10-23T13:56:01.544", {"time_zone": "America/New_York"})
+| WHERE QSTR("@timestamp:[2023-10-23 TO 2023-10-23]", {"time_zone": "America/New_York"})
 | KEEP @timestamp, message
 | SORT @timestamp ASC
 ;
@@ -341,7 +341,7 @@ required_capability: kql_qstr_timezone_support
 
 SET time_zone = "America/New_York"\;
 FROM logs
-| WHERE QSTR("@timestamp:2023-10-23T09:56:01.543 OR @timestamp:2023-10-23T13:56:01.544")
+| WHERE QSTR("@timestamp:[2023-10-23 TO 2023-10-23]")
 | KEEP @timestamp, message
 | SORT @timestamp ASC
 ;
@@ -358,7 +358,7 @@ required_capability: kql_qstr_timezone_support
 
 SET time_zone = "Europe/Madrid"\;
 FROM logs
-| WHERE QSTR("@timestamp:2023-10-23T09:56:01.543 OR @timestamp:2023-10-23T13:56:01.544", {"time_zone": "America/New_York"})
+| WHERE QSTR("@timestamp:[2023-10-23 TO 2023-10-23]", {"time_zone": "America/New_York"})
 | KEEP @timestamp, message
 | SORT @timestamp ASC
 ;

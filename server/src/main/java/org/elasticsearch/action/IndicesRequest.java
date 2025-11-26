@@ -43,7 +43,30 @@ public interface IndicesRequest {
         return false;
     }
 
-    interface Replaceable extends IndicesRequest {
+    /**
+     * Close PIT, Clear Scroll are LegacyActionRequest
+     * Reindex is essentially a LegacyActionRequest as well as CompositeIndicesRequest
+     * EsqlQueryRequest also a LegacyActionRequest and CompositeIndicesRequest
+     * SQL query request is similar to ESQL
+     * Painless execute request is SingleIndexNoWildcards which is an IndicesRequest
+     * Project tags is a LegacyActionRequest. This one does not need action filter work
+     */
+    interface CrossProjectCandidate {
+
+        /**
+         * Determines whether the request type can support cross-project processing. Cross-project processing entails
+         * 1. UIAM authentication and authorization projects resolution.
+         * 2. Cross-project flat-world index resolution and error handling if applicable.
+         * Note: this method only determines in the request _supports_ cross-project. Whether cross-project processing
+         * is actually performed depends on other factors such is whether CPS is enabled and {@link IndicesOptions} if
+         * the request is an {@link IndicesRequest}, see also {@link org.elasticsearch.search.crossproject.CrossProjectModeDecider}.
+         */
+        default boolean allowsCrossProject() {
+            return false;
+        }
+    }
+
+    interface Replaceable extends IndicesRequest, CrossProjectCandidate {
         /**
          * Sets the indices that the action relates to.
          */
@@ -81,15 +104,6 @@ public interface IndicesRequest {
             return false;
         }
 
-        /**
-         * Determines whether the request type allows cross-project processing. Cross-project processing entails cross-project search
-         * index resolution and error handling. Note: this method only determines in the request _supports_ cross-project.
-         * Whether cross-project processing is actually performed is determined by {@link IndicesOptions}.
-         */
-        default boolean allowsCrossProject() {
-            return false;
-        }
-
         @Nullable // if no routing is specified
         default String getProjectRouting() {
             return null;
@@ -103,7 +117,7 @@ public interface IndicesRequest {
      *
      * This may change with https://github.com/elastic/elasticsearch/issues/105598
      */
-    interface SingleIndexNoWildcards extends IndicesRequest {
+    interface SingleIndexNoWildcards extends IndicesRequest, CrossProjectCandidate {
         default boolean allowsRemoteIndices() {
             return true;
         }

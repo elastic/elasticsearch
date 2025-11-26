@@ -11,10 +11,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
@@ -33,7 +31,7 @@ public class PromqlFunctionCall extends UnaryPlan {
 
     private final String functionName;
     private final List<Expression> parameters;
-    private List<Attribute> output;
+    protected List<Attribute> output;
 
     public PromqlFunctionCall(Source source, LogicalPlan child, String functionName, List<Expression> parameters) {
         super(source, child);
@@ -67,18 +65,6 @@ public class PromqlFunctionCall extends UnaryPlan {
 
     public List<Expression> parameters() {
         return parameters;
-    }
-
-    @Override
-    public List<Attribute> output() {
-        if (output == null) {
-            output = List.of(
-                new ReferenceAttribute(source(), "promql$labels", DataType.KEYWORD),
-                new ReferenceAttribute(source(), "promql$timestamp", DataType.DATETIME),
-                new ReferenceAttribute(source(), "promql$value", DataType.DOUBLE)
-            );
-        }
-        return output;
     }
 
     @Override

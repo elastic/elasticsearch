@@ -118,17 +118,26 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
         temporaryFolder.delete();
     }
 
-    @SuppressWarnings("all")
+    @SuppressWarnings("unchecked")
     public String getConf() {
         // Retrieve the dynamically assigned UDP port
         var portBindings = getCurrentContainerInfo().getNetworkSettings().getPorts().getBindings();
         if (portBindings == null) {
-            throw new IllegalStateException("Port bindings are null - container may not be properly started");
+            throw new IllegalStateException(
+                "Port bindings are null - container may not be properly started. "
+                    + "Ensure the container has been started before calling getConf(). Container ID: "
+                    + getContainerId()
+            );
         }
         var udpBindings = portBindings.get(ExposedPort.udp(KDC_PORT));
         if (udpBindings == null || udpBindings.length == 0) {
             throw new IllegalStateException(
-                "UDP port " + KDC_PORT + " binding not found - container may not have properly exposed the UDP port"
+                "UDP port "
+                    + KDC_PORT
+                    + " binding not found - container may not have properly exposed the UDP port. "
+                    + "This may indicate a Docker Desktop configuration issue or the container failed to start properly. "
+                    + "Container ID: "
+                    + getContainerId()
             );
         }
         String hostPortSpec = udpBindings[0].getHostPortSpec();

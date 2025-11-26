@@ -9,7 +9,6 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.client.http.HttpResponse;
-import com.google.cloud.BaseService;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageRetryStrategy;
@@ -152,8 +151,8 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
         @Override
         public boolean isRetryableException(StreamAction action, Exception e) {
             return switch (action) {
-                case OPEN -> BaseService.EXCEPTION_HANDLER.shouldRetry(e, null);
-                case READ -> STORAGE_RETRY_STRATEGY.getIdempotentHandler().shouldRetry(e, null);
+                case OPEN -> STORAGE_RETRY_STRATEGY.getIdempotentHandler().shouldRetry(e, null);
+                case READ -> true;
             };
         }
     }

@@ -36,12 +36,14 @@ public record HealthInfo(
     Map<String, DiskHealthInfo> diskInfoByNode,
     @Nullable DataStreamLifecycleHealthInfo dslHealthInfo,
     Map<String, RepositoriesHealthInfo> repositoriesInfoByNode,
-    FileSettingsHealthInfo fileSettingsHealthInfo
+    FileSettingsHealthInfo fileSettingsHealthInfo,
+    Map<String, SimpleNodeHealthInfo> simpleNodeHealthInfoByMonitor
 ) implements Writeable {
 
-    public static final HealthInfo EMPTY_HEALTH_INFO = new HealthInfo(Map.of(), NO_DSL_ERRORS, Map.of(), INDETERMINATE);
+    public static final HealthInfo EMPTY_HEALTH_INFO = new HealthInfo(Map.of(), NO_DSL_ERRORS, Map.of(), INDETERMINATE, Map.of());
 
     private static final TransportVersion FILE_SETTINGS_HEALTH_INFO = TransportVersion.fromName("file_settings_health_info");
+    private static final TransportVersion SIMPLE_HEATH_INFO_ADDITION = TransportVersion.fromName("simple_health_info_addition");
 
     public HealthInfo {
         requireNonNull(fileSettingsHealthInfo);
@@ -57,7 +59,9 @@ public record HealthInfo(
             input.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)
                 ? input.readOptionalWriteable(FileSettingsHealthInfo::new)
                 : INDETERMINATE
-        );
+            input.getTransportVersion().supports(SIMPLE_HEATH_INFO_ADDITION)
+                ? input.readMap(SimpleNodeHealthInfo::new)
+                : Map.of();
     }
 
     @Override
@@ -71,6 +75,9 @@ public record HealthInfo(
         }
         if (output.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)) {
             output.writeOptionalWriteable(fileSettingsHealthInfo);
+        }
+        if (output.getTransportVersion().supports(SIMPLE_HEATH_INFO_ADDITION)) {
+            output.writeMap(simpleNodeHealthInfoByMonitor, StreamOutput::writeWriteable);
         }
     }
 }

@@ -1,0 +1,44 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.health.node;
+
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.health.HealthStatus;
+
+import java.io.IOException;
+import java.util.Map;
+
+/**
+ * A simple implementation of health info that contains a health status, an optional (via null) symptom, and optional (via null) details
+ * for a specific node.
+ */
+public record SimpleNodeHealthInfo(String node, HealthStatus healthStatus, String symptom, Map<String, String> details)
+    implements
+        Writeable {
+
+    public SimpleNodeHealthInfo(StreamInput in) throws IOException {
+        this(
+            in.readString(),
+            in.readEnum(HealthStatus.class),
+            in.readOptionalString(),
+            in.readOptionalImmutableMap(StreamInput::readString, StreamInput::readString)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(node);
+        healthStatus.writeTo(out);
+        out.writeOptionalString(symptom);
+        out.writeOptionalMap(details, StreamOutput::writeString, StreamOutput::writeString);
+    }
+}

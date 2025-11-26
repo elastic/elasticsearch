@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -35,6 +36,8 @@ public class HealthInfoCache implements ClusterStateListener {
     private volatile DataStreamLifecycleHealthInfo dslHealthInfo = null;
     private volatile ConcurrentHashMap<String, RepositoriesHealthInfo> repositoriesInfoByNode = new ConcurrentHashMap<>();
     private volatile FileSettingsService.FileSettingsHealthInfo fileSettingsHealthInfo = INDETERMINATE;
+    private volatile ConcurrentHashMap<String, ConcurrentHashMap<String, SimpleHealthInfo>> simpleHealthInfoReportsByNodeAndTrackerName =
+        new ConcurrentHashMap<>();
 
     private HealthInfoCache() {}
 
@@ -49,7 +52,8 @@ public class HealthInfoCache implements ClusterStateListener {
         @Nullable DiskHealthInfo diskHealthInfo,
         @Nullable DataStreamLifecycleHealthInfo latestDslHealthInfo,
         @Nullable RepositoriesHealthInfo repositoriesHealthInfo,
-        @Nullable FileSettingsService.FileSettingsHealthInfo fileSettingsHealthInfo
+        @Nullable FileSettingsService.FileSettingsHealthInfo fileSettingsHealthInfo,
+        @Nullable Map<String, SimpleHealthInfo> simpleHealthInfoByTrackerName
     ) {
         if (diskHealthInfo != null) {
             diskInfoByNode.put(nodeId, diskHealthInfo);
@@ -63,6 +67,14 @@ public class HealthInfoCache implements ClusterStateListener {
         if (fileSettingsHealthInfo != null) {
             this.fileSettingsHealthInfo = fileSettingsHealthInfo;
         }
+        if (simpleHealthInfoByTrackerName != null && simpleHealthInfoByTrackerName.isEmpty() == false) {
+            simpleHealthInfoByTrackerName.forEach(
+                (tracker, simpleHealthInfo) -> simpleHealthInfoReportsByNodeAndTrackerName.computeIfAbsent(
+                    nodeId,
+                    key -> new ConcurrentHashMap<>()
+                ).put(tracker, simpleHealthInfo)
+            );
+        }
     }
 
     @Override
@@ -74,6 +86,7 @@ public class HealthInfoCache implements ClusterStateListener {
                 for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
                     diskInfoByNode.remove(removedNode.getId());
                     repositoriesInfoByNode.remove(removedNode.getId());
+                    simpleHealthInfoReportsByNodeAndTrackerName.remove(removedNode.getId());
                 }
             }
             // Resetting the cache is not synchronized for efficiency and simplicity.
@@ -86,6 +99,7 @@ public class HealthInfoCache implements ClusterStateListener {
             dslHealthInfo = null;
             repositoriesInfoByNode = new ConcurrentHashMap<>();
             fileSettingsHealthInfo = INDETERMINATE;
+            simpleHealthInfoReportsByNodeAndTrackerName = new ConcurrentHashMap<>();
         }
     }
 
@@ -94,7 +108,28 @@ public class HealthInfoCache implements ClusterStateListener {
      * @return A HealthInfo object wrapping all health data in the cache
      */
     public HealthInfo getHealthInfo() {
+        Map<String, SimpleNodeHealthInfo> perTrackerSimpleHealthInfo = new HashMap<>();
+        simpleHealthInfoReportsByNodeAndTrackerName.forEach((nodeId, trackerMap) -> {
+            trackerMap.forEach((trackerName, simpleHealthInfo) -> {
+                perTrackerSimpleHealthInfo.put(
+                    trackerName,
+                    new SimpleNodeHealthInfo(
+                        nodeId,
+                        simpleHealthInfo.healthStatus(),
+                        simpleHealthInfo.symptom(),
+                        simpleHealthInfo.details()
+                    )
+                );
+            });
+        });
+
         // A shallow copy is enough because the inner data is immutable.
-        return new HealthInfo(Map.copyOf(diskInfoByNode), dslHealthInfo, Map.copyOf(repositoriesInfoByNode), fileSettingsHealthInfo);
+        return new HealthInfo(
+            Map.copyOf(diskInfoByNode),
+            dslHealthInfo,
+            Map.copyOf(repositoriesInfoByNode),
+            fileSettingsHealthInfo,
+            perTrackerSimpleHealthInfo
+        );
     }
 }

@@ -80,7 +80,6 @@ public class WatcherService {
     private final int scrollSize;
     private final WatchParser parser;
     private final Client client;
-    private final TimeValue defaultSearchTimeout;
     private final AtomicLong processedClusterStateVersion = new AtomicLong(0);
     private final ExecutorService executor;
 
@@ -98,7 +97,6 @@ public class WatcherService {
         this.executionService = executionService;
         this.scrollTimeout = settings.getAsTime("xpack.watcher.watch.scroll.timeout", TimeValue.timeValueSeconds(30));
         this.scrollSize = settings.getAsInt("xpack.watcher.watch.scroll.size", 100);
-        this.defaultSearchTimeout = settings.getAsTime("xpack.watcher.internal.ops.search.default_timeout", TimeValue.timeValueSeconds(30));
         this.parser = parser;
         this.client = ClientHelper.clientWithOrigin(client, WATCHER_ORIGIN);
         this.executor = executor;
@@ -182,6 +180,7 @@ public class WatcherService {
         logger.info("stopping watch service, reason [{}]", reason);
         executionService.pause(stoppedListener);
         triggerService.pauseExecution();
+        clearUnhealthyIfSet();
     }
 
     /**
@@ -244,10 +243,21 @@ public class WatcherService {
             if (reloadInner(state, "starting", true)) {
                 postWatchesLoadedCallback.run();
             }
+            clearUnhealthyIfSet();
         }, e -> {
             logger.error("error starting watcher", e);
+            setUnhealthy(e);
             exceptionConsumer.accept(e);
         }));
+    }
+
+
+    private void clearUnhealthyIfSet() {
+
+    }
+
+    private void setUnhealthy(Exception e) {
+
     }
 
     /**
@@ -339,7 +349,7 @@ public class WatcherService {
             SearchRequest searchRequest = new SearchRequest(INDEX).scroll(scrollTimeout)
                 .preference(Preference.ONLY_LOCAL.toString())
                 .source(new SearchSourceBuilder().size(scrollSize).sort(SortBuilders.fieldSort("_doc")).seqNoAndPrimaryTerm(true));
-            response = client.search(searchRequest).actionGet(defaultSearchTimeout);
+            response = client.search(searchRequest).actionGet();
 
             if (response.getTotalShards() != response.getSuccessfulShards()) {
                 throw new ElasticsearchException("Partial response while loading watches");
@@ -394,7 +404,7 @@ public class WatcherService {
                 SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());
                 request.scroll(scrollTimeout);
                 response.decRef();
-                response = client.searchScroll(request).actionGet(defaultSearchTimeout);
+                response = client.searchScroll(request).actionGet();
             }
         } finally {
             if (response != null) {

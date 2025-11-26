@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.client.http.HttpResponse;
+import com.google.cloud.BaseService;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageRetryStrategy;
@@ -150,7 +151,10 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
 
         @Override
         public boolean isRetryableException(StreamAction action, Exception e) {
-            return STORAGE_RETRY_STRATEGY.getIdempotentHandler().shouldRetry(e, null);
+            return switch (action) {
+                case OPEN -> BaseService.EXCEPTION_HANDLER.shouldRetry(e, null);
+                case READ -> STORAGE_RETRY_STRATEGY.getIdempotentHandler().shouldRetry(e, null);
+            };
         }
     }
 
@@ -185,32 +189,44 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
         }
 
         @Override
-        public int read(byte[] b, int off, int len) throws IOException {
-            final int n = in.read(b, off, len);
-            if (n == -1) {
-                checkContentLengthOnEOF();
-            } else {
+        public int read(byte[] b, int off, int len) {
+            try {
+                final int n = in.read(b, off, len);
+                if (n == -1) {
+                    checkContentLengthOnEOF();
+                } else {
+                    read += n;
+                }
+                return n;
+            } catch (IOException e) {
+                throw StorageException.translate(e);
+            }
+        }
+
+        @Override
+        public int read() {
+            try {
+                final int n = in.read();
+                if (n == -1) {
+                    checkContentLengthOnEOF();
+                } else {
+                    read++;
+                }
+                return n;
+            } catch (IOException e) {
+                throw StorageException.translate(e);
+            }
+        }
+
+        @Override
+        public long skip(long len) {
+            try {
+                final long n = in.skip(len);
                 read += n;
+                return n;
+            } catch (IOException e) {
+                throw StorageException.translate(e);
             }
-            return n;
-        }
-
-        @Override
-        public int read() throws IOException {
-            final int n = in.read();
-            if (n == -1) {
-                checkContentLengthOnEOF();
-            } else {
-                read++;
-            }
-            return n;
-        }
-
-        @Override
-        public long skip(long len) throws IOException {
-            final long n = in.skip(len);
-            read += n;
-            return n;
         }
 
         private void checkContentLengthOnEOF() throws IOException {

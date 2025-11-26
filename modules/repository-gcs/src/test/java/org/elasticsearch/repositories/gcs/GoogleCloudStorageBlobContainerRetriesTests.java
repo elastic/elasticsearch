@@ -32,6 +32,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -52,6 +53,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.ResponseInjectingHttpHandler;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
@@ -192,16 +194,14 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                     requestCountingHttpTransportOptions,
                     retryBehaviour
                 );
-                final RetrySettings.Builder retrySettingsBuilder = RetrySettings.newBuilder()
-                    .setTotalTimeout(options.getRetrySettings().getTotalTimeout())
+                final RetrySettings.Builder retrySettingsBuilder = options.getRetrySettings()
+                    .toBuilder()
                     .setInitialRetryDelay(Duration.ofMillis(10L))
                     .setRetryDelayMultiplier(1.0d)
                     .setMaxRetryDelay(Duration.ofSeconds(1L))
                     .setJittered(false)
                     .setInitialRpcTimeout(Duration.ofSeconds(1))
-                    .setRpcTimeoutMultiplier(options.getRetrySettings().getRpcTimeoutMultiplier())
-                    .setMaxRpcTimeout(Duration.ofSeconds(1))
-                    .setMaxAttempts(options.getRetrySettings().getMaxAttempts());
+                    .setMaxRpcTimeout(Duration.ofSeconds(1));
                 return options.toBuilder()
                     .setStorageRetryStrategy(createStorageRetryStrategy())
                     .setHost(options.getHost())
@@ -653,5 +653,15 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                 exchange.close();
             }
         };
+    }
+
+    @Override
+    protected OperationPurpose randomRetryingPurpose() {
+        return BlobStoreTestUtil.randomRetryingPurpose();
+    }
+
+    @Override
+    protected OperationPurpose randomFiniteRetryingPurpose() {
+        return BlobStoreTestUtil.randomFiniteRetryingPurpose();
     }
 }

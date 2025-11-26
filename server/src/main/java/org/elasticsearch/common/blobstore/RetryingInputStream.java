@@ -138,6 +138,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
         ensureOpen();
         final int initialAttempt = attempt;
         while (true) {
+            // noinspection TryWithIdenticalCatches
             try {
                 final int result = currentStream.read();
                 if (result != -1) {
@@ -146,10 +147,9 @@ public abstract class RetryingInputStream<V> extends InputStream {
                 maybeLogAndRecordMetricsForSuccess(initialAttempt, READ);
                 return result;
             } catch (IOException e) {
-                if (attempt == initialAttempt) {
-                    blobStoreServices.onRetryStarted(READ);
-                }
-                reopenStreamOrFail(e);
+                retryOrAbortOnRead(initialAttempt, e);
+            } catch (RuntimeException e) {
+                retryOrAbortOnRead(initialAttempt, e);
             }
         }
     }
@@ -159,6 +159,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
         ensureOpen();
         final int initialAttempt = attempt;
         while (true) {
+            // noinspection TryWithIdenticalCatches
             try {
                 final int bytesRead = currentStream.read(b, off, len);
                 if (bytesRead != -1) {
@@ -167,12 +168,18 @@ public abstract class RetryingInputStream<V> extends InputStream {
                 maybeLogAndRecordMetricsForSuccess(initialAttempt, READ);
                 return bytesRead;
             } catch (IOException e) {
-                if (attempt == initialAttempt) {
-                    blobStoreServices.onRetryStarted(READ);
-                }
-                reopenStreamOrFail(e);
+                retryOrAbortOnRead(initialAttempt, e);
+            } catch (RuntimeException e) {
+                retryOrAbortOnRead(initialAttempt, e);
             }
         }
+    }
+
+    private <T extends Exception> void retryOrAbortOnRead(int initialAttempt, T exception) throws T, IOException {
+        if (attempt == initialAttempt) {
+            blobStoreServices.onRetryStarted(READ);
+        }
+        reopenStreamOrFail(exception);
     }
 
     private void ensureOpen() {
@@ -182,7 +189,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
         }
     }
 
-    private void reopenStreamOrFail(IOException e) throws IOException {
+    private <T extends Exception> void reopenStreamOrFail(T e) throws T, IOException {
         final long meaningfulProgressSize = blobStoreServices.getMeaningfulProgressSize();
         if (currentStreamProgress() >= meaningfulProgressSize) {
             failuresAfterMeaningfulProgress += 1;
@@ -403,5 +410,9 @@ public abstract class RetryingInputStream<V> extends InputStream {
 
     public static boolean willRetry(OperationPurpose purpose) {
         return purpose != OperationPurpose.REPOSITORY_ANALYSIS;
+    }
+
+    public static boolean willRetryForever(OperationPurpose purpose) {
+        return purpose == OperationPurpose.INDICES;
     }
 }

@@ -16,8 +16,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -525,9 +523,5 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
     protected BlobStoreRepository getRepository() {
         return (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository(TEST_REPO_NAME);
-    }
-
-    public static OperationPurpose randomRetryingPurpose() {
-        return randomFrom(Arrays.stream(OperationPurpose.values()).filter(RetryingInputStream::willRetry).toArray(OperationPurpose[]::new));
     }
 }

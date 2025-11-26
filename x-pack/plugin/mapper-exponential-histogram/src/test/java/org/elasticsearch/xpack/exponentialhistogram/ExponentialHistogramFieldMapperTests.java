@@ -731,12 +731,14 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
 
             // give each document a ID field because we are not guaranteed to read them in-order later
             AtomicInteger currentId = new AtomicInteger(0);
-            inputHistograms.forEach(histo -> ExponentialHistogramAggregatorTestCase.addHistogramDoc(
-                indexWriter,
-                "field",
-                histo,
-                new NumericDocValuesField("histo_index", currentId.getAndIncrement())
-            ));
+            inputHistograms.forEach(
+                histo -> ExponentialHistogramAggregatorTestCase.addHistogramDoc(
+                    indexWriter,
+                    "field",
+                    histo,
+                    new NumericDocValuesField("histo_index", currentId.getAndIncrement())
+                )
+            );
             indexWriter.close();
 
             int seenCount = 0;

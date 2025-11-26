@@ -53,6 +53,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_GENERAL_EXPRESSION;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
@@ -2340,7 +2341,10 @@ public class VerifierTests extends ESTestCase {
 
         assertEquals(
             "1:87: JOIN left field [language_code] of type [KEYWORD] is incompatible with right field [language_code] of type [INTEGER]",
-            error("FROM test | EVAL language_code = languages::keyword | LOOKUP JOIN languages_lookup ON language_code")
+            error(
+                "FROM test | EVAL language_code = languages::keyword | LOOKUP JOIN languages_lookup ON language_code",
+                ESQL_LOOKUP_JOIN_GENERAL_EXPRESSION
+            )
         );
     }
 
@@ -2364,7 +2368,7 @@ public class VerifierTests extends ESTestCase {
     public void testLookupJoinExpressionRightNotPushable() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_GENERAL_EXPRESSION.isEnabled()
         );
         String queryString = """
             from test
@@ -2372,16 +2376,13 @@ public class VerifierTests extends ESTestCase {
             | lookup join languages_lookup ON languages_left == language_code and abs(salary) > 1000
             """;
 
-        assertEquals(
-            "3:71: Unsupported join filter expression:abs(salary) > 1000",
-            error(queryString, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
-        );
+        query(queryString, ESQL_LOOKUP_JOIN_GENERAL_EXPRESSION);
     }
 
     public void testLookupJoinExpressionConstant() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_GENERAL_EXPRESSION.isEnabled()
         );
         String queryString = """
             from test
@@ -2389,41 +2390,37 @@ public class VerifierTests extends ESTestCase {
             | lookup join languages_lookup ON false and languages_left == language_code
             """;
 
-        assertEquals("3:35: Unsupported join filter expression:false", error(queryString, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION));
+        query(queryString, ESQL_LOOKUP_JOIN_GENERAL_EXPRESSION);
     }
 
     public void testLookupJoinExpressionTranslatableButFromLeft() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_GENERAL_EXPRESSION.isEnabled()
         );
         String queryString = """
             from test
             | rename languages as languages_left
-            | lookup join languages_lookup ON languages_left == language_code and languages_left == "English"
+            | eval languages_left_str = to_string(languages_left)
+            | lookup join languages_lookup ON languages_left == language_code and languages_left_str == language_name
             """;
 
-        assertEquals(
-            "3:71: Unsupported join filter expression:languages_left == \"English\"",
-            error(queryString, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
-        );
+        query(queryString, ESQL_LOOKUP_JOIN_GENERAL_EXPRESSION);
     }
 
     public void testLookupJoinExpressionTranslatableButMixedLeftRight() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_GENERAL_EXPRESSION.isEnabled()
         );
         String queryString = """
             from test
             | rename languages as languages_left
-            | lookup join languages_lookup ON languages_left == language_code and CONCAT(languages_left, language_code) == "English"
+            | eval language_name_left = "English"
+            | lookup join languages_lookup ON languages_left == language_code and CONCAT(language_name_left, language_name) == "English"
             """;
 
-        assertEquals(
-            "3:71: Unsupported join filter expression:CONCAT(languages_left, language_code) == \"English\"",
-            error(queryString, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
-        );
+        query(queryString, ESQL_LOOKUP_JOIN_GENERAL_EXPRESSION);
     }
 
     public void testLookupJoinExpressionComplexFormula() {
@@ -2434,13 +2431,11 @@ public class VerifierTests extends ESTestCase {
         String queryString = """
             from test
             | rename languages as languages_left
-            | lookup join languages_lookup ON languages_left == language_code AND STARTSWITH(languages_left, language_code)
+            | eval languages_left_str = to_string(languages_left)
+            | lookup join languages_lookup ON languages_left == language_code AND starts_with(languages_left_str, language_name)
             """;
 
-        assertEquals(
-            "3:71: Unsupported join filter expression:STARTSWITH(languages_left, language_code)",
-            error(queryString, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
-        );
+        query(queryString, ESQL_LOOKUP_JOIN_GENERAL_EXPRESSION);
     }
 
     public void testLookupJoinExpressionAmbiguousLeft() {
@@ -3346,6 +3341,13 @@ public class VerifierTests extends ESTestCase {
 
     private void query(String query, Analyzer analyzer) {
         analyzer.analyze(parser.createStatement(query));
+    }
+
+    private void query(String query, TransportVersion transportVersion) {
+        MutableAnalyzerContext mutableContext = (MutableAnalyzerContext) defaultAnalyzer.context();
+        try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(transportVersion)) {
+            query(query);
+        }
     }
 
     private String error(String query) {

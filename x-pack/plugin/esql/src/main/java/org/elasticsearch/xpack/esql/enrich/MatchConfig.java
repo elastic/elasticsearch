@@ -81,10 +81,8 @@ public final class MatchConfig implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(ESQL_LOOKUP_JOIN_GENERAL_EXPRESSION)) {
-            // New format: write NamedExpression directly, same as Enrich and EnrichExec
             out.writeNamedWriteable(fieldName);
         } else {
-            // Old format: write field name as string
             out.writeString(fieldName.name());
         }
         out.writeInt(channel);

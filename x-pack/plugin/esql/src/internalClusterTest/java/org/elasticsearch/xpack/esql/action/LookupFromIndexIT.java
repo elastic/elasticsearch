@@ -439,17 +439,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
      * This ensures consistent NameId usage across MatchConfig and join conditions.
      */
     private FieldAttribute getLeftSideAttribute(int index, DataType keyType) {
-        String name = "key" + index;
-        // Handle special case for key3 which can be INTEGER or KEYWORD
-        if (index == 3 && keyType == DataType.INTEGER) {
-            return getAttribute(name, DataType.INTEGER);
-        }
-        // Default to KEYWORD or LONG based on keyType
-        if (keyType == DataType.KEYWORD) {
-            return getAttribute(name, DataType.KEYWORD);
-        } else {
-            return getAttribute(name, DataType.LONG);
-        }
+        return getAttribute("key" + index, keyType);
     }
 
     /**
@@ -457,17 +447,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
      * This ensures consistent NameId usage across join conditions and rightPreJoinPlan.
      */
     private FieldAttribute getRightSideAttribute(int index, DataType keyType) {
-        String name = "rkey" + index;
-        // Handle special case for rkey3 which can be INTEGER or KEYWORD
-        if (index == 3 && keyType == DataType.INTEGER) {
-            return getAttribute(name, DataType.INTEGER);
-        }
-        // Default to KEYWORD or LONG based on keyType
-        if (keyType == DataType.KEYWORD) {
-            return getAttribute(name, DataType.KEYWORD);
-        } else {
-            return getAttribute(name, DataType.LONG);
-        }
+        return getAttribute("rkey" + index, keyType);
     }
 
     private List<Attribute> buildRightSideAttributes(List<DataType> keyTypes) {
@@ -599,7 +579,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 TEST_REQUEST_TIMEOUT
             );
             final String finalNodeWithShard = nodeWithShard;
-            boolean expressionJoin = true;// EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled() ? randomBoolean() : false;
+            boolean expressionJoin = EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled() ? randomBoolean() : false;
             List<MatchConfig> matchFields = new ArrayList<>();
             List<Expression> joinOnConditions = new ArrayList<>();
             if (expressionJoin) {
@@ -609,9 +589,9 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     FieldAttribute rightAttr = getRightSideAttribute(i, keyTypes.get(i));
                     joinOnConditions.add(new Equals(Source.EMPTY, leftAttr, rightAttr));
                     // randomly decide to apply the filter as additional join on filter instead of pushed down filter
-                    boolean applyAsJoinOnCondition = true;// EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
-                    // ? randomBoolean()
-                    // : false;
+                    boolean applyAsJoinOnCondition = EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+                        ? randomBoolean()
+                        : false;
                     if (applyAsJoinOnCondition
                         && pushedDownFilter instanceof FragmentExec fragmentExec
                         && fragmentExec.fragment() instanceof Filter filter) {

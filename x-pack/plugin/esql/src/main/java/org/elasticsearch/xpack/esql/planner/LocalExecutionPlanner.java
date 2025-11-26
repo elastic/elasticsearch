@@ -784,11 +784,11 @@ public class LocalExecutionPlanner {
 
             // TODO: Using exactAttribute was supposed to handle TEXT fields with KEYWORD subfields - but we don't allow these in lookup
             // indices, so the call to exactAttribute looks redundant now.
-            Attribute fieldName = right.exactAttribute();
+            Attribute matchFieldsAttribute = right.exactAttribute();
 
             // we support 2 types of joins: Field name joins and Expression joins
             // for Field name join, we do not ship any join on expression.
-            // we built the Lucene query on the field name that is passed in the MatchConfig.fieldName
+            // we built the Lucene query on the field name that is passed in the MatchConfig.matchFieldsAttribute
             // so for Field name we need to pass the attribute name from the right side, because that is needed to build the query
             // For expression joins, we pass an expression such as left_id > right_id.
             // So in this case we pass in left_id as the field name, because that is what we are shipping to the lookup node
@@ -798,9 +798,9 @@ public class LocalExecutionPlanner {
             // e.g. LOOKUP JOIN ON left_id < right_id_1 and left_id >= right_id_2
             // we want to be able to optimize this in the future and only ship the left_id once
             if (join.isOnJoinExpression()) {
-                fieldName = left;
+                matchFieldsAttribute = left;
             }
-            matchFields.add(new MatchConfig(fieldName, input));
+            matchFields.add(new MatchConfig(matchFieldsAttribute, input));
             matchFieldIds.add(left.id());
         }
         // Extract additional left-side fields referenced in joinOnConditions that aren't already in matchFields

@@ -444,6 +444,9 @@ tests:
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testWaitForSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/138669
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=scroll/20_keep_alive/Max keep alive}
+  issue: https://github.com/elastic/elasticsearch/issues/138680
 
 # Examples:
 #

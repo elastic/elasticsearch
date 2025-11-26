@@ -214,6 +214,11 @@ public class NumberFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder index(boolean index) {
+            this.indexed.setValue(index);
+            return this;
+        }
+
         public Builder docValues(boolean hasDocValues) {
             this.hasDocValues.setValue(hasDocValues);
             return this;

@@ -6,12 +6,21 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -20,6 +29,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -105,7 +115,12 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             source(b -> b.startObject("field").field("min", -10.1).field("max", 50.0).field("value_count", 14).endObject())
         );
-        assertEquals("DoubleField <field.min:-10.1>", doc.rootDoc().getField("field.min").toString());
+        
+        IndexableField f = doc.rootDoc().getField("field.min");
+        assertThat(f, instanceOf(SortedNumericDocValuesField.class));
+        SortedNumericDocValuesField sdv = (SortedNumericDocValuesField) f;
+        assertEquals(NumericUtils.doubleToSortableLong(-10.1), sdv.numericValue());
+        assertThat(sdv.fieldType().docValuesSkipIndexType(), equalTo(DocValuesSkipIndexType.RANGE));
 
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(AggregateMetricDoubleFieldMapper.class));
@@ -626,6 +641,42 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsDocValuesSkippers() {
-        return false;
+        return false;   // can't configure `index` so normal test doesn't work
     }
+
+    public void testIndexTypes() throws Exception {
+        {
+            var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field")
+                .build();
+            MapperService mapperService = createMapperService(indexSettings, fieldMapping(this::minimalMapping));
+            MappedFieldType ft = mapperService.fieldType("field");
+            assertIndexType(ft, IndexType.skippers());
+        }
+        {
+            var oldVersion = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.AGG_METRIC_DOUBLE_SKIPPERS);
+            MapperService mapperService = createMapperService(oldVersion, fieldMapping(this::minimalMapping));
+            MappedFieldType ft = mapperService.fieldType("field");
+            assertIndexType(ft, IndexType.points(true, true));
+        }
+        {
+            MapperService mapperService = createMapperService(
+                IndexVersions.AGG_METRIC_DOUBLE_SKIPPERS,
+                fieldMapping(this::minimalMapping)
+            );
+            MappedFieldType ft = mapperService.fieldType("field");
+            assertIndexType(ft, IndexType.skippers());
+        }
+    }
+
+    private void assertIndexType(MappedFieldType ft, IndexType indexType) {
+        assertThat(ft, instanceOf(AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType.class));
+        AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType aft =
+            (AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType) ft;
+        assertThat(aft.indexType(), equalTo(indexType));
+        for (MappedFieldType subField : aft.getMetricFields().values()) {
+            assertThat(subField.indexType(), equalTo(indexType));
+        }
+    }
+
 }

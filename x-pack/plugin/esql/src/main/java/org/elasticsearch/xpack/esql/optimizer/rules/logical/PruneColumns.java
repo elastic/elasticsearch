@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -32,7 +33,9 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans.skipPlan;
 
@@ -46,9 +49,8 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return pruneColumns(plan, plan.outputSet().asBuilder(), false);
     }
 
-    private static LogicalPlan pruneColumns(LogicalPlan plan, AttributeSet.Builder used, boolean inlineJoin) {
+    static LogicalPlan pruneColumns(LogicalPlan plan, AttributeSet.Builder used, boolean inlineJoin) {
         Holder<Boolean> forkPresent = new Holder<>(false);
-
         // while going top-to-bottom (upstream)
         return plan.transformDown(p -> {
             // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINE STATS. It is perfectly fine that
@@ -58,17 +60,13 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             // same index fields will have different name ids in the left and right hand sides - as in the extreme example
             // `FROM lookup_idx | LOOKUP JOIN lookup_idx ON key_field`.
 
-            // TODO: revisit with every new command
-            // skip nodes that simply pass the input through and use no references
-            if (p instanceof Limit || p instanceof Sample) {
+            if (forkPresent.get()) {
                 return p;
             }
 
-            if (p instanceof Fork) {
-                forkPresent.set(true);
-            }
-            // pruning columns for Fork branches can have the side effect of having misaligned outputs
-            if (forkPresent.get()) {
+            // TODO: revisit with every new command
+            // skip nodes that simply pass the input through and use no references
+            if (p instanceof Limit || p instanceof Sample) {
                 return p;
             }
 
@@ -83,6 +81,10 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     case Eval eval -> pruneColumnsInEval(eval, used, recheck);
                     case Project project -> inlineJoin ? pruneColumnsInProject(project, used) : p;
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
+                    case Fork fork -> {
+                        forkPresent.set(true);
+                        yield pruneColumnsInFork(fork, used);
+                    }
                     default -> p;
                 };
             } while (recheck.get());
@@ -94,7 +96,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         });
     }
 
-    private static LogicalPlan pruneColumnsInAggregate(Aggregate aggregate, AttributeSet.Builder used, boolean inlineJoin) {
+    static LogicalPlan pruneColumnsInAggregate(Aggregate aggregate, AttributeSet.Builder used, boolean inlineJoin) {
         LogicalPlan p = aggregate;
 
         var remaining = pruneUnusedAndAddReferences(aggregate.aggregates(), used);
@@ -134,7 +136,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
-    private static LogicalPlan pruneColumnsInInlineJoinRight(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
+    static LogicalPlan pruneColumnsInInlineJoinRight(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = ij;
 
         used.addAll(ij.references());
@@ -155,7 +157,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
-    private static LogicalPlan pruneColumnsInEval(Eval eval, AttributeSet.Builder used, Holder<Boolean> recheck) {
+    static LogicalPlan pruneColumnsInEval(Eval eval, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = eval;
 
         var remaining = pruneUnusedAndAddReferences(eval.fields(), used);
@@ -173,7 +175,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     // Note: only run when the Project is a descendent of an InlineJoin.
-    private static LogicalPlan pruneColumnsInProject(Project project, AttributeSet.Builder used) {
+    static LogicalPlan pruneColumnsInProject(Project project, AttributeSet.Builder used) {
         LogicalPlan p = project;
 
         var remaining = pruneUnusedAndAddReferences(project.projections(), used);
@@ -184,7 +186,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
-    private static LogicalPlan pruneColumnsInEsRelation(EsRelation esr, AttributeSet.Builder used) {
+    static LogicalPlan pruneColumnsInEsRelation(EsRelation esr, AttributeSet.Builder used) {
         LogicalPlan p = esr;
 
         if (esr.indexMode() == IndexMode.LOOKUP) {
@@ -197,6 +199,36 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             }
         }
 
+        return p;
+    }
+
+    private static LogicalPlan pruneColumnsInFork(Fork fork, AttributeSet.Builder used) {
+        // prune the output attributes of fork based on usage from the rest of the plan
+        // this does not consider the inner usage within each branch of the fork
+        // as those will be handled when traversing down each branch in PruneColumnsInForkBranches
+        LogicalPlan p = fork;
+
+        // should exit early for UnionAll
+        if (fork instanceof UnionAll) {
+            return p;
+        }
+        boolean changed = false;
+        AttributeSet.Builder builder = AttributeSet.builder();
+        // if any of the fork outputs are used, keep them
+        // otherwise, prune them based on the rest of the plan's usage
+        Set<String> names = new HashSet<>(used.build().names());
+        for (var attr : fork.output()) {
+            // we should also ensure to keep any synthetic attributes around as those could still be used for internal processing
+            if (attr.synthetic() || names.contains(attr.name())) {
+                builder.add(attr);
+            } else {
+                changed = true;
+            }
+        }
+        if (changed) {
+            List<Attribute> attrs = builder.build().stream().toList();
+            p = new Fork(fork.source(), fork.children(), attrs);
+        }
         return p;
     }
 

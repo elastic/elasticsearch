@@ -830,7 +830,7 @@ setup:
             properties:
               bbq_disk_body:
                 type: semantic_text
-                inference_id: dense-inference-id
+                inference_id: dense-inference-id-compatible-with-bbq
                 index_options:
                   dense_vector:
                     type: bbq_disk
@@ -879,7 +879,7 @@ setup:
         body:
           query:
             knn:
-              field: "body"
+              field: "bbq_disk_body"
               query_vector_builder:
                 text_embedding:
                   model_text: "What is Elasticsearch?"
@@ -888,7 +888,7 @@ setup:
               similarity: 0.9977
           highlight:
             fields:
-              body:
+              bbq_disk_body:
                 type: "semantic"
                 number_of_fragments: 3
 

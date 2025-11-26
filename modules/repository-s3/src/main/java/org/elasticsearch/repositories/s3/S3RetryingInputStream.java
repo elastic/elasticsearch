@@ -83,12 +83,12 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
         }
 
         @Override
-        public void onRetryStarted(String action) {
+        public void onRetryStarted(StreamAction action) {
             blobStore.getS3RepositoriesMetrics().retryStartedCounter().incrementBy(1, metricAttributes(action));
         }
 
         @Override
-        public void onRetrySucceeded(String action, long numberOfRetries) {
+        public void onRetrySucceeded(StreamAction action, long numberOfRetries) {
             final Map<String, Object> attributes = metricAttributes(action);
             blobStore.getS3RepositoriesMetrics().retryCompletedCounter().incrementBy(1, attributes);
             blobStore.getS3RepositoriesMetrics().retryHistogram().record(numberOfRetries, attributes);
@@ -109,7 +109,15 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
             return blobStore.bucket() + "/" + blobKey;
         }
 
-        private Map<String, Object> metricAttributes(String action) {
+        @Override
+        public boolean isRetryableException(StreamAction action, Exception e) {
+            return switch (action) {
+                case OPEN -> e instanceof RuntimeException;
+                case READ -> e instanceof IOException;
+            };
+        }
+
+        private Map<String, Object> metricAttributes(StreamAction action) {
             return Map.of(
                 "repo_type",
                 S3Repository.TYPE,
@@ -120,7 +128,7 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
                 "purpose",
                 purpose.getKey(),
                 "action",
-                action
+                action.toString()
             );
         }
     }

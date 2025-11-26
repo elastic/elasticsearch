@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.gcs;
 import com.google.api.client.http.HttpResponse;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.StorageException;
+import com.google.cloud.storage.StorageRetryStrategy;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,6 +34,7 @@ import java.nio.file.NoSuchFileException;
 class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
 
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageRetryingInputStream.class);
+    private static final StorageRetryStrategy STORAGE_RETRY_STRATEGY = GoogleCloudStorageService.createStorageRetryStrategy();
 
     // Used for testing only
     GoogleCloudStorageRetryingInputStream(GoogleCloudStorageBlobStore blobStore, OperationPurpose purpose, BlobId blobId)
@@ -123,12 +125,12 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
         }
 
         @Override
-        public void onRetryStarted(String action) {
+        public void onRetryStarted(StreamAction action) {
             // No retry metrics for GCS
         }
 
         @Override
-        public void onRetrySucceeded(String action, long numberOfRetries) {
+        public void onRetrySucceeded(StreamAction action, long numberOfRetries) {
             // No retry metrics for GCS
         }
 
@@ -145,6 +147,11 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
         @Override
         public String getBlobDescription() {
             return blobId.toString();
+        }
+
+        @Override
+        public boolean isRetryableException(StreamAction action, Exception e) {
+            return STORAGE_RETRY_STRATEGY.getIdempotentHandler().shouldRetry(e, null);
         }
     }
 

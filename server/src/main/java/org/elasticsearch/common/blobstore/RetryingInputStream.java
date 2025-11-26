@@ -23,6 +23,8 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.common.blobstore.RetryingInputStream.StreamAction.OPEN;
+import static org.elasticsearch.common.blobstore.RetryingInputStream.StreamAction.READ;
 import static org.elasticsearch.core.Strings.format;
 
 public abstract class RetryingInputStream<V> extends InputStream {
@@ -30,6 +32,25 @@ public abstract class RetryingInputStream<V> extends InputStream {
     private static final Logger logger = LogManager.getLogger(RetryingInputStream.class);
 
     public static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
+
+    public enum StreamAction {
+        OPEN("opening"),
+        READ("reading");
+
+        private final String verb;
+
+        StreamAction(String verb) {
+            this.verb = verb;
+        }
+
+        public String getVerb() {
+            return verb;
+        }
+
+        public String toString() {
+            return name().toLowerCase();
+        }
+    }
 
     private final BlobStoreServices<V> blobStoreServices;
     private final OperationPurpose purpose;
@@ -63,7 +84,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
         this.end = end;
         final int initialAttempt = attempt;
         openStreamWithRetry();
-        maybeLogAndRecordMetricsForSuccess(initialAttempt, "open");
+        maybeLogAndRecordMetricsForSuccess(initialAttempt, OPEN);
     }
 
     private void openStreamWithRetry() throws IOException {
@@ -71,6 +92,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
             if (offset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
                 assert start + offset <= end : "requesting beyond end, start = " + start + " offset=" + offset + " end=" + end;
             }
+            // noinspection TryWithIdenticalCatches
             try {
                 currentStream = blobStoreServices.getInputStream(
                     currentStream != null ? currentStream.getVersion() : null,
@@ -81,13 +103,19 @@ public abstract class RetryingInputStream<V> extends InputStream {
             } catch (NoSuchFileException | RequestedRangeNotSatisfiedException e) {
                 throw e;
             } catch (RuntimeException e) {
-                if (attempt == 1) {
-                    blobStoreServices.onRetryStarted("open");
-                }
-                final long delayInMillis = maybeLogAndComputeRetryDelay("opening", e);
-                delayBeforeRetry(delayInMillis);
+                retryOrAbortOnOpen(e);
+            } catch (IOException e) {
+                retryOrAbortOnOpen(e);
             }
         }
+    }
+
+    private <T extends Exception> void retryOrAbortOnOpen(T exception) throws T {
+        if (attempt == 1) {
+            blobStoreServices.onRetryStarted(StreamAction.OPEN);
+        }
+        final long delayInMillis = maybeLogAndComputeRetryDelay(StreamAction.OPEN, exception);
+        delayBeforeRetry(delayInMillis);
     }
 
     @Override
@@ -100,11 +128,11 @@ public abstract class RetryingInputStream<V> extends InputStream {
                 if (result != -1) {
                     offset += 1;
                 }
-                maybeLogAndRecordMetricsForSuccess(initialAttempt, "read");
+                maybeLogAndRecordMetricsForSuccess(initialAttempt, READ);
                 return result;
             } catch (IOException e) {
                 if (attempt == initialAttempt) {
-                    blobStoreServices.onRetryStarted("read");
+                    blobStoreServices.onRetryStarted(READ);
                 }
                 reopenStreamOrFail(e);
             }
@@ -121,11 +149,11 @@ public abstract class RetryingInputStream<V> extends InputStream {
                 if (bytesRead != -1) {
                     offset += bytesRead;
                 }
-                maybeLogAndRecordMetricsForSuccess(initialAttempt, "read");
+                maybeLogAndRecordMetricsForSuccess(initialAttempt, READ);
                 return bytesRead;
             } catch (IOException e) {
                 if (attempt == initialAttempt) {
-                    blobStoreServices.onRetryStarted("read");
+                    blobStoreServices.onRetryStarted(READ);
                 }
                 reopenStreamOrFail(e);
             }
@@ -144,7 +172,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
         if (currentStreamProgress() >= meaningfulProgressSize) {
             failuresAfterMeaningfulProgress += 1;
         }
-        final long delayInMillis = maybeLogAndComputeRetryDelay("reading", e);
+        final long delayInMillis = maybeLogAndComputeRetryDelay(READ, e);
         IOUtils.closeWhileHandlingException(currentStream);
 
         delayBeforeRetry(delayInMillis);
@@ -153,8 +181,8 @@ public abstract class RetryingInputStream<V> extends InputStream {
 
     // The method throws if the operation should *not* be retried. Otherwise, it keeps a record for the attempt and associated failure
     // and compute the delay before retry.
-    private <T extends Exception> long maybeLogAndComputeRetryDelay(String action, T e) throws T {
-        if (shouldRetry(attempt) == false) {
+    private <T extends Exception> long maybeLogAndComputeRetryDelay(StreamAction action, T e) throws T {
+        if (blobStoreServices.isRetryableException(action, e) == false || shouldRetry(attempt) == false) {
             final var finalException = addSuppressedExceptions(e);
             logForFailure(action, finalException);
             throw finalException;
@@ -170,11 +198,11 @@ public abstract class RetryingInputStream<V> extends InputStream {
         return delayInMillis;
     }
 
-    private void logForFailure(String action, Exception e) {
+    private void logForFailure(StreamAction action, Exception e) {
         logger.warn(
             () -> format(
                 "failed %s [%s] at offset [%s] with purpose [%s]",
-                action,
+                action.getVerb(),
                 blobStoreServices.getBlobDescription(),
                 start + offset,
                 purpose.getKey()
@@ -183,7 +211,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
         );
     }
 
-    private void logForRetry(Level level, String action, Exception e) {
+    private void logForRetry(Level level, StreamAction action, Exception e) {
         logger.log(
             level,
             () -> format(
@@ -205,7 +233,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
         );
     }
 
-    private void maybeLogAndRecordMetricsForSuccess(int initialAttempt, String action) {
+    private void maybeLogAndRecordMetricsForSuccess(int initialAttempt, StreamAction action) {
         if (attempt > initialAttempt) {
             final int numberOfRetries = attempt - initialAttempt;
             logger.info(
@@ -304,15 +332,17 @@ public abstract class RetryingInputStream<V> extends InputStream {
          */
         SingleAttemptInputStream<V> getInputStream(@Nullable V version, long start, long end) throws IOException;
 
-        void onRetryStarted(String action);
+        void onRetryStarted(StreamAction action);
 
-        void onRetrySucceeded(String action, long numberOfRetries);
+        void onRetrySucceeded(StreamAction action, long numberOfRetries);
 
         long getMeaningfulProgressSize();
 
         int getMaxRetries();
 
         String getBlobDescription();
+
+        boolean isRetryableException(StreamAction action, Exception e);
     }
 
     /**

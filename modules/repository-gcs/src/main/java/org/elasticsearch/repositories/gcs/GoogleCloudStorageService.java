@@ -219,7 +219,7 @@ public class GoogleCloudStorageService {
         final RetryBehaviour retryBehaviour
     ) {
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
-            .setStorageRetryStrategy(getRetryStrategy())
+            .setStorageRetryStrategy(createStorageRetryStrategy())
             .setTransportOptions(httpTransportOptions)
             .setHeaderProvider(() -> {
                 return Strings.hasLength(gcsClientSettings.getApplicationName())
@@ -275,7 +275,7 @@ public class GoogleCloudStorageService {
         return storageOptionsBuilder.build();
     }
 
-    protected StorageRetryStrategy getRetryStrategy() {
+    static StorageRetryStrategy createStorageRetryStrategy() {
         return ShouldRetryDecorator.decorate(
             StorageRetryStrategy.getLegacyStorageRetryStrategy(),
             (Throwable prevThrowable, Object prevResponse, ResultRetryAlgorithm<Object> delegate) -> {

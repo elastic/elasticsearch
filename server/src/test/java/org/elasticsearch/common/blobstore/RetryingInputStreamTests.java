@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.blobstore.RetryingInputStream.StreamAction.OPEN;
+import static org.elasticsearch.common.blobstore.RetryingInputStream.StreamAction.READ;
 import static org.hamcrest.Matchers.empty;
 
 public class RetryingInputStreamTests extends ESTestCase {
@@ -50,7 +52,7 @@ public class RetryingInputStreamTests extends ESTestCase {
         assertEquals(resourceBytes.length(), results.length);
         assertEquals(resourceBytes, new BytesArray(results));
         assertEquals(retryableFailures + 1, services.getAttempts());
-        assertEquals(Stream.generate(() -> "read").limit(retryableFailures).toList(), services.getRetryStarted());
+        assertEquals(Stream.generate(() -> READ).limit(retryableFailures).toList(), services.getRetryStarted());
     }
 
     public void testReadWillFailWhenRetryableErrorsExceedMaxRetries() {
@@ -73,7 +75,7 @@ public class RetryingInputStreamTests extends ESTestCase {
         );
         assertEquals("This is retry-able", ioException.getMessage());
         assertEquals(maxRetries + 1, services.getAttempts());
-        assertEquals(Stream.generate(() -> "read").limit(maxRetries + 1).toList(), services.getRetryStarted());
+        assertEquals(Stream.generate(() -> READ).limit(maxRetries + 1).toList(), services.getRetryStarted());
     }
 
     public void testReadWillFailWhenRetryableErrorsOccurDuringRepositoryAnalysis() {
@@ -96,7 +98,7 @@ public class RetryingInputStreamTests extends ESTestCase {
         );
         assertEquals("This is retry-able", ioException.getMessage());
         assertEquals(1, services.getAttempts());
-        assertEquals(List.of("read"), services.getRetryStarted());
+        assertEquals(List.of(READ), services.getRetryStarted());
     }
 
     public void testReadWillRetryIndefinitelyWhenErrorsOccurDuringIndicesOperation() throws IOException {
@@ -117,7 +119,7 @@ public class RetryingInputStreamTests extends ESTestCase {
         });
         assertEquals(resourceBytes, new BytesArray(result));
         assertEquals(numberOfFailures + 1, services.getAttempts());
-        assertEquals(Stream.generate(() -> "read").limit(numberOfFailures).toList(), services.getRetryStarted());
+        assertEquals(Stream.generate(() -> READ).limit(numberOfFailures).toList(), services.getRetryStarted());
     }
 
     public void testRetriesWillBeExtendedWhenMeaningfulProgressIsMade() {
@@ -151,7 +153,7 @@ public class RetryingInputStreamTests extends ESTestCase {
         );
         assertEquals("This is retry-able", ioException.getMessage());
         assertEquals(maxRetries + meaningfulProgressAttempts, services.getAttempts());
-        assertEquals(Stream.generate(() -> "read").limit(maxRetries + meaningfulProgressAttempts).toList(), services.getRetryStarted());
+        assertEquals(Stream.generate(() -> READ).limit(maxRetries + meaningfulProgressAttempts).toList(), services.getRetryStarted());
     }
 
     public void testNoSuchFileExceptionAndRangeNotSatisfiedTerminatesWithoutRetry() {
@@ -180,7 +182,7 @@ public class RetryingInputStreamTests extends ESTestCase {
         );
         assertSame(notRetriableException, ioException);
         assertEquals(retryableFailures + 1, services.getAttempts());
-        assertEquals(List.of("open"), services.getRetryStarted());
+        assertEquals(List.of(OPEN), services.getRetryStarted());
         assertThat(services.getRetrySucceeded(), empty());
     }
 
@@ -226,7 +228,7 @@ public class RetryingInputStreamTests extends ESTestCase {
     private abstract static class BlobStoreServicesAdapter implements RetryingInputStream.BlobStoreServices<String> {
 
         private final AtomicInteger attemptCounter = new AtomicInteger();
-        private final List<String> retryStarted = new ArrayList<>();
+        private final List<RetryingInputStream.StreamAction> retryStarted = new ArrayList<>();
         private final List<Success> retrySucceeded = new ArrayList<>();
         private final int maxRetries;
 
@@ -248,13 +250,21 @@ public class RetryingInputStreamTests extends ESTestCase {
         ) throws IOException;
 
         @Override
-        public void onRetryStarted(String action) {
+        public void onRetryStarted(RetryingInputStream.StreamAction action) {
             retryStarted.add(action);
         }
 
         @Override
-        public void onRetrySucceeded(String action, long numberOfRetries) {
+        public void onRetrySucceeded(RetryingInputStream.StreamAction action, long numberOfRetries) {
             retrySucceeded.add(new Success(action, numberOfRetries));
+        }
+
+        @Override
+        public boolean isRetryableException(RetryingInputStream.StreamAction action, Exception e) {
+            return switch (action) {
+                case OPEN -> e instanceof RuntimeException;
+                case READ -> e instanceof IOException;
+            };
         }
 
         @Override
@@ -272,13 +282,13 @@ public class RetryingInputStreamTests extends ESTestCase {
             return "";
         }
 
-        record Success(String action, long numberOfRetries) {};
+        record Success(RetryingInputStream.StreamAction action, long numberOfRetries) {};
 
         public int getAttempts() {
             return attemptCounter.get();
         }
 
-        public List<String> getRetryStarted() {
+        public List<RetryingInputStream.StreamAction> getRetryStarted() {
             return retryStarted;
         }
 

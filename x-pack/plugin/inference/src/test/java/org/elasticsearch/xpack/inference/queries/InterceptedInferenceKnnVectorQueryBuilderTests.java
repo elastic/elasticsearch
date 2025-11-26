@@ -37,8 +37,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.hamcrest.Matchers.equalTo;
@@ -77,13 +75,11 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
     }
 
     @Override
-    protected QueryRewriteInterceptor createQueryRewriteInterceptor() {
-        return QueryRewriteInterceptor.multi(
-            List.of(
-                new SemanticKnnVectorQueryRewriteInterceptor(),
-                new SemanticMatchQueryRewriteInterceptor(),
-                new SemanticSparseVectorQueryRewriteInterceptor()
-            ).stream().collect(Collectors.toMap(QueryRewriteInterceptor::getQueryName, Function.identity()))
+    protected List<QueryRewriteInterceptor> createQueryRewriteInterceptors() {
+        return List.of(
+            new SemanticKnnVectorQueryRewriteInterceptor(),
+            new SemanticMatchQueryRewriteInterceptor(),
+            new SemanticSparseVectorQueryRewriteInterceptor()
         );
     }
 

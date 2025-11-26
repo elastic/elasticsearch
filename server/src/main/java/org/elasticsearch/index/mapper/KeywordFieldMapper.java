@@ -46,7 +46,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -66,6 +65,8 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -97,11 +98,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -837,22 +840,21 @@ public final class KeywordFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
                 BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
+
+                if (storedInBinaryDocValues()) {
+                    // TODO: Support the function-specific optimizations
+                    return new BytesRefsFromCustomBinaryBlockLoader(binaryDocValuesName());
+                }
+
                 if (cfg == null) {
-                    if (storedInBinaryDocValues()) {
-                        return new BytesRefsFromCustomBinaryBlockLoader(binaryDocValuesName());
-                    } else {
-                        return new BytesRefsFromOrdsBlockLoader(name());
-                    }
+                    return new BytesRefsFromOrdsBlockLoader(name());
                 }
-                if (cfg.function() == BlockLoaderFunctionConfig.Function.LENGTH) {
-                    if (storedInBinaryDocValues()) {
-                        // TODO: Support the length-only optimization for binary doc values
-                        return new BytesRefsFromCustomBinaryBlockLoader(binaryDocValuesName());
-                    } else {
-                        return new Utf8CodePointsFromOrdsBlockLoader(((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(), name());
-                    }
-                }
-                throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
+                return switch (cfg.function()) {
+                    case LENGTH -> new Utf8CodePointsFromOrdsBlockLoader(((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(), name());
+                    case MV_MAX -> new MvMaxBytesRefsFromOrdsBlockLoader(name());
+                    case MV_MIN -> new MvMinBytesRefsFromOrdsBlockLoader(name());
+                    default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
+                };
             }
             if (blContext.blockLoaderFunctionConfig() != null) {
                 throw new UnsupportedOperationException("function fusing only supported for doc values");
@@ -882,7 +884,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
             if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
-                return config.function() == BlockLoaderFunctionConfig.Function.LENGTH;
+                return switch (config.function()) {
+                    case LENGTH, MV_MAX, MV_MIN -> true;
+                    default -> false;
+                };
             }
             return false;
         }
@@ -1305,7 +1310,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                 var utfBytes = value.bytes();
                 var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
                 final String fieldName = fieldType().syntheticSourceFallbackFieldName();
-                context.doc().add(new StoredField(fieldName, bytesRef));
+
+                // store the value in a binary doc values field, create one if it doesn't exist
+                MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
+                if (field == null) {
+                    field = new MultiValuedBinaryDocValuesField(fieldName, MultiValuedBinaryDocValuesField.Ordering.INSERTION);
+                    context.doc().addWithKey(fieldName, field);
+                }
+                field.add(bytesRef);
             }
 
             return false;
@@ -1344,9 +1356,13 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (fieldType().storedInBinaryDocValues()) {
             assert fieldType.docValuesType() == DocValuesType.NONE;
-            KeywordBinaryDocValuesField field = (KeywordBinaryDocValuesField) context.doc().getField(fieldType().binaryDocValuesName());
+            MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc()
+                .getField(fieldType().binaryDocValuesName());
             if (field == null) {
-                field = new KeywordBinaryDocValuesField(fieldType().binaryDocValuesName());
+                field = new MultiValuedBinaryDocValuesField(
+                    fieldType().binaryDocValuesName(),
+                    MultiValuedBinaryDocValuesField.Ordering.NATURAL
+                );
                 context.doc().addWithKey(fieldType().binaryDocValuesName(), field);
             }
             field.add(binaryValue);
@@ -1494,11 +1510,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         // extra copy of the field for supporting synthetic source. This layer will check that copy.
         if (fieldType().ignoreAbove.valuesPotentiallyIgnored()) {
             final String fieldName = fieldType().syntheticSourceFallbackFieldName();
-            layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldName) {
                 @Override
-                protected void writeValue(Object value, XContentBuilder b) throws IOException {
-                    BytesRef ref = (BytesRef) value;
-                    b.utf8Value(ref.bytes, ref.offset, ref.length);
+                public void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                    b.utf8Value(value.bytes, value.offset, value.length);
                 }
             });
         }
@@ -1506,29 +1521,51 @@ public final class KeywordFieldMapper extends FieldMapper {
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
     }
 
-    private static class KeywordBinaryDocValuesField extends CustomDocValuesField {
-        private final List<BytesRef> bytesList;
+    /**
+     * A custom implementation of {@link org.apache.lucene.index.BinaryDocValues} that uses a {@link Set} to maintain a collection of unique
+     * binary doc values for fields with multiple values per document.
+     */
+    private static class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
+        enum Ordering {
+            INSERTION,
+            NATURAL
+        }
 
-        KeywordBinaryDocValuesField(String name) {
+        private final Set<BytesRef> uniqueValues;
+        private int docValuesByteCount = 0;
+
+        MultiValuedBinaryDocValuesField(String name, Ordering ordering) {
             super(name);
-            bytesList = new ArrayList<>();
+
+            uniqueValues = switch (ordering) {
+                case INSERTION -> new LinkedHashSet<>();
+                case NATURAL -> new TreeSet<>();
+            };
         }
 
         public void add(BytesRef value) {
-            bytesList.add(value);
+            if (uniqueValues.add(value)) {
+                // might as well track these on the go as opposed to having to loop through all entries later
+                docValuesByteCount += value.length;
+            }
         }
 
+        /**
+         * Encodes the collection of binary doc values as a single contiguous binary array, wrapped in {@link BytesRef}. This array takes
+         * the form of [doc value count][length of value 1][value 1][length of value 2][value 2]...
+         */
         @Override
         public BytesRef binaryValue() {
-            try {
-                bytesList.sort(BytesRef::compareTo);
-                CollectionUtils.uniquify(bytesList, BytesRef::compareTo);
-                int bytesSize = bytesList.stream().map(a -> a.length).reduce(0, Integer::sum);
-                int n = bytesList.size();
-                BytesStreamOutput out = new BytesStreamOutput(bytesSize + (n + 1) * 5);
-                out.writeVInt(n);
-                for (var value : bytesList) {
-                    out.writeBytesRef(value);
+            int docValuesCount = uniqueValues.size();
+            // the + 1 is for the total doc values count, which is prefixed at the start of the array
+            int streamSize = docValuesByteCount + (docValuesCount + 1) * Integer.BYTES;
+
+            try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
+                out.writeVInt(docValuesCount);
+                for (BytesRef value : uniqueValues) {
+                    int valueLength = value.length;
+                    out.writeVInt(valueLength);
+                    out.writeBytes(value.bytes, value.offset, valueLength);
                 }
                 return out.bytes().toBytesRef();
             } catch (IOException e) {

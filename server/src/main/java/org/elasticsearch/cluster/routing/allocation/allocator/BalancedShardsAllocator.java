@@ -1416,10 +1416,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
                 // weight of this index currently on the node
                 float currentWeight = weightFunction.calculateNodeWeightWithIndex(this, node, index);
-                // moving the shard would not improve the balance, and we are not in explain mode, so short circuit
-                if (currentWeight > minWeight && explain == false) {
-                    continue;
-                }
 
                 Decision currentDecision = allocation.deciders().canAllocate(shard, node.getRoutingNode(), allocation);
                 if (explain) {
@@ -1584,6 +1580,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
             logger.trace("No shards of [{}] can relocate from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
             return false;
+        }
+
+        // Visible for testing.
+        public RoutingAllocation getAllocation() {
+            return this.allocation;
         }
     }
 
@@ -1828,7 +1829,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
     }
 
-    record ProjectIndex(ProjectId project, String indexName) {
+    // Visible for testing.
+    public record ProjectIndex(ProjectId project, String indexName) {
         ProjectIndex(RoutingAllocation allocation, ShardRouting shard) {
             this(allocation.metadata().projectFor(shard.index()).id(), shard.getIndexName());
         }

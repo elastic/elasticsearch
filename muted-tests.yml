@@ -438,6 +438,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
   method: testSubqueryWithCountStarAndDateTrunc {default}
   issue: https://github.com/elastic/elasticsearch/issues/138601
+- class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
+  method: testWaitForSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/138669
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=scroll/20_keep_alive/Max keep alive}
+  issue: https://github.com/elastic/elasticsearch/issues/138680
+- class: org.elasticsearch.xpack.unsignedlong.UnsignedLongSyntheticSourceNativeArrayIntegrationTests
+  method: testSynthesizeArrayRandom
+  issue: https://github.com/elastic/elasticsearch/issues/138684
 
 # Examples:
 #

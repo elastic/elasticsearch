@@ -9648,7 +9648,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Limit[10000[INTEGER],false,false]
      * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*)#36, COUNT(emp_no{r}#109,true[BOOLEAN],PT0S[
-     * TIME_DURATION]) AS d#39, MAX(_fork{r}#124,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#42, COUNT(s{r}#119,true[BOOLEAN],PT0S[TIME_DURATION]) AS ls#45]]
+     * TIME_DURATION]) AS d#39,MAX(_fork{r}#124,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#42,
+     *          COUNT(s{r}#119,true[BOOLEAN],PT0S[TIME_DURATION]) AS ls#45]]
      *   \_Fork[[emp_no{r}#109, s{r}#119, _fork{r}#124]]
      *     |_Project[[emp_no{f}#46, s{r}#6, _fork{r}#7]]
      *     | \_Eval[[fork1[KEYWORD] AS _fork#7]]

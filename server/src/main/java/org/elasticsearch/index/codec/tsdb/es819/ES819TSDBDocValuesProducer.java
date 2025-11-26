@@ -521,8 +521,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             }
         }
 
-        long findAndUpdateBlock(DirectMonotonicReader docRanges, long lastBlockId, int docNumber, int numBlocks) {
-            long index = docRanges.binarySearch(lastBlockId + 1, numBlocks, docNumber);
+        long findAndUpdateBlock(int docNumber, int numBlocks) {
+            if (docNumber < limitDocNumForBlock && lastBlockId >= 0) {
+                return lastBlockId;
+            }
+
+            long index = docOffsets.binarySearch(lastBlockId + 1, numBlocks, docNumber);
             // If index is found, index is inclusive lower bound of docNum range, so docNum is in blockId == index
             if (index < 0) {
                 // If index was not found, insertion point (-index - 1) will be upper bound of docNum range.
@@ -531,16 +535,25 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             }
             assert index < numBlocks : "invalid range " + index + " for doc " + docNumber + " in numBlocks " + numBlocks;
 
-            startDocNumForBlock = docRanges.get(index);
-            limitDocNumForBlock = docRanges.get(index + 1);
+            startDocNumForBlock = docOffsets.get(index);
+            limitDocNumForBlock = docOffsets.get(index + 1);
             return index;
+        }
+
+        // If query is over adjacent values we can scan forward through blocks, rather than binary searching for the next block.
+        long findAndUpdateBlockByScanning(int docNumber) {
+            if (docNumber < limitDocNumForBlock && lastBlockId >= 0) {
+                return lastBlockId;
+            }
+            long blockId = lastBlockId + 1;
+            startDocNumForBlock = docOffsets.get(blockId);
+            limitDocNumForBlock = docOffsets.get(blockId + 1);
+            return blockId;
         }
 
         BytesRef decode(int docNumber, int numBlocks) throws IOException {
             // docNumber, rather than docId, because these are dense and could be indices from a DISI
-            long blockId = docNumber < limitDocNumForBlock
-                ? lastBlockId
-                : findAndUpdateBlock(docOffsets, lastBlockId, docNumber, numBlocks);
+            long blockId = findAndUpdateBlock(docNumber, numBlocks);
 
             int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
             int idxInBlock = (int) (docNumber - startDocNumForBlock);
@@ -559,20 +572,49 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             return uncompressedBytesRef;
         }
 
+        int computeMultipleBlockBufferSize(int count, int firstDoc, long firstBlockId) throws IOException {
+            long lastBlockId = firstBlockId;
+
+            int remaining = count;
+            int nextDoc = firstDoc;
+            for (long blockId = firstBlockId; remaining > 0; blockId++, lastBlockId++)  {
+                long blockStart = docOffsets.get(blockId);
+                long blockLimit = docOffsets.get(blockId + 1);
+                int numDocsInBlock = (int) (blockLimit - blockStart);
+                int idxFirstDocInBlock = (int) (nextDoc - blockStart);
+                int countInBlock = Math.min(numDocsInBlock - idxFirstDocInBlock, remaining);
+                remaining -= countInBlock;
+                nextDoc += countInBlock;
+            }
+
+            // We could use compressedData directly, but making a clone seems less error-prone.
+            IndexInput readAhead = compressedData.clone();
+            int requiredBufferSize = 0;
+            for (long blockId = firstBlockId; blockId <= lastBlockId; blockId++)  {
+                long blockStartOffset = addresses.get(blockId);
+                readAhead.seek(blockStartOffset);
+                readAhead.readByte(); // skip BlockHeader
+                int uncompressedBlockLength = readAhead.readVInt();
+                requiredBufferSize += uncompressedBlockLength;
+            }
+            return requiredBufferSize;
+        }
+
         void decodeBulk(int numBlocks, int firstDoc, int count, BlockLoader.SingletonBytesRefBuilder builder) throws IOException {
             int remainingCount = count;
             int nextDoc = firstDoc;
             int blockDocOffset = 0;
             int blockByteOffset = 0;
+
+            // Need to binary search forward for first blockId, but since query is dense, can scan from then on.
+            // This block contains at least one value for range.
+            long firstBlockId = findAndUpdateBlock(nextDoc, numBlocks);
             long[] offsets = new long[count + 1];
-            List<BytesRef> decompressedBlocks = new ArrayList<>();
+            int bufferSize = computeMultipleBlockBufferSize(count, firstDoc, firstBlockId);
+            byte[] bytes = new byte[bufferSize];
 
             while (remainingCount > 0) {
-                long blockId = nextDoc < limitDocNumForBlock
-                    ? lastBlockId
-                    : findAndUpdateBlock(this.docOffsets, lastBlockId, nextDoc, numBlocks);
-                assert blockId >= 0;
-
+                long blockId = findAndUpdateBlockByScanning(nextDoc);
                 int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
                 int idxFirstDocInBlock = (int) (nextDoc - startDocNumForBlock);
                 int countInBlock = Math.min(numDocsInBlock - idxFirstDocInBlock, remainingCount);
@@ -595,38 +637,21 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     offsets[blockDocOffset + i + 1] = byteOffsetInBlock + blockByteOffset;
                 }
 
+                // Copy uncompressedBlock bytes into buffer for multiple blocks
+                System.arraycopy(uncompressedBlock, startOffset, bytes, blockByteOffset, lenValuesInBlock);
+
                 nextDoc += countInBlock;
                 remainingCount -= countInBlock;
                 blockDocOffset += countInBlock;
                 blockByteOffset += lenValuesInBlock;
-
-                if (remainingCount == 0) {
-                    // avoid making a copy if this was the last block to be decompressed
-                    decompressedBlocks.add(new BytesRef(uncompressedBlock, startOffset, lenValuesInBlock));
-                } else {
-                    decompressedBlocks.add(
-                        new BytesRef(Arrays.copyOfRange(uncompressedBlock, startOffset, startOffset + lenValuesInBlock))
-                    );
-                }
             }
 
             int totalLen = Math.toIntExact(offsets[count]);
             if (totalLen == 0) {
                 builder.appendBytesRefs(new byte[0], 0);
             } else {
-                var allBytes = combinedBytes(totalLen, decompressedBlocks);
-                builder.appendBytesRefs(allBytes, offsets);
+                builder.appendBytesRefs(bytes, offsets);
             }
-        }
-
-        static byte[] combinedBytes(int totalLen, List<BytesRef> allBytes) {
-            byte[] all = new byte[totalLen];
-            int byteOffset = 0;
-            for (var bytes : allBytes) {
-                System.arraycopy(bytes.bytes, bytes.offset, all, byteOffset, bytes.length);
-                byteOffset += bytes.length;
-            }
-            return all;
         }
     }
 

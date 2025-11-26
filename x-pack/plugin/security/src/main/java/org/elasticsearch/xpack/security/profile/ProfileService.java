@@ -116,7 +116,7 @@ public class ProfileService {
 
     public static final Setting<ByteSizeValue> MAX_SIZE_SETTING = Setting.byteSizeSetting(
         "xpack.security.profile.max_size",
-        ByteSizeValue.of(10, ByteSizeUnit.MB), // default: 10 MB
+        ByteSizeValue.ofMb(10), // default: 10 MB
         ByteSizeValue.ZERO, // minimum: 0 bytes
         ByteSizeValue.ofBytes(Integer.MAX_VALUE),
         Setting.Property.NodeScope

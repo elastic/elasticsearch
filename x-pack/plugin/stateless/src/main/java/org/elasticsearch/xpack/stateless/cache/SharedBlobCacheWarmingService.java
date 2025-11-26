@@ -201,6 +201,13 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.NodeScope
     );
 
+    public static final String OFFLINE_WARMING_SETTING_NAME = "stateless.offline_warming.enabled";
+    public static final Setting<Boolean> OFFLINE_WARMING_ENABLED_SETTING = Setting.boolSetting(
+        OFFLINE_WARMING_SETTING_NAME,
+        false,
+        Setting.Property.NodeScope
+    );
+
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private final Executor fetchExecutor;
@@ -209,6 +216,7 @@ public class SharedBlobCacheWarmingService {
     private final ThrottledTaskRunner cfeThrottledTaskRunner;
     private final LongCounter cacheWarmingPageAlignedBytesTotalMetric;
     private final long prewarmingRangeMinimizationStep;
+    private final boolean useOfflineWarmingForSearchShards;
 
     public SharedBlobCacheWarmingService(
         StatelessSharedBlobCacheService cacheService,
@@ -236,6 +244,7 @@ public class SharedBlobCacheWarmingService {
         this.cacheWarmingPageAlignedBytesTotalMetric = telemetryProvider.getMeterRegistry()
             .registerLongCounter(BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC, "Total bytes warmed in cache", "bytes");
         this.prewarmingRangeMinimizationStep = PREWARMING_RANGE_MINIMIZATION_STEP.get(settings).getBytes();
+        this.useOfflineWarmingForSearchShards = OFFLINE_WARMING_ENABLED_SETTING.get(settings);
     }
 
     public void warmCacheBeforeUpload(VirtualBatchedCompoundCommit vbcc, ActionListener<Void> listener) {
@@ -398,7 +407,11 @@ public class SharedBlobCacheWarmingService {
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory
     ) {
-        warmCacheRecovery(type, indexShard, commit, directory, ActionListener.noop());
+        if (useOfflineWarmingForSearchShards && Type.SEARCH.equals(type)) {
+            warmCacheForShardRecoveryUsingOfflineWarming();
+        } else {
+            warmCacheRecovery(type, indexShard, commit, directory, ActionListener.noop());
+        }
     }
 
     protected void warmCacheRecovery(
@@ -432,7 +445,10 @@ public class SharedBlobCacheWarmingService {
                 warmer.run();
             }
         }
+    }
 
+    protected void warmCacheForShardRecoveryUsingOfflineWarming() {
+        // no-op
     }
 
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> {

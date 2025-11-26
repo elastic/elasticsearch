@@ -30,6 +30,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.MockLog.assertThatLogger;
@@ -267,7 +268,13 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                         final var measurement = measurements.getLast();
                         assertThat(measurement.getLong(), equalTo(1L));
                         final var attributes = measurement.attributes();
-                        final var keySet = Set.of("linked_project_id", "linked_project_alias", "attempt", "strategy");
+                        final var keySet = Set.of(
+                            "linked_project_id",
+                            "linked_project_alias",
+                            "attempt",
+                            "strategy",
+                            "fake_metric_attribute_name"
+                        );
                         final var expectedAttemptType = isInitialConnectAttempt
                             ? RemoteConnectionStrategy.ConnectionAttempt.initial
                             : RemoteConnectionStrategy.ConnectionAttempt.reconnect;
@@ -276,6 +283,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                         assertThat(attributes.get("linked_project_alias"), equalTo(alias));
                         assertThat(attributes.get("attempt"), equalTo(expectedAttemptType.toString()));
                         assertThat(attributes.get("strategy"), equalTo(strategy.strategyType().toString()));
+                        assertThat(attributes.get("fake_metric_attribute_name"), equalTo("fake_metric_attribute_value"));
                     }
                 }
             }
@@ -389,6 +397,11 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         @Override
         protected RemoteConnectionInfo.ModeInfo getModeInfo() {
             return null;
+        }
+
+        @Override
+        protected void addStrategySpecificConnectionErrorMetricAttributes(Map<String, Object> attributeMap) {
+            attributeMap.put("fake_metric_attribute_name", "fake_metric_attribute_value");
         }
     }
 }

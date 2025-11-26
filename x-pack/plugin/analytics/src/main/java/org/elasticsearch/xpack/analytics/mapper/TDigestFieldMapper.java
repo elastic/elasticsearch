@@ -398,10 +398,13 @@ public class TDigestFieldMapper extends FieldMapper {
                 );
             }
             NumericDocValuesField countField = new NumericDocValuesField(valuesCountSubFieldName(fullPath()), parsedTDigest.count());
-            NumericDocValuesField sumField = new NumericDocValuesField(
-                valuesSumSubFieldName(fullPath()),
-                NumericUtils.doubleToSortableLong(parsedTDigest.sum())
-            );
+            NumericDocValuesField sumField = null;
+            if (Double.isNaN(parsedTDigest.sum()) == false) {
+                sumField = new NumericDocValuesField(
+                    valuesSumSubFieldName(fullPath()),
+                    NumericUtils.doubleToSortableLong(parsedTDigest.sum())
+                );
+            }
             if (context.doc().getByKey(fieldType().name()) != null) {
                 throw new IllegalArgumentException(
                     "Field ["
@@ -413,7 +416,9 @@ public class TDigestFieldMapper extends FieldMapper {
             }
             context.doc().addWithKey(fieldType().name(), digestField);
             context.doc().add(countField);
-            context.doc().add(sumField);
+            if (sumField != null) {
+                context.doc().add(sumField);
+            }
             if (maxField != null) {
                 context.doc().add(maxField);
             }
@@ -577,8 +582,12 @@ public class TDigestFieldMapper extends FieldMapper {
                         max = Double.NaN;
                     }
 
-                    sumValues.advanceExact(docId);
-                    sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
+                    if (sumValues != null) {
+                        sumValues.advanceExact(docId);
+                        sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
+                    } else {
+                        sum = Double.NaN;
+                    }
 
                     binaryValue = docValues.binaryValue();
                     return true;
@@ -608,7 +617,9 @@ public class TDigestFieldMapper extends FieldMapper {
             if (Double.isNaN(max) == false) {
                 b.field("max", max);
             }
-            b.field("sum", sum);
+            if (Double.isNaN(sum) == false) {
+                b.field("sum", sum);
+            }
 
             b.startArray(CENTROIDS_NAME);
             while (value.next()) {

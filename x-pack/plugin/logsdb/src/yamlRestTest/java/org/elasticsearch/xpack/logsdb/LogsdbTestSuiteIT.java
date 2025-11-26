@@ -41,8 +41,7 @@ public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
             .user(USER, PASS)
             .keystore("bootstrap.password", "x-pack-test-password")
             .setting("xpack.license.self_generated.type", "trial")
-            .feature(FeatureFlag.DOC_VALUES_SKIPPER)
-            .feature(FeatureFlag.BINARY_DOC_VALUE_COMPRESSION);
+            .feature(FeatureFlag.DOC_VALUES_SKIPPER);
         boolean setNodes = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
         if (setNodes) {
             clusterBuilder.nodes(1);

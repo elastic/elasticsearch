@@ -26,6 +26,7 @@ import org.elasticsearch.core.XmlUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 
 import java.io.IOException;
@@ -190,14 +191,15 @@ public class S3HttpHandler implements HttpHandler {
 
             } else if (request.isCompleteMultipartUploadRequest()) {
                 final byte[] responseBody;
-                final boolean preconditionFailed;
+                final RestStatus responseCode;
                 synchronized (uploads) {
                     final var upload = getUpload(request.getQueryParamOnce("uploadId"));
                     if (upload == null) {
-                        preconditionFailed = false;
                         if (Randomness.get().nextBoolean()) {
+                            responseCode = RestStatus.NOT_FOUND;
                             responseBody = null;
                         } else {
+                            responseCode = RestStatus.OK;
                             responseBody = """
                                 <?xml version="1.0" encoding="UTF-8"?>
                                 <Error>
@@ -209,10 +211,8 @@ public class S3HttpHandler implements HttpHandler {
                         }
                     } else {
                         final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
-
-                        preconditionFailed = updateBlobContents(exchange, request.path(), blobContents) == false;
-
-                        if (preconditionFailed == false) {
+                        responseCode = updateBlobContents(exchange, request.path(), blobContents);
+                        if (responseCode == RestStatus.OK) {
                             responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                                 + "<CompleteMultipartUploadResult>\n"
                                 + "<Bucket>"
@@ -222,20 +222,20 @@ public class S3HttpHandler implements HttpHandler {
                                 + request.path()
                                 + "</Key>\n"
                                 + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
-                            removeUpload(upload.getUploadId());
                         } else {
                             responseBody = null;
                         }
+                        if (responseCode != RestStatus.PRECONDITION_FAILED) {
+                            removeUpload(upload.getUploadId());
+                        }
                     }
                 }
-                if (preconditionFailed) {
-                    exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), -1);
-                } else if (responseBody == null) {
-                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
-                } else {
+                if (responseCode == RestStatus.OK) {
                     exchange.getResponseHeaders().add("Content-Type", "application/xml");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBody.length);
                     exchange.getResponseBody().write(responseBody);
+                } else {
+                    exchange.sendResponseHeaders(responseCode.getStatus(), -1);
                 }
             } else if (request.isAbortMultipartUploadRequest()) {
                 final var upload = removeUpload(request.getQueryParamOnce("uploadId"));
@@ -264,14 +264,12 @@ public class S3HttpHandler implements HttpHandler {
                     }
                 } else {
                     final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                    final var preconditionFailed = updateBlobContents(exchange, request.path(), blob.v2()) == false;
+                    final var updateResponseCode = updateBlobContents(exchange, request.path(), blob.v2());
 
-                    if (preconditionFailed) {
-                        exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), -1);
-                    } else {
+                    if (updateResponseCode == RestStatus.OK) {
                         exchange.getResponseHeaders().add("ETag", blob.v1());
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                     }
+                    exchange.sendResponseHeaders(updateResponseCode.getStatus(), -1);
                 }
 
             } else if (request.isListObjectsRequest()) {
@@ -407,15 +405,21 @@ public class S3HttpHandler implements HttpHandler {
     /**
      * Update the blob contents if and only if the preconditions in the request are satisfied.
      *
-     * @return whether the blob contents were updated: if {@code false} then a requested precondition was not satisfied.
+     * @return {@link RestStatus#OK} if the blob contents were updated, or else a different status code to indicate the error: possibly
+     *         {@link RestStatus#CONFLICT} or {@link RestStatus#PRECONDITION_FAILED} if the object exists and the precondition requires it
+     *         not to.
+     *
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html#conditional-error-response">AWS docs</a>
      */
-    private boolean updateBlobContents(HttpExchange exchange, String path, BytesReference newContents) {
+    private RestStatus updateBlobContents(HttpExchange exchange, String path, BytesReference newContents) {
         if (isProtectOverwrite(exchange)) {
-            return blobs.putIfAbsent(path, newContents) == null;
-        } else {
-            blobs.put(path, newContents);
-            return true;
+            return blobs.putIfAbsent(path, newContents) == null
+                ? RestStatus.OK
+                : ESTestCase.randomFrom(RestStatus.PRECONDITION_FAILED, RestStatus.CONFLICT);
         }
+
+        blobs.put(path, newContents);
+        return RestStatus.OK;
     }
 
     /**

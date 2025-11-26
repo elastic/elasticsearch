@@ -61,7 +61,7 @@ public class AverageWriteLoadSampler {
     );
 
     private final ThreadPool threadPool;
-    private final Map<String, AverageLoad> averageLoadPerExector = new HashMap<>();
+    private final Map<String, AverageLoad> averageLoadPerExecutor = new HashMap<>();
 
     public static AverageWriteLoadSampler create(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
         assert WRITE_EXECUTORS.stream()
@@ -83,7 +83,7 @@ public class AverageWriteLoadSampler {
     AverageWriteLoadSampler(ThreadPool threadPool, TimeValue samplingFrequency, double writeLoadEwmaAlpha, double queueSizeEwmaAlpha) {
         this.threadPool = threadPool;
         WRITE_EXECUTORS.forEach(
-            name -> averageLoadPerExector.put(
+            name -> averageLoadPerExecutor.put(
                 name,
                 new AverageLoad(threadPool.info(name).getMax(), samplingFrequency, writeLoadEwmaAlpha, queueSizeEwmaAlpha)
             )
@@ -95,7 +95,7 @@ public class AverageWriteLoadSampler {
             var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(name);
             long currentTotalNanos = executor.getTotalTaskExecutionTime();
             var ongoingTasks = executor.getOngoingTasks();
-            averageLoadPerExector.get(name).update(currentTotalNanos, ongoingTasks.values(), executor.getCurrentQueueSize());
+            averageLoadPerExecutor.get(name).update(currentTotalNanos, ongoingTasks.values(), executor.getCurrentQueueSize());
         }
     }
 
@@ -105,20 +105,20 @@ public class AverageWriteLoadSampler {
         }
         var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(executorName);
         return new ExecutorStats(
-            averageLoadPerExector.get(executorName).getWriteLoad(),
+            averageLoadPerExecutor.get(executorName).getWriteLoad(),
             executor.getTaskExecutionEWMA(),
             executor.getCurrentQueueSize(),
-            averageLoadPerExector.get(executorName).getQueueSize(),
+            averageLoadPerExecutor.get(executorName).getQueueSize(),
             executor.getMaximumPoolSize()
         );
     }
 
     private void updateWriteLoadEwmaAlpha(double alpha) {
-        averageLoadPerExector.forEach((s, averageLoad) -> averageLoad.updateWriteLoadEwmaAlpha(alpha));
+        averageLoadPerExecutor.forEach((s, averageLoad) -> averageLoad.updateWriteLoadEwmaAlpha(alpha));
     }
 
     private void updateQueueSizeEwmaAlpha(double alpha) {
-        averageLoadPerExector.forEach((s, averageLoad) -> averageLoad.updateQueueSizeEwmaAlpha(alpha));
+        averageLoadPerExecutor.forEach((s, averageLoad) -> averageLoad.updateQueueSizeEwmaAlpha(alpha));
     }
 
     /**

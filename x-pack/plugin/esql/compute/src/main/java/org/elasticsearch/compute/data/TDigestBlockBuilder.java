@@ -71,7 +71,6 @@ public final class TDigestBlockBuilder implements TDigestBlock.Builder {
         return this;
     }
 
-
     @Override
     public Block.Builder appendNull() {
         throw new UnsupportedOperationException();
@@ -89,8 +88,7 @@ public final class TDigestBlockBuilder implements TDigestBlock.Builder {
 
     @Override
     public Block.Builder mvOrdering(Block.MvOrdering mvOrdering) {
-        assert mvOrdering == Block.MvOrdering.UNORDERED
-            : "TDigests don't have a natural order, so it doesn't make sense to call this";
+        assert mvOrdering == Block.MvOrdering.UNORDERED : "TDigests don't have a natural order, so it doesn't make sense to call this";
         return this;
     }
 

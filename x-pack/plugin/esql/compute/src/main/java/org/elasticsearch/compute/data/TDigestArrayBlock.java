@@ -249,7 +249,6 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
         return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, valueCounts);
     }
 
-
     @Override
     public long ramBytesUsed() {
         long bytes = 0;

@@ -321,7 +321,7 @@ public final class BlockUtils {
             }
             case TDIGEST -> {
                 TDigestBlock tDigestBlock = (TDigestBlock) block;
-                // NOCOMMIT - probably something more sensible here.  We presumably need to account for this memory in some way
+                // NOCOMMIT - probably something more sensible here. We presumably need to account for this memory in some way
                 BytesRef scratch = new BytesRef();
                 yield tDigestBlock.getTDigestHolder(offset, scratch);
 

@@ -24,9 +24,11 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.RowLimited;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
@@ -37,7 +39,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerificationAware, TelemetryAware {
+public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerificationAware, TelemetryAware, RowLimited {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
     public static final String DEFAULT_INFERENCE_ID = ".rerank-v1-elasticsearch";
@@ -120,6 +122,11 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
     @Override
     public TaskType taskType() {
         return TaskType.RERANK;
+    }
+
+    @Override
+    public int maxRows() {
+        return Foldables.intValueOf(rowLimit, rowLimit.sourceText(), "row limit");
     }
 
     @Override

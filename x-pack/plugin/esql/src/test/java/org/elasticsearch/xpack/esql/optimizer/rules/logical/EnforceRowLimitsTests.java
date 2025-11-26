@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -25,7 +28,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 
 import java.util.List;
 import java.util.Map;
@@ -40,6 +45,68 @@ import static org.hamcrest.Matchers.not;
 public class EnforceRowLimitsTests extends ESTestCase {
 
     private final EnforceRowLimits rule = new EnforceRowLimits();
+    private final TestCase testCase;
+
+    public abstract static class TestCase {
+        public abstract String name();
+
+        public abstract LogicalPlan createPlan(LogicalPlan child, Expression rowLimit);
+
+        @Override
+        public String toString() {
+            return name();
+        }
+    }
+
+    public static class CompletionTestCase extends TestCase {
+        public String name() {
+            return "Rerank";
+        }
+
+        public Completion createPlan(LogicalPlan child, Expression rowLimit) {
+            Source source = EMPTY;
+            Expression prompt = Literal.keyword(source, "test prompt");
+            Attribute targetField = new ReferenceAttribute(source, null, "completion", DataType.KEYWORD);
+            return new Completion(source, child, Literal.keyword(source, "test-inference-id"), prompt, targetField, rowLimit);
+        }
+    }
+
+    public static class RerankTestCase extends TestCase {
+        public String name() {
+            return "Rerank";
+        }
+
+        @Override
+        public Rerank createPlan(LogicalPlan child, Expression rowLimit) {
+            Source source = EMPTY;
+            Expression queryText = Literal.keyword(source, "test query");
+            Attribute scoreAttribute = new ReferenceAttribute(source, null, "score", DataType.DOUBLE);
+            List<Alias> rerankFields = List.of();
+            return new Rerank(
+                source,
+                child,
+                Literal.keyword(source, "test-inference-id"),
+                queryText,
+                rerankFields,
+                scoreAttribute,
+                rowLimit
+            );
+        }
+    }
+
+    public EnforceRowLimitsTests(TestCase testCase) {
+        this.testCase = testCase;
+    }
+
+    @ParametersFactory(argumentFormatting = "%s")
+    public static Iterable<Object[]> parameters() {
+        return List.of(new Object[] { new CompletionTestCase() }, new Object[] { new RerankTestCase() });
+    }
+
+    @Override
+    public String getTestName() {
+        return super.getTestName() + " [" + testCase.name() + "]";
+    }
 
     @Override
     protected boolean enableWarningsCheck() {
@@ -51,16 +118,8 @@ public class EnforceRowLimitsTests extends ESTestCase {
         return new EsRelation(EMPTY, "test", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of());
     }
 
-    private Completion createCompletion(LogicalPlan child, Expression rowLimit) {
-        Source source = EMPTY;
-        Expression prompt = Literal.keyword(source, "test prompt");
-        Attribute targetField = new ReferenceAttribute(source, "completion", DataType.KEYWORD);
-        Expression inferenceId = Literal.keyword(source, "test-inference-id");
-        return new Completion(source, child, inferenceId, prompt, targetField, rowLimit);
-    }
-
     /**
-     * Tests: | EsRelation | COMPLETION(rowLimit=100) → | EsRelation | LIMIT 100 | COMPLETION
+     * Tests: | EsRelation | ROWLIMITED(rowLimit=100) => | EsRelation | LIMIT 100 | ROWLIMITED
      */
     public void testEnforceLimitOnCompletionWithoutLimit() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -69,13 +128,14 @@ public class EnforceRowLimitsTests extends ESTestCase {
         try {
             EsRelation child = createEsRelation();
             Expression rowLimit = Literal.integer(EMPTY, 100);
-            Completion completion = createCompletion(child, rowLimit);
+            LogicalPlan plan = testCase.createPlan(child, rowLimit);
 
-            LogicalPlan result = rule.rule(completion);
-            Completion resultCompletion = as(result, Completion.class);
+            LogicalPlan result = rule.rule(plan);
+            assertThat(result, instanceOf(UnaryPlan.class));
+            UnaryPlan resultPlan = (UnaryPlan) result;
 
             // Verify limit is applied to child
-            LogicalPlan newChild = resultCompletion.child();
+            LogicalPlan newChild = resultPlan.child();
             assertThat(newChild, instanceOf(Limit.class));
             Limit limit = as(newChild, Limit.class);
             assertThat(((Literal) limit.limit()).value(), equalTo(100));
@@ -93,7 +153,7 @@ public class EnforceRowLimitsTests extends ESTestCase {
     }
 
     /**
-     * Tests: | LIMIT 50 | COMPLETION(rowLimit=100) → | LIMIT 50 | COMPLETION (no change)
+     * Tests: | LIMIT 50 | ROWLIMITED(rowLimit=100) => | LIMIT 50 | ROWLIMITED (no change)
      */
     public void testPreservesLowerLimit() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -103,13 +163,14 @@ public class EnforceRowLimitsTests extends ESTestCase {
             EsRelation relation = createEsRelation();
             Limit existingLimit = new Limit(EMPTY, Literal.integer(EMPTY, 50), relation);
             Expression rowLimit = Literal.integer(EMPTY, 100);
-            Completion completion = createCompletion(existingLimit, rowLimit);
+            LogicalPlan plan = testCase.createPlan(existingLimit, rowLimit);
 
-            LogicalPlan result = rule.rule(completion);
-            Completion resultCompletion = as(result, Completion.class);
+            LogicalPlan result = rule.rule(plan);
+            assertThat(result, instanceOf(UnaryPlan.class));
+            UnaryPlan resultPlan = (UnaryPlan) result;
 
             // Verify lower limit is preserved
-            LogicalPlan newChild = resultCompletion.child();
+            LogicalPlan newChild = resultPlan.child();
             assertThat(newChild, instanceOf(Limit.class));
             Limit limit = as(newChild, Limit.class);
             assertThat(((Literal) limit.limit()).value(), equalTo(50));
@@ -129,7 +190,7 @@ public class EnforceRowLimitsTests extends ESTestCase {
     }
 
     /**
-     * Tests: | LIMIT 500 | COMPLETION(rowLimit=100) → | LIMIT 100 | COMPLETION
+     * Tests: | LIMIT 500 | ROWLIMITED(rowLimit=100) => | LIMIT 100 | ROWLIMITED
      */
     public void testReducesHigherLimit() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -139,13 +200,14 @@ public class EnforceRowLimitsTests extends ESTestCase {
             EsRelation relation = createEsRelation();
             Limit existingLimit = new Limit(EMPTY, Literal.integer(EMPTY, 500), relation);
             Expression rowLimit = Literal.integer(EMPTY, 100);
-            Completion completion = createCompletion(existingLimit, rowLimit);
+            LogicalPlan plan = testCase.createPlan(existingLimit, rowLimit);
 
-            LogicalPlan result = rule.rule(completion);
-            Completion resultCompletion = as(result, Completion.class);
+            LogicalPlan result = rule.rule(plan);
+            assertThat(result, instanceOf(UnaryPlan.class));
+            UnaryPlan resultPlan = (UnaryPlan) result;
 
             // Verify limit is reduced to rowLimit
-            LogicalPlan newChild = resultCompletion.child();
+            LogicalPlan newChild = resultPlan.child();
             assertThat(newChild, instanceOf(Limit.class));
             Limit limit = as(newChild, Limit.class);
             assertThat(((Literal) limit.limit()).value(), equalTo(100));
@@ -163,7 +225,7 @@ public class EnforceRowLimitsTests extends ESTestCase {
     }
 
     /**
-     * Tests: | EVAL | COMPLETION(rowLimit=100) → | EVAL | LIMIT 100 | COMPLETION
+     * Tests: | EVAL | ROWLIMITED(rowLimit=100) => | EVAL | LIMIT 100 | ROWLIMITED
      * Streaming plans push the limit down to their child.
      */
     public void testEnforcesLimitOnStreamingPlan() {
@@ -174,13 +236,14 @@ public class EnforceRowLimitsTests extends ESTestCase {
             EsRelation relation = createEsRelation();
             Eval eval = new Eval(EMPTY, relation, List.of());
             Expression rowLimit = Literal.integer(EMPTY, 100);
-            Completion completion = createCompletion(eval, rowLimit);
+            LogicalPlan plan = testCase.createPlan(eval, rowLimit);
 
-            LogicalPlan result = rule.rule(completion);
-            Completion resultCompletion = as(result, Completion.class);
+            LogicalPlan result = rule.rule(plan);
+            assertThat(result, instanceOf(UnaryPlan.class));
+            UnaryPlan resultPlan = (UnaryPlan) result;
 
             // Verify limit is applied to streaming plan (Eval)
-            LogicalPlan newChild = resultCompletion.child();
+            LogicalPlan newChild = resultPlan.child();
             assertThat(newChild, instanceOf(Eval.class));
             Eval newEval = as(newChild, Eval.class);
             assertThat(newEval.child(), instanceOf(Limit.class));
@@ -192,7 +255,7 @@ public class EnforceRowLimitsTests extends ESTestCase {
     }
 
     /**
-     * Tests: | LIMIT 100 | COMPLETION(rowLimit=100) → | LIMIT 100 | COMPLETION (no change)
+     * Tests: | LIMIT 100 | ROWLIMITED(rowLimit=100) => | LIMIT 100 | ROWLIMITED (no change)
      */
     public void testWithExactLimit() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -202,13 +265,14 @@ public class EnforceRowLimitsTests extends ESTestCase {
             EsRelation relation = createEsRelation();
             Limit existingLimit = new Limit(EMPTY, Literal.integer(EMPTY, 100), relation);
             Expression rowLimit = Literal.integer(EMPTY, 100);
-            Completion completion = createCompletion(existingLimit, rowLimit);
+            LogicalPlan plan = testCase.createPlan(existingLimit, rowLimit);
 
-            LogicalPlan result = rule.rule(completion);
-            Completion resultCompletion = as(result, Completion.class);
+            LogicalPlan result = rule.rule(plan);
+            assertThat(result, instanceOf(UnaryPlan.class));
+            UnaryPlan resultPlan = (UnaryPlan) result;
 
             // Verify exact limit is preserved
-            LogicalPlan newChild = resultCompletion.child();
+            LogicalPlan newChild = resultPlan.child();
             assertThat(newChild, instanceOf(Limit.class));
             Limit limit = as(newChild, Limit.class);
             assertThat(((Literal) limit.limit()).value(), equalTo(100));
@@ -218,7 +282,7 @@ public class EnforceRowLimitsTests extends ESTestCase {
     }
 
     /**
-     * Tests: | EsRelation | COMPLETION(rowLimit=250) → | EsRelation | LIMIT 250 | COMPLETION
+     * Tests: | EsRelation | ROWLIMITED(rowLimit=250) => | EsRelation | LIMIT 250 | ROWLIMITED
      */
     public void testWithCustomRowLimit() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -227,13 +291,14 @@ public class EnforceRowLimitsTests extends ESTestCase {
         try {
             EsRelation child = createEsRelation();
             Expression rowLimit = Literal.integer(EMPTY, 250);
-            Completion completion = createCompletion(child, rowLimit);
+            LogicalPlan plan = testCase.createPlan(child, rowLimit);
 
-            LogicalPlan result = rule.rule(completion);
-            Completion resultCompletion = as(result, Completion.class);
+            LogicalPlan result = rule.rule(plan);
+            assertThat(result, instanceOf(UnaryPlan.class));
+            UnaryPlan resultPlan = (UnaryPlan) result;
 
             // Verify custom limit is applied
-            LogicalPlan newChild = resultCompletion.child();
+            LogicalPlan newChild = resultPlan.child();
             assertThat(newChild, instanceOf(Limit.class));
             Limit limit = as(newChild, Limit.class);
             assertThat(((Literal) limit.limit()).value(), equalTo(250));
@@ -243,7 +308,7 @@ public class EnforceRowLimitsTests extends ESTestCase {
     }
 
     /**
-     * Tests: | STATS | COMPLETION(rowLimit=100) → | STATS | LIMIT 100 | COMPLETION
+     * Tests: | STATS | ROWLIMITED(rowLimit=100) => | STATS | LIMIT 100 | ROWLIMITED
      */
     public void testEnforceLimitWithStats() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -259,14 +324,15 @@ public class EnforceRowLimitsTests extends ESTestCase {
             Aggregate stats = new Aggregate(EMPTY, relation, groupings, aggregates);
 
             Expression rowLimit = Literal.integer(EMPTY, 100);
-            Completion completion = createCompletion(stats, rowLimit);
+            LogicalPlan plan = testCase.createPlan(stats, rowLimit);
 
-            LogicalPlan result = rule.rule(completion);
-            Completion resultCompletion = as(result, Completion.class);
+            LogicalPlan result = rule.rule(plan);
+            assertThat(result, instanceOf(UnaryPlan.class));
+            UnaryPlan resultPlan = (UnaryPlan) result;
 
-            // Verify limit is added AFTER stats (between stats and completion)
-            // Structure should be: Completion -> Limit(100) -> Aggregate -> EsRelation
-            LogicalPlan newChild = resultCompletion.child();
+            // Verify limit is added AFTER stats (between stats and rowlimited plan)
+            // Structure should be: RowLimited -> Limit(100) -> Aggregate -> EsRelation
+            LogicalPlan newChild = resultPlan.child();
             assertThat(newChild, instanceOf(Limit.class));
             Limit limit = as(newChild, Limit.class);
             assertThat(((Literal) limit.limit()).value(), equalTo(100));
@@ -288,7 +354,7 @@ public class EnforceRowLimitsTests extends ESTestCase {
     }
 
     /**
-     * Tests: | LIMIT 500 | STATS | COMPLETION(rowLimit=100) → | LIMIT 500 | STATS | LIMIT 100 | COMPLETION
+     * Tests: | LIMIT 500 | STATS | ROWLIMITED(rowLimit=100) => | LIMIT 500 | STATS | LIMIT 100 | ROWLIMITED
      */
     public void testReducesLimitWithStats() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -306,14 +372,15 @@ public class EnforceRowLimitsTests extends ESTestCase {
             Aggregate stats = new Aggregate(EMPTY, existingLimit, groupings, aggregates);
 
             Expression rowLimit = Literal.integer(EMPTY, 100);
-            Completion completion = createCompletion(stats, rowLimit);
+            LogicalPlan plan = testCase.createPlan(stats, rowLimit);
 
-            LogicalPlan result = rule.rule(completion);
-            Completion resultCompletion = as(result, Completion.class);
+            LogicalPlan result = rule.rule(plan);
+            assertThat(result, instanceOf(UnaryPlan.class));
+            UnaryPlan resultPlan = (UnaryPlan) result;
 
             // Verify new limit is added AFTER stats while preserving the existing limit BEFORE stats
-            // Structure should be: Completion -> Limit(100) -> Aggregate -> Limit(500) -> EsRelation
-            LogicalPlan newChild = resultCompletion.child();
+            // Structure should be: RowLimited -> Limit(100) -> Aggregate -> Limit(500) -> EsRelation
+            LogicalPlan newChild = resultPlan.child();
             assertThat(newChild, instanceOf(Limit.class));
             Limit newLimit = as(newChild, Limit.class);
             assertThat(((Literal) newLimit.limit()).value(), equalTo(100));
@@ -337,7 +404,7 @@ public class EnforceRowLimitsTests extends ESTestCase {
     }
 
     /**
-     * Tests: | MV_EXPAND | COMPLETION(rowLimit=100) → | MV_EXPAND | LIMIT 100 | COMPLETION
+     * Tests: | MV_EXPAND | ROWLIMITED(rowLimit=100) => | MV_EXPAND | LIMIT 100 | ROWLIMITED
      */
     public void testEnforceLimitWithMvExpand() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -351,14 +418,15 @@ public class EnforceRowLimitsTests extends ESTestCase {
             MvExpand mvExpand = new MvExpand(EMPTY, relation, targetAttr, expandedAttr);
 
             Expression rowLimit = Literal.integer(EMPTY, 100);
-            Completion completion = createCompletion(mvExpand, rowLimit);
+            LogicalPlan plan = testCase.createPlan(mvExpand, rowLimit);
 
-            LogicalPlan result = rule.rule(completion);
-            Completion resultCompletion = as(result, Completion.class);
+            LogicalPlan result = rule.rule(plan);
+            assertThat(result, instanceOf(UnaryPlan.class));
+            UnaryPlan resultPlan = (UnaryPlan) result;
 
-            // Verify limit is added AFTER mvexpand (between mvexpand and completion)
-            // Structure should be: Completion -> Limit(100) -> MvExpand -> EsRelation
-            LogicalPlan newChild = resultCompletion.child();
+            // Verify limit is added AFTER mvexpand (between mvexpand and rowlimited plan)
+            // Structure should be: RowLimited -> Limit(100) -> MvExpand -> EsRelation
+            LogicalPlan newChild = resultPlan.child();
             assertThat(newChild, instanceOf(Limit.class));
             Limit limit = as(newChild, Limit.class);
             assertThat(((Literal) limit.limit()).value(), equalTo(100));
@@ -380,7 +448,7 @@ public class EnforceRowLimitsTests extends ESTestCase {
     }
 
     /**
-     * Tests: | LIMIT 50 | MV_EXPAND | COMPLETION(rowLimit=100) → | LIMIT 50 | MV_EXPAND | LIMIT 100 | COMPLETION
+     * Tests: | LIMIT 50 | MV_EXPAND | ROWLIMITED(rowLimit=100) => | LIMIT 50 | MV_EXPAND | LIMIT 100 | ROWLIMITED
      */
     public void testPreservesLowerLimitWithMvExpand() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -396,14 +464,15 @@ public class EnforceRowLimitsTests extends ESTestCase {
             MvExpand mvExpand = new MvExpand(EMPTY, existingLimit, targetAttr, expandedAttr);
 
             Expression rowLimit = Literal.integer(EMPTY, 100);
-            Completion completion = createCompletion(mvExpand, rowLimit);
+            LogicalPlan plan = testCase.createPlan(mvExpand, rowLimit);
 
-            LogicalPlan result = rule.rule(completion);
-            Completion resultCompletion = as(result, Completion.class);
+            LogicalPlan result = rule.rule(plan);
+            assertThat(result, instanceOf(UnaryPlan.class));
+            UnaryPlan resultPlan = (UnaryPlan) result;
 
             // Verify new limit is added AFTER mvexpand while preserving the existing limit BEFORE mvexpand
-            // Structure should be: Completion -> Limit(100) -> MvExpand -> Limit(50) -> EsRelation
-            LogicalPlan newChild = resultCompletion.child();
+            // Structure should be: RowLimited -> Limit(100) -> MvExpand -> Limit(50) -> EsRelation
+            LogicalPlan newChild = resultPlan.child();
             assertThat(newChild, instanceOf(Limit.class));
             Limit newLimit = as(newChild, Limit.class);
             assertThat(((Literal) newLimit.limit()).value(), equalTo(100));

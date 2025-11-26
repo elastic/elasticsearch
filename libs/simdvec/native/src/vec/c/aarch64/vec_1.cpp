@@ -7,6 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+ // This file contains implementations for basic vector processing functionalities,
+ // including support for "1st tier" vector capabilities; in the case of ARM,
+ // this first tier include functions for processors supporting at least the NEON
+ // instruction set.
+
 #include <stddef.h>
 #include <arm_neon.h>
 #include <math.h>
@@ -48,7 +53,7 @@ EXPORT int vec_caps() {
 #endif
 }
 
-static inline int32_t dot7u_inner(int8_t* a, int8_t* b, const int32_t dims) {
+static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     // We have contention in the instruction pipeline on the accumulation
     // registers if we use too few.
     int32x4_t acc1 = vdupq_n_s32(0);
@@ -82,7 +87,7 @@ static inline int32_t dot7u_inner(int8_t* a, int8_t* b, const int32_t dims) {
     return vaddvq_s32(vaddq_s32(acc5, acc6));
 }
 
-EXPORT int32_t dot7u(int8_t* a, int8_t* b, const int32_t dims) {
+EXPORT int32_t vec_dot7u(int8_t* a, int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > DOT7U_STRIDE_BYTES_LEN) {
@@ -120,7 +125,7 @@ static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, const int32_t dims) {
     return vaddvq_s32(vaddq_s32(acc5, acc6));
 }
 
-EXPORT int32_t sqr7u(int8_t* a, int8_t* b, const int32_t dims) {
+EXPORT int32_t vec_sqr7u(int8_t* a, int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > SQR7U_STRIDE_BYTES_LEN) {
@@ -139,7 +144,7 @@ EXPORT int32_t sqr7u(int8_t* a, int8_t* b, const int32_t dims) {
 // const f32_t *a  pointer to the first float vector
 // const f32_t *b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
-EXPORT f32_t dotf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
+EXPORT f32_t vec_dotf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     float32x4_t sum0 = vdupq_n_f32(0.0f);
     float32x4_t sum1 = vdupq_n_f32(0.0f);
     float32x4_t sum2 = vdupq_n_f32(0.0f);
@@ -180,7 +185,7 @@ EXPORT f32_t dotf32(const f32_t *a, const f32_t *b, const int32_t elementCount) 
 // const f32_t *a  pointer to the first float vector
 // const f32_t *b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
-EXPORT f32_t cosf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
+EXPORT f32_t vec_cosf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     float32x4_t sum0 = vdupq_n_f32(0.0f);
     float32x4_t sum1 = vdupq_n_f32(0.0f);
     float32x4_t sum2 = vdupq_n_f32(0.0f);
@@ -252,7 +257,7 @@ EXPORT f32_t cosf32(const f32_t *a, const f32_t *b, const int32_t elementCount) 
     return dot / denom;
 }
 
-EXPORT f32_t sqrf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
+EXPORT f32_t vec_sqrf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     float32x4_t sum0 = vdupq_n_f32(0.0f);
     float32x4_t sum1 = vdupq_n_f32(0.0f);
     float32x4_t sum2 = vdupq_n_f32(0.0f);

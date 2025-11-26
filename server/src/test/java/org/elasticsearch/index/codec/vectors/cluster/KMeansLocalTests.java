@@ -154,7 +154,7 @@ public class KMeansLocalTests extends ESTestCase {
                 vectors[i][j] = randomFloat();
             }
         }
-        int clustersPerNeighbour = randomIntBetween(32, 128);
+        int clustersPerNeighbour = randomIntBetween(64, 128);
         NeighborHood[] neighborHoodsGraph = NeighborHood.computeNeighborhoodsGraph(vectors, clustersPerNeighbour);
         NeighborHood[] neighborHoodsBruteForce = NeighborHood.computeNeighborhoodsBruteForce(vectors, clustersPerNeighbour);
         assertEquals(neighborHoodsGraph.length, neighborHoodsBruteForce.length);

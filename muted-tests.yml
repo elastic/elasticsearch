@@ -540,27 +540,6 @@ tests:
 - class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
   method: testSeqNoCASLinearizability
   issue: https://github.com/elastic/elasticsearch/issues/117249
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/138649
-  method: test {p0=index/92_metrics_auto_subobjects/Metrics object indexing}
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/138649
-  method: test {p0=index/92_metrics_auto_subobjects/Root without subobjects with synthetic source}
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/138649
-  method: test {p0=index/92_metrics_auto_subobjects/Metrics object indexing with synthetic source}
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/138649
-  method: "test {p0=indices.put_index_template/15_composition/Composable index templates that include subobjects: auto at root}"
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/138649
-  method: "test {p0=search/330_fetch_fields/Test with subobjects: auto}"
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/138649
-  method: "test {p0=indices.put_index_template/15_composition/Composable index templates that include subobjects: auto on arbitrary field}"
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/138649
-  method: test {p0=index/92_metrics_auto_subobjects/Root with metrics}
 
 # Examples:
 #

@@ -186,24 +186,31 @@ public class HdfsFixture extends ExternalResource {
     }
 
     private void startMinHdfs() throws Exception {
-        Path baseDir = temporaryFolder.newFolder("baseDir").toPath();
         int maxAttempts = 3;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            // Create a fresh baseDir for each attempt to avoid residual state
+            Path baseDir = temporaryFolder.newFolder("baseDir-" + attempt).toPath();
             try {
                 Path hdfsHome = createHdfsDataFolder(baseDir);
                 tryStartingHdfs(hdfsHome);
                 break;
             } catch (IOException e) {
                 // Log the exception
-                System.out.println("Attempt " + attempt + " failed with error: " + e.getMessage());
+                System.out.println("Attempt " + attempt + " to start HDFS failed: " + e.getMessage());
+                // Clean up the failed attempt
+                try {
+                    FileUtils.deleteDirectory(baseDir.toFile());
+                } catch (IOException cleanupException) {
+                    // Log but don't fail on cleanup errors
+                    System.out.println("Failed to cleanup baseDir after attempt " + attempt + ": " + cleanupException.getMessage());
+                }
                 // If the maximum number of attempts is reached, rethrow the exception
-                FileUtils.deleteDirectory(baseDir.toFile());
                 if (attempt == maxAttempts) {
                     throw e;
                 }
                 // Add a small delay before retrying to allow filesystem to stabilize
                 try {
-                    Thread.sleep(1000 * attempt); // Progressive backoff: 1s, 2s
+                    Thread.sleep(1000L * attempt * attempt); // Progressive backoff: 1s, 4s
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     throw new IOException("Interrupted while waiting to retry HDFS startup", ie);
@@ -256,6 +263,9 @@ public class HdfsFixture extends ExternalResource {
 
         MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(cfg);
         builder.nameNodePort(explicitPort);
+        // Explicitly enable formatting and directory management for clean test environment
+        builder.format(true);
+        builder.manageNameDfsDirs(true);
         if (isHA()) {
             MiniDFSNNTopology.NNConf nn1 = new MiniDFSNNTopology.NNConf("nn1").setIpcPort(0);
             MiniDFSNNTopology.NNConf nn2 = new MiniDFSNNTopology.NNConf("nn2").setIpcPort(0);

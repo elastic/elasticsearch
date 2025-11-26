@@ -31,7 +31,6 @@ import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -253,11 +252,11 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
             AggregateMetricDoubleFieldType metricFieldType = new AggregateMetricDoubleFieldType(
                 context.buildFullName(leafName()),
-                meta.getValue(),
-                timeSeriesMetric.getValue()
+                timeSeriesMetric.getValue(),
+                defaultMetric.getValue(),
+                metricFields,
+                meta.getValue()
             );
-            metricFieldType.setMetricFields(metricFields);
-            metricFieldType.setDefaultMetric(defaultMetric.getValue());
 
             return new AggregateMetricDoubleFieldMapper(leafName(), metricFieldType, metricMappers, builderParams(this, context), this);
         }
@@ -270,19 +269,21 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
     public static final class AggregateMetricDoubleFieldType extends SimpleMappedFieldType {
 
-        private EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields;
-
-        private Metric defaultMetric;
-
+        private final EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields;
+        private final Metric defaultMetric;
         private final MetricType metricType;
 
-        public AggregateMetricDoubleFieldType(String name) {
-            this(name, Collections.emptyMap(), null);
-        }
-
-        public AggregateMetricDoubleFieldType(String name, Map<String, String> meta, MetricType metricType) {
-            super(name, IndexType.points(true, true), false, meta);
+        public AggregateMetricDoubleFieldType(
+            String name,
+            MetricType metricType,
+            Metric defaultMetric,
+            EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields,
+            Map<String, String> meta
+        ) {
+            super(name, metricFields.get(defaultMetric).indexType(), false, meta);
             this.metricType = metricType;
+            this.defaultMetric = defaultMetric;
+            this.metricFields = metricFields;
         }
 
         /**
@@ -311,27 +312,8 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
-        private void setMetricFields(EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields) {
-            this.metricFields = metricFields;
-        }
-
         public Map<Metric, NumberFieldMapper.NumberFieldType> getMetricFields() {
             return Collections.unmodifiableMap(metricFields);
-        }
-
-        public void addMetricField(Metric m, NumberFieldMapper.NumberFieldType subfield) {
-            if (metricFields == null) {
-                metricFields = new EnumMap<>(AggregateMetricDoubleFieldMapper.Metric.class);
-            }
-
-            if (name() == null) {
-                throw new IllegalArgumentException("Field of type [" + typeName() + "] must have a name before adding a subfield");
-            }
-            metricFields.put(m, subfield);
-        }
-
-        public void setDefaultMetric(Metric defaultMetric) {
-            this.defaultMetric = defaultMetric;
         }
 
         Metric getDefaultMetric() {

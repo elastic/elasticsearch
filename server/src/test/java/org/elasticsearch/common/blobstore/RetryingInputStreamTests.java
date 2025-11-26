@@ -29,6 +29,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.blobstore.RetryingInputStream.StreamAction.OPEN;
 import static org.elasticsearch.common.blobstore.RetryingInputStream.StreamAction.READ;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.empty;
 
 public class RetryingInputStreamTests extends ESTestCase {
@@ -50,7 +51,7 @@ public class RetryingInputStreamTests extends ESTestCase {
         byte[] results = copyToBytes(new RetryingInputStream<>(services, randomRetryingPurpose()) {
         });
         assertEquals(resourceBytes.length(), results.length);
-        assertEquals(resourceBytes, new BytesArray(results));
+        assertThat(new BytesArray(results), equalBytes(resourceBytes));
         assertEquals(retryableFailures + 1, services.getAttempts());
         assertEquals(Stream.generate(() -> READ).limit(retryableFailures).toList(), services.getRetryStarted());
     }
@@ -117,7 +118,7 @@ public class RetryingInputStreamTests extends ESTestCase {
 
         byte[] result = copyToBytes(new RetryingInputStream<>(services, OperationPurpose.INDICES) {
         });
-        assertEquals(resourceBytes, new BytesArray(result));
+        assertThat(new BytesArray(result), equalBytes(resourceBytes));
         assertEquals(numberOfFailures + 1, services.getAttempts());
         assertEquals(Stream.generate(() -> READ).limit(numberOfFailures).toList(), services.getRetryStarted());
     }

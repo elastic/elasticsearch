@@ -321,7 +321,7 @@ public final class BlockUtils {
             }
             case TDIGEST -> {
                 TDigestBlock tDigestBlock = (TDigestBlock) block;
-                // NOCOMMIT - probably something more sensible here. We presumably need to account for this memory in some way
+                // TODO memory tracking? Or do we not care here because this is only called for literals?
                 BytesRef scratch = new BytesRef();
                 yield tDigestBlock.getTDigestHolder(offset, scratch);
 

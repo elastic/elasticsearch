@@ -27,7 +27,7 @@ public class TDigestHolder {
     private final long valueCount;
     private final BytesRef encodedDigest;
 
-    // NOCOMMIT - Deal with the empty array case better
+    // TODO - Deal with the empty array case better
     public TDigestHolder(BytesRef encodedDigest, double min, double max, double sum, long valueCount) {
         this.encodedDigest = encodedDigest;
         this.min = min;
@@ -63,7 +63,7 @@ public class TDigestHolder {
         return encodedDigest;
     }
 
-    // NOCOMMIT - compute these if they're not given? or do that at object creation time, maybe.
+    // TODO - compute these if they're not given? or do that at object creation time, maybe.
     public double getMax() {
         return max;
     }

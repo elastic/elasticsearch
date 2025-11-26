@@ -156,6 +156,7 @@ dependencies {
     hdfs2("org.apache.hadoop:hadoop-annotations:2.8.5")
     hdfs2("org.apache.hadoop:hadoop-hdfs-client:2.8.5")
     hdfs2("org.apache.hadoop:hadoop-minicluster:2.8.5")
+    hdfs2("commons-daemon:commons-daemon:1.0.15")
 
     hdfs3("org.apache.hadoop:hadoop-minicluster:3.3.1")
     hdfs3("org.apache.hadoop:hadoop-common:3.3.1")

@@ -224,6 +224,9 @@ public class HdfsFixture extends ExternalResource {
         cfg = new Configuration();
         cfg.set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, hdfsHome.toAbsolutePath().toString());
         cfg.set("hadoop.security.group.mapping", "org.apache.hadoop.security.JniBasedUnixGroupsMappingWithFallback");
+        // Disable HTTP server to avoid webapp issues with Hadoop 2.x
+        cfg.set(DFSConfigKeys.DFS_NAMENODE_HTTP_ADDRESS_KEY, "0.0.0.0:0");
+        cfg.set(DFSConfigKeys.DFS_DATANODE_HTTP_ADDRESS_KEY, "0.0.0.0:0");
 
         // optionally configure security
         if (isSecure()) {

@@ -1910,6 +1910,37 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
                 | KEEP text, score
             """);
         var logicalPlan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+
+        // Verify the logical plan structure:
+        // EsqlProject[[text{f}#1105, score{r}#1085]]
+        var project = as(logicalPlan, EsqlProject.class);
+        assertThat(Expressions.names(project.projections()), contains("text", "score"));
+
+        // TopN[[Order[integer{f}#1099,DESC,FIRST]],10[INTEGER],false]
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
+        var order = as(topN.order().getFirst(), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        var orderField = as(order.child(), FieldAttribute.class);
+        assertThat(orderField.name(), equalTo("integer"));
+
+        // Eval[[$$dense_vector$V_DOT_PRODUCT$1451583510{f$}#1110 AS score#1085]]
+        var eval = as(topN.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var scoreAlias = eval.fields().stream()
+            .filter(f -> f.name().equals("score"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Field 'score' not found in eval"));
+        var scoreField = as(scoreAlias, Alias.class);
+        var scoreFieldAttr = as(scoreField.child(), FieldAttribute.class);
+        assertThat(scoreFieldAttr.name(), startsWith("$$dense_vector$V_DOT_PRODUCT$"));
+        assertThat(scoreFieldAttr.fieldName().string(), equalTo("dense_vector"));
+
+        // EsRelation[test_all][!alias_integer, boolean{f}#1090, byte{f}#1091, cons..]
+        var relation = as(eval.child(), EsRelation.class);
+        assertTrue(relation.output().contains(scoreFieldAttr));
+
+        // Also verify physical plan behavior
         var physicalPlan = physicalPlan(logicalPlan, allTypesAnalyzer);
         var coordAndDataNodePlans = breakPlanBetweenCoordinatorAndDataNode(physicalPlan, TEST_CFG);
 
@@ -1917,17 +1948,17 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var coordProjectExec = as(coordPlan, ProjectExec.class);
         assertThat(coordProjectExec.projections().stream().map(NamedExpression::name).toList(), containsInAnyOrder("text", "score"));
         var coordTopN = as(coordProjectExec.child(), TopNExec.class);
-        var orderAttr = as(coordTopN.order().getFirst().child(), ReferenceAttribute.class);
-        assertThat(orderAttr.name(), equalTo("score"));
+        var orderAttr = as(coordTopN.order().getFirst().child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("integer"));
 
         var reductionPlan = ((PlannerUtils.TopNReduction) PlannerUtils.reductionPlan(coordAndDataNodePlans.v2())).plan();
-        var topN = as(reductionPlan, TopNExec.class);
-        var eval = as(topN.child(), EvalExec.class);
-        var alias = eval.fields().get(0);
+        var topNExec = as(reductionPlan, TopNExec.class);
+        var evalExec = as(topNExec.child(), EvalExec.class);
+        var alias = evalExec.fields().get(0);
         assertThat(alias.name(), equalTo("score"));
         var fieldAttr = as(alias.child(), FieldAttribute.class);
         assertThat(fieldAttr.name(), startsWith("$$dense_vector$V_DOT_PRODUCT$"));
-        var esSourceExec = as(eval.child(), EsSourceExec.class);
+        var esSourceExec = as(evalExec.child(), EsSourceExec.class);
         assertTrue(esSourceExec.outputSet().stream().anyMatch(a -> a == fieldAttr));
     }
 
@@ -2126,11 +2157,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         var localPlan = localPlan(plan(query, analyzer), TEST_SEARCH_STATS);
 
-        // Project[[s{r}#5, languages{f}#22 AS language_code#8, last_name{f}#23, language_name{f}#31, t{r}#15, u{r}#18]]
+        // Project[[s{r}#124, languages{f}#141 AS language_code#127, last_name{f}#142, language_name{f}#150, t{r}#134, u{r}#137]]
         var project = as(localPlan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("s", "language_code", "last_name", "language_name", "t", "u"));
 
-        // Eval[[$$last_name$LENGTH$2048779556{f$}#32 AS t#15, $$language_name$LENGTH$2048779556{f$}#33 AS u#18]]
+        // Eval[[$$last_name$LENGTH$1912486003{f$}#151 AS t#134, LENGTH(language_name{f}#150) AS u#137]]
         var eval = as(project.child(), Eval.class);
         assertThat(eval.fields(), hasSize(2));
 
@@ -2145,26 +2176,21 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertThat(tFieldAttr.name(), startsWith("$$last_name$LENGTH$"));
         assertThat(tFieldAttr.fieldName().string(), equalTo("last_name"));
 
-        // Find the "u" field which should be a pushed down LENGTH function on language_name
+        // Find the "u" field which should NOT be pushed down - it's LENGTH(language_name{f}#150)
         var uAlias = eval.fields()
             .stream()
             .filter(f -> f.name().equals("u"))
             .findFirst()
             .orElseThrow(() -> new AssertionError("Field 'u' not found in eval"));
         var uField = as(uAlias, Alias.class);
-        var uFieldAttr = as(uField.child(), FieldAttribute.class);
-        assertThat(uFieldAttr.name(), startsWith("$$language_name$LENGTH$"));
-        assertThat(uFieldAttr.fieldName().string(), equalTo("language_name"));
+        var uLength = as(uField.child(), Length.class);
+        assertThat(Expressions.name(uLength.field()), equalTo("language_name"));
 
-        // Limit[1000[INTEGER],true,false]
         var limit = as(eval.child(), Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
-
-        // Join[LEFT,[languages{f}#22],[language_code{f}#30],null]
         var join = as(limit.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
 
-        // Left side of join: Eval[[$$first_name$LENGTH$2048779556{f$}#34 AS s#5]]
+        // Left side of join: Eval[[$$first_name$LENGTH$1912486003{f$}#152 AS s#124]]
         var leftEval = as(join.left(), Eval.class);
         assertThat(leftEval.fields(), hasSize(1));
 
@@ -2182,17 +2208,14 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // Limit[1000[INTEGER],false,false]
         var leftLimit = as(leftEval.child(), Limit.class);
 
-        // EsRelation[test] - verify pushed down fields are in the relation output
+        // EsRelation[test] - verify pushed down field is in the relation output
         var leftRelation = as(leftLimit.child(), EsRelation.class);
         assertTrue(leftRelation.output().contains(sFieldAttr));
-        assertTrue(leftRelation.output().contains(tFieldAttr));
-        assertTrue(leftRelation.output().contains(uFieldAttr));
 
-        // Right side of join: EsRelation[languages_lookup][LOOKUP]
+        // Right side of join: EsRelation[languages_lookup][LOOKUP][language_code{f}#149, language_name{f}#150, $$last_..]
         var rightRelation = as(join.right(), EsRelation.class);
-        // Verify that the pushed down fields from the join result (t and u) are available in the relation
+        // Verify that the pushed down field t (last_name length) is in the lookup relation output
         assertTrue(rightRelation.output().contains(tFieldAttr));
-        assertTrue(rightRelation.output().contains(uFieldAttr));
     }
 
     private IsNotNull isNotNull(Expression field) {

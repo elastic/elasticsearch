@@ -95,7 +95,7 @@ public class RdnFieldExtractorTests extends ESTestCase {
             (byte) 0xFF,
             (byte) 0xFF,
             (byte) 0xFF,
-            (byte) 0xFF};
+            (byte) 0xFF };
 
         String result = RdnFieldExtractor.extract(malformedBytes, OID_CN);
         assertThat(result, is(nullValue()));

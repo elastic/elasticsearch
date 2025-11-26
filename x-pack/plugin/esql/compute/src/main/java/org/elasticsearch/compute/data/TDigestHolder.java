@@ -27,6 +27,7 @@ public class TDigestHolder {
     private final long valueCount;
     private final BytesRef encodedDigest;
 
+    // NOCOMMIT - Deal with the empty array case better
     public TDigestHolder(BytesRef encodedDigest, double min, double max, double sum, long valueCount) {
         this.encodedDigest = encodedDigest;
         this.min = min;
@@ -57,4 +58,26 @@ public class TDigestHolder {
         BytesRef docValue = streamOutput.bytes().toBytesRef();
         return docValue;
     }
+
+    public BytesRef getEncodedDigest() {
+        return encodedDigest;
+    }
+
+    // NOCOMMIT - compute these if they're not given? or do that at object creation time, maybe.
+    public double getMax() {
+        return max;
+    }
+
+    public double getMin() {
+        return min;
+    }
+
+    public double getSum() {
+        return sum;
+    }
+
+    public long getValueCount() {
+        return valueCount;
+    }
+
 }

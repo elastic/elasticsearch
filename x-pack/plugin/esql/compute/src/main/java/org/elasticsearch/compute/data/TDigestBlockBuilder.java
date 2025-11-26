@@ -133,4 +133,12 @@ public final class TDigestBlockBuilder implements TDigestBlock.Builder {
     public void close() {
 
     }
+
+    public void append(TDigestHolder val) {
+        encodedDigestsBuilder.appendBytesRef(val.getEncodedDigest());
+        minimaBuilder.appendDouble(val.getMin());
+        maximaBuilder.appendDouble(val.getMax());
+        sumsBuilder.appendDouble(val.getSum());
+        valueCountsBuilder.appendLong(val.getValueCount());
+    }
 }

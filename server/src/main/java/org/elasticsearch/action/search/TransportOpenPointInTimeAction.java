@@ -91,6 +91,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     private final SearchResponseMetrics searchResponseMetrics;
     private final Client client;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final TimeValue forceConnectTimeoutSecs;
 
     @Inject
     public TransportOpenPointInTimeAction(
@@ -114,6 +115,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         this.searchResponseMetrics = searchResponseMetrics;
         this.client = client;
         this.crossProjectModeDecider = new CrossProjectModeDecider(clusterService.getSettings());
+        this.forceConnectTimeoutSecs = clusterService.getSettings()
+            .getAsTime("search.ccs.force_connect_timeout", TimeValue.timeValueSeconds(3L));
         transportService.registerRequestHandler(
             OPEN_SHARD_READER_CONTEXT_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -255,11 +258,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             ResolveIndexAction.Request remoteRequest = new ResolveIndexAction.Request(originalIndices.indices(), relaxedFanoutIdxOptions);
 
             SubscribableListener<Transport.Connection> connectionListener = new SubscribableListener<>();
-            connectionListener.addTimeout(
-                TimeValue.timeValueSeconds(3L),
-                transportService.getThreadPool(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
-            );
+            connectionListener.addTimeout(forceConnectTimeoutSecs, transportService.getThreadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
             connectionListener.addListener(groupedListener.delegateResponse((l, failure) -> {
                 logger.info("failed to resolve indices on remote cluster [{}]", clusterAlias, failure);

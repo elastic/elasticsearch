@@ -3189,7 +3189,7 @@ public class AnalyzerTests extends ESTestCase {
                     List.of()
                 )
             ),
-            indexPattern -> Map.of()
+            IndexResolver.DO_NOT_GROUP
         );
 
         String query = "FROM foo, bar | INSIST_🐔 message";
@@ -3215,7 +3215,7 @@ public class AnalyzerTests extends ESTestCase {
                     List.of()
                 )
             ),
-            indexPattern -> Map.of()
+            IndexResolver.DO_NOT_GROUP
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3243,7 +3243,7 @@ public class AnalyzerTests extends ESTestCase {
                     List.of()
                 )
             ),
-            indexPattern -> Map.of()
+            IndexResolver.DO_NOT_GROUP
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3269,7 +3269,7 @@ public class AnalyzerTests extends ESTestCase {
                     List.of()
                 )
             ),
-            indexPattern -> Map.of()
+            IndexResolver.DO_NOT_GROUP
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3295,7 +3295,7 @@ public class AnalyzerTests extends ESTestCase {
                     List.of()
                 )
             ),
-            indexPattern -> Map.of()
+            IndexResolver.DO_NOT_GROUP
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3322,7 +3322,7 @@ public class AnalyzerTests extends ESTestCase {
                     List.of()
                 )
             ),
-            indexPattern -> Map.of()
+            IndexResolver.DO_NOT_GROUP
         );
         VerificationException e = expectThrows(
             VerificationException.class,
@@ -3345,7 +3345,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
-                indexPattern -> Map.of()
+                IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3355,7 +3355,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false),
-                indexPattern -> Map.of()
+                IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3378,7 +3378,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
-                indexPattern -> Map.of()
+                IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3391,7 +3391,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true),
-                indexPattern -> Map.of()
+                IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3843,7 +3843,7 @@ public class AnalyzerTests extends ESTestCase {
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
         IndexResolver.FieldsInfo caps = fieldsInfoOnCurrentVersion(new FieldCapabilitiesResponse(idxResponses, List.of()));
-        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps, indexPattern -> Map.of());
+        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps, IndexResolver.DO_NOT_GROUP);
         var analyzer = analyzer(indexResolutions(resolution), TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }

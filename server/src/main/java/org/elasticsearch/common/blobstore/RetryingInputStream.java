@@ -34,21 +34,23 @@ public abstract class RetryingInputStream<V> extends InputStream {
     public static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
 
     public enum StreamAction {
-        OPEN("opening"),
-        READ("reading");
+        OPEN("open", "opening"),
+        READ("read", "reading");
 
-        private final String verb;
+        private final String pastTense;
+        private final String presentTense;
 
-        StreamAction(String verb) {
-            this.verb = verb;
+        StreamAction(String pastTense, String presentTense) {
+            this.pastTense = pastTense;
+            this.presentTense = presentTense;
         }
 
-        public String getVerb() {
-            return verb;
+        public String getPastTense() {
+            return pastTense;
         }
 
-        public String toString() {
-            return name().toLowerCase();
+        public String getPresentTense() {
+            return presentTense;
         }
     }
 
@@ -202,7 +204,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
         logger.warn(
             () -> format(
                 "failed %s [%s] at offset [%s] with purpose [%s]",
-                action.getVerb(),
+                action.getPresentTense(),
                 blobStoreServices.getBlobDescription(),
                 start + offset,
                 purpose.getKey()
@@ -220,7 +222,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
                     this was attempt [%s] to read this blob which yielded [%s] bytes; in total \
                     [%s] of the attempts to read this blob have made meaningful progress and do not count towards the maximum number of \
                     retries; the maximum number of read attempts which do not make meaningful progress is [%s]""",
-                action,
+                action.getPresentTense(),
                 blobStoreServices.getBlobDescription(),
                 start + offset,
                 purpose.getKey(),
@@ -238,7 +240,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
             final int numberOfRetries = attempt - initialAttempt;
             logger.info(
                 "successfully {} input stream for [{}] with purpose [{}] after [{}] retries",
-                action,
+                action.getPastTense(),
                 blobStoreServices.getBlobDescription(),
                 purpose.getKey(),
                 numberOfRetries

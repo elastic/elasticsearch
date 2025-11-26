@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineLimitTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAggs;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.EnforceRowLimits;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichLimit;
@@ -139,6 +140,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             "Substitutions",
             Limiter.ONCE,
             new SubstituteSurrogatePlans(),
+            new EnforceRowLimits(),
             // Translate filtered expressions into aggregate with filters - can't use surrogate expressions because it was
             // retrofitted for constant folding - this needs to be fixed.
             // Needs to occur before ReplaceAggregateAggExpressionWithEval, which will update the functions, losing the filter.

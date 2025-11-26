@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical.inference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -25,11 +24,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Streaming;
-import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.RowLimited;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,7 +35,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Completion extends InferencePlan<Completion> implements TelemetryAware, PostAnalysisVerificationAware, SurrogateLogicalPlan {
+public class Completion extends InferencePlan<Completion> implements TelemetryAware, PostAnalysisVerificationAware, RowLimited {
 
     public static final String DEFAULT_OUTPUT_FIELD_NAME = "completion";
 
@@ -107,6 +103,11 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     public Expression rowLimit() {
         return rowLimit;
+    }
+
+    @Override
+    public int maxRows() {
+        return Foldables.intValueOf(rowLimit, rowLimit.sourceText(), "row limit");
     }
 
     @Override
@@ -203,40 +204,5 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), prompt, targetField, rowLimit);
-    }
-
-    @Override
-    public LogicalPlan surrogate() {
-        int limit = Foldables.intValueOf(rowLimit, rowLimit.sourceText(), "row limit");
-        LogicalPlan newChildPlan = applyLimitToChildPlan(child(), limit);
-
-        if (newChildPlan != child()) {
-            HeaderWarning.addWarning("No limit defined, adding default limit of [{}]", limit);
-            return replaceChild(newChildPlan);
-        }
-
-        return this;
-    }
-
-    private LogicalPlan applyLimitToChildPlan(LogicalPlan child, int rowLimit) {
-        if (child instanceof Limit limit) {
-            Object limitValue = Foldables.literalValueOf(limit.limit());
-            if (limitValue instanceof Integer existingLimit && existingLimit <= rowLimit) {
-                return child;
-            }
-            return limit.withLimit(Literal.integer(Source.EMPTY, rowLimit));
-        }
-
-        if (child instanceof UnaryPlan unaryPlan) {
-            if (unaryPlan instanceof Streaming) {
-                return unaryPlan.replaceChild(applyLimitToChildPlan(unaryPlan.child(), rowLimit));
-            }
-
-            return unaryPlan.replaceChild(
-                new Limit(child.source(), Literal.integer(Source.EMPTY, rowLimit), unaryPlan.child(), false, true)
-            );
-        }
-
-        return transformChildren(p -> applyLimitToChildPlan(p, rowLimit));
     }
 }

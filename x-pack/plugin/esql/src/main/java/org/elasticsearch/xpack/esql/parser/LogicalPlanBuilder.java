@@ -1170,7 +1170,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (targetField.qualifier() != null) {
             throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
         }
-        
+
         InferenceCommandConfig commandConfig = context.inferenceCommandConfigProvider().get("completion");
         Literal rowLimit = Literal.integer(Source.EMPTY, commandConfig.rowLimit());
 

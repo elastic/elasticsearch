@@ -26,6 +26,8 @@ public interface BlockLoaderFunctionConfig {
      */
     Function function();
 
+    record JustFunction(Function function) implements BlockLoaderFunctionConfig {}
+
     record JustWarnings(Function function, Warnings warnings) implements BlockLoaderFunctionConfig {
 
         // Consider just the function, as warnings will have Source that differ for different invocations of the same function
@@ -43,6 +45,8 @@ public interface BlockLoaderFunctionConfig {
     }
 
     enum Function {
+        MV_MAX,
+        MV_MIN,
         LENGTH,
         V_COSINE,
         V_DOT_PRODUCT,

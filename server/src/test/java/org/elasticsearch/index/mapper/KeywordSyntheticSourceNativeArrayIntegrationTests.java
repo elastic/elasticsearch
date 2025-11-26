@@ -52,6 +52,7 @@ public class KeywordSyntheticSourceNativeArrayIntegrationTests extends NativeArr
             .endObject()
             .endObject()
             .endObject();
+
         // Note values that would be ignored are added at the end of arrays,
         // this makes testing easier as ignored values are always synthesized after regular values:
         var arrayValues = new Object[][] {
@@ -60,7 +61,16 @@ public class KeywordSyntheticSourceNativeArrayIntegrationTests extends NativeArr
             new Object[] { "123", "1234", "12345" },
             new Object[] { null, null, null, "blabla" },
             new Object[] { "1", "2", "3", "blabla" } };
-        verifySyntheticArray(arrayValues, mapping, "_id", "field._original");
+
+        // values in the original array should be deduplicated
+        var expectedArrayValues = new Object[][] {
+            new Object[] { null, "a", "ab", "abc", "abcd", null, "abcde" },
+            new Object[] { "12345" },
+            new Object[] { "123", "1234", "12345" },
+            new Object[] { null, null, null, "blabla" },
+            new Object[] { "1", "2", "3", "blabla" } };
+
+        verifySyntheticArray(arrayValues, expectedArrayValues, mapping, "_id");
     }
 
     public void testSynthesizeObjectArray() throws Exception {

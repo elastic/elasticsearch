@@ -1043,6 +1043,10 @@ public class EsqlCapabilities {
          */
         @Deprecated
         METRICS_COMMAND(Build.current().isSnapshot()),
+        /**
+         * Enables automatically grouping by all dimension fields in TS mode queries
+         */
+        METRICS_GROUP_BY_ALL(),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -1303,6 +1307,11 @@ public class EsqlCapabilities {
          * Support timezones in DATE_TRUNC and dependent functions.
          */
         DATE_TRUNC_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+
+        /**
+         * Support timezones in DATE_DIFF.
+         */
+        DATE_DIFF_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
 
         /**
          * (Re)Added EXPLAIN command
@@ -1680,9 +1689,13 @@ public class EsqlCapabilities {
         TIME_SERIES_WINDOW_V1,
 
         /**
-         * PromQL support in ESQL
+         * PromQL support in ESQL, before it is released into tech preview.
+         * When implementing new functionality or breaking changes,
+         * we'll simply increment the version suffix at the end to prevent bwc tests from running.
+         * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
+         * At this point, we need to add new capabilities for any further changes.
          */
-        PROMQL_V0(Build.current().isSnapshot()),
+        PROMQL_PRE_TECH_PREVIEW_V1(Build.current().isSnapshot()),
 
         /**
          * KNN function adds support for k and visit_percentage options

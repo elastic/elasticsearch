@@ -63,6 +63,9 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature BASE64_DENSE_VECTORS = new NodeFeature("mapper.base64_dense_vectors");
     public static final NodeFeature GENERIC_VECTOR_FORMAT = new NodeFeature("mapper.vectors.generic_vector_format");
     public static final NodeFeature FIX_DENSE_VECTOR_WRONG_FIELDS = new NodeFeature("mapper.fix_dense_vector_wrong_fields");
+    static final NodeFeature STORE_HIGH_CARDINALITY_KEYWORDS_IN_BINARY_DOC_VALUES = new NodeFeature(
+        "mapper.keyword.store_high_cardinality_in_binary_doc_values"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -106,7 +109,8 @@ public class MapperFeatures implements FeatureSpecification {
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
             EXCLUDE_VECTORS_DOCVALUE_BUGFIX,
             BASE64_DENSE_VECTORS,
-            FIX_DENSE_VECTOR_WRONG_FIELDS
+            FIX_DENSE_VECTOR_WRONG_FIELDS,
+            STORE_HIGH_CARDINALITY_KEYWORDS_IN_BINARY_DOC_VALUES
         );
         if (ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()) {
             features = new HashSet<>(features);

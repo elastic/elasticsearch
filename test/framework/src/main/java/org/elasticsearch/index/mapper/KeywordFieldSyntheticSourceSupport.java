@@ -26,12 +26,14 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     private final boolean store;
     private final FieldMapper.DocValuesParameter.Values docValues;
     private final String nullValue;
+    private final boolean allowIgnoredSource;
 
     KeywordFieldSyntheticSourceSupport(Integer ignoreAbove, boolean store, String nullValue, boolean allowIgnoredSource) {
         this.ignoreAbove = ignoreAbove;
         this.allIgnored = ignoreAbove != null && LuceneTestCase.rarely();
         this.store = store;
         this.nullValue = nullValue;
+        this.allowIgnoredSource = allowIgnoredSource;
 
         this.docValues = switch (ESTestCase.randomInt(allowIgnoredSource ? 2 : 1)) {
             case 0 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW);
@@ -50,7 +52,8 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     public boolean preservesExactSource() {
         // We opt in into fallback synthetic source implementation
         // if there is nothing else to use, and it preserves exact source data.
-        return store == false
+        return allowIgnoredSource
+            && store == false
             && (docValues.enabled() == false || docValues.cardinality() == FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
     }
 

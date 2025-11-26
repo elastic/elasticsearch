@@ -562,7 +562,6 @@ public class EsqlSession {
                     throw new NoClustersToSearchException();
                 }
                 // Check if a subquery need to be pruned. If some but not all the subqueries has invalid index resolution,
-                // and all the clusters referenced by the subquery that has invalid index resolution have skipUnavailable=true,
                 // try to prune it by setting IndexResolution to EMPTY_SUBQUERY. Analyzer.PruneEmptyUnionAllBranch will
                 // take care of removing the subquery during analysis.
                 // If all subqueries have invalid index resolution, we should fail in Analyzer's verifier.
@@ -574,38 +573,32 @@ public class EsqlSession {
                     boolean hasValid = indexResolutions.stream().anyMatch(IndexResolution::isValid);
                     // Only if there is partial invalid index resolutions in subqueries
                     if (hasInvalid && hasValid) {
-                        Map<String, String> clustersWithInvalidIndexResolutions = new HashMap<>();
                         // iterate the index resolution and replace it with EMPTY_SUBQUERY if the index resolution is invalid
-                        // and skipUnavailable is true for all the clusters involved
                         r.indexResolution.forEach((indexPattern, indexResolution) -> {
                             if (indexResolution.isValid() == false) {
-                                r.withIndices(
-                                    indexPattern,
-                                    EsqlCCSUtils.replaceInvalidIndexResolutionWithEmptyIndexResolutionForSubquery(
-                                        indexPattern,
-                                        indexResolution,
-                                        indicesExpressionGrouper,
-                                        executionInfo,
-                                        clustersWithInvalidIndexResolutions
-                                    )
-                                );
+                                r.withIndices(indexPattern, IndexResolution.EMPTY_SUBQUERY);
                             }
                         });
-                        // mark the clusters as SKIPPED in EsqlExecutionInfo for those clusters involved in the invalid
-                        // index resolution with skipUnavailable=true
-                        for (Map.Entry<String, String> entry : clustersWithInvalidIndexResolutions.entrySet()) {
-                            String clusterAlias = entry.getKey();
-                            String indexExpression = entry.getValue();
-                            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
-                            if (indexExpression.equals(cluster.getIndexExpression())) {
+                        // check if there is a cluster that does not have any valid index resolution, if so mark it as skipped
+                        executionInfo.getRunningClusterAliases().forEach(clusterAlias -> {
+                            boolean clusterHasValidIndex = r.indexResolution.values()
+                                .stream()
+                                .anyMatch(
+                                    ir -> ir.isValid()
+                                        && ir.get().concreteIndices().get(clusterAlias) != null
+                                        && ir.get().concreteIndices().get(clusterAlias).isEmpty() == false
+                                );
+                            if (clusterHasValidIndex == false) {
                                 EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
                                     executionInfo,
                                     clusterAlias,
                                     EsqlExecutionInfo.Cluster.Status.SKIPPED,
-                                    null
+                                    new VerificationException(
+                                        "no valid indices found in any subquery " + EsqlCCSUtils.inClusterName(clusterAlias)
+                                    )
                                 );
                             }
-                        }
+                        });
                     }
                 }
                 return r;

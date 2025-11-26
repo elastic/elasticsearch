@@ -131,197 +131,221 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
     }
 
     /*
-     * Validate Analyzer.PruneEmptyUnionAllBranch
+     * Validate Analyzer.PruneEmptyUnionAllBranch when remote index is missing
      */
-    public void testSubqueryWithMissingRemoteIndexSkipUnavailableTrue() {
+    public void testSubqueryWithMissingRemoteIndex() {
         populateIndex(LOCAL_CLUSTER, "local_idx", randomIntBetween(1, 5), 5);
         populateIndex(REMOTE_CLUSTER_2, "remote_idx", randomIntBetween(1, 5), 5);
 
-        try {
-            setSkipUnavailable(REMOTE_CLUSTER_1, true);
-            // all subqueries have at least one index matching the index pattern, query succeeds
-            try (EsqlQueryResponse resp = runQuery("""
-                FROM local*,(FROM *:remote* metadata _index) metadata _index
-                | STATS c = count(*) by _index
-                | SORT _index
-                """, randomBoolean())) {
-                var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
-                assertThat(columns, hasItems("c", "_index"));
+        // all subqueries have at least one index matching the index pattern, query succeeds
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM local*,(FROM *:remote* metadata _index) metadata _index
+            | STATS c = count(*) by _index
+            | SORT _index
+            """, randomBoolean())) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("c", "_index"));
 
-                List<List<Object>> values = getValuesList(resp);
-                assertThat(values, hasSize(2));
-                List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx"));
-                assertEquals(expected, values);
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(2));
+            List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx"));
+            assertEquals(expected, values);
 
-                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-                assertCCSExecutionInfoDetails(executionInfo);
-            }
-
-            // One subquery on remote cluster 1 does not have any index matching the index pattern,
-            // remote cluster 1 is marked as skipped in executionInfo and Analyzer prunes that branch.
-            try (EsqlQueryResponse resp = runQuery("""
-                FROM local*,
-                    (FROM c*:remote* metadata _index),
-                    (FROM r*:remote* metadata _index)
-                  metadata _index
-                | STATS c = count(*) by _index
-                | SORT _index
-                """, randomBoolean())) {
-                var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
-                assertThat(columns, hasItems("c", "_index"));
-
-                List<List<Object>> values = getValuesList(resp);
-                assertThat(values, hasSize(2));
-                List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx"));
-                assertEquals(expected, values);
-
-                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-                assertRemoteCluster1SkippedInCCSExecutionInfo(executionInfo);
-            }
-
-            // Multiple subqueries on remote cluster 1 do not have any index matching the index pattern,
-            // remote cluster 1 is marked as skipped in executionInfo and Analyzer prunes those branches.
-            try (EsqlQueryResponse resp = runQuery("""
-                FROM local*,
-                    (FROM c*:remote* metadata _index),
-                    (FROM c*:missing* metadata _index),
-                    (FROM r*:remote* metadata _index)
-                  metadata _index
-                | STATS c = count(*) by _index
-                | SORT _index
-                """, randomBoolean())) {
-                var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
-                assertThat(columns, hasItems("c", "_index"));
-
-                List<List<Object>> values = getValuesList(resp);
-                assertThat(values, hasSize(2));
-                List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx"));
-                assertEquals(expected, values);
-
-                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-                assertRemoteCluster1SkippedInCCSExecutionInfo(executionInfo);
-            }
-
-            // Some subqueries on remote cluster 1 have indexes matching the index pattern, some don't
-            // remote cluster 1 is marked as successful in executionInfo and Analyzer keeps prunes empty branches.
-            try (EsqlQueryResponse resp = runQuery("""
-                FROM local*,
-                    (FROM c*:remote* metadata _index),
-                    (FROM r*:remote* metadata _index),
-                    (FROM c*:logs-* metadata _index)
-                  metadata _index
-                | STATS c = count(*) by _index
-                | SORT _index
-                """, randomBoolean())) {
-                var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
-                assertThat(columns, hasItems("c", "_index"));
-
-                List<List<Object>> values = getValuesList(resp);
-                assertThat(values, hasSize(3));
-                List<List<Object>> expected = List.of(
-                    List.of(10L, REMOTE_CLUSTER_1_INDEX),
-                    List.of(5L, "local_idx"),
-                    List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx")
-                );
-                assertEquals(expected, values);
-
-                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-                assertCCSExecutionInfoDetails(executionInfo);
-            }
-
-            try (EsqlQueryResponse resp = runQuery("""
-                FROM local*,
-                    (FROM c*:remote* metadata _index),
-                    (FROM r*:remote*, c*:logs-* metadata _index)
-                  metadata _index
-                | STATS c = count(*) by _index
-                | SORT _index
-                """, randomBoolean())) {
-                var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
-                assertThat(columns, hasItems("c", "_index"));
-
-                List<List<Object>> values = getValuesList(resp);
-                assertThat(values, hasSize(3));
-                List<List<Object>> expected = List.of(
-                    List.of(10L, REMOTE_CLUSTER_1_INDEX),
-                    List.of(5L, "local_idx"),
-                    List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx")
-                );
-                assertEquals(expected, values);
-
-                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-                assertCCSExecutionInfoDetails(executionInfo);
-            }
-
-            // If there is no subquery with matching index pattern, Analyzer's verifier fails on the query.
-            var ex = expectThrows(VerificationException.class, () -> runQuery("""
-                FROM (FROM c*:remote* metadata _index),(FROM c*:missing* metadata _index) metadata _index
-                | STATS c = count(*) by _index
-                | SORT _index
-                """, randomBoolean()));
-            String errorMessage = ex.getMessage();
-            assertThat(errorMessage, containsString("Unknown index [c*:remote*]"));
-            assertThat(errorMessage, containsString("Unknown index [c*:missing*]"));
-        } finally {
-            clearSkipUnavailable(3);
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertCCSExecutionInfoDetails(executionInfo);
         }
+
+        // One subquery on remote cluster 1 does not have any index matching the index pattern,
+        // remote cluster 1 is marked as skipped in executionInfo and Analyzer prunes that branch.
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM local*,
+                (FROM c*:remote* metadata _index),
+                (FROM r*:remote* metadata _index)
+              metadata _index
+            | STATS c = count(*) by _index
+            | SORT _index
+            """, randomBoolean())) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("c", "_index"));
+
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(2));
+            List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx"));
+            assertEquals(expected, values);
+
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+        }
+
+        // Multiple subqueries on remote cluster 1 do not have any index matching the index pattern,
+        // remote cluster 1 is marked as skipped in executionInfo and Analyzer prunes those branches.
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM local*,
+                (FROM c*:remote* metadata _index),
+                (FROM c*:missing* metadata _index),
+                (FROM r*:remote* metadata _index)
+              metadata _index
+            | STATS c = count(*) by _index
+            | SORT _index
+            """, randomBoolean())) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("c", "_index"));
+
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(2));
+            List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx"));
+            assertEquals(expected, values);
+
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+        }
+
+        // Some subqueries on remote cluster 1 have indexes matching the index pattern, some don't
+        // remote cluster 1 is marked as successful in executionInfo and Analyzer keeps prunes empty branches.
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM local*,
+                (FROM c*:remote* metadata _index),
+                (FROM r*:remote* metadata _index),
+                (FROM c*:logs-* metadata _index)
+              metadata _index
+            | STATS c = count(*) by _index
+            | SORT _index
+            """, randomBoolean())) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("c", "_index"));
+
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(3));
+            List<List<Object>> expected = List.of(
+                List.of(10L, REMOTE_CLUSTER_1_INDEX),
+                List.of(5L, "local_idx"),
+                List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx")
+            );
+            assertEquals(expected, values);
+
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertCCSExecutionInfoDetails(executionInfo);
+        }
+
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM local*,
+                (FROM c*:remote* metadata _index),
+                (FROM r*:remote*, c*:logs-* metadata _index)
+              metadata _index
+            | STATS c = count(*) by _index
+            | SORT _index
+            """, randomBoolean())) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("c", "_index"));
+
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(3));
+            List<List<Object>> expected = List.of(
+                List.of(10L, REMOTE_CLUSTER_1_INDEX),
+                List.of(5L, "local_idx"),
+                List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx")
+            );
+            assertEquals(expected, values);
+
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertCCSExecutionInfoDetails(executionInfo);
+        }
+
+        // If there is no subquery with matching index pattern, Analyzer's verifier fails on the query.
+        var ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM (FROM c*:remote* metadata _index),(FROM c*:missing* metadata _index) metadata _index
+            | STATS c = count(*) by _index
+            | SORT _index
+            """, randomBoolean()));
+        String errorMessage = ex.getMessage();
+        assertThat(errorMessage, containsString("Unknown index [c*:remote*]"));
+        assertThat(errorMessage, containsString("Unknown index [c*:missing*]"));
+
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM missing*, (FROM c*:remote* metadata _index),(FROM c*:missing* metadata _index) metadata _index
+            | STATS c = count(*) by _index
+            | SORT _index
+            """, randomBoolean()));
+        errorMessage = ex.getMessage();
+        assertThat(errorMessage, containsString("Unknown index [c*:remote*]"));
+        assertThat(errorMessage, containsString("Unknown index [c*:missing*]"));
+        assertThat(errorMessage, containsString("Unknown index [missing*]"));
+
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM missing, (FROM c*:remote metadata _index),(FROM c*:missing metadata _index) metadata _index
+            | STATS c = count(*) by _index
+            | SORT _index
+            """, randomBoolean()));
+        errorMessage = ex.getMessage();
+        assertThat(errorMessage, containsString("Unknown index [c*:remote]"));
+        assertThat(errorMessage, containsString("Unknown index [c*:missing]"));
+        assertThat(errorMessage, containsString("Unknown index [missing]"));
+
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM missing, (FROM c*:remote* metadata _index),(FROM c*:missing metadata _index) metadata _index
+            | STATS c = count(*) by _index
+            | SORT _index
+            """, randomBoolean()));
+        errorMessage = ex.getMessage();
+        assertThat(errorMessage, containsString("Unknown index [c*:remote*]"));
+        assertThat(errorMessage, containsString("Unknown index [c*:missing]"));
+        assertThat(errorMessage, containsString("Unknown index [missing]"));
     }
 
-    public void testSubqueryWithMissingRemoteIndexSkipUnavailableFalse() {
-        populateIndex(LOCAL_CLUSTER, "local_idx", randomIntBetween(1, 5), 5);
-        populateIndex(REMOTE_CLUSTER_2, "remote_idx", randomIntBetween(1, 5), 5);
-
-        try {
-            setSkipUnavailable(REMOTE_CLUSTER_1, false);
-            // All subqueries have matching index patterns, the query succeeds
-            try (EsqlQueryResponse resp = runQuery("""
-                FROM local*,(FROM *:remote* metadata _index) metadata _index
-                | STATS c = count(*) by _index
-                | SORT _index
-                """, randomBoolean())) {
-                var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
-                assertThat(columns, hasItems("c", "_index"));
-
-                List<List<Object>> values = getValuesList(resp);
-                assertThat(values, hasSize(2));
-                List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx"));
-                assertEquals(expected, values);
-
-                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-                assertCCSExecutionInfoDetails(executionInfo);
-            }
-
-            // The subquery does not have any index matching the index pattern, Analyzer's verifier fails.
-            var ex = expectThrows(VerificationException.class, () -> runQuery("""
-                FROM (FROM c*:remote* metadata _index),(FROM r*:remote* metadata _index) metadata _index
-                | STATS c = count(*) by _index
-                | SORT _index
-                """, randomBoolean()));
-            assertThat(ex.getMessage(), containsString("Unknown index [c*:remote*]"));
-        } finally {
-            clearSkipUnavailable(3);
-        }
-    }
-
+    /*
+     * Validate Analyzer.PruneEmptyUnionAllBranch when local index is missing
+     */
     public void testSubqueryWithMissingLocalIndex() {
         populateIndex(REMOTE_CLUSTER_1, "remote_idx", randomIntBetween(1, 5), 5);
         populateIndex(REMOTE_CLUSTER_2, "remote_idx", randomIntBetween(1, 5), 5);
 
-        // no local index exists, the query fail regardless skipUnavailable=true or false,
-        // index resolution in Analyzer will fail on the branch, it does not prune the branch with missing indices
-        var ex = expectThrows(VerificationException.class, () -> runQuery("""
+        try (EsqlQueryResponse resp = runQuery("""
             FROM  local*,(FROM *:remote* metadata _index) metadata _index
-            | STATS c = count(*) by _index
-            | SORT _index
-            """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("Unknown index [local*]"));
+             | STATS c = count(*) by _index
+             | SORT _index
+            """, randomBoolean())) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("c", "_index"));
 
-        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(2));
+            List<List<Object>> expected = List.of(
+                List.of(5L, REMOTE_CLUSTER_1 + ":remote_idx"),
+                List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx")
+            );
+            assertEquals(expected, values);
+
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+        }
+
+        try (EsqlQueryResponse resp = runQuery("""
             FROM (FROM local* metadata _index),(FROM *:remote* metadata _index) metadata _index
-            | STATS c = count(*) by _index
-            | SORT _index
-            """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("Unknown index [local*]"));
+             | STATS c = count(*) by _index
+             | SORT _index
+            """, randomBoolean())) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("c", "_index"));
+
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(2));
+            List<List<Object>> expected = List.of(
+                List.of(5L, REMOTE_CLUSTER_1 + ":remote_idx"),
+                List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx")
+            );
+            assertEquals(expected, values);
+
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+        }
 
         try (EsqlQueryResponse resp = runQuery("""
             FROM *,(FROM *:* metadata _index) metadata _index
@@ -608,12 +632,12 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         assertThat(ex.getMessage(), containsString("FORK inside subquery is not supported"));
     }
 
-    static void assertRemoteCluster1SkippedInCCSExecutionInfo(EsqlExecutionInfo executionInfo) {
-        var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-        assertEquals(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, localCluster.getStatus());
-        var remoteCluster1 = executionInfo.getCluster(REMOTE_CLUSTER_1);
-        assertEquals(EsqlExecutionInfo.Cluster.Status.SKIPPED, remoteCluster1.getStatus());
-        var remoteCluster2 = executionInfo.getCluster(REMOTE_CLUSTER_2);
-        assertEquals(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, remoteCluster2.getStatus());
+    static void assertClusterEsqlExecutionInfo(
+        EsqlExecutionInfo executionInfo,
+        String clusterAlias,
+        EsqlExecutionInfo.Cluster.Status expectedStatus
+    ) {
+        var cluster = executionInfo.getCluster(clusterAlias);
+        assertEquals(expectedStatus, cluster.getStatus());
     }
 }

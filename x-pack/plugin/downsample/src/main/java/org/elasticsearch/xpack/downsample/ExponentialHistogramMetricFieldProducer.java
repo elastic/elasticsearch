@@ -21,8 +21,7 @@ import java.io.IOException;
 
 /**
  * Class that collects all raw values for an exponential histogram metric field and computes its aggregate (downsampled)
- * values. Based on the supported metric types, the subclasses of this class compute values for
- * gauge and metric types.
+ * values.
  */
 final class ExponentialHistogramMetricFieldProducer extends AbstractDownsampleFieldProducer {
 

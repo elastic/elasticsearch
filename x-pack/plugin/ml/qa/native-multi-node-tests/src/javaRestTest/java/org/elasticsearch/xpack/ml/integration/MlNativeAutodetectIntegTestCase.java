@@ -141,6 +141,12 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
         return client().execute(StopDatafeedAction.INSTANCE, request).actionGet();
     }
 
+    protected StopDatafeedAction.Response stopDatafeed(String datafeedId, boolean closeJob) {
+        StopDatafeedAction.Request request = new StopDatafeedAction.Request(datafeedId);
+        request.setCloseJob(closeJob);
+        return client().execute(StopDatafeedAction.INSTANCE, request).actionGet();
+    }
+
     protected PutDatafeedAction.Response updateDatafeed(DatafeedUpdate update) {
         UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(update);
         return client().execute(UpdateDatafeedAction.INSTANCE, request).actionGet();

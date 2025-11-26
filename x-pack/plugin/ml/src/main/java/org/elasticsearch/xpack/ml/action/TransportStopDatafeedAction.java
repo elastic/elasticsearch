@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -27,7 +28,9 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
@@ -39,6 +42,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
@@ -48,6 +52,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -58,8 +63,10 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.ml.utils.ExceptionCollectionHandling.exceptionArrayToStatusException;
 
 public class TransportStopDatafeedAction extends TransportTasksAction<
@@ -106,7 +113,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
     }
 
     /**
-     * Sort the datafeed IDs the their task state and add to one
+     * Sort the datafeed IDs by their task state and add to one
      * of the list arguments depending on the state.
      *
      * @param expandedDatafeedIds The expanded set of IDs
@@ -211,7 +218,64 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                     if (request.isForce()) {
                         forceStopDatafeed(request, listener, tasks, nodes, notStoppedDatafeeds);
                     } else {
-                        normalStopDatafeed(task, request, listener, tasks, nodes, startedDatafeeds, stoppingDatafeeds, attempt);
+                        final List<String> startedDatafeedsJobs = new ArrayList<>();
+                        for (String datafeedId : startedDatafeeds) {
+                            PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
+                            if (datafeedTask != null
+                                && PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes) == false) {
+                                startedDatafeedsJobs.add(((StartDatafeedAction.DatafeedParams) datafeedTask.getParams()).getJobId());
+                            }
+                        }
+                        if (request.closeJob() && startedDatafeedsJobs.isEmpty() == false) {
+                            // If the "close_job" parameter was set to "true" on the stop datafeed request we attempt to first close the
+                            // jobs associated with the datafeeds. This will in turn attempt to stop the jobs' datafeeds (this time with the
+                            // "close_job" flag set to false, to avoid recursion)
+                            ActionListener<List<Tuple<String, AcknowledgedResponse>>> closeJobActionListener = listener
+                                .delegateFailureAndWrap((delegate, jobsResponses) -> {
+                                    List<String> jobIds = jobsResponses.stream()
+                                        .filter(t -> t.v2().isAcknowledged() == false)
+                                        .map(Tuple::v1)
+                                        .collect(toList());
+                                    if (jobIds.isEmpty()) {
+                                        logger.debug("Successfully closed jobs (and associated datafeeds)");
+                                    } else {
+                                        logger.warn("Failed to close jobs (and associated datafeeds): {}", jobIds);
+                                    }
+                                    delegate.onResponse(new StopDatafeedAction.Response(true));
+                                });
+
+                            TypedChainTaskExecutor<Tuple<String, AcknowledgedResponse>> chainTaskExecutor = new TypedChainTaskExecutor<>(
+                                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                                Predicates.always(),
+                                Predicates.always()
+                            );
+                            for (String jobId : startedDatafeedsJobs) {
+                                chainTaskExecutor.add(
+                                    al -> executeAsyncWithOrigin(
+                                        client,
+                                        ML_ORIGIN,
+                                        CloseJobAction.INSTANCE,
+                                        new CloseJobAction.Request(jobId),
+                                        listener.delegateFailureAndWrap(
+                                            (l, response) -> l.onResponse(new StopDatafeedAction.Response(response.isClosed()))
+                                        )
+                                    )
+                                );
+                            }
+                            chainTaskExecutor.execute(closeJobActionListener);
+                        } else {
+                            normalStopDatafeed(
+                                task,
+                                request,
+                                listener,
+                                tasks,
+                                nodes,
+                                startedDatafeeds,
+                                stoppingDatafeeds,
+                                startedDatafeedsJobs,
+                                attempt
+                            );
+                        }
                     }
                 }, listener::onFailure)
             );
@@ -226,10 +290,10 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         DiscoveryNodes nodes,
         List<String> startedDatafeeds,
         List<String> stoppingDatafeeds,
+        List<String> startedDatafeedsJobs,
         int attempt
     ) {
         final Set<String> executorNodes = new HashSet<>();
-        final List<String> startedDatafeedsJobs = new ArrayList<>();
         final List<String> resolvedStartedDatafeeds = new ArrayList<>();
         final List<PersistentTasksCustomMetadata.PersistentTask<?>> allDataFeedsToWaitFor = new ArrayList<>();
         for (String datafeedId : startedDatafeeds) {
@@ -240,7 +304,6 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                 assert datafeedTask != null : msg;
                 logger.error(msg);
             } else if (PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes) == false) {
-                startedDatafeedsJobs.add(((StartDatafeedAction.DatafeedParams) datafeedTask.getParams()).getJobId());
                 resolvedStartedDatafeeds.add(datafeedId);
                 executorNodes.add(datafeedTask.getExecutorNode());
                 allDataFeedsToWaitFor.add(datafeedTask);

@@ -487,8 +487,8 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         startRealtime(jobId);
 
         try {
-            StopDatafeedAction.Response stopJobResponse = stopDatafeed(datafeedId);
-            assertTrue(stopJobResponse.isStopped());
+            StopDatafeedAction.Response stopDatafeedResponse = stopDatafeed(datafeedId);
+            assertTrue(stopDatafeedResponse.isStopped());
         } catch (Exception e) {
             HotThreads.logLocalHotThreads(logger, Level.INFO, "hot threads at failure", ReferenceDocs.LOGGING);
             throw e;
@@ -498,6 +498,88 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
             assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
         });
+
+        // The job should _not_ have closed automatically
+        assertBusy(() -> {
+            GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
+            GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
+            assertThat(response.getResponse().results().get(0).getState(), equalTo(JobState.OPENED));
+        });
+    }
+
+    private void doTestRealtime_GivenCloseJobParameter(String jobId, boolean closeJobParameter, JobState jobState) throws Exception {
+        String datafeedId = jobId + "-datafeed";
+        startRealtime(jobId);
+
+        try {
+            StopDatafeedAction.Response stopDatafeedResponse = stopDatafeed(datafeedId, true);
+            assertTrue(stopDatafeedResponse.isStopped());
+        } catch (Exception e) {
+            HotThreads.logLocalHotThreads(logger, Level.INFO, "hot threads at failure", ReferenceDocs.LOGGING);
+            throw e;
+        }
+
+        // The job should have closed automatically
+        assertBusy(() -> {
+            GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
+            GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
+            assertThat(response.getResponse().results().get(0).getState(), equalTo(JobState.CLOSED));
+        });
+
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
+        });
+    }
+
+    public void testRealtime_GivenCloseJobParameterIsTrue() throws Exception {
+        doTestRealtime_GivenCloseJobParameter("realtime-job-close-job-true", true, JobState.CLOSED);
+    }
+
+    public void testRealtime_GivenCloseJobParameterIsFalse() throws Exception {
+        doTestRealtime_GivenCloseJobParameter("realtime-job-close-job-false", false, JobState.OPENED);
+    }
+
+    private void doTestStopLookback_GivenCloseJobParameter(String jobId, boolean closeJobParameter, JobState jobState) throws Exception {
+        String datafeedId = jobId + "-datafeed";
+
+        client().admin().indices().prepareCreate("data").setMapping("time", "type=date").get();
+        long numDocs = randomIntBetween(1024, 2048);
+        long now = System.currentTimeMillis();
+        long oneWeekAgo = now - 604800000;
+        long twoWeeksAgo = oneWeekAgo - 604800000;
+        indexDocs(logger, "data", numDocs, twoWeeksAgo, oneWeekAgo);
+
+        Job.Builder job = createScheduledJob(jobId);
+        putJob(job);
+        openJob(job.getId());
+        assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+
+        DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilder(datafeedId, jobId, Collections.singletonList("data"));
+        // Use lots of chunks to maximise the chance that we can stop the lookback before it completes
+        datafeedConfigBuilder.setChunkingConfig(ChunkingConfig.newManual(new TimeValue(1, TimeUnit.SECONDS)));
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+        putDatafeed(datafeedConfig);
+        startDatafeed(datafeedConfig.getId(), 0L, now);
+        assertBusy(() -> assertThat(getDataCounts(job.getId()).getProcessedRecordCount(), greaterThan(0L)), 60, TimeUnit.SECONDS);
+
+        // Stop the datafeed with the given close_job parameter
+        StopDatafeedAction.Response stopDatafeedResponse = stopDatafeed(datafeedId, closeJobParameter);
+        assertTrue(stopDatafeedResponse.isStopped());
+
+        // Check the job state is as expected
+        assertBusy(() -> assertEquals(jobState, getJobStats(jobId).get(0).getState()));
+    }
+
+    public void testStopLookback_GivenCloseJobParameterIsTrue() throws Exception {
+        // Stop the datafeed with close_job=true
+        doTestStopLookback_GivenCloseJobParameter("lookback-stop-close-job-true", true, JobState.CLOSED);
+    }
+
+    public void testStopLookback_GivenCloseJobParameterIsFalse() throws Exception {
+        // Stop the datafeed with close_job=false
+        doTestStopLookback_GivenCloseJobParameter("lookback-stop-close-job-false", false, JobState.OPENED);
     }
 
     public void testCloseJobStopsRealtimeDatafeed() throws Exception {

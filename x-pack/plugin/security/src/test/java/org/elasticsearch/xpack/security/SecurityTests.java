@@ -267,7 +267,7 @@ public class SecurityTests extends ESTestCase {
             mock(PersistentTasksService.class),
             StubLinkedProjectConfigService.INSTANCE,
             TestProjectResolvers.alwaysThrow(),
-            mock(ProjectRoutingResolver.class)
+            ProjectRoutingResolver.NOOP
         );
     }
 

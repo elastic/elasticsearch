@@ -13,7 +13,6 @@ import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 
@@ -36,8 +35,6 @@ import java.io.IOException;
  * </ul>
  */
 public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesFormat {
-
-    public static final boolean BINARY_DV_COMPRESSION_FEATURE_FLAG = new FeatureFlag("binary_dv_compression").isEnabled();
 
     static final int NUMERIC_BLOCK_SHIFT = 7;
     public static final int NUMERIC_BLOCK_SIZE = 1 << NUMERIC_BLOCK_SHIFT;
@@ -145,7 +142,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             OPTIMIZED_MERGE_ENABLE_DEFAULT,
-            BINARY_DV_COMPRESSION_FEATURE_FLAG ? BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1 : BinaryDVCompressionMode.NO_COMPRESS,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
             true
         );
     }

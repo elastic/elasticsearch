@@ -73,7 +73,7 @@ public class TDigestFieldBlockLoaderTests extends BlockLoaderTestCase {
                 return null;
             }
             return new DataSourceResponse.FieldDataGenerator(
-                mapping -> TDigestFieldMapperTests.generateRandomFieldValues(randomIntBetween(0, 1_000))
+                mapping -> TDigestFieldMapperTests.generateRandomFieldValues(randomIntBetween(1, 1_000))
             );
         }
     };

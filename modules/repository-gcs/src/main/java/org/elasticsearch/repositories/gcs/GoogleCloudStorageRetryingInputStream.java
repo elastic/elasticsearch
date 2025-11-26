@@ -28,8 +28,9 @@ import java.nio.file.NoSuchFileException;
 
 /**
  * Wrapper around reads from GCS that will retry blob downloads that fail part-way through, resuming from where the failure occurred.
- * This should be handled by the SDK but it isn't today. This should be revisited in the future (e.g. before removing
- * the {@link org.elasticsearch.Version#V_7_0_0} version constant) and removed if the SDK handles retries itself in the future.
+ * <p>
+ * We make use of the retry logic from {@link RetryingInputStream}, which is slightly more sophisticated and tailored to our needs than
+ * the retry logic the GCS SDK provides by default.
  */
 class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
 

@@ -729,69 +729,20 @@ public final class CsvTestUtils {
         if (json == null) {
             return null;
         }
-        String s = json;
-        Double min = 0.0;
-        Double max = 0.0;
-        Double sum = 0.0;
-        Integer count = 0;
-        List<Double> centroids = new ArrayList<>();
-        List<Long> counts = new ArrayList<>();
-
-        s = s.replace("\\,", ",");
-        String[] values = s.substring(1, s.length() - 1).split(",");
-        for (int i = 0; i < values.length; i++) {
-            String v = values[i];
-            var pair = v.split(":");
-            String type = pair[0];
-            String number = pair[1];
-            switch (type) {
-                case "min", "\"min\"":
-                    min = Double.parseDouble(number);
-                    break;
-                case "max", "\"max\"":
-                    max = Double.parseDouble(number);
-                    break;
-                case "sum", "\"sum\"":
-                    sum = Double.parseDouble(number);
-                    break;
-                case "value_count", "\"value_count\"":
-                    count = Integer.parseInt(number);
-                    break;
-                case "centroids",  "\"centroids\"":
-                    if (number.startsWith("[") == false) {
-                        throw new IllegalArgumentException("Expected a list of numbers, got [" + number + "]");
-                    }
-                    number = number.substring(1, number.length());
-                    while (number.endsWith("]") == false) {
-                        centroids.add(Double.parseDouble(number));
-                        number = values[++i];
-                    }
-                    number = number.substring(0, number.length() - 1);
-                    centroids.add(Double.parseDouble(number));
-                    break;
-                case "counts",  "\"counts\"":
-                    if (number.startsWith("[") == false) {
-                        throw new IllegalArgumentException("Expected a list of numbers, got [" + number + "]");
-                    }
-                    number = number.substring(1, number.length());
-                    while (number.endsWith("]") == false) {
-                        counts.add(Long.parseLong(number));
-                        number = values[++i];
-                    }
-                    number = number.substring(0, number.length() - 1);
-                    counts.add(Long.parseLong(number));
-                    break;
-                default:
-                    throw new IllegalArgumentException("Received unexpected subfield: [" + type + "] with value: [" + number + "]");
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("Expected START_OBJECT but found: " + parser.currentToken());
             }
-        }
-
-        TDigestHolder returnValue = null;
-        try {
-            returnValue = new TDigestHolder(centroids, counts, min, max, sum, count);
+            parser.nextToken();
+            TDigestParser.ParsedTDigest parsed = TDigestParser.parse(
+                "field from test data",
+                parser,
+                DocumentParsingException::new,
+                XContentParserUtils::parsingException
+            );
+            return new TDigestHolder(parsed.centroids(), parsed.counts(), parsed.min(), parsed.max(), parsed.sum(), parsed.count());
         } catch (IOException e) {
-            ESTestCase.fail(e);
+            throw new IllegalArgumentException(e);
         }
-        return returnValue;
     }
 }

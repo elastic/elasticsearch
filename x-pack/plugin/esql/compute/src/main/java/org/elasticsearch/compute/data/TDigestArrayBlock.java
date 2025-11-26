@@ -73,7 +73,7 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
 
     @Override
     public ElementType elementType() {
-        throw new UnsupportedOperationException("Need to implement this later");
+        return ElementType.TDIGEST;
     }
 
     @Override

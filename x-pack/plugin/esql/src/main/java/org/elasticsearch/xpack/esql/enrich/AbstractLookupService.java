@@ -368,7 +368,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             List<Operator> operators = new ArrayList<>();
 
             // get the fields from the right side, as specified in extractFields
-            extractRightFields(request, shardContext, driverContext, releasables, operators);
+            // Also extract additional right-side fields that are referenced in post-join filters but not in extractFields
+            extractRightFields(queryList, request, shardContext, driverContext, builder, releasables, operators);
 
             // get the left side fields that are needed for filter application
             // we read them from the input page and populate in the output page
@@ -442,26 +443,35 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     }
 
     /**
+     * Field for DocID in lookup operations. Contains a DocVector.
+     */
+    private static final EsField LOOKUP_DOC_ID_FIELD = new EsField(
+        "$$DocID$$",
+        DataType.DOC_DATA_TYPE,
+        Map.of(),
+        false,
+        EsField.TimeSeriesFieldType.NONE
+    );
+
+    /**
+     * Field for Positions in lookup operations. Contains an IntBlock of positions.
+     */
+    private static final EsField LOOKUP_POSITIONS_FIELD = new EsField(
+        "$$Positions$$",
+        DataType.INTEGER,
+        Map.of(),
+        false,
+        EsField.TimeSeriesFieldType.NONE
+    );
+
+    /**
      * Creates a Layout.Builder for lookup operations with Docs and Positions fields.
      */
     private static Layout.Builder createLookupLayoutBuilder() {
         Layout.Builder builder = new Layout.Builder();
         // append the docsIds and positions to the layout
-        builder.append(
-            // this looks wrong, what is the datatype for the Docs? It says DocVector but it is not a DataType
-            new FieldAttribute(
-                Source.EMPTY,
-                "$$DocID$$",
-                new EsField("$$DocID$$", DataType.DOC_DATA_TYPE, Collections.emptyMap(), false, EsField.TimeSeriesFieldType.NONE)
-            )
-        );
-        builder.append(
-            new FieldAttribute(
-                Source.EMPTY,
-                "$$Positions$$",
-                new EsField("$$Positions$$", DataType.INTEGER, Collections.emptyMap(), false, EsField.TimeSeriesFieldType.NONE)
-            )
-        );
+        builder.append(new FieldAttribute(Source.EMPTY, null, null, LOOKUP_DOC_ID_FIELD.getName(), LOOKUP_DOC_ID_FIELD));
+        builder.append(new FieldAttribute(Source.EMPTY, null, null, LOOKUP_POSITIONS_FIELD.getName(), LOOKUP_POSITIONS_FIELD));
         return builder;
     }
 
@@ -493,19 +503,86 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
     /**
      * Extracts right-side fields from the lookup index and creates the extractFields operator.
+     * Also extracts additional right-side fields that are referenced in post-join filters but not in extractFields.
      */
     private void extractRightFields(
+        LookupEnrichQueryGenerator queryList,
         T request,
         LookupShardContext shardContext,
         DriverContext driverContext,
+        Layout.Builder builder,
         List<Releasable> releasables,
         List<Operator> operators
     ) {
-        if (request.extractFields.isEmpty() == false) {
-            var extractFieldsOperator = extractFieldsOperator(shardContext.context, driverContext, request.extractFields);
+        // Start with the original extractFields
+        List<NamedExpression> allExtractFields = new ArrayList<>(request.extractFields);
+
+        // Collect additional right-side fields referenced in post-join filters but not in extractFields
+        collectAdditionalRightFieldsForFilters(queryList, request, builder, allExtractFields);
+
+        // Create a single operator for all extract fields
+        if (allExtractFields.isEmpty() == false) {
+            var extractFieldsOperator = extractFieldsOperator(shardContext.context, driverContext, allExtractFields);
             releasables.add(extractFieldsOperator);
             operators.add(extractFieldsOperator);
         }
+    }
+
+    /**
+     * Collects additional right-side fields that are referenced in post-join filters but not in extractFields.
+     * These fields are added to allExtractFields and the layout builder.
+     */
+    private void collectAdditionalRightFieldsForFilters(
+        LookupEnrichQueryGenerator queryList,
+        T request,
+        Layout.Builder builder,
+        List<NamedExpression> allExtractFields
+    ) {
+        if (queryList instanceof PostJoinFilterable postJoinFilterable) {
+            List<Expression> postJoinFilterExpressions = postJoinFilterable.getPostJoinFilter();
+            if (postJoinFilterExpressions.isEmpty() == false) {
+                LookupFromIndexService.TransportRequest lookupRequest = (LookupFromIndexService.TransportRequest) request;
+                // Build a set of extractFields NameIDs
+                Set<NameId> extractFieldNameIds = new HashSet<>();
+                for (NamedExpression extractField : request.extractFields) {
+                    extractFieldNameIds.add(extractField.id());
+                }
+                // Collect right-side field NameIDs from EsRelation in rightPreJoinPlan
+                Set<NameId> rightSideFieldNameIds = collectRightSideFieldNameIds(lookupRequest);
+
+                // Collect right-side attributes referenced in post-join filters but not in extractFields
+                Set<NameId> addedNameIds = new HashSet<>();
+                for (Expression filterExpr : postJoinFilterExpressions) {
+                    for (Attribute attr : filterExpr.references()) {
+                        NameId nameId = attr.id();
+                        // If it's a right-side field but not in extractFields, we need to extract it
+                        if (rightSideFieldNameIds.contains(nameId) && extractFieldNameIds.contains(nameId) == false) {
+                            if (addedNameIds.contains(nameId) == false) {
+                                allExtractFields.add(attr);
+                                builder.append(attr);
+                                addedNameIds.add(nameId);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Collects right-side field NameIDs from EsRelation in the rightPreJoinPlan.
+     * Similar to collectLeftSideFieldsToBroadcast, but collects right-side fields instead.
+     */
+    private static Set<NameId> collectRightSideFieldNameIds(LookupFromIndexService.TransportRequest request) {
+        Set<NameId> rightSideFieldNameIds = new HashSet<>();
+        if (request.getRightPreJoinPlan() instanceof FragmentExec fragmentExec) {
+            fragmentExec.fragment().forEachDown(EsRelation.class, esRelation -> {
+                for (Attribute attr : esRelation.output()) {
+                    rightSideFieldNameIds.add(attr.id());
+                }
+            });
+        }
+        return rightSideFieldNameIds;
     }
 
     /**

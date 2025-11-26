@@ -65,9 +65,9 @@ import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramParser;
 import org.elasticsearch.xpack.analytics.mapper.HistogramParser;
 import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
 import org.elasticsearch.xpack.analytics.mapper.ParsedHistogramConverter;
-import org.elasticsearch.xpack.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 import org.elasticsearch.xpack.exponentialhistogram.fielddata.IndexExponentialHistogramFieldData;
-import org.elasticsearch.xpack.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 
 import java.io.IOException;
 import java.util.ArrayList;

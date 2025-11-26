@@ -545,7 +545,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         String datafeedId = jobId + "-datafeed";
 
         client().admin().indices().prepareCreate("data").setMapping("time", "type=date").get();
-        long numDocs = randomIntBetween(1024, 2048);
+        long numDocs = 20480;
         long now = System.currentTimeMillis();
         long oneWeekAgo = now - 604800000;
         long twoWeeksAgo = oneWeekAgo - 604800000;
@@ -569,7 +569,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertTrue(stopDatafeedResponse.isStopped());
 
         // Check the job state is as expected
-        assertBusy(() -> assertEquals(jobState, getJobStats(jobId).get(0).getState()));
+        assertBusy(() -> assertEquals(jobState, getJobStats(jobId).get(0).getState()), 2, TimeUnit.SECONDS);
     }
 
     public void testStopLookback_GivenCloseJobParameterIsTrue() throws Exception {

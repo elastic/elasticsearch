@@ -81,7 +81,12 @@ public class IndexResolver {
         )
         .build();
 
-    private static final IndicesOptions FLAT_OPTIONS = IndicesOptions.builder(DEFAULT_OPTIONS)
+    /**
+     * Configuration options used for resolving indices in a "flat world"/CPS context.
+     * Those options shift index resolution validation to FieldCaps action itself
+     * as well as automatically expand flat expressions to multiple qualified ones.
+     */
+    private static final IndicesOptions FLAT_WORLD_OPTIONS = IndicesOptions.builder(DEFAULT_OPTIONS)
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
         .crossProjectModeOptions(new CrossProjectModeOptions(true))
         .build();
@@ -133,7 +138,7 @@ public class IndexResolver {
         );
     }
 
-    public void resolveFlatIndicesVersioned(
+    public void resolveFlatWorldIndicesVersioned(
         String indexPattern,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
@@ -143,7 +148,7 @@ public class IndexResolver {
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
-            createFieldCapsRequest(FLAT_OPTIONS, indexPattern, fieldNames, requestFilter, includeAllDimensions, true),
+            createFieldCapsRequest(FLAT_WORLD_OPTIONS, indexPattern, fieldNames, requestFilter, includeAllDimensions, true),
             indexPattern,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
@@ -503,5 +508,4 @@ public class IndexResolver {
     }
 
     public static final OriginalIndexExtractor DO_NOT_GROUP = (indexPattern, fieldCapabilitiesResponse) -> Map.of();
-
 }

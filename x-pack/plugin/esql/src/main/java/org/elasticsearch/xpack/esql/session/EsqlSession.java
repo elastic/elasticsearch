@@ -876,7 +876,7 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        indexResolver.resolveFlatIndicesVersioned(
+        indexResolver.resolveFlatWorldIndicesVersioned(
             indexPattern.indexPattern(),
             result.fieldNames,
             createQueryFilter(indexMode, requestFilter),

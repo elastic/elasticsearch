@@ -195,7 +195,10 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
+        assertEquals(
+            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexNameWithModes(), NO_FIELDS),
+            limit.child()
+        );
     }
 
     public void testFailOnUnresolvedIndex() {
@@ -213,7 +216,10 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(unresolvedRelation("cluster:idx"));
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
+        assertEquals(
+            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexNameWithModes(), NO_FIELDS),
+            limit.child()
+        );
     }
 
     public void testAttributeResolution() {
@@ -2050,7 +2056,7 @@ public class AnalyzerTests extends ESTestCase {
              found value [x] type [unsigned_long]
             line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long, _source, or counter types],\
              found value [x] type [unsigned_long]
-            line 2:47: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
+            line 2:47: argument of [median(x)] must be [exponential_histogram or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
             line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
@@ -2068,7 +2074,7 @@ public class AnalyzerTests extends ESTestCase {
             line 2:10: argument of [avg(x)] must be [aggregate_metric_double,\
              exponential_histogram or numeric except unsigned_long or counter types],\
              found value [x] type [version]
-            line 2:18: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
+            line 2:18: argument of [median(x)] must be [exponential_histogram or numeric except unsigned_long or counter types],\
              found value [x] type [version]
             line 2:29: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
@@ -3182,7 +3188,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
 
         String query = "FROM foo, bar | INSIST_🐔 message";
@@ -3207,7 +3214,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3234,7 +3242,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3259,7 +3268,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3284,7 +3294,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3310,7 +3321,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
         VerificationException e = expectThrows(
             VerificationException.class,
@@ -3332,7 +3344,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3341,7 +3354,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false),
+                IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3363,7 +3377,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3375,7 +3390,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true),
+                IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3827,7 +3843,7 @@ public class AnalyzerTests extends ESTestCase {
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
         IndexResolver.FieldsInfo caps = fieldsInfoOnCurrentVersion(new FieldCapabilitiesResponse(idxResponses, List.of()));
-        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps);
+        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps, IndexResolver.DO_NOT_GROUP);
         var analyzer = analyzer(indexResolutions(resolution), TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }
@@ -4705,6 +4721,8 @@ public class AnalyzerTests extends ESTestCase {
             "k8s*",
             mapping,
             Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
+            Map.of(),
+            Map.of(),
             Set.of()
         );
         var analyzer = new Analyzer(

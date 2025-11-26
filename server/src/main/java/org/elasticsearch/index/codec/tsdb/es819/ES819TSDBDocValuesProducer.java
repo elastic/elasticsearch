@@ -380,6 +380,26 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 public BytesRef binaryValue() throws IOException {
                     return decoder.decode(doc, entry.numCompressedBlocks);
                 }
+
+                @Override
+                public BlockLoader.Block tryRead(
+                    BlockLoader.BlockFactory factory,
+                    BlockLoader.Docs docs,
+                    int offset,
+                    boolean nullsFiltered,
+                    BlockDocValuesReader.ToDouble toDouble,
+                    boolean toInt
+                ) throws IOException {
+                    int count = docs.count() - offset;
+                    try (var builder = factory.bytesRefs(count)) {
+                        for (int i = offset; i < docs.count(); i++) {
+                            doc = docs.get(i);
+                            var bytes = decoder.decode(doc, entry.numCompressedBlocks);
+                            builder.appendBytesRef(bytes);
+                        }
+                        return builder.build();
+                    }
+                }
             };
         } else {
             // sparse
@@ -583,7 +603,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private abstract static class SparseBinaryDocValues extends BinaryDocValues {
+    abstract static class SparseBinaryDocValues extends BinaryDocValues implements BlockLoader.OptionalColumnAtATimeReader {
 
         final IndexedDISI disi;
 
@@ -619,6 +639,19 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         @Override
         public int docIDRunEnd() throws IOException {
             return disi.docIDRunEnd();
+        }
+
+        @Override
+        @Nullable
+        public BlockLoader.Block tryRead(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            boolean nullsFiltered,
+            BlockDocValuesReader.ToDouble toDouble,
+            boolean toInt
+        ) throws IOException {
+            return null;
         }
     }
 

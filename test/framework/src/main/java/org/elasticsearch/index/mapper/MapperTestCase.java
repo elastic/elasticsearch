@@ -1853,6 +1853,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public void testDocValuesSkippers() throws IOException {
         assumeTrue("Mapper does not support doc values skippers", supportsDocValuesSkippers());
+
         IndexVersion preSkipperVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
             random(),
             IndexVersions.STANDARD_INDEXES_USE_SKIPPERS
@@ -1860,7 +1861,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         IndexVersion withSkipperVersion = IndexVersions.STANDARD_INDEXES_USE_SKIPPERS;
 
         Settings skippersDisabled = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false).build();
-
         Settings skippersEnabled = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
 
         {

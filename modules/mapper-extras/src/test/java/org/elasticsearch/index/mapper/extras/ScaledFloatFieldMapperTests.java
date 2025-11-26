@@ -657,9 +657,4 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             new SortShortcutSupport(this::minimalMapping, this::writeField, false)
         );
     }
-
-    @Override
-    protected boolean supportsDocValuesSkippers() {
-        return false;
-    }
 }

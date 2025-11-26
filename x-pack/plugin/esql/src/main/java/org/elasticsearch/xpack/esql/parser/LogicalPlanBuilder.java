@@ -1229,7 +1229,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public PlanFactory visitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) {
+    public LogicalPlan visitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) {
         Source source = source(ctx);
 
         // Check if PromQL functionality is enabled
@@ -1239,6 +1239,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 "PROMQL command is not available. Requires snapshot build with capability [promql_vX] enabled"
             );
         }
+        IndexPattern table;
+        if (ctx.indexPattern().isEmpty()) {
+            // Default to all indices if no index pattern is provided
+            table = new IndexPattern(source, "*");
+        } else {
+            table = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
+        }
+        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(
+            source,
+            table,
+            false,
+            List.of(),
+            IndexMode.TIME_SERIES,
+            null,
+            "PROMQL"
+        );
 
         PromqlParams params = parsePromqlParams(ctx, source);
 
@@ -1274,9 +1290,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);
         }
 
-        return plan -> new PromqlCommand(
+        return new PromqlCommand(
             source,
-            plan,
+            unresolvedRelation,
             promqlPlan,
             params.startLiteral(),
             params.endLiteral(),

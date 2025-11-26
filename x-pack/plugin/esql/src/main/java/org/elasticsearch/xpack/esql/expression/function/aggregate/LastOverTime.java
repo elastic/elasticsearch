@@ -53,7 +53,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
     // TODO: support all types
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        returnType = { "long", "integer", "double", "_tsid" },
+        returnType = { "long", "integer", "double", "_tsid", "exponential_histogram" },
         description = "Calculates the latest value of a field, where recency determined by the `@timestamp` field.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         preview = true,
@@ -63,7 +63,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
         Source source,
         @Param(
             name = "field",
-            type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double", "_tsid" },
+            type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double", "_tsid", "exponential_histogram" },
             description = "the field to calculate the latest value for"
         ) Expression field,
         @Param(
@@ -122,8 +122,8 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
         return isType(
             field(),
             dt -> (dt.noCounter().isNumeric() && dt != DataType.UNSIGNED_LONG)
-                  || dt == DataType.TSID_DATA_TYPE
-                  || dt == DataType.EXPONENTIAL_HISTOGRAM,
+                || dt == DataType.TSID_DATA_TYPE
+                || dt == DataType.EXPONENTIAL_HISTOGRAM,
             sourceText(),
             DEFAULT,
             "numeric except unsigned_long"

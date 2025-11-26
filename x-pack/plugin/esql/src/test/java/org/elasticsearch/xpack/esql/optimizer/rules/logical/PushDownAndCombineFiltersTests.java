@@ -393,7 +393,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     }
 
     private static EsRelation relation(List<Attribute> fieldAttributes) {
-        return new EsRelation(EMPTY, randomIdentifier(), randomFrom(IndexMode.values()), Map.of(), fieldAttributes);
+        return new EsRelation(EMPTY, randomIdentifier(), randomFrom(IndexMode.values()), Map.of(), Map.of(), Map.of(), fieldAttributes);
     }
 
     public void testPushDownFilterPastLeftJoinWithPushable() {

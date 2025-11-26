@@ -45,9 +45,9 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsql;
 import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.commonProfile;
 import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.fixTypesOnProfile;
 import static org.hamcrest.Matchers.any;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -368,16 +368,45 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     }
 
     //
-    // Tests for more complex shapes.
+    // Tests without STATS at the end - check that node_reduce phase works correctly
     //
-
     public void testLengthPushedWithTopN() throws IOException {
         String textValue = "v".repeat(between(0, 256));
         Integer orderingValue = randomInt();
         test(b -> {
-            b.startObject("test").field("type", "keyword").endObject();
-            b.startObject("ordering").field("type", "integer").endObject();
-        },
+                b.startObject("test").field("type", "keyword").endObject();
+                b.startObject("ordering").field("type", "integer").endObject();
+            },
+            b -> b.field("test", textValue).field("ordering", orderingValue),
+            """
+                FROM test
+                | EVAL fieldLength = LENGTH(test)
+                | SORT ordering DESC
+                | LIMIT 10
+                | KEEP test
+                """,
+            matchesList().item(textValue),
+            Map.of(
+                "data",
+                List.of(
+                    matchesMap().entry("ordering:column_at_a_time:IntsFromDocValues.Singleton", 1)
+                ),
+                "node_reduce",
+                List.of(
+                    // Pushed down function
+                    matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
+                    // Field
+                    matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1)
+                )
+            ),
+            sig -> {}
+        );
+    }
+
+    public void testLengthPushedWithTopNAsOrder() throws IOException {
+        String textValue = "v".repeat(between(0, 256));
+        Integer orderingValue = randomInt();
+        test(b ->  b.startObject("test").field("type", "keyword").endObject(),
             b -> b.field("test", textValue).field("ordering", orderingValue),
             """
                 FROM test
@@ -390,13 +419,23 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             Map.of(
                 "data",
                 List.of(
+                    // Pushed down function
                     matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
+                    matchesMap().entry("ordering:column_at_a_time:IntsFromDocValues.Singleton", 1)
+                ),
+                "node_reduce",
+                List.of(
+                    // Field
                     matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1)
                 )
             ),
             sig -> {}
         );
     }
+
+    //
+    // Tests for more complex shapes.
+    //
 
     /**
      * Tests {@code LENGTH} on a field that comes from a {@code LOOKUP JOIN}.
@@ -836,15 +875,13 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         List<MapMatcher> expectedLoaders
     ) {
         List<String> sig = new ArrayList<>();
-        int expectedLoadersIdx = 0;
         for (Map<String, Object> operator : operators) {
             String name = (String) operator.get("operator");
             name = PushQueriesIT.TO_NAME.matcher(name).replaceAll("");
             if (name.equals("ValuesSourceReaderOperator")) {
                 assertNotNull("Expected loaders to match the ValuesSourceReaderOperator for driver " + driverDesc, expectedLoaders);
-                assertThat("Unexpected ValuesSourceReaderOperator", expectedLoadersIdx, lessThan(expectedLoaders.size()));
                 MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name))
-                    .entry("status", matchesMap().entry("readers_built", expectedLoaders.get(expectedLoadersIdx++)).extraOk());
+                    .entry("status", matchesMap().entry("readers_built", anyOf(expectedLoaders.toArray(new MapMatcher[0]))).extraOk());
                 assertMap("Error checking values loaded for driver " + driverDesc + "; ", operator, expectedOp);
             }
             sig.add(name);

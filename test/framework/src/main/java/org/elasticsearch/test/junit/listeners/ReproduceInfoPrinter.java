@@ -100,7 +100,7 @@ public class ReproduceInfoPrinter extends RunListener {
             b.append(
                 "This is a Rest Api Compatibility Test. "
                     + "See the developers guide for details how to troubleshoot - "
-                    + "https://github.com/elastic/elasticsearch/blob/master/REST_API_COMPATIBILITY.md"
+                    + "https://github.com/elastic/elasticsearch/blob/main/REST_API_COMPATIBILITY.md"
             );
         }
         printToErr(b.toString());

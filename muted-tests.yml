@@ -252,12 +252,6 @@ tests:
 - class: org.elasticsearch.xpack.eql.planner.QueryTranslatorTests
   method: testMatchOptimization
   issue: https://github.com/elastic/elasticsearch/issues/132894
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testTermsAggs
-  issue: https://github.com/elastic/elasticsearch/issues/132879
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testTermsAggsWithProfile
-  issue: https://github.com/elastic/elasticsearch/issues/132880
 - class: org.elasticsearch.xpack.security.authc.AuthenticationServiceTests
   method: testInvalidToken
   issue: https://github.com/elastic/elasticsearch/issues/133328
@@ -444,6 +438,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLookupJoinIT
   method: testLookupExplosionBigString
   issue: https://github.com/elastic/elasticsearch/issues/138510
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:inlinestats.MvMinMvExpand}
+  issue: https://github.com/elastic/elasticsearch/issues/137679
 - class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
   method: testSubqueryWithCountStarAndDateTrunc {default}
   issue: https://github.com/elastic/elasticsearch/issues/138601

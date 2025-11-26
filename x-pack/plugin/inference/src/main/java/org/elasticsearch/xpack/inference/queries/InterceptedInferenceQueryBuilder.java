@@ -157,9 +157,9 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     /**
      * Generate a copy of {@code this}.
      *
-     * @param inferenceResultsMap The inference results map
+     * @param inferenceResultsMap         The inference results map
      * @param inferenceResultsMapSupplier The inference results map supplier
-     * @param ccsRequest Flag indicating if this is a CCS request
+     * @param ccsRequest                  Flag indicating if this is a CCS request
      * @return A copy of {@code this} with the provided inference results map
      */
     protected abstract QueryBuilder copy(
@@ -213,7 +213,8 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      * A hook for subclasses to do additional rewriting and inference result fetching while we are on the coordinator node.
      * An example usage is {@link InterceptedInferenceKnnVectorQueryBuilder} which needs to rewrite the knn queries filters.
      */
-    protected QueryBuilder customDoRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected InterceptedInferenceQueryBuilder<T> customDoRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext)
+        throws IOException {
         return this;
     }
 
@@ -352,11 +353,15 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             );
         }
 
-        QueryBuilder rewritten = customDoRewriteGetInferenceResults(queryRewriteContext);
-        if (this != rewritten) {
-            return rewritten;
-        }
+        InterceptedInferenceQueryBuilder<T> rewritten = customDoRewriteGetInferenceResults(queryRewriteContext);
+        return rewritten.doRewriteWaitForInferenceResults(queryRewriteContext, inferenceIds, ccsRequest);
+    }
 
+    private QueryBuilder doRewriteWaitForInferenceResults(
+        QueryRewriteContext queryRewriteContext,
+        Set<FullyQualifiedInferenceId> inferenceIds,
+        boolean ccsRequest
+    ) {
         if (inferenceResultsMapSupplier != null) {
             // Additional inference results have already been requested, and we are waiting for them to continue the rewrite process
             return getNewInferenceResultsFromSupplier(inferenceResultsMapSupplier, this, m -> copy(m, null, ccsRequest));
@@ -374,6 +379,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             getQuery()
         );
 
+        QueryBuilder rewritten = this;
         if (newInferenceResultsMapSupplier == null) {
             // No additional inference results are required
             if (inferenceResultsMap != null) {

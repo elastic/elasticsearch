@@ -94,13 +94,16 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     @Override
-    protected QueryBuilder customDoRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> customDoRewriteGetInferenceResults(
+        QueryRewriteContext queryRewriteContext
+    ) throws IOException {
         // knn query may contain filters that are also intercepted.
         // We need to rewrite those here so that we can get inference results for them too.
         return rewriteFilterQueries(queryRewriteContext);
     }
 
-    private QueryBuilder rewriteFilterQueries(QueryRewriteContext queryRewriteContext) throws IOException {
+    private InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> rewriteFilterQueries(QueryRewriteContext queryRewriteContext)
+        throws IOException {
         boolean filtersChanged = false;
         List<QueryBuilder> rewrittenFilters = new ArrayList<>(originalQuery.filterQueries().size());
         for (QueryBuilder filter : originalQuery.filterQueries()) {
@@ -155,7 +158,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     @Override
-    protected QueryBuilder copy(
+    protected InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> copy(
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
         boolean ccsRequest

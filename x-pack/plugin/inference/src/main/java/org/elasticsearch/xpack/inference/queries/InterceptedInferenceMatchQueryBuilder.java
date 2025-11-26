@@ -75,7 +75,7 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     }
 
     @Override
-    protected QueryBuilder copy(
+    protected InterceptedInferenceQueryBuilder<MatchQueryBuilder> copy(
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
         boolean ccsRequest

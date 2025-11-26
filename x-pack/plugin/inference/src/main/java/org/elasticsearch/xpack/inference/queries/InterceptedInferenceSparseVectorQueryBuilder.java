@@ -116,7 +116,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     }
 
     @Override
-    protected QueryBuilder copy(
+    protected InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> copy(
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
         boolean ccsRequest

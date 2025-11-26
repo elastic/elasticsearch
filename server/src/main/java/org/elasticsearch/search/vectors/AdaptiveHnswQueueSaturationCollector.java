@@ -22,8 +22,6 @@ import org.apache.lucene.search.KnnCollector;
  * and an adaptive patience = patience-scaling / (1 + stddev).
  * Saturation happens when the discovery rate is lower than the adaptive saturation threshold.
  * The collector early exits once saturation persists for longer than adaptive patience.
- *
- * @lucene.experimental
  */
 public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCollector {
 

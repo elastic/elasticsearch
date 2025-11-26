@@ -56,11 +56,7 @@ class PatienceCollectorManager implements KnnCollectorManager {
     public KnnCollector newOptimisticCollector(int visitLimit, KnnSearchStrategy searchStrategy, LeafReaderContext ctx, int k)
         throws IOException {
         if (knnCollectorManager.isOptimistic()) {
-            return new HnswQueueSaturationCollector(
-                knnCollectorManager.newOptimisticCollector(visitLimit, searchStrategy, ctx, k),
-                saturationThreshold,
-                patience
-            );
+            return new AdaptiveHnswQueueSaturationCollector(knnCollectorManager.newOptimisticCollector(visitLimit, searchStrategy, ctx, k));
         } else {
             return null;
         }

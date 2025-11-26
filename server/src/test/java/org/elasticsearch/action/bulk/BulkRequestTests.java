@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -52,9 +53,9 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
-        assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }")));
+        assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalBytes(new BytesArray("{ \"field1\" : \"value1\" }")));
         assertThat(bulkRequest.requests().get(1), instanceOf(DeleteRequest.class));
-        assertThat(((IndexRequest) bulkRequest.requests().get(2)).source(), equalTo(new BytesArray("{ \"field1\" : \"value3\" }")));
+        assertThat(((IndexRequest) bulkRequest.requests().get(2)).source(), equalBytes(new BytesArray("{ \"field1\" : \"value3\" }")));
     }
 
     public void testSimpleBulkWithCarriageReturn() throws Exception {
@@ -65,7 +66,7 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(1));
-        assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }")));
+        assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalBytes(new BytesArray("{ \"field1\" : \"value1\" }")));
         Map<String, Object> sourceMap = XContentHelper.convertToMap(
             ((IndexRequest) bulkRequest.requests().get(0)).source(),
             false,

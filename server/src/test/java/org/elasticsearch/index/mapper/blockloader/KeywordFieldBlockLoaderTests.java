@@ -67,17 +67,6 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         return maybeFoldList(resultList);
     }
 
-    public static boolean hasDocValues(Map<String, Object> fieldMapping, boolean defaultValue) {
-        Object value = fieldMapping.getOrDefault("doc_values", defaultValue);
-        if (value instanceof Boolean b) {
-            return b;
-        } else if (value instanceof Map) {
-            return true;
-        } else {
-            throw new IllegalArgumentException("Unexpected value [" + value + "] for mapping parameter [doc_values]");
-        }
-    }
-
     private static BytesRef convert(String value, String nullValue, int ignoreAbove) {
         if (value == null) {
             if (nullValue != null) {

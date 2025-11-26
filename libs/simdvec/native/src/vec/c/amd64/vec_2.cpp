@@ -57,7 +57,7 @@ inline __m512i fma8(__m512i acc, const int8_t* p1, const int8_t* p2) {
     return _mm512_add_epi32(_mm512_madd_epi16(ones, dot), acc);
 }
 
-static inline int32_t dot7u_inner_avx512(int8_t* a, const int8_t* b, const int32_t dims) {
+static inline int32_t dot7u_inner_avx512(const int8_t* a, const int8_t* b, const int32_t dims) {
     constexpr int stride8 = 8 * STRIDE_BYTES_LEN;
     constexpr int stride4 = 4 * STRIDE_BYTES_LEN;
     const int8_t* p1 = a;
@@ -110,7 +110,7 @@ static inline int32_t dot7u_inner_avx512(int8_t* a, const int8_t* b, const int32
     return _mm512_reduce_add_epi32(_mm512_add_epi32(acc0, acc4));
 }
 
-EXPORT int32_t vec_dot7u_2(int8_t* a, int8_t* b, const int32_t dims) {
+EXPORT int32_t vec_dot7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > STRIDE_BYTES_LEN) {
@@ -123,8 +123,8 @@ EXPORT int32_t vec_dot7u_2(int8_t* a, int8_t* b, const int32_t dims) {
     return res;
 }
 
-template <int(*mapper)(int, int32_t*)>
-static inline void dot7u_inner_bulk(int8_t* a, int8_t* b, int dims, int32_t* offsets, int count, f32_t* results) {
+template <int32_t(*mapper)(int32_t, const int32_t*)>
+static inline void dot7u_inner_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t* offsets, const int32_t count, f32_t* results) {
     int32_t res = 0;
     if (dims > STRIDE_BYTES_LEN) {
         const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
@@ -149,21 +149,20 @@ static inline void dot7u_inner_bulk(int8_t* a, int8_t* b, int dims, int32_t* off
     }
 }
 
-static inline int identity(int i, int32_t* offsets) {
+static inline int identity(const int32_t i, const int32_t* offsets) {
    return i;
 }
 
-static inline int index(int i, int32_t* offsets) {
+static inline int index(const int32_t i, const int32_t* offsets) {
    return offsets[i];
 }
 
-extern "C"
-EXPORT void dot7u_bulk(int8_t* a, int8_t* b, int dims, int count, f32_t* results) {
+EXPORT void vec_dot7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     dot7u_inner_bulk<identity>(a, b, dims, NULL, count, results);
 }
 
-extern "C"
-EXPORT void dot7u_bulk_offsets(int8_t* a, int8_t* b, int dims, int32_t* offsets, int count, f32_t* results) {
+
+EXPORT void vec_dot7u_bulk_offsets_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t* offsets, const int32_t count, f32_t* results) {
     dot7u_inner_bulk<index>(a, b, dims, offsets, count, results);
 }
 

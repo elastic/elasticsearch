@@ -538,7 +538,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         BytesRef decode(int docNumber, int numBlocks) throws IOException {
             // docNumber, rather than docId, because these are dense and could be indices from a DISI
-            long blockId = docNumber < limitDocNumForBlock ? lastBlockId : findAndUpdateBlock(docOffsets, lastBlockId, docNumber, numBlocks);
+            long blockId = docNumber < limitDocNumForBlock
+                ? lastBlockId
+                : findAndUpdateBlock(docOffsets, lastBlockId, docNumber, numBlocks);
 
             int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
             int idxInBlock = (int) (docNumber - startDocNumForBlock);
@@ -557,12 +559,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             return uncompressedBytesRef;
         }
 
-        void decodeBulk(
-            int numBlocks,
-            int firstDoc,
-            int count,
-            BlockLoader.SingletonBytesRefBuilder builder
-        ) throws IOException {
+        void decodeBulk(int numBlocks, int firstDoc, int count, BlockLoader.SingletonBytesRefBuilder builder) throws IOException {
             int remainingCount = count;
             int nextDoc = firstDoc;
             int blockDocOffset = 0;
@@ -571,7 +568,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             List<BytesRef> decompressedBlocks = new ArrayList<>();
 
             while (remainingCount > 0) {
-                long blockId = nextDoc < limitDocNumForBlock ? lastBlockId : findAndUpdateBlock(this.docOffsets, lastBlockId, nextDoc, numBlocks);
+                long blockId = nextDoc < limitDocNumForBlock
+                    ? lastBlockId
+                    : findAndUpdateBlock(this.docOffsets, lastBlockId, nextDoc, numBlocks);
                 assert blockId >= 0;
 
                 int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
@@ -605,7 +604,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     // avoid making a copy if this was the last block to be decompressed
                     decompressedBlocks.add(new BytesRef(uncompressedBlock, startOffset, lenValuesInBlock));
                 } else {
-                    decompressedBlocks.add(new BytesRef(Arrays.copyOfRange(uncompressedBlock, startOffset, startOffset + lenValuesInBlock)));
+                    decompressedBlocks.add(
+                        new BytesRef(Arrays.copyOfRange(uncompressedBlock, startOffset, startOffset + lenValuesInBlock))
+                    );
                 }
             }
 

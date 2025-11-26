@@ -2,4 +2,5 @@ pr: 138405
 summary: Add tier_preference and node.role columns to _cat/shards API
 area: CAT APIs
 type: enhancement
-issues: [136895]
+issues:
+ - 136895

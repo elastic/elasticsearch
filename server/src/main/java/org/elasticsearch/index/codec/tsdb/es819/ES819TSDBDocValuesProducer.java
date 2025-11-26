@@ -572,30 +572,22 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             return uncompressedBytesRef;
         }
 
-        int computeMultipleBlockBufferSize(int count, int firstDoc, long firstBlockId) throws IOException {
-            long lastBlockId = firstBlockId;
-
-            int remaining = count;
-            int nextDoc = firstDoc;
-            for (long blockId = firstBlockId; remaining > 0; blockId++, lastBlockId++)  {
-                long blockStart = docOffsets.get(blockId);
-                long blockLimit = docOffsets.get(blockId + 1);
-                int numDocsInBlock = (int) (blockLimit - blockStart);
-                int idxFirstDocInBlock = (int) (nextDoc - blockStart);
-                int countInBlock = Math.min(numDocsInBlock - idxFirstDocInBlock, remaining);
-                remaining -= countInBlock;
-                nextDoc += countInBlock;
-            }
-
-            // We could use compressedData directly, but making a clone seems less error-prone.
+        int computeMultipleBlockBufferSize(int count, int firstDoc, long firstBlockId, long numBlocks) throws IOException {
             IndexInput readAhead = compressedData.clone();
+            int lastDoc = firstDoc + count - 1;
             int requiredBufferSize = 0;
-            for (long blockId = firstBlockId; blockId <= lastBlockId; blockId++)  {
+
+            for (long blockId = firstBlockId; blockId < numBlocks; blockId++) {
                 long blockStartOffset = addresses.get(blockId);
                 readAhead.seek(blockStartOffset);
                 readAhead.readByte(); // skip BlockHeader
                 int uncompressedBlockLength = readAhead.readVInt();
                 requiredBufferSize += uncompressedBlockLength;
+
+                long blockLimit = docOffsets.get(blockId + 1);
+                if (lastDoc < blockLimit) {
+                    break;
+                }
             }
             return requiredBufferSize;
         }
@@ -610,7 +602,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             // This block contains at least one value for range.
             long firstBlockId = findAndUpdateBlock(nextDoc, numBlocks);
             long[] offsets = new long[count + 1];
-            int bufferSize = computeMultipleBlockBufferSize(count, firstDoc, firstBlockId);
+            int bufferSize = computeMultipleBlockBufferSize(count, firstDoc, firstBlockId, numBlocks);
             byte[] bytes = new byte[bufferSize];
 
             while (remainingCount > 0) {

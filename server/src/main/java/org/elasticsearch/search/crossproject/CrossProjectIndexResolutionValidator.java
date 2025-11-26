@@ -190,7 +190,7 @@ public class CrossProjectIndexResolutionValidator {
                         foundFlat = true;
                         break;
                     }
-                    if (remoteException instanceof ElasticsearchSecurityException) {
+                    if (isUnauthorized == false && remoteException instanceof ElasticsearchSecurityException) {
                         isUnauthorized = true;
                         authorizationExceptions.putIfAbsent(projectAlias, remoteException);
                         unauthorizedIndices.compute(projectAlias, (k, v) -> {

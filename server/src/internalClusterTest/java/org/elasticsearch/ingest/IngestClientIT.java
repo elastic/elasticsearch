@@ -441,7 +441,7 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(item1.getFailure().getStatus(), equalTo(org.elasticsearch.rest.RestStatus.BAD_REQUEST));
         assertThat(item1.getFailure().getCause(), instanceOf(IllegalArgumentException.class));
 
-        // Second document should fail
+        // Third document should fail
         BulkItemResponse item2 = response.getItems()[2];
         assertThat(item2.isFailed(), is(true));
         assertThat(item2.getFailure().getStatus(), equalTo(org.elasticsearch.rest.RestStatus.BAD_REQUEST));

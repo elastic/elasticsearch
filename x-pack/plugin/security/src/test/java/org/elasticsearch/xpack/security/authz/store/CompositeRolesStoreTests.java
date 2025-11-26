@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
@@ -207,6 +206,7 @@ import static org.mockito.Mockito.when;
 
 public class CompositeRolesStoreTests extends ESTestCase {
 
+    private static final TransportVersion VERSION_7_0_0 = TransportVersion.fromId(7_00_00_99);
     private static final Settings SECURITY_ENABLED_SETTINGS = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
 
     private final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
@@ -2684,7 +2684,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
         AuditUtil.getOrGenerateRequestId(threadContext);
         final TransportVersion version = randomFrom(
             TransportVersion.current(),
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_8_1)
+            TransportVersionUtils.randomVersionBetween(
+                random(),
+                VERSION_7_0_0,
+                TransportVersionUtils.getPreviousVersion(Authentication.VERSION_API_KEY_ROLES_AS_BYTES)
+            )
         );
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,
@@ -2769,7 +2773,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
         AuditUtil.getOrGenerateRequestId(threadContext);
         final TransportVersion version = randomFrom(
             TransportVersion.current(),
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_8_1)
+            TransportVersionUtils.randomVersionBetween(
+                random(),
+                VERSION_7_0_0,
+                TransportVersionUtils.getPreviousVersion(Authentication.VERSION_API_KEY_ROLES_AS_BYTES)
+            )
         );
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,

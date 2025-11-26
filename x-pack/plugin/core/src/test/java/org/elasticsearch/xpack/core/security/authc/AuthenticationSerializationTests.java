@@ -36,6 +36,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class AuthenticationSerializationTests extends ESTestCase {
 
+    private static final TransportVersion VERSION_7_0_0 = TransportVersion.fromId(7_00_00_99);
     private static final TransportVersion SECURITY_CLOUD_API_KEY_REALM_AND_TYPE = TransportVersion.fromName(
         "security_cloud_api_key_realm_and_type"
     );
@@ -236,8 +237,8 @@ public class AuthenticationSerializationTests extends ESTestCase {
     public void testRolesRemovedFromUserForLegacyApiKeys() throws IOException {
         TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_0_0,
-            TransportVersions.V_7_8_0
+            VERSION_7_0_0,
+            Authentication.VERSION_SYNTHETIC_ROLE_NAMES
         );
         Subject authenticatingSubject = new Subject(
             new User("foo", "role"),

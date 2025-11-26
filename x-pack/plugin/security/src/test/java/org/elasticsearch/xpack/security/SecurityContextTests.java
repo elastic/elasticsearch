@@ -221,7 +221,7 @@ public class SecurityContextTests extends ESTestCase {
                 Map.of("limitedBy role", Map.of("cluster", List.of("all"))),
                 authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
             );
-        }, TransportVersions.V_7_8_0);
+        }, Authentication.VERSION_SYNTHETIC_ROLE_NAMES);
 
         // If target is new node, no need to rewrite the new style API key metadata
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {

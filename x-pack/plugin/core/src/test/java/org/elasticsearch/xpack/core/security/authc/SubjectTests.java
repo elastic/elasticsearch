@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -57,6 +56,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isA;
 
 public class SubjectTests extends ESTestCase {
+    private static final TransportVersion VERSION_7_0_0 = TransportVersion.fromId(7_00_00_99);
 
     public void testGetRoleReferencesForRegularUser() {
         final User user = new User("joe", "role_a", "role_b");
@@ -308,7 +308,11 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             new User("joe"),
             new Authentication.RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, "node"),
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_8_1),
+            TransportVersionUtils.randomVersionBetween(
+                random(),
+                VERSION_7_0_0,
+                TransportVersionUtils.getPreviousVersion(Authentication.VERSION_API_KEY_ROLES_AS_BYTES)
+            ),
             authMetadata
         );
 

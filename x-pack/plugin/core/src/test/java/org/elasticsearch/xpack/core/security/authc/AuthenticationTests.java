@@ -64,6 +64,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class AuthenticationTests extends ESTestCase {
 
+    private static final TransportVersion VERSION_7_0_0 = TransportVersion.fromId(7_00_00_99);
+
     public void testIsFailedRunAs() {
         final Authentication failedAuthentication = randomRealmAuthentication(randomBoolean()).runAs(randomUser(), null);
         assertTrue(failedAuthentication.isRunAs());
@@ -1323,7 +1325,7 @@ public class AuthenticationTests extends ESTestCase {
             realmRef = randomRealmRef(false);
         }
         // If the realm is expected to have a domain, we need a version that's at least compatible with domains
-        final TransportVersion minVersion = realmRef.getDomain() != null ? Authentication.VERSION_REALM_DOMAINS : TransportVersions.V_7_0_0;
+        final TransportVersion minVersion = realmRef.getDomain() != null ? Authentication.VERSION_REALM_DOMAINS : VERSION_7_0_0;
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), minVersion, TransportVersion.current());
         final Map<String, Object> metadata;
         if (randomBoolean()) {
@@ -1340,7 +1342,7 @@ public class AuthenticationTests extends ESTestCase {
         return randomApiKeyAuthentication(
             user,
             apiKeyId,
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersion.current())
+            TransportVersionUtils.randomVersionBetween(random(), VERSION_7_0_0, TransportVersion.current())
         );
     }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.TestSecurityClient.OAuth2Token;
 import org.elasticsearch.test.TestSecurityClient.TokenInvalidation;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
@@ -762,15 +763,21 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // Now attempt to authenticate with an invalid access token with valid structure (pre 7.2)
         assertUnauthorizedToken(
             tokenService.prependVersionAndEncodeAccessToken(
-                TransportVersions.V_7_1_0,
-                tokenService.getRandomTokenBytes(TransportVersions.V_7_1_0, randomBoolean()).v1()
+                TransportVersionUtils.getPreviousVersion(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS),
+                tokenService.getRandomTokenBytes(
+                    TransportVersionUtils.getPreviousVersion(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS),
+                    randomBoolean()
+                ).v1()
             )
         );
         // Now attempt to authenticate with an invalid access token with valid structure (after 7.2 pre 8.10)
         assertUnauthorizedToken(
             tokenService.prependVersionAndEncodeAccessToken(
-                TransportVersions.V_7_4_0,
-                tokenService.getRandomTokenBytes(TransportVersions.V_7_4_0, randomBoolean()).v1()
+                TransportVersionUtils.getNextVersion(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS),
+                tokenService.getRandomTokenBytes(
+                    TransportVersionUtils.getNextVersion(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS),
+                    randomBoolean()
+                ).v1()
             )
         );
         // Now attempt to authenticate with an invalid access token with valid structure (current version)

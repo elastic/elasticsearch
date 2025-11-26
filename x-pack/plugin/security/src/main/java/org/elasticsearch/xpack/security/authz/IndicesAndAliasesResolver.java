@@ -35,6 +35,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.transport.LinkedProjectConfig;
@@ -57,10 +58,10 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.BiPredicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.isNoneExpression;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
-import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 class IndicesAndAliasesResolver {
@@ -217,23 +218,15 @@ class IndicesAndAliasesResolver {
         final ResolvedIndices split;
         if (indicesRequest instanceof IndicesRequest.SingleIndexNoWildcards single
             && (single.allowsRemoteIndices() || single.allowsCrossProject())) {
+            assert indices.length == 1 : "SingleIndexNoWildcards request must have exactly one index";
+
             if (crossProjectModeDecider.resolvesCrossProject(single)) {
-                split = resolveSingleIndexNoWildcardsCrossProject(authorizedProjects, indices);
+                split = remoteClusterResolver.determineLocalOrRemoteIndexCrossProject(authorizedProjects, indices[0]);
                 if (split.getLocal().isEmpty() == false) {
-                    single.setLocal(true);
+                    single.markOriginOnly();
                 }
             } else {
-                split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indices);
-            }
-            // all indices can come back empty when the remote index expression included a cluster alias with a wildcard
-            // and no remote clusters are configured that match it
-            if (split.getLocal().isEmpty() && split.getRemote().isEmpty()) {
-                for (String indexExpression : indices) {
-                    String[] clusterAndIndex = RemoteClusterAware.splitIndexName(indexExpression);
-                    if (clusterAndIndex[0] != null && clusterAndIndex[0].contains("*")) {
-                        throw new NoSuchRemoteClusterException(clusterAndIndex[0]);
-                    }
-                }
+                split = remoteClusterResolver.determineLocalOrRemoteIndex(indices[0]);
             }
         } else {
             split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), List.of());
@@ -268,33 +261,6 @@ class IndicesAndAliasesResolver {
         }
 
         return new ResolvedIndices(localIndices, split.getRemote());
-    }
-
-    private ResolvedIndices resolveSingleIndexNoWildcardsCrossProject(TargetProjects authorizedProjects, String[] indices) {
-        assert authorizedProjects != TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED
-            : "resolving cross-project request but authorized project is local only";
-        Map<String, List<String>> clusterIndices = remoteClusterResolver.groupProjectIndices(authorizedProjects, indices);
-
-        List<String> unqualifiedIndices = clusterIndices.remove(LOCAL_CLUSTER_GROUP_KEY);
-
-        List<String> local = new ArrayList<>();
-        if (unqualifiedIndices != null) {
-            local.addAll(unqualifiedIndices);
-        }
-        List<String> originIndices = clusterIndices.remove(ProjectRoutingResolver.ORIGIN);
-        if (originIndices != null) {
-            local.addAll(originIndices);
-        }
-        List<String> originAliasIndices = clusterIndices.remove(authorizedProjects.originProjectAlias());
-        if (originAliasIndices != null) {
-            local.addAll(originAliasIndices);
-        }
-        List<String> remote = clusterIndices.entrySet()
-            .stream()
-            .flatMap(e -> e.getValue().stream().map(v -> e.getKey() + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + v))
-            .toList();
-
-        return new ResolvedIndices(local, remote);
     }
 
     /**
@@ -759,10 +725,39 @@ class IndicesAndAliasesResolver {
             return new ResolvedIndices(local == null ? List.of() : local, remote);
         }
 
-        Map<String, List<String>> groupProjectIndices(TargetProjects targetProjects, String... indices) {
-            Set<String> projectAliases = new HashSet<>(targetProjects.allProjectAliases());
-            projectAliases.add(ProjectRoutingResolver.ORIGIN);
-            return super.groupClusterIndices(projectAliases, indices);
+        ResolvedIndices determineLocalOrRemoteIndex(String indexExpression) {
+            return determineLocalOrRemoteIndex(indexExpression, Collections.emptySet(), clusters);
+        }
+
+        ResolvedIndices determineLocalOrRemoteIndexCrossProject(TargetProjects targetProjects, String indexExpression) {
+            assert targetProjects.linkedProjects() != null : "CPS should be enabled to call this method";
+
+            Set<String> linkedAliases = targetProjects.linkedProjects()
+                .stream()
+                .map(ProjectRoutingInfo::projectAlias)
+                .collect(Collectors.toSet());
+
+            ProjectRoutingInfo originRoutingInfo = targetProjects.originProject();
+            Set<String> originAliases;
+            if (originRoutingInfo != null) {
+                originAliases = Set.of(originRoutingInfo.projectAlias(), ProjectRoutingResolver.ORIGIN);
+            } else {
+                originAliases = Collections.emptySet();
+            }
+            return determineLocalOrRemoteIndex(indexExpression, originAliases, linkedAliases);
+        }
+
+        private ResolvedIndices determineLocalOrRemoteIndex(String indexExpression, Set<String> originAliases, Set<String> remoteAliases) {
+            String[] split = RemoteClusterAware.splitIndexName(indexExpression);
+            String clusterAlias = split[0];
+            if (clusterAlias == null || originAliases.contains(clusterAlias)) {
+                return new ResolvedIndices(List.of(split[1]), List.of());
+            } else {
+                if (remoteAliases.contains(clusterAlias) == false) {
+                    throw new NoSuchRemoteClusterException(clusterAlias);
+                }
+                return new ResolvedIndices(List.of(), List.of(indexExpression));
+            }
         }
     }
 }

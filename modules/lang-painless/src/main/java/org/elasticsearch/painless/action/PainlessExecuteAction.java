@@ -353,7 +353,7 @@ public class PainlessExecuteAction {
         private final Script script;
         private final ScriptContext<?> context;
         private final ContextSetup contextSetup;
-        private transient volatile boolean resolveCrossProject;
+        private transient volatile IndicesOptions indicesOptions;
 
         static Request parse(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
@@ -364,17 +364,13 @@ public class PainlessExecuteAction {
             this.context = scriptContextName != null ? fromScriptContextName(scriptContextName) : PainlessTestScript.CONTEXT;
             if (setup != null) {
                 this.contextSetup = setup;
-                setIndex(false);
+                if (contextSetup.getClusterAlias() == null) {
+                    index(contextSetup.getIndex());
+                } else {
+                    index(contextSetup.getClusterAlias() + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + contextSetup.getIndex());
+                }
             } else {
                 contextSetup = null;
-            }
-        }
-
-        private void setIndex(boolean local) {
-            if (local || contextSetup.getClusterAlias() == null) {
-                index(contextSetup.getIndex());
-            } else {
-                index(contextSetup.getClusterAlias() + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + contextSetup.getIndex());
             }
         }
 
@@ -398,9 +394,11 @@ public class PainlessExecuteAction {
         }
 
         @Override
-        public void setLocal(boolean local) {
-            assert contextSetup != null : "Painless/execute request without context setup can't have index, so can't be local";
-            setIndex(local);
+        public void markOriginOnly() {
+            assert contextSetup != null
+                : "Painless/execute request without context setup can't have index, this method shouldn't be called";
+            // strip off cluster alias from the index in this request
+            index(contextSetup.getIndex());
         }
 
         @Override
@@ -420,14 +418,18 @@ public class PainlessExecuteAction {
             return validationException;
         }
 
-        @Override
-        public IndicesOptions indicesOptions() {
-            if (resolveCrossProject == false) {
-                return super.indicesOptions();
-            }
-            return IndicesOptions.builder(super.indicesOptions())
+        public void enableCrossProjectMode() {
+            this.indicesOptions = IndicesOptions.builder(super.indicesOptions())
                 .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
                 .build();
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            if (indicesOptions == null) {
+                return super.indicesOptions();
+            }
+            return indicesOptions;
         }
 
         @Override
@@ -557,7 +559,7 @@ public class PainlessExecuteAction {
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             // By this point index resolution has completed, and we should not try to resolve indices for child requests
             // to avoid the second attempt of project authorization in CPS
-            request.resolveCrossProject = false;
+            request.indicesOptions = null;
 
             if (isLocalIndex(request)) {
                 super.doExecute(task, request, listener);
@@ -909,7 +911,9 @@ public class PainlessExecuteAction {
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
             final Request request = Request.parse(restRequest.contentOrSourceParamParser());
-            request.resolveCrossProject = crossProjectModeDecider.crossProjectEnabled();
+            if (crossProjectModeDecider.crossProjectEnabled()) {
+                request.enableCrossProjectMode();
+            }
 
             return channel -> client.executeLocally(INSTANCE, request, new RestToXContentListener<>(channel));
         }

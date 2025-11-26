@@ -118,9 +118,9 @@ public interface IndicesRequest {
         }
 
         /**
-         * Determines whether the request is local. Local requests should be processed on the same cluster.
+         * Marks request local. Local requests should be processed on the same cluster, even if they have cluster-alias prefix.
          */
-        void setLocal(boolean local);
+        void markOriginOnly();
     }
 
     /**

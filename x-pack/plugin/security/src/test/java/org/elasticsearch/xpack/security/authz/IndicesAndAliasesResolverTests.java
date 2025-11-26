@@ -586,19 +586,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(resolvedIndices.getLocal().size(), equalTo(0));
         }
 
-        // test 5: both local and remote indexes
-        {
-            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(
-                TransportSearchAction.TYPE.name() + "[s]",
-                createSingleIndexNoWildcardsRequest(new String[] { "index10", "remote:indexName" })
-            );
-            assertThat(resolvedIndices.getRemote().size(), equalTo(1));
-            assertThat(resolvedIndices.getRemote().get(0), equalTo("remote:indexName"));
-            assertThat(resolvedIndices.getLocal().size(), equalTo(1));
-            assertThat(resolvedIndices.getLocal().get(0), equalTo("index10"));
-        }
-
-        // test 6: remote cluster name with wildcards that does not match any configured remotes
+        // test 5: remote cluster name with wildcards that does not match any configured remotes
         {
             NoSuchRemoteClusterException exception = expectThrows(
                 NoSuchRemoteClusterException.class,
@@ -608,17 +596,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 )
             );
             assertThat(exception.getMessage(), containsString("no such remote cluster: [x*x]"));
-        }
-
-        // test 7: mix and test 2 and test 6 - should not result in exception (wildcard without matches has no effect)
-        {
-            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(
-                TransportSearchAction.TYPE.name() + "[s]",
-                createSingleIndexNoWildcardsRequest(new String[] { "x*x:test", "remote:indexName" })
-            );
-            assertThat(resolvedIndices.getRemote().size(), equalTo(1));
-            assertThat(resolvedIndices.getRemote().get(0), equalTo("remote:indexName"));
-            assertThat(resolvedIndices.getLocal().size(), equalTo(0));
         }
     }
 
@@ -652,7 +629,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(resolvedIndices.getRemote().size(), equalTo(0));
             assertThat(resolvedIndices.getLocal().size(), equalTo(1));
             assertThat(resolvedIndices.getLocal().get(0), equalTo("index10"));
-            verify(request).setLocal(true);
+            verify(request).markOriginOnly();
         }
 
         // test 2: matching remote index
@@ -691,20 +668,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(resolvedIndices.getLocal().size(), equalTo(0));
         }
 
-        // test 5: both local and remote indexes
-        {
-            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(
-                TransportSearchAction.TYPE.name() + "[s]",
-                createSingleIndexNoWildcardsRequestCrossProject(new String[] { "index10", "remote:indexName" }),
-                targetProjects
-            );
-            assertThat(resolvedIndices.getRemote().size(), equalTo(1));
-            assertThat(resolvedIndices.getRemote().get(0), equalTo("remote:indexName"));
-            assertThat(resolvedIndices.getLocal().size(), equalTo(1));
-            assertThat(resolvedIndices.getLocal().get(0), equalTo("index10"));
-        }
-
-        // test 6: remote cluster name with wildcards that does not match any configured remotes
+        // test 5: remote cluster name with wildcards that does not match any configured remotes
         {
             NoSuchRemoteClusterException exception = expectThrows(
                 NoSuchRemoteClusterException.class,
@@ -717,19 +681,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(exception.getMessage(), containsString("no such remote cluster: [x*x]"));
         }
 
-        // test 7: mix and test 2 and test 6 - should not result in exception (wildcard without matches has no effect)
-        {
-            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(
-                TransportSearchAction.TYPE.name() + "[s]",
-                createSingleIndexNoWildcardsRequestCrossProject(new String[] { "x*x:test", "remote:indexName" }),
-                targetProjects
-            );
-            assertThat(resolvedIndices.getRemote().size(), equalTo(1));
-            assertThat(resolvedIndices.getRemote().get(0), equalTo("remote:indexName"));
-            assertThat(resolvedIndices.getLocal().size(), equalTo(0));
-        }
-
-        // test 8: matching _origin index
+        // test 6: matching _origin index
         {
             IndicesRequest.SingleIndexNoWildcards request = createSingleIndexNoWildcardsRequestCrossProject(
                 new String[] { "_origin:index10" }
@@ -742,10 +694,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(resolvedIndices.getRemote().size(), equalTo(0));
             assertThat(resolvedIndices.getLocal().size(), equalTo(1));
             assertThat(resolvedIndices.getLocal().get(0), equalTo("index10"));
-            verify(request).setLocal(true);
+            verify(request).markOriginOnly();
         }
 
-        // test 9: matching origin alias index
+        // test 7: matching origin alias index
         {
             IndicesRequest.SingleIndexNoWildcards request = createSingleIndexNoWildcardsRequestCrossProject(
                 new String[] { "local:index10" }
@@ -758,7 +710,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(resolvedIndices.getRemote().size(), equalTo(0));
             assertThat(resolvedIndices.getLocal().size(), equalTo(1));
             assertThat(resolvedIndices.getLocal().get(0), equalTo("index10"));
-            verify(request).setLocal(true);
+            verify(request).markOriginOnly();
         }
     }
 

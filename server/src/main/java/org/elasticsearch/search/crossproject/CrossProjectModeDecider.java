@@ -49,8 +49,16 @@ public class CrossProjectModeDecider {
             return false;
         }
         // TODO: The following check can be an method on the request itself
-        return ((request instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsCrossProject())
-            || (request instanceof IndicesRequest.SingleIndexNoWildcards singleIndexRequest && singleIndexRequest.allowsCrossProject()))
-            && request.indicesOptions().resolveCrossProjectIndexExpression();
+        boolean resolveCrossProjectIndexExpression = request.indicesOptions().resolveCrossProjectIndexExpression();
+        if (resolveCrossProjectIndexExpression == false) {
+            return false;
+        }
+        if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsCrossProject()) {
+            return true;
+        }
+        if (request instanceof IndicesRequest.SingleIndexNoWildcards singleIndexRequest && singleIndexRequest.allowsCrossProject()) {
+            return true;
+        }
+        return false;
     }
 }

@@ -170,7 +170,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
         restTestExecutionContext.clear();
 
-        errorCollector = new ESClientYamlSuitErrorCollector(restTestExecutionContext, testCandidate, logger);
+        errorCollector = new ESClientYamlSuitErrorCollector(restTestExecutionContext, testCandidate);
     }
 
     /**
@@ -529,15 +529,12 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
     }
 
-    protected boolean skipSetupSections() {
-        return false;
-    }
-
-    /**
-     * Execute an {@link ExecutableSection}, careful to log its place of origin on failure.
-     */
     private void executeSection(ExecutableSection executableSection) {
         errorCollector.checkSucceeds(executableSection);
+    }
+
+    protected boolean skipSetupSections() {
+        return false;
     }
 
     protected boolean randomizeContentType() {

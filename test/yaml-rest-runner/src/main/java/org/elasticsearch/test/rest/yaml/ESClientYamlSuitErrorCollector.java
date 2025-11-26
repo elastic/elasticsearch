@@ -9,7 +9,6 @@
 
 package org.elasticsearch.test.rest.yaml;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.rules.ErrorCollector;
 
@@ -17,17 +16,11 @@ public class ESClientYamlSuitErrorCollector extends ErrorCollector {
 
     private final ClientYamlTestExecutionContext restTestExecutionContext;
     private final ClientYamlTestCandidate testCandidate;
-    private final Logger logger;
 
-    public ESClientYamlSuitErrorCollector(
-        ClientYamlTestExecutionContext restTestExecutionContext,
-        ClientYamlTestCandidate testCandidate,
-        Logger logger
-    ) {
+    public ESClientYamlSuitErrorCollector(ClientYamlTestExecutionContext restTestExecutionContext, ClientYamlTestCandidate testCandidate) {
         super();
         this.restTestExecutionContext = restTestExecutionContext;
         this.testCandidate = testCandidate;
-        this.logger = logger;
     }
 
     public void checkSucceeds(ExecutableSection executableSection) {

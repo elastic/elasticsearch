@@ -70,7 +70,6 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -156,8 +155,36 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         "lint",
         new EsField("lint", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
     );
-    private static final ReferenceAttribute LKWD_ATTR = new ReferenceAttribute(Source.EMPTY, "lkwd", DataType.KEYWORD);
-    private static final ReferenceAttribute LINT_REF_ATTR = new ReferenceAttribute(Source.EMPTY, "lint", DataType.INTEGER);
+    private static final FieldAttribute LKWD_ATTR = new FieldAttribute(
+        Source.EMPTY,
+        null,
+        null,
+        "lkwd",
+        new EsField("lkwd", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+    );
+
+    // Index all attributes by name for easy lookup - built dynamically from attribute names
+    private static final Map<String, FieldAttribute> ATTRIBUTES_BY_NAME = Map.ofEntries(
+        Map.entry(MATCH0_LEFT_ATTR.name(), MATCH0_LEFT_ATTR),
+        Map.entry(MATCH1_LEFT_ATTR.name(), MATCH1_LEFT_ATTR),
+        Map.entry(MATCH0_RIGHT_ATTR.name(), MATCH0_RIGHT_ATTR),
+        Map.entry(MATCH1_RIGHT_ATTR.name(), MATCH1_RIGHT_ATTR),
+        Map.entry(MATCH0_ATTR.name(), MATCH0_ATTR),
+        Map.entry(MATCH1_ATTR.name(), MATCH1_ATTR),
+        Map.entry(LINT_ATTR.name(), LINT_ATTR),
+        Map.entry(LKWD_ATTR.name(), LKWD_ATTR)
+    );
+
+    /**
+     * Gets a FieldAttribute by name. Throws IllegalArgumentException if not found.
+     */
+    private static FieldAttribute getAttribute(String name) {
+        FieldAttribute attr = ATTRIBUTES_BY_NAME.get(name);
+        if (attr == null) {
+            throw new IllegalArgumentException("Attribute not found: " + name);
+        }
+        return attr;
+    }
 
     private final ThreadPool threadPool = threadPool();
     private final Directory lookupIndexDirectory = newDirectory();
@@ -297,7 +324,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         String suffix = (operation == null) ? "" : ("_left");
         for (int i = 0; i < numberOfJoinColumns; i++) {
             String matchField = "match" + i + suffix;
-            matchFields.add(new MatchConfig(matchField, i, inputDataType));
+            matchFields.add(new MatchConfig(getAttribute(matchField), i, inputDataType));
         }
 
         // Build right-side attributes for EsRelation using precreated static attributes
@@ -322,7 +349,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         // for filter evaluation, but they shouldn't be in the final output
         List<NamedExpression> loadFields = new ArrayList<>();
         loadFields.add(LKWD_ATTR);
-        loadFields.add(LINT_REF_ATTR);
+        loadFields.add(LINT_ATTR);
 
         Expression joinOnExpression = null;
         // Pass all right-side attributes to buildLessThanFilter so the EsRelation has all of them
@@ -331,7 +358,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         if (operation != null) {
             List<Expression> conditions = new ArrayList<>();
             for (int i = 0; i < numberOfJoinColumns; i++) {
-                // Use precreated static attributes
+                // Use precreated static attributes directly
                 FieldAttribute left = (i == 0) ? MATCH0_LEFT_ATTR : MATCH1_LEFT_ATTR;
                 FieldAttribute right = (i == 0) ? MATCH0_RIGHT_ATTR : MATCH1_RIGHT_ATTR;
                 conditions.add(operation.buildNewInstance(Source.EMPTY, left, right));
@@ -390,10 +417,16 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     protected Matcher<String> expectedToStringOfSimple() {
         StringBuilder sb = new StringBuilder();
         String suffix = (operation == null) ? "" : ("_left");
-        sb.append("LookupOperator\\[index=idx load_fields=\\[lkwd\\{r}#\\d+, lint\\{r}#\\d+] ");
+        // load_fields now use FieldAttributes (showing {f}) instead of ReferenceAttributes (showing {r})
+        sb.append("LookupOperator\\[index=idx load_fields=\\[lkwd\\{f}#\\d+, lint\\{f}#\\d+] ");
         for (int i = 0; i < numberOfJoinColumns; i++) {
-            // match_field=match<i>_left (index first, then suffix)
-            sb.append("input_type=LONG match_field=match").append(i).append(suffix).append(" inputChannel=").append(i).append(" ");
+            // match_field includes the full attribute representation (e.g., match0_left{f}#\d+)
+            sb.append("input_type=LONG match_field=match")
+                .append(i)
+                .append(suffix)
+                .append("\\{f}#\\d+ inputChannel=")
+                .append(i)
+                .append(" ");
         }
 
         if (applyRightFilterAsJoinOnFilter && operation != null) {

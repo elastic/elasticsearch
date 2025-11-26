@@ -52,7 +52,7 @@ public class LookupJoinGeneralExpressionIT extends AbstractEsqlIntegTestCase {
     private void ensureIndicesAndData() {
         assumeTrue(
             "LOOKUP JOIN ON general expressions requires capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_GENERAL_EXPRESSION.isEnabled()
         );
         if (indexExists(MAIN_INDEX) == false) {
             createIndices();
@@ -63,7 +63,7 @@ public class LookupJoinGeneralExpressionIT extends AbstractEsqlIntegTestCase {
     private void ensureMultiColumnIndicesAndData() {
         assumeTrue(
             "LOOKUP JOIN ON general expressions requires capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_GENERAL_EXPRESSION.isEnabled()
         );
         if (indexExists(MULTI_COL_MAIN_INDEX) == false) {
             loadMultiColumnDataFromCsv();
@@ -1001,6 +1001,46 @@ public class LookupJoinGeneralExpressionIT extends AbstractEsqlIntegTestCase {
                 new Object[] { 15, "Oscar", null, null },  // id_left=15 doesn't match
                 new Object[] { List.of(17, 18), "Olivia", null, null },  // id_left=[17,18] doesn't match
                 new Object[] { null, "Kate", null, null }  // id_left=null doesn't match
+            );
+        }
+    }
+
+    public void testLookupJoinWithLikeCondition() {
+        ensureMultiColumnIndicesAndData();
+        // Test LOOKUP JOIN with LIKE condition in the ON clause
+        // Matches rows where other1 ends with "ta" (pattern "*ta")
+        String query = String.format(Locale.ROOT, """
+            FROM %s
+            | RENAME id_int AS id_left, is_active_bool AS is_active_left
+            | LOOKUP JOIN %s ON id_int == id_left AND is_active_left == is_active_bool AND other1 LIKE "*ta"
+            | KEEP id_left, name_str, extra1, other1, other2
+            | SORT id_left, name_str, extra1, other1, other2
+            """, MULTI_COL_MAIN_INDEX, MULTI_COL_LOOKUP_INDEX);
+
+        try (EsqlQueryResponse response = runQuery(query)) {
+            List<List<Object>> values = getValuesList(response);
+            // Expected results based on CSV spec: rows where other1 matches "*ta" pattern
+            // Note: Some rows may have null values when the LIKE condition doesn't match
+            verifyResults(
+                values,
+                new Object[] { 1, "Alice", "foo", "beta", 2000 },  // other1="beta" ends with "ta"
+                new Object[] { List.of(1, 19, 21), null, "zyx", null, null },  // no match for multi-value id
+                new Object[] { 2, null, "bar", null, null },  // no match (other1 doesn't end with "ta")
+                new Object[] { 3, "Charlie", "baz", "delta", 4000 },  // other1="delta" ends with "ta"
+                new Object[] { 4, "David", "qux", "zeta", 6000 },  // other1="zeta" ends with "ta"
+                new Object[] { 5, "Eve", "quux", "eta", 7000 },  // other1="eta" ends with "ta"
+                new Object[] { 5, "Eve", "quux", "theta", 8000 },  // other1="theta" ends with "ta"
+                new Object[] { 6, null, "corge", "iota", 9000 },  // other1="iota" ends with "ta"
+                new Object[] { 7, null, "grault", null, null },  // no match
+                new Object[] { 8, null, "garply", null, null },  // no match
+                new Object[] { 9, null, "waldo", null, null },  // no match
+                new Object[] { 10, null, "fred", null, null },  // no match
+                new Object[] { 12, null, "xyzzy", null, null },  // no match
+                new Object[] { 13, null, "thud", null, null },  // no match
+                new Object[] { 14, null, "foo2", null, null },  // no match
+                new Object[] { 15, null, "bar2", null, null },  // no match
+                new Object[] { List.of(17, 18), null, "xyz", null, null },  // no match for multi-value id
+                new Object[] { null, null, "plugh", null, null }  // no match for null id
             );
         }
     }

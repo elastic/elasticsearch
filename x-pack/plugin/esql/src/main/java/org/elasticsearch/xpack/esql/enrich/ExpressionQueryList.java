@@ -313,10 +313,11 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoin
             // The right side is the field from the lookup index
             // Check if the left side is in the matchFields
             // If it is its corresponding page is the corresponding number in inputPage
+            // Compare by attribute (equals compares by NameId) to ensure we match the same attribute instance
             Block block = null;
             DataType dataType = null;
             for (int i = 0; i < matchFields.size(); i++) {
-                if (matchFields.get(i).fieldName().equals(leftAttribute.name())) {
+                if (matchFields.get(i).fieldName().equals(leftAttribute)) {
                     block = inputPage.getBlock(i);
                     dataType = matchFields.get(i).type();
                     break;

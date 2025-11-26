@@ -696,7 +696,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                         // we do match by just name
                         // we made sure the same attribute is not on the right side with the checks above
                         for (MatchConfig matchField : lookupRequest.getMatchFields()) {
-                            if (attr.name().equals(matchField.fieldName())) {
+                            if (attr.equals(matchField.fieldName())) {
                                 builder.append(attr);
                                 allLeftFieldsToBroadcast.add(matchField);
                                 addedNameIds.add(nameId);

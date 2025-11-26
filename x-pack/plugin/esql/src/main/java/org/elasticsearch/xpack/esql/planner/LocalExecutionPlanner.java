@@ -784,7 +784,7 @@ public class LocalExecutionPlanner {
 
             // TODO: Using exactAttribute was supposed to handle TEXT fields with KEYWORD subfields - but we don't allow these in lookup
             // indices, so the call to exactAttribute looks redundant now.
-            String fieldName = right.exactAttribute().fieldName().string();
+            Attribute fieldName = right.exactAttribute();
 
             // we support 2 types of joins: Field name joins and Expression joins
             // for Field name join, we do not ship any join on expression.
@@ -798,7 +798,7 @@ public class LocalExecutionPlanner {
             // e.g. LOOKUP JOIN ON left_id < right_id_1 and left_id >= right_id_2
             // we want to be able to optimize this in the future and only ship the left_id once
             if (join.isOnJoinExpression()) {
-                fieldName = left.name();
+                fieldName = left;
             }
             matchFields.add(new MatchConfig(fieldName, input));
             matchFieldIds.add(left.id());
@@ -829,7 +829,7 @@ public class LocalExecutionPlanner {
                     // If it's in the source layout and not a right-side field, it's a left-side field
                     if (isRightSide == false) {
                         // Create MatchConfig with the left field name (since there's no corresponding right field)
-                        matchFields.add(new MatchConfig(attr.name(), input));
+                        matchFields.add(new MatchConfig(attr, input));
                         matchFieldIds.add(attr.id());
                     }
                 }

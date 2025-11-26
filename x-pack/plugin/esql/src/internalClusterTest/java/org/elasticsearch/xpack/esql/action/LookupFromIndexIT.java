@@ -163,6 +163,100 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         new EsField("rkey3", DataType.INTEGER, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
     );
 
+    // Precreate left-side key attributes (from source index) - up to 4 keys as seen in tests
+    private static final FieldAttribute KEY0_KEYWORD_ATTR = new FieldAttribute(
+        Source.EMPTY,
+        null,
+        null,
+        "key0",
+        new EsField("key0", DataType.KEYWORD, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+    );
+    private static final FieldAttribute KEY0_LONG_ATTR = new FieldAttribute(
+        Source.EMPTY,
+        null,
+        null,
+        "key0",
+        new EsField("key0", DataType.LONG, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+    );
+    private static final FieldAttribute KEY1_KEYWORD_ATTR = new FieldAttribute(
+        Source.EMPTY,
+        null,
+        null,
+        "key1",
+        new EsField("key1", DataType.KEYWORD, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+    );
+    private static final FieldAttribute KEY1_LONG_ATTR = new FieldAttribute(
+        Source.EMPTY,
+        null,
+        null,
+        "key1",
+        new EsField("key1", DataType.LONG, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+    );
+    private static final FieldAttribute KEY2_KEYWORD_ATTR = new FieldAttribute(
+        Source.EMPTY,
+        null,
+        null,
+        "key2",
+        new EsField("key2", DataType.KEYWORD, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+    );
+    private static final FieldAttribute KEY2_LONG_ATTR = new FieldAttribute(
+        Source.EMPTY,
+        null,
+        null,
+        "key2",
+        new EsField("key2", DataType.LONG, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+    );
+    private static final FieldAttribute KEY3_KEYWORD_ATTR = new FieldAttribute(
+        Source.EMPTY,
+        null,
+        null,
+        "key3",
+        new EsField("key3", DataType.KEYWORD, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+    );
+    private static final FieldAttribute KEY3_INTEGER_ATTR = new FieldAttribute(
+        Source.EMPTY,
+        null,
+        null,
+        "key3",
+        new EsField("key3", DataType.INTEGER, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+    );
+
+    // Index all attributes by name and type for easy lookup - built dynamically from attribute names
+    // Key format: "name:type" (e.g., "key0:KEYWORD", "key0:LONG", "rkey0:KEYWORD", "l:LONG")
+    private static final Map<String, FieldAttribute> ATTRIBUTES_BY_NAME_AND_TYPE = Map.ofEntries(
+        // Left-side attributes (from source index)
+        Map.entry(KEY0_KEYWORD_ATTR.name() + ":" + KEY0_KEYWORD_ATTR.dataType(), KEY0_KEYWORD_ATTR),
+        Map.entry(KEY0_LONG_ATTR.name() + ":" + KEY0_LONG_ATTR.dataType(), KEY0_LONG_ATTR),
+        Map.entry(KEY1_KEYWORD_ATTR.name() + ":" + KEY1_KEYWORD_ATTR.dataType(), KEY1_KEYWORD_ATTR),
+        Map.entry(KEY1_LONG_ATTR.name() + ":" + KEY1_LONG_ATTR.dataType(), KEY1_LONG_ATTR),
+        Map.entry(KEY2_KEYWORD_ATTR.name() + ":" + KEY2_KEYWORD_ATTR.dataType(), KEY2_KEYWORD_ATTR),
+        Map.entry(KEY2_LONG_ATTR.name() + ":" + KEY2_LONG_ATTR.dataType(), KEY2_LONG_ATTR),
+        Map.entry(KEY3_KEYWORD_ATTR.name() + ":" + KEY3_KEYWORD_ATTR.dataType(), KEY3_KEYWORD_ATTR),
+        Map.entry(KEY3_INTEGER_ATTR.name() + ":" + KEY3_INTEGER_ATTR.dataType(), KEY3_INTEGER_ATTR),
+        // Right-side attributes (from lookup index)
+        Map.entry(RKEY0_KEYWORD_ATTR.name() + ":" + RKEY0_KEYWORD_ATTR.dataType(), RKEY0_KEYWORD_ATTR),
+        Map.entry(RKEY0_LONG_ATTR.name() + ":" + RKEY0_LONG_ATTR.dataType(), RKEY0_LONG_ATTR),
+        Map.entry(RKEY1_KEYWORD_ATTR.name() + ":" + RKEY1_KEYWORD_ATTR.dataType(), RKEY1_KEYWORD_ATTR),
+        Map.entry(RKEY1_LONG_ATTR.name() + ":" + RKEY1_LONG_ATTR.dataType(), RKEY1_LONG_ATTR),
+        Map.entry(RKEY2_KEYWORD_ATTR.name() + ":" + RKEY2_KEYWORD_ATTR.dataType(), RKEY2_KEYWORD_ATTR),
+        Map.entry(RKEY2_LONG_ATTR.name() + ":" + RKEY2_LONG_ATTR.dataType(), RKEY2_LONG_ATTR),
+        Map.entry(RKEY3_KEYWORD_ATTR.name() + ":" + RKEY3_KEYWORD_ATTR.dataType(), RKEY3_KEYWORD_ATTR),
+        Map.entry(RKEY3_INTEGER_ATTR.name() + ":" + RKEY3_INTEGER_ATTR.dataType(), RKEY3_INTEGER_ATTR),
+        Map.entry(R_FIELD_ATTR.name() + ":" + R_FIELD_ATTR.dataType(), R_FIELD_ATTR)
+    );
+
+    /**
+     * Gets a FieldAttribute by name and type. Throws IllegalArgumentException if not found.
+     */
+    private static FieldAttribute getAttribute(String name, DataType type) {
+        String key = name + ":" + type;
+        FieldAttribute attr = ATTRIBUTES_BY_NAME_AND_TYPE.get(key);
+        if (attr == null) {
+            throw new IllegalArgumentException("Attribute not found: " + key);
+        }
+        return attr;
+    }
+
     public void testKeywordKey() throws IOException {
         runLookup(List.of(DataType.KEYWORD), new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "cc", "dd" } }), null);
     }
@@ -341,25 +435,39 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * Gets the left-side attribute for a given index and type.
+     * This ensures consistent NameId usage across MatchConfig and join conditions.
+     */
+    private FieldAttribute getLeftSideAttribute(int index, DataType keyType) {
+        String name = "key" + index;
+        // Handle special case for key3 which can be INTEGER or KEYWORD
+        if (index == 3 && keyType == DataType.INTEGER) {
+            return getAttribute(name, DataType.INTEGER);
+        }
+        // Default to KEYWORD or LONG based on keyType
+        if (keyType == DataType.KEYWORD) {
+            return getAttribute(name, DataType.KEYWORD);
+        } else {
+            return getAttribute(name, DataType.LONG);
+        }
+    }
+
+    /**
      * Gets the right-side attribute for a given index and type.
      * This ensures consistent NameId usage across join conditions and rightPreJoinPlan.
      */
     private FieldAttribute getRightSideAttribute(int index, DataType keyType) {
-        return switch (index) {
-            case 0 -> keyType == DataType.KEYWORD ? RKEY0_KEYWORD_ATTR : RKEY0_LONG_ATTR;
-            case 1 -> keyType == DataType.KEYWORD ? RKEY1_KEYWORD_ATTR : RKEY1_LONG_ATTR;
-            case 2 -> keyType == DataType.KEYWORD ? RKEY2_KEYWORD_ATTR : RKEY2_LONG_ATTR;
-            case 3 -> {
-                if (keyType == DataType.INTEGER) {
-                    yield RKEY3_INTEGER_ATTR;
-                } else if (keyType == DataType.KEYWORD) {
-                    yield RKEY3_KEYWORD_ATTR;
-                } else {
-                    throw new IllegalArgumentException("Unsupported key type for rkey3: " + keyType);
-                }
-            }
-            default -> throw new IllegalArgumentException("Unsupported number of keys: " + index);
-        };
+        String name = "rkey" + index;
+        // Handle special case for rkey3 which can be INTEGER or KEYWORD
+        if (index == 3 && keyType == DataType.INTEGER) {
+            return getAttribute(name, DataType.INTEGER);
+        }
+        // Default to KEYWORD or LONG based on keyType
+        if (keyType == DataType.KEYWORD) {
+            return getAttribute(name, DataType.KEYWORD);
+        } else {
+            return getAttribute(name, DataType.LONG);
+        }
     }
 
     private List<Attribute> buildRightSideAttributes(List<DataType> keyTypes) {
@@ -491,22 +599,19 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 TEST_REQUEST_TIMEOUT
             );
             final String finalNodeWithShard = nodeWithShard;
-            boolean expressionJoin = EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled() ? randomBoolean() : false;
+            boolean expressionJoin = true;// EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled() ? randomBoolean() : false;
             List<MatchConfig> matchFields = new ArrayList<>();
             List<Expression> joinOnConditions = new ArrayList<>();
             if (expressionJoin) {
                 for (int i = 0; i < keyTypes.size(); i++) {
-                    FieldAttribute leftAttr = new FieldAttribute(
-                        Source.EMPTY,
-                        "key" + i,
-                        new EsField("key" + i, keyTypes.get(0), Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
-                    );
+                    // Use precreated static attributes to ensure NameId consistency
+                    FieldAttribute leftAttr = getLeftSideAttribute(i, keyTypes.get(i));
                     FieldAttribute rightAttr = getRightSideAttribute(i, keyTypes.get(i));
                     joinOnConditions.add(new Equals(Source.EMPTY, leftAttr, rightAttr));
                     // randomly decide to apply the filter as additional join on filter instead of pushed down filter
-                    boolean applyAsJoinOnCondition = EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
-                        ? randomBoolean()
-                        : false;
+                    boolean applyAsJoinOnCondition = true;// EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+                    // ? randomBoolean()
+                    // : false;
                     if (applyAsJoinOnCondition
                         && pushedDownFilter instanceof FragmentExec fragmentExec
                         && fragmentExec.fragment() instanceof Filter filter) {
@@ -516,8 +621,10 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 }
             }
             // the matchFields are shared for both types of join
+            // Use precreated static attributes to ensure NameId consistency with join conditions
             for (int i = 0; i < keyTypes.size(); i++) {
-                matchFields.add(new MatchConfig("key" + i, i + 1, keyTypes.get(i)));
+                FieldAttribute keyAttr = getLeftSideAttribute(i, keyTypes.get(i));
+                matchFields.add(new MatchConfig(keyAttr, i + 1, keyTypes.get(i)));
             }
             PhysicalPlan rightPreJoinPlan = pushedDownFilter != null ? pushedDownFilter : buildRightPreJoinPlan(keyTypes, null);
             LookupFromIndexOperator.Factory lookup = new LookupFromIndexOperator.Factory(

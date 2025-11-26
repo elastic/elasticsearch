@@ -17,15 +17,24 @@ package org.elasticsearch.xpack.esql.enrich;
  */
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 
@@ -36,6 +45,15 @@ public class MatchConfigSerializationTests extends AbstractWireSerializingTestCa
     @Before
     public void initConfig() {
         this.config = randomConfiguration();
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        // Include NamedExpression entries so MatchConfig can serialize/deserialize NamedExpression
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.addAll(ExpressionWritables.namedExpressions());
+        entries.addAll(ExpressionWritables.attributes());
+        return new NamedWriteableRegistry(entries);
     }
 
     @Override
@@ -53,7 +71,14 @@ public class MatchConfigSerializationTests extends AbstractWireSerializingTestCa
         String name = randomAlphaOfLengthBetween(1, 100);
         int channel = randomInt();
         DataType type = randomValueOtherThanMany(t -> false == t.supportedVersion().supportedLocally(), () -> randomFrom(DataType.types()));
-        return new MatchConfig(name, channel, type);
+        FieldAttribute attribute = new FieldAttribute(
+            Source.EMPTY,
+            null,
+            null,
+            name,
+            new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        return new MatchConfig(attribute, channel, type);
     }
 
     @Override
@@ -65,8 +90,15 @@ public class MatchConfigSerializationTests extends AbstractWireSerializingTestCa
         int i = randomIntBetween(1, 3);
         return switch (i) {
             case 1 -> {
-                String name = randomValueOtherThan(instance.fieldName(), () -> randomAlphaOfLengthBetween(1, 100));
-                yield new MatchConfig(name, instance.channel(), instance.type());
+                String name = randomValueOtherThan(instance.fieldName().name(), () -> randomAlphaOfLengthBetween(1, 100));
+                FieldAttribute attribute = new FieldAttribute(
+                    Source.EMPTY,
+                    null,
+                    null,
+                    name,
+                    new EsField(name, instance.type(), Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+                );
+                yield new MatchConfig(attribute, instance.channel(), instance.type());
             }
             case 2 -> {
                 int channel = randomValueOtherThan(instance.channel(), () -> randomInt());
@@ -82,7 +114,13 @@ public class MatchConfigSerializationTests extends AbstractWireSerializingTestCa
     @Override
     protected MatchConfig copyInstance(MatchConfig instance, TransportVersion version) throws IOException {
         return copyInstance(instance, getNamedWriteableRegistry(), (out, v) -> v.writeTo(new PlanStreamOutput(out, config)), in -> {
-            PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), config);
+            // Use TestNameIdMapper to preserve NameIds during serialization/deserialization
+            PlanStreamInput pin = new PlanStreamInput(
+                in,
+                in.namedWriteableRegistry(),
+                config,
+                new SerializationTestUtils.TestNameIdMapper()
+            );
             return new MatchConfig(pin);
         }, version);
     }

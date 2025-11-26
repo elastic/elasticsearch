@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -337,13 +338,7 @@ public class EsqlCCSUtils {
                 // so that the CCS telemetry handler can recognize that this error is CCS-related
                 try {
                     groupedIndices.forEach((clusterAlias, indices) -> {
-                        executionInfo.swapCluster(clusterAlias, (k, v) -> {
-                            var indexExpr = Strings.arrayToCommaDelimitedString(indices.indices());
-                            if (v != null) {
-                                indexExpr = v.getIndexExpression() + "," + indexExpr;
-                            }
-                            return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.shouldSkipOnFailure(clusterAlias));
-                        });
+                        executionInfo.initCluster(clusterAlias, Strings.arrayToCommaDelimitedString(indices.indices()));
                     });
                 } finally {
                     executionInfo.clusterInfoInitializing(false);
@@ -360,6 +355,12 @@ public class EsqlCCSUtils {
                 throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
             }
         }
+    }
+
+    public static void initCrossClusterState(EsIndex esIndex, EsqlExecutionInfo executionInfo) {
+        esIndex.originalIndices().forEach((clusterAlias, indices) -> {
+            executionInfo.initCluster(clusterAlias, Strings.collectionToCommaDelimitedString(indices));
+        });
     }
 
     /**

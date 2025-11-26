@@ -1819,8 +1819,7 @@ public class IngestServiceTests extends ESTestCase {
         when(processor.getType()).thenReturn("mock");
         when(processor.getTag()).thenReturn("mockTag");
         doAnswer(args -> {
-            @SuppressWarnings("unchecked")
-            BiConsumer<IngestDocument, Exception> handler = (BiConsumer) args.getArguments()[1];
+            BiConsumer<IngestDocument, Exception> handler = args.getArgument(1);
             handler.accept(RandomDocumentPicks.randomIngestDocument(random()), null);
             return null;
         }).when(processor).execute(any(), any());
@@ -1835,10 +1834,8 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
-        @SuppressWarnings("unchecked")
-        TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> requestItemErrorHandler = mock(TriConsumer.class);
-        @SuppressWarnings("unchecked")
-        final ActionListener<Void> listener = mock(ActionListener.class);
+        TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> requestItemErrorHandler = mock();
+        final ActionListener<Void> listener = mock();
 
         ingestService.executeBulkRequest(
             projectId,

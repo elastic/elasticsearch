@@ -45,6 +45,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -248,6 +249,9 @@ public class S3HttpHandler implements HttpHandler {
                     if (isProtectOverwrite(exchange)) {
                         throw new AssertionError("If-None-Match: * header is not supported here");
                     }
+                    if (getRequiredExistingETag(exchange) != null) {
+                        throw new AssertionError("If-Match: * header is not supported here");
+                    }
 
                     var sourceBlob = blobs.get(copySource);
                     if (sourceBlob == null) {
@@ -406,8 +410,9 @@ public class S3HttpHandler implements HttpHandler {
      * Update the blob contents if and only if the preconditions in the request are satisfied.
      *
      * @return {@link RestStatus#OK} if the blob contents were updated, or else a different status code to indicate the error: possibly
-     *         {@link RestStatus#CONFLICT} or {@link RestStatus#PRECONDITION_FAILED} if the object exists and the precondition requires it
-     *         not to.
+     *         {@link RestStatus#CONFLICT} in any case, but if not then either  {@link RestStatus#PRECONDITION_FAILED} if the object exists
+     *         but doesn't match the specified precondition, or {@link RestStatus#NOT_FOUND} if the object doesn't exist but is required to
+     *         do so by the precondition.
      *
      * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html#conditional-error-response">AWS docs</a>
      */
@@ -416,6 +421,25 @@ public class S3HttpHandler implements HttpHandler {
             return blobs.putIfAbsent(path, newContents) == null
                 ? RestStatus.OK
                 : ESTestCase.randomFrom(RestStatus.PRECONDITION_FAILED, RestStatus.CONFLICT);
+        }
+
+        final var requireExistingETag = getRequiredExistingETag(exchange);
+        if (requireExistingETag != null) {
+            final var responseCode = new AtomicReference<>(RestStatus.OK);
+            blobs.compute(path, (ignoredPath, existingContents) -> {
+                if (existingContents != null && requireExistingETag.equals(getEtagFromContents(existingContents))) {
+                    return newContents;
+                }
+
+                responseCode.set(
+                    ESTestCase.randomFrom(
+                        existingContents == null ? RestStatus.NOT_FOUND : RestStatus.PRECONDITION_FAILED,
+                        RestStatus.CONFLICT
+                    )
+                );
+                return existingContents;
+            });
+            return responseCode.get();
         }
 
         blobs.put(path, newContents);
@@ -598,6 +622,9 @@ public class S3HttpHandler implements HttpHandler {
             return false;
         }
 
+        if (exchange.getRequestHeaders().get("If-Match") != null) {
+            throw new AssertionError("Handling both If-None-Match and If-Match headers is not supported");
+        }
         if (ifNoneMatch.size() != 1) {
             throw new AssertionError("multiple If-None-Match headers found: " + ifNoneMatch);
         }
@@ -607,6 +634,29 @@ public class S3HttpHandler implements HttpHandler {
         }
 
         throw new AssertionError("invalid If-None-Match header: " + ifNoneMatch);
+    }
+
+    @Nullable // if no If-Match header found
+    private static String getRequiredExistingETag(final HttpExchange exchange) {
+        final var ifMatch = exchange.getRequestHeaders().get("If-Match");
+
+        if (ifMatch == null) {
+            return null;
+        }
+
+        if (exchange.getRequestHeaders().get("If-None-Match") != null) {
+            throw new AssertionError("Handling both If-None-Match and If-Match headers is not supported");
+        }
+
+        final var iterator = ifMatch.iterator();
+        if (iterator.hasNext()) {
+            final var result = iterator.next();
+            if (iterator.hasNext() == false) {
+                return result;
+            }
+        }
+
+        throw new AssertionError("multiple If-Match headers found: " + ifMatch);
     }
 
     MultipartUpload putUpload(String path) {

@@ -27,6 +27,19 @@ import static org.elasticsearch.common.blobstore.RetryingInputStream.StreamActio
 import static org.elasticsearch.common.blobstore.RetryingInputStream.StreamAction.READ;
 import static org.elasticsearch.core.Strings.format;
 
+/**
+ * An {@link InputStream} that resumes downloads from the point at which they failed when a retry-able error occurs.
+ * <p>
+ * This class implements some Elasticsearch-specific retry behavior, including:
+ * <ul>
+ *     <li>Retrying indefinitely for {@link OperationPurpose#INDICES} operations</li>
+ *     <li>Not retrying at all for {@link OperationPurpose#REPOSITORY_ANALYSIS} operations</li>
+ *     <li>Extending retries if "meaningful" progress was made on the last attempt</li>
+ *     <li>More detailed logging about the status of operations being retried</li>
+ * </ul>
+ *
+ * @param <V> The type used to represent the version of a blob
+ */
 public abstract class RetryingInputStream<V> extends InputStream {
 
     private static final Logger logger = LogManager.getLogger(RetryingInputStream.class);

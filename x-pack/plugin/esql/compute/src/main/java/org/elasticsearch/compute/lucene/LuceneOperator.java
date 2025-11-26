@@ -29,10 +29,14 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +77,7 @@ public abstract class LuceneOperator extends SourceOperator {
      * Count of rows this operator has emitted.
      */
     long rowsEmitted;
+    private Map<String, QueryProfiler> profilerPerShard = new HashMap<>();
 
     protected LuceneOperator(
         IndexedByShardId<? extends RefCounted> refCounteds,
@@ -159,6 +164,15 @@ public abstract class LuceneOperator extends SourceOperator {
     LuceneScorer getCurrentOrLoadNextScorer() {
         while (currentScorer == null || currentScorer.isDone()) {
             if (currentSlice == null || sliceIndex >= currentSlice.numLeaves()) {
+
+                // Collect profiler results before moving to the next slice
+                if (currentSlice != null) {
+                    var profiler = currentSlice.shardContext().profiler();
+                    if (profiler != null) {
+                        profilerPerShard.put(currentSlice.shardContext().shardIdentifier(), profiler);
+                    }
+                }
+
                 sliceIndex = 0;
                 currentSlice = sliceQueue.nextSlice(currentSlice);
                 if (currentSlice == null) {
@@ -287,6 +301,7 @@ public abstract class LuceneOperator extends SourceOperator {
         );
 
         private static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = TransportVersion.fromName("esql_report_shard_partitioning");
+        private static final TransportVersion ESQL_LUCENE_QUERY_PROFILE = TransportVersion.fromName("esql_lucene_query_profile");
 
         private final int processedSlices;
         private final Set<String> processedQueries;
@@ -300,6 +315,7 @@ public abstract class LuceneOperator extends SourceOperator {
         private final int current;
         private final long rowsEmitted;
         private final Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies;
+        private final Map<String, List<ProfileResult>> profilePerShard;
 
         protected Status(LuceneOperator operator) {
             processedSlices = operator.processedSlices;
@@ -326,6 +342,11 @@ public abstract class LuceneOperator extends SourceOperator {
             pagesEmitted = operator.pagesEmitted;
             rowsEmitted = operator.rowsEmitted;
             partitioningStrategies = operator.sliceQueue.partitioningStrategies();
+            profilePerShard = new HashMap<>();
+            for (Map.Entry<String, QueryProfiler> profilerPerShard : operator.profilerPerShard.entrySet()) {
+                List<ProfileResult> profileResults = profilePerShard.computeIfAbsent(profilerPerShard.getKey(), k -> new ArrayList<>());
+                profileResults.addAll(profilerPerShard.getValue().getTree());
+            }
         }
 
         Status(
@@ -340,7 +361,8 @@ public abstract class LuceneOperator extends SourceOperator {
             int sliceMax,
             int current,
             long rowsEmitted,
-            Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies
+            Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies,
+            Map<String, List<ProfileResult>> profilerPerShard
         ) {
             this.processedSlices = processedSlices;
             this.processedQueries = processedQueries;
@@ -354,6 +376,7 @@ public abstract class LuceneOperator extends SourceOperator {
             this.current = current;
             this.rowsEmitted = rowsEmitted;
             this.partitioningStrategies = partitioningStrategies;
+            this.profilePerShard = profilerPerShard;
         }
 
         Status(StreamInput in) throws IOException {
@@ -375,6 +398,9 @@ public abstract class LuceneOperator extends SourceOperator {
             partitioningStrategies = serializeShardPartitioning(in.getTransportVersion())
                 ? in.readMap(LuceneSliceQueue.PartitioningStrategy::readFrom)
                 : Map.of();
+            profilePerShard = in.getTransportVersion().supports(ESQL_LUCENE_QUERY_PROFILE)
+                ? in.readImmutableMap(s -> s.readCollectionAsList(ProfileResult::new))
+                : Map.of();
         }
 
         @Override
@@ -394,6 +420,9 @@ public abstract class LuceneOperator extends SourceOperator {
             }
             if (serializeShardPartitioning(out.getTransportVersion())) {
                 out.writeMap(partitioningStrategies, StreamOutput::writeString, StreamOutput::writeWriteable);
+            }
+            if (out.getTransportVersion().supports(ESQL_LUCENE_QUERY_PROFILE)) {
+                out.writeMap(profilePerShard, StreamOutput::writeString, (o, v) -> o.writeCollection(v, (o2, pr) -> pr.writeTo(o2)));
             }
         }
 
@@ -482,6 +511,16 @@ public abstract class LuceneOperator extends SourceOperator {
             builder.field("current", current);
             builder.field("rows_emitted", rowsEmitted);
             builder.field("partitioning_strategies", new TreeMap<>(this.partitioningStrategies));
+            if (profilePerShard.isEmpty() == false) {
+                builder.startArray("query_profile");
+                for (Map.Entry<String, List<ProfileResult>> shardProfileEntry : profilePerShard.entrySet()) {
+                    for (ProfileResult result : shardProfileEntry.getValue()) {
+                        result.toXContent(builder, params);
+                    }
+                }
+
+                builder.endArray();
+            }
         }
 
         @Override
@@ -500,7 +539,8 @@ public abstract class LuceneOperator extends SourceOperator {
                 && sliceMax == status.sliceMax
                 && current == status.current
                 && rowsEmitted == status.rowsEmitted
-                && partitioningStrategies.equals(status.partitioningStrategies);
+                && partitioningStrategies.equals(status.partitioningStrategies)
+                && profilePerShard.equals(status.profilePerShard);
         }
 
         @Override
@@ -514,7 +554,8 @@ public abstract class LuceneOperator extends SourceOperator {
                 sliceMax,
                 current,
                 rowsEmitted,
-                partitioningStrategies
+                partitioningStrategies,
+                profilePerShard
             );
         }
 

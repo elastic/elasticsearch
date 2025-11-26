@@ -34,7 +34,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             99990,
             8000,
             222,
-            Map.of("b:0", LuceneSliceQueue.PartitioningStrategy.SHARD, "a:1", LuceneSliceQueue.PartitioningStrategy.DOC)
+            Map.of("b:0", LuceneSliceQueue.PartitioningStrategy.SHARD, "a:1", LuceneSliceQueue.PartitioningStrategy.DOC),
+            Map.of()
         );
     }
 
@@ -88,7 +89,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             randomNonNegativeInt(),
             randomNonNegativeInt(),
             randomNonNegativeLong(),
-            randomPartitioningStrategies()
+            randomPartitioningStrategies(),
+            Map.of()
         );
     }
 
@@ -166,7 +168,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             sliceMax,
             current,
             rowsEmitted,
-            partitioningStrategies
+            partitioningStrategies,
+            Map.of()
         );
     }
 }

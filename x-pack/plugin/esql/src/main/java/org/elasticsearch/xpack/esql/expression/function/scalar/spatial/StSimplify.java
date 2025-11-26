@@ -45,7 +45,7 @@ public class StSimplify extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = { "geo_point", "geo_shape", "cartesian_point", "cartesian_shape" },
-        description = "Simplifies he input geometry by applying the Douglas-Peucker algorithm with a specified tolerance. "
+        description = "Simplifies the input geometry by applying the Douglas-Peucker algorithm with a specified tolerance. "
             + "Vertices that fall within the tolerance distance from the simplified shape are removed. "
             + "Note that the resulting geometry may be invalid, even if the original input was valid.",
         preview = true,
@@ -60,7 +60,11 @@ public class StSimplify extends EsqlScalarFunction {
             description = "Expression of type `geo_point`, `geo_shape`, `cartesian_point` or `cartesian_shape`. "
                 + "If `null`, the function returns `null`."
         ) Expression geometry,
-        @Param(name = "tolerance", type = { "double" }, description = "Tolerance for the geometry simplification") Expression tolerance
+        @Param(
+            name = "tolerance",
+            type = { "double" },
+            description = "Tolerance for the geometry simplification, in the units of the input SRS"
+        ) Expression tolerance
     ) {
         super(source, List.of(geometry, tolerance));
         this.geometry = geometry;

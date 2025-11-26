@@ -128,7 +128,7 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
                 "purpose",
                 purpose.getKey(),
                 "action",
-                action.toString()
+                action.getPastTense()
             );
         }
     }

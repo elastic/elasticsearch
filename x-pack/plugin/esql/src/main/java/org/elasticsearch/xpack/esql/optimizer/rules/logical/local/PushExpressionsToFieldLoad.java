@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
@@ -102,7 +103,7 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
             if (addedAttrs.isEmpty()) {
                 return plan;
             }
-            if (plan instanceof EsqlProject project) {
+            if (plan instanceof Project project) {
                 return transformProject(project);
             }
             if (plan instanceof EsRelation rel) {
@@ -145,7 +146,7 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
             return replaceFieldsForFieldTransformations(e, fuse);
         }
 
-        private LogicalPlan transformProject(EsqlProject project) {
+        private LogicalPlan transformProject(Project project) {
             // Preserve any pushed attributes so we can use them later
             List<NamedExpression> projections = new ArrayList<>(project.projections());
             projections.addAll(addedAttrs.values());

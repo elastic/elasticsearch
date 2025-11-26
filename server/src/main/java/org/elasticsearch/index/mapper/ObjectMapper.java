@@ -196,9 +196,6 @@ public class ObjectMapper extends Mapper {
                 if (parentBuilder != null) {
                     parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
                     add(parentBuilder);
-                } else if (subobjects.value() == Subobjects.AUTO) {
-                    // No matching parent object was found, the mapper is added as a leaf - similar to subobjects false.
-                    add(name, mapper);
                 } else {
                     // Expected to find a matching parent object but got null.
                     throw new IllegalStateException("Missing intermediate object " + immediateChildFullName);

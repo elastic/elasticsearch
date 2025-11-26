@@ -22,9 +22,9 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.INPUT_TYPE_FIELD_NAME;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.TRUNCATE_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaService.VALID_INPUT_TYPE_VALUES;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceFields.INPUT_TYPE_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceFields.TRUNCATE_FIELD_NAME;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 

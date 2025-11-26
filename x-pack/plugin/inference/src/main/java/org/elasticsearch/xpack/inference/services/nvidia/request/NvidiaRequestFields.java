@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.nvidia;
+package org.elasticsearch.xpack.inference.services.nvidia.request;
 
 /**
  * Class containing field names used in Nvidia inference service requests.
@@ -13,15 +13,14 @@ package org.elasticsearch.xpack.inference.services.nvidia;
 public final class NvidiaRequestFields {
     // Common field names
     public static final String MODEL_FIELD_NAME = "model";
-    // Field name for embeddings task
+    // Field name for embeddings requests
     public static final String INPUT_FIELD_NAME = "input";
-    // Field names for rerank task
+    public static final String INPUT_TYPE_FIELD_NAME = "input_type";
+    public static final String TRUNCATE_FIELD_NAME = "truncate";
+    // Field names for rerank requests
     public static final String QUERY_FIELD_NAME = "query";
     public static final String PASSAGES_FIELD_NAME = "passages";
     public static final String TEXT_FIELD_NAME = "text";
-    // Field names for embeddings task settings
-    public static final String INPUT_TYPE_FIELD_NAME = "input_type";
-    public static final String TRUNCATE_FIELD_NAME = "truncate";
 
     /**
      * Private constructor to prevent instantiation of this utility class.

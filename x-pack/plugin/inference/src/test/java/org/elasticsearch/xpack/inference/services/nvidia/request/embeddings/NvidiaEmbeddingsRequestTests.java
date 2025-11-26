@@ -24,10 +24,10 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.INPUT_FIELD_NAME;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.INPUT_TYPE_FIELD_NAME;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.MODEL_FIELD_NAME;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.TRUNCATE_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.INPUT_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.INPUT_TYPE_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.MODEL_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.TRUNCATE_FIELD_NAME;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;

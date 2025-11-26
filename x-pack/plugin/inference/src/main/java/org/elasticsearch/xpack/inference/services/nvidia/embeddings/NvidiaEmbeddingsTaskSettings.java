@@ -26,9 +26,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.INPUT_TYPE_FIELD_NAME;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.TRUNCATE_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaService.VALID_INPUT_TYPE_VALUES;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceFields.INPUT_TYPE_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceFields.TRUNCATE_FIELD_NAME;
 
 /**
  * Defines the task settings for the Nvidia text embeddings service.

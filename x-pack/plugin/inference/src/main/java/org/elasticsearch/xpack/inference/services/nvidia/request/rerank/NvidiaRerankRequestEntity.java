@@ -14,10 +14,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.MODEL_FIELD_NAME;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.PASSAGES_FIELD_NAME;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.QUERY_FIELD_NAME;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.TEXT_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.MODEL_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.PASSAGES_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.QUERY_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.TEXT_FIELD_NAME;
 
 /**
  * Entity representing the request body for Nvidia rerank requests.

@@ -20,10 +20,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.MODEL_FIELD_NAME;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.PASSAGES_FIELD_NAME;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.QUERY_FIELD_NAME;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.TEXT_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.MODEL_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.PASSAGES_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.QUERY_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.TEXT_FIELD_NAME;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;

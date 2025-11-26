@@ -18,10 +18,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.INPUT_FIELD_NAME;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.INPUT_TYPE_FIELD_NAME;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.MODEL_FIELD_NAME;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.TRUNCATE_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.INPUT_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.INPUT_TYPE_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.MODEL_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.TRUNCATE_FIELD_NAME;
 
 /**
  * NvidiaEmbeddingsRequestEntity is responsible for creating the request entity for Nvidia embeddings.

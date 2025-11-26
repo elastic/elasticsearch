@@ -1689,6 +1689,11 @@ public class EsqlCapabilities {
         TIME_SERIES_WINDOW_V1,
 
         /**
+         * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
+         */
+        LIKE_PARAMETER_SUPPORT,
+
+        /**
          * PromQL support in ESQL, before it is released into tech preview.
          * When implementing new functionality or breaking changes,
          * we'll simply increment the version suffix at the end to prevent bwc tests from running.

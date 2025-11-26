@@ -83,8 +83,10 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
 
     private static final ObjectParser<OpenPointInTimeRequest, Void> PARSER = new ObjectParser<>("open_point_in_time_request");
     private static final ParseField INDEX_FILTER_FIELD = new ParseField("index_filter");
+    private static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
     static {
         PARSER.declareObject(OpenPointInTimeRequest::indexFilter, (p, c) -> parseTopLevelQuery(p), INDEX_FILTER_FIELD);
+        PARSER.declareString(OpenPointInTimeRequest::projectRouting, PROJECT_ROUTING);
     }
 }

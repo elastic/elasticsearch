@@ -10,22 +10,35 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
-final class StringBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData {
+public final class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
+    private final BinaryDocValues values;
+    private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
 
-    protected final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
-
-    StringBinaryDVLeafFieldData(BinaryDocValues values, ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory) {
-        super(values);
-
+    MultiValuedBinaryDVLeafFieldData(BinaryDocValues values, ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory) {
+        super();
+        this.values = values;
         this.toScriptFieldFactory = toScriptFieldFactory;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return 0; // not exposed by Lucene
+    }
+
+    @Override
+    public SortedBinaryDocValues getBytesValues() {
+        return new MultiValuedSortedBinaryDocValues(values);
     }
 
     @Override
     public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
         return toScriptFieldFactory.getScriptFieldFactory(getBytesValues(), name);
     }
+
 }

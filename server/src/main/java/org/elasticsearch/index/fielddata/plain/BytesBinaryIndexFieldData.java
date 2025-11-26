@@ -28,7 +28,7 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 
-public class BytesBinaryIndexFieldData implements IndexFieldData<BytesBinaryDVLeafFieldData> {
+public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBinaryDVLeafFieldData> {
 
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
@@ -74,16 +74,16 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<BytesBinaryDVLe
     }
 
     @Override
-    public BytesBinaryDVLeafFieldData load(LeafReaderContext context) {
+    public MultiValuedBinaryDVLeafFieldData load(LeafReaderContext context) {
         try {
-            return new BytesBinaryDVLeafFieldData(DocValues.getBinary(context.reader(), fieldName), toScriptFieldFactory);
+            return new MultiValuedBinaryDVLeafFieldData(DocValues.getBinary(context.reader(), fieldName), toScriptFieldFactory);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }
     }
 
     @Override
-    public BytesBinaryDVLeafFieldData loadDirect(LeafReaderContext context) {
+    public MultiValuedBinaryDVLeafFieldData loadDirect(LeafReaderContext context) {
         return load(context);
     }
 

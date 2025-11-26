@@ -1927,7 +1927,8 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // Eval[[$$dense_vector$V_DOT_PRODUCT$1451583510{f$}#1110 AS score#1085]]
         var eval = as(topN.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
-        var scoreAlias = eval.fields().stream()
+        var scoreAlias = eval.fields()
+            .stream()
             .filter(f -> f.name().equals("score"))
             .findFirst()
             .orElseThrow(() -> new AssertionError("Field 'score' not found in eval"));

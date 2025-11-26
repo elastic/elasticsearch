@@ -407,13 +407,13 @@ public final class CsvTestUtils {
                         // split on commas but ignoring escaped commas
                         String[] multiValues = value.substring(1, value.length() - 1).split(COMMA_ESCAPING_REGEX);
                         if (multiValues.length == 1) {
-                            rowValues.add(convert(multiValues[0].replace(ESCAPED_COMMA_SEQUENCE, ","), columnTypes.get(i)));
+                            rowValues.add(columnTypes.get(i).convert(multiValues[0].replace(ESCAPED_COMMA_SEQUENCE, ",")));
                             continue;
                         }
                         List<Object> listOfMvValues = new ArrayList<>();
                         for (String mvValue : multiValues) {
                             try {
-                                listOfMvValues.add(convert(mvValue.trim().replace(ESCAPED_COMMA_SEQUENCE, ","), columnTypes.get(i)));
+                                listOfMvValues.add(columnTypes.get(i).convert(mvValue.trim().replace(ESCAPED_COMMA_SEQUENCE, ",")));
                             } catch (IllegalArgumentException e) {
                                 throw new IllegalArgumentException(
                                     "Error parsing multi-value field ["
@@ -431,7 +431,7 @@ public final class CsvTestUtils {
                     } else {
                         // The value considered here is the one where any potential escaped comma is kept as is (with the escape char)
                         // TODO if we'd want escaped commas outside multi-values fields, we'd have to adjust this value here as well
-                        rowValues.add(convert(value, columnTypes.get(i)));
+                        rowValues.add(columnTypes.get(i).convert(value));
                     }
                 }
                 values.add(rowValues);
@@ -441,17 +441,6 @@ public final class CsvTestUtils {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private static Object convert(String value, Type type) {
-        if (Number.class.isAssignableFrom(type.clazz()) && value.startsWith("<") && value.endsWith(">") && value.contains("-")) {
-            // Numbers of the form "<lower-upper>" are parsed to a Range.
-            int separator = value.indexOf('-');
-            Object lowerBound = type.converter.apply(value.substring(1, separator).trim());
-            Object upperBound = type.converter.apply(value.substring(separator + 1, value.length() - 1).trim());
-            return new Range(lowerBound, upperBound);
-        }
-        return type.converter.apply(value);
     }
 
     private static final String TYPECAST_SPACER = "__TYPECAST__";
@@ -635,7 +624,15 @@ public final class CsvTestUtils {
             if (value == null) {
                 return null;
             }
-            return converter.apply(value);
+            if (Number.class.isAssignableFrom(clazz) && value.startsWith("<") && value.endsWith(">") && value.contains("-")) {
+                // Numbers of the form "<lower-upper>" are parsed to a Range.
+                int separator = value.indexOf('-');
+                Object lowerBound = converter.apply(value.substring(1, separator).trim());
+                Object upperBound = converter.apply(value.substring(separator + 1, value.length() - 1).trim());
+                return new Range(lowerBound, upperBound);
+            } else {
+                return converter.apply(value);
+            }
         }
 
         Class<?> clazz() {

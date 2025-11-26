@@ -17,6 +17,7 @@ import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.ServiceOptions;
 import com.google.cloud.http.HttpTransportOptions;
+import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import com.sun.net.httpserver.HttpExchange;
@@ -61,6 +62,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.threeten.bp.Duration;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
@@ -223,7 +225,44 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             randomIntBetween(1, 8) * 1024,
             BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(1), 3, TimeValue.timeValueSeconds(1)),
             new GcsRepositoryStatsCollector()
-        );
+        ) {
+
+            @Override
+            InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
+                return new GoogleCloudStorageRetryingInputStream(this, purpose, BlobId.of(bucketName, blobName)) {
+                    @Override
+                    protected long getRetryDelayInMillis() {
+                        return 10L;
+                    }
+                };
+            }
+
+            @Override
+            InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+                if (position < 0L) {
+                    throw new IllegalArgumentException("position must be non-negative");
+                }
+                if (length < 0) {
+                    throw new IllegalArgumentException("length must be non-negative");
+                }
+                if (length == 0) {
+                    return new ByteArrayInputStream(new byte[0]);
+                } else {
+                    return new GoogleCloudStorageRetryingInputStream(
+                        this,
+                        purpose,
+                        BlobId.of(bucketName, blobName),
+                        position,
+                        Math.addExact(position, length - 1)
+                    ) {
+                        @Override
+                        protected long getRetryDelayInMillis() {
+                            return 10L;
+                        }
+                    };
+                }
+            }
+        };
 
         return new GoogleCloudStorageBlobContainer(
             Objects.requireNonNullElse(blobContainerPath, randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo")),

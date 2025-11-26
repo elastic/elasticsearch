@@ -108,7 +108,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     @Nullable // for cluster level object store in MP
     private final ProjectId projectId;
-    private final String bucketName;
+    protected final String bucketName;
     private final String clientName;
     private final String repositoryName;
     private final GoogleCloudStorageService storageService;

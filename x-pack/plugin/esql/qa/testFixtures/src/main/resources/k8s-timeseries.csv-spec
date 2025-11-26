@@ -132,6 +132,17 @@ max(rate(network.total_bytes_in)): double | time_bucket:date
 23.702205882352942                        | 2024-05-10T00:15:00.000Z
 ;
 
+oneRateWithPromql
+required_capability: promql_pre_tech_preview_v1
+TS k8s
+| PROMQL step 5m (max(rate(network.total_bytes_in[5m])))
+| SORT step DESC | LIMIT 2;
+
+max(rate(network.total_bytes_in[5m])):double | step:date
+6.980660660660663                            | 2024-05-10T00:20:00.000Z
+23.702205882352942                           | 2024-05-10T00:15:00.000Z
+;
+
 oneRateWithSingleTBucket
 required_capability: ts_command_v0
 required_capability: tbucket
@@ -142,12 +153,12 @@ max(rate(network.total_bytes_in)): double | time_bucket:date
 4.379885057471264                         | 2024-05-10T00:00:00.000Z
 ;
 
-oneRateWithSingleTBucketPromql
-required_capability: promql_v0
+oneRateWithSingleStepPromql
+required_capability: promql_pre_tech_preview_v1
 TS k8s
 | PROMQL step 1h (max(rate(network.total_bytes_in[1h])));
 
-max(rate(network.total_bytes_in[1h])):double | TBUCKET:date
+max(rate(network.total_bytes_in[1h])):double | step:date
 4.379885057471264                            | 2024-05-10T00:00:00.000Z
 ;
 

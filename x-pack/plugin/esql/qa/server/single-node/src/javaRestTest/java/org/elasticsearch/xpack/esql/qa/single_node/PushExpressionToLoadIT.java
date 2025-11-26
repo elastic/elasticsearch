@@ -47,6 +47,7 @@ import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.fixTypesOnP
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -54,8 +55,9 @@ import static org.hamcrest.Matchers.startsWith;
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class PushExpressionToLoadIT extends ESRestTestCase {
+
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
+    public static ElasticsearchCluster cluster = Clusters.testCluster();
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
@@ -369,6 +371,33 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     // Tests for more complex shapes.
     //
 
+    public void testLengthPushedWithTopN() throws IOException {
+        String textValue = "v".repeat(between(0, 256));
+        Integer orderingValue = randomInt();
+        test(b -> {
+            b.startObject("test").field("type", "keyword").endObject();
+            b.startObject("ordering").field("type", "integer").endObject();
+        },
+            b -> b.field("test", textValue).field("ordering", orderingValue),
+            """
+                FROM test
+                | EVAL fieldLength = LENGTH(test)
+                | SORT fieldLength DESC
+                | LIMIT 10
+                | KEEP test
+                """,
+            matchesList().item(textValue),
+            Map.of(
+                "data",
+                List.of(
+                    matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
+                    matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1)
+                )
+            ),
+            sig -> {}
+        );
+    }
+
     /**
      * Tests {@code LENGTH} on a field that comes from a {@code LOOKUP JOIN}.
      */
@@ -639,23 +668,25 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         MapMatcher expectedLoaders,
         Consumer<List<String>> assertDataNodeSig
     ) throws IOException {
-        indexValue(mapping, doc);
-        RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query("""
+
+        test(mapping, doc, """
             FROM test
             """ + eval + """
             | STATS test = MV_SORT(VALUES(test))
-            """);
-        /*
-         * TODO if you just do KEEP test then the load is in the data node reduce driver and not merged:
-         *  \_ProjectExec[[test{f}#7]]
-         *    \_FieldExtractExec[test{f}#7]<[],[]>
-         *      \_EsQueryExec[test], indexMode[standard]]
-         *  \_ExchangeSourceExec[[test{f}#7],false]}, {cluster_name=test-cluster, node_name=test-cluster-0, descrip
-         *  \_ProjectExec[[test{r}#3]]
-         *    \_EvalExec[[LENGTH(test{f}#7) AS test#3]]
-         *      \_LimitExec[1000[INTEGER],50]
-         *        \_ExchangeSourceExec[[test{f}#7],false]}], query={to
-         */
+            """, expectedValue, expectedLoaders == null ? Map.of() : Map.of("data", List.of(expectedLoaders)), assertDataNodeSig);
+    }
+
+    private void test(
+        CheckedConsumer<XContentBuilder, IOException> mapping,
+        CheckedConsumer<XContentBuilder, IOException> doc,
+        String query,
+        Matcher<?> expectedValue,
+        Map<String, List<MapMatcher>> expectedLoadersPerDriver,
+        Consumer<List<String>> assertDataNodeSig
+    ) throws IOException {
+        indexValue(mapping, doc);
+        RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(query);
+
         builder.profile(true);
         Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
 
@@ -677,14 +708,13 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         for (Map<String, Object> p : profiles) {
             fixTypesOnProfile(p);
             assertThat(p, commonProfile());
-            List<String> sig = new ArrayList<>();
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
-            for (Map<String, Object> o : operators) {
-                sig.add(checkOperatorProfile(o, expectedLoaders));
-            }
-            String description = p.get("description").toString();
-            switch (description) {
+
+            String driverDescription = (String) p.get("description");
+            List<MapMatcher> mapMatcher = expectedLoadersPerDriver.get(driverDescription);
+            List<String> sig = checkOperatorProfile(driverDescription, operators, mapMatcher);
+            switch (driverDescription) {
                 case "data" -> {
                     logger.info("data {}", sig);
                     assertDataNodeSig.accept(sig);
@@ -694,7 +724,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 case "main.final" -> logger.info("main final {}", sig);
                 case "subplan-0.final" -> logger.info("subplan-0 final {}", sig);
                 case "subplan-1.final" -> logger.info("subplan-1 final {}", sig);
-                default -> throw new IllegalArgumentException("can't match " + description);
+                default -> throw new IllegalArgumentException("can't match " + driverDescription);
             }
         }
     }
@@ -793,48 +823,38 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     }
 
     private CheckedConsumer<XContentBuilder, IOException> justType(String type) {
-        return b -> b.startObject("test").field("type", type).endObject();
+        return justType("test", type);
     }
 
-    private static String checkOperatorProfile(Map<String, Object> o, MapMatcher expectedLoaders) {
-        String name = (String) o.get("operator");
-        name = PushQueriesIT.TO_NAME.matcher(name).replaceAll("");
-        if (name.equals("ValuesSourceReaderOperator")) {
-            MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name))
-                .entry("status", matchesMap().entry("readers_built", expectedLoaders).extraOk());
-            assertMap(o, expectedOp);
+    private CheckedConsumer<XContentBuilder, IOException> justType(String fieldName, String type) {
+        return b -> b.startObject(fieldName).field("type", type).endObject();
+    }
+
+    private static List<String> checkOperatorProfile(
+        String driverDesc,
+        List<Map<String, Object>> operators,
+        List<MapMatcher> expectedLoaders
+    ) {
+        List<String> sig = new ArrayList<>();
+        int expectedLoadersIdx = 0;
+        for (Map<String, Object> operator : operators) {
+            String name = (String) operator.get("operator");
+            name = PushQueriesIT.TO_NAME.matcher(name).replaceAll("");
+            if (name.equals("ValuesSourceReaderOperator")) {
+                assertNotNull("Expected loaders to match the ValuesSourceReaderOperator for driver " + driverDesc, expectedLoaders);
+                assertThat("Unexpected ValuesSourceReaderOperator", expectedLoadersIdx, lessThan(expectedLoaders.size()));
+                MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name))
+                    .entry("status", matchesMap().entry("readers_built", expectedLoaders.get(expectedLoadersIdx++)).extraOk());
+                assertMap("Error checking values loaded for driver " + driverDesc + "; ", operator, expectedOp);
+            }
+            sig.add(name);
         }
-        return name;
+
+        return sig;
     }
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
-    }
-
-    @Override
-    protected boolean preserveClusterUponCompletion() {
-        // Preserve the cluser to speed up the semantic_text tests
-        return true;
-    }
-
-    private static boolean setupEmbeddings = false;
-
-    private void setUpTextEmbeddingInferenceEndpoint() throws IOException {
-        setupEmbeddings = true;
-        Request request = new Request("PUT", "_inference/text_embedding/test");
-        request.setJsonEntity("""
-                  {
-                   "service": "text_embedding_test_service",
-                   "service_settings": {
-                     "model": "my_model",
-                     "api_key": "abc64",
-                     "dimensions": 128
-                   },
-                   "task_settings": {
-                   }
-                 }
-            """);
-        adminClient().performRequest(request);
     }
 }

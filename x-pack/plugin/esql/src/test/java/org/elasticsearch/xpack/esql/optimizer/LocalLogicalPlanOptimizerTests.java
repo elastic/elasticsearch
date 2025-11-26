@@ -1905,7 +1905,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var query = String.format(Locale.ROOT, """
                 FROM test_all
                 | EVAL score = V_DOT_PRODUCT(dense_vector, [1.0, 2.0, 3.0])
-                | SORT score DESC
+                | SORT integer DESC
                 | LIMIT 10
                 | KEEP text, score
             """);

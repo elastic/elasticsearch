@@ -7,7 +7,7 @@ mapped_pages:
 # Elastic GraphQL connector reference [es-connectors-graphql]
 
 
-The Elastic GraphQL connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main). View the [source code for this connector](https://github.com/elastic/connectors/blob/main/connectors/sources/graphql.py).
+The Elastic GraphQL connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main). View the [source code for this connector](https://github.com/elastic/connectors/blob/main/app/connectors_service/connectors/sources/graphql).
 
 
 ## Availability and prerequisites [es-connectors-graphql-connector-availability-and-prerequisites]

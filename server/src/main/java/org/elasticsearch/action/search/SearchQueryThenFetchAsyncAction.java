@@ -403,7 +403,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 new ShardId(in),
                 in.readOptionalWriteable(ShardSearchContextId::new),
                 in.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)
-                    ? SplitShardCountSummary.fromInt(in.readVInt())
+                    ? new SplitShardCountSummary(in)
                     : SplitShardCountSummary.UNSET
             );
         }
@@ -416,7 +416,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             shardId.writeTo(out);
             out.writeOptionalWriteable(contextId);
             if (out.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
-                out.writeVInt(reshardSplitShardCountSummary.asInt());
+                reshardSplitShardCountSummary.writeTo(out);
             }
         }
     }
@@ -498,7 +498,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             shardIndex,
                             routing.getShardId(),
                             shardRoutings.getSearchContextId(),
-                            shardRoutings.getReshardSplitShardCountSummary()
+                            shardRoutings.getSplitShardCountSummary()
                         )
                     );
                     var filterForAlias = aliasFilter.getOrDefault(indexUUID, AliasFilter.EMPTY);

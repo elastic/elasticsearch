@@ -18,6 +18,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -61,7 +62,6 @@ public class BasicQueryClient implements QueryClient {
         SearchSourceBuilder searchSource = request.searchSource();
         // set query timeout
         searchSource.timeout(cfg.requestTimeout());
-
         SearchRequest search = prepareRequest(searchSource, false, allowPartialSearchResults, indices);
         search(search, allowPartialSearchResults, searchLogListener(listener, log, allowPartialSearchResults));
     }
@@ -76,6 +76,9 @@ public class BasicQueryClient implements QueryClient {
             log.trace("About to execute query {} on {}", StringUtils.toString(search.source()), indices);
         }
 
+        if (cfg.crossProjectEnabled()) {
+            search.indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(search.indicesOptions()));
+        }
         client.search(search, listener);
     }
 
@@ -92,7 +95,9 @@ public class BasicQueryClient implements QueryClient {
             }
             log.trace("About to execute multi-queries {} on {}", sj, indices);
         }
-
+        if (cfg.crossProjectEnabled()) {
+            search.indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(search.indicesOptions()));
+        }
         client.multiSearch(search, multiSearchLogListener(listener, allowPartialSearchResults, log));
     }
 

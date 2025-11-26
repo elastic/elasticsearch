@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG;
+
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
  * and {@link RestEsqlAsyncQueryAction} APIs. These are exposed over the
@@ -313,6 +315,16 @@ public class EsqlCapabilities {
         AGG_TOP_WITH_OPTIONAL_ORDER_FIELD,
 
         /**
+         * Support for the extra "map" field in {@code TOP} aggregation.
+         */
+        AGG_TOP_WITH_OUTPUT_FIELD,
+
+        /**
+         * Fix for a bug when surrogating a {@code TOP}  with limit 1 and output field.
+         */
+        FIX_AGG_TOP_WITH_OUTPUT_FIELD_SURROGATE,
+
+        /**
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,
@@ -548,6 +560,11 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/108008
          */
         FIXED_PUSHDOWN_PAST_PROJECT,
+
+        /**
+         * When resolving renames, consider all {@code Attribute}s in the plan, not just the {@code ReferenceAttribute}s.
+         */
+        FIXED_PUSHDOWN_PAST_PROJECT_WITH_ATTRIBUTES_RESOLUTION,
 
         /**
          * Adds the {@code MV_PSERIES_WEIGHTED_SUM} function for converting sorted lists of numbers into
@@ -1026,6 +1043,10 @@ public class EsqlCapabilities {
          */
         @Deprecated
         METRICS_COMMAND(Build.current().isSnapshot()),
+        /**
+         * Enables automatically grouping by all dimension fields in TS mode queries
+         */
+        METRICS_GROUP_BY_ALL(),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -1077,6 +1098,11 @@ public class EsqlCapabilities {
         FORK_UNION_TYPES,
 
         /**
+         * Support non-correlated subqueries in the FROM clause.
+         */
+        SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code leading_zeros} named parameter.
          */
         TO_IP_LEADING_ZEROS,
@@ -1113,7 +1139,7 @@ public class EsqlCapabilities {
         /**
          * score function
          */
-        SCORE_FUNCTION(Build.current().isSnapshot()),
+        SCORE_FUNCTION,
 
         /**
          * Support for the SAMPLE command
@@ -1135,6 +1161,7 @@ public class EsqlCapabilities {
          */
         INCREASE,
         DELTA_TS_AGG,
+        CLAMP_FUNCTIONS,
 
         /**
          * Resolve groupings before resolving references to groupings in the aggregations.
@@ -1274,7 +1301,17 @@ public class EsqlCapabilities {
         /**
          * Support for the SET command.
          */
-        SET_COMMAND(Build.current().isSnapshot()),
+        SET_COMMAND,
+
+        /**
+         * Support timezones in DATE_TRUNC and dependent functions.
+         */
+        DATE_TRUNC_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+
+        /**
+         * Support timezones in DATE_DIFF.
+         */
+        DATE_DIFF_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
 
         /**
          * (Re)Added EXPLAIN command
@@ -1338,7 +1375,7 @@ public class EsqlCapabilities {
         /**
          * Decay function for custom scoring
          */
-        DECAY_FUNCTION(Build.current().isSnapshot()),
+        DECAY_FUNCTION,
 
         /**
          * FIRST and LAST aggregate functions.
@@ -1405,7 +1442,15 @@ public class EsqlCapabilities {
          * Allow lookup join on boolean expressions
          */
         LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION,
-
+        /**
+         * Lookup join with Full Text Function or other Lucene Pushable condition
+         * to be applied to the lookup index used
+         */
+        LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION,
+        /**
+         * Bugfix for lookup join with Full Text Function
+         */
+        LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION_BUGFIX,
         /**
          * FORK with remote indices
          */
@@ -1452,12 +1497,22 @@ public class EsqlCapabilities {
         TS_COMMAND_V0(),
 
         /**
+         * Custom error for renamed timestamp
+         */
+        TS_RENAME_TIMESTAMP_ERROR_MESSAGE,
+        /**
          * Add support for counter doubles, ints, and longs in first_ and last_over_time
          */
         FIRST_LAST_OVER_TIME_COUNTER_SUPPORT,
 
         FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES,
 
+        /**
+         * Percentile over time and other ts-aggregations
+         */
+        PERCENTILE_OVER_TIME,
+        VARIANCE_STDDEV_OVER_TIME,
+        TS_LINREG_DERIVATIVE,
         /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011
@@ -1467,6 +1522,8 @@ public class EsqlCapabilities {
         INLINE_STATS_FIX_OPTIMIZED_AS_LOCAL_RELATION(INLINESTATS_V11.enabled),
 
         DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS,
+
+        DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_VERSION,
 
         /**
          * FUSE L2_NORM score normalization support
@@ -1479,6 +1536,12 @@ public class EsqlCapabilities {
         METADATA_TSID_FIELD,
 
         /**
+         * Permit the data type of a field changing from TEXT to KEYWORD
+         * when being grouped on in aggregations on the TS command.
+         */
+        TS_PERMIT_TEXT_BECOMING_KEYWORD_WHEN_GROUPED_ON,
+
+        /**
          * Fix management of plans with no columns
          * https://github.com/elastic/elasticsearch/issues/120272
          */
@@ -1487,7 +1550,165 @@ public class EsqlCapabilities {
         /**
          * Support for dots in FUSE attributes
          */
-        DOTS_IN_FUSE;
+        DOTS_IN_FUSE,
+
+        /**
+         * Network direction function.
+         */
+        NETWORK_DIRECTION(Build.current().isSnapshot()),
+
+        /**
+         * Support for the literal {@code m} suffix as an alias for {@code minute} in temporal amounts.
+        */
+        TEMPORAL_AMOUNT_M,
+
+        /**
+         * Pack dimension values in TS command
+         */
+        PACK_DIMENSIONS_IN_TS,
+
+        /**
+         * Support for exponential_histogram type, before it is released into tech preview.
+         * When implementing changes on this type, we'll simply increment the version suffix at the end to prevent bwc tests from running.
+         * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
+         */
+        EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V4(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+
+        /**
+         * Create new block when filtering OrdinalBytesRefBlock
+         */
+        FIX_FILTER_ORDINALS,
+
+        /**
+         * "time_zone" parameter in request body and in {@code SET "time_zone"="x"}
+         */
+        GLOBAL_TIMEZONE_PARAMETER(Build.current().isSnapshot()),
+
+        /**
+         * Optional options argument for DATE_PARSE
+         */
+        DATE_PARSE_OPTIONS,
+
+        /**
+         * Allow multiple patterns for GROK command
+         */
+        GROK_MULTI_PATTERN,
+
+        /**
+         * Fix pruning of columns when shadowed in INLINE STATS
+         */
+        INLINE_STATS_PRUNE_COLUMN_FIX(INLINESTATS.enabled),
+
+        /**
+         * Fix double release in inline stats when LocalRelation is reused
+         */
+        INLINE_STATS_DOUBLE_RELEASE_FIX(INLINESTATS_V11.enabled),
+
+        /**
+         * Support for pushing down EVAL with SCORE
+         * https://github.com/elastic/elasticsearch/issues/133462
+         */
+        PUSHING_DOWN_EVAL_WITH_SCORE,
+
+        /**
+         * Fix for ClassCastException in STATS
+         * https://github.com/elastic/elasticsearch/issues/133992
+         * https://github.com/elastic/elasticsearch/issues/136598
+         */
+        FIX_STATS_CLASSCAST_EXCEPTION,
+
+        /**
+         * Fix attribute equality to respect the name id of the attribute.
+         */
+        ATTRIBUTE_EQUALS_RESPECTS_NAME_ID,
+
+        /**
+         * Fix for lookup join filter pushdown not using semantic equality.
+         * This prevents duplicate filters from being pushed down when they are semantically equivalent, causing an infinite loop where
+         * BooleanSimplification will simplify the original and duplicate filters, so they'll be pushed down again...
+         */
+        LOOKUP_JOIN_SEMANTIC_FILTER_DEDUP,
+
+        /**
+         * Temporarily forbid the use of an explicit or implicit LIMIT before INLINE STATS.
+         */
+        FORBID_LIMIT_BEFORE_INLINE_STATS(INLINE_STATS.enabled),
+
+        /**
+         * Catch-and-rethrow determinization complexity errors as 400s rather than 500s
+         */
+        HANDLE_DETERMINIZATION_COMPLEXITY,
+
+        /**
+         * Support for the TRANGE function
+         */
+        FN_TRANGE,
+
+        /**
+         * https://github.com/elastic/elasticsearch/issues/136851
+         */
+        INLINE_STATS_WITH_NO_COLUMNS(INLINE_STATS.enabled),
+
+        FIX_MV_CONSTANT_EQUALS_FIELD,
+
+        /**
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject} did not fully account for shadowing.
+         * https://github.com/elastic/elasticsearch/issues/137019.
+         */
+        FIX_REPLACE_ALIASING_EVAL_WITH_PROJECT_SHADOWING,
+
+        /**
+         * Chunk function.
+         */
+        CHUNK_FUNCTION_V2(Build.current().isSnapshot()),
+
+        /**
+         * Support for vector similarity functtions pushdown
+         */
+        VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN(Build.current().isSnapshot()),
+
+        FIX_MV_CONSTANT_COMPARISON_FIELD,
+
+        FULL_TEXT_FUNCTIONS_ACCEPT_NULL_FIELD,
+
+        /**
+         * Support for the temporary work to eventually allow FIRST to work with null and multi-value fields, among other things.
+         */
+        ALL_FIRST(Build.current().isSnapshot()),
+
+        ALL_LAST(Build.current().isSnapshot()),
+
+        /**
+         * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes
+         */
+        ST_EXTENT_AGG_NULL_SUPPORT,
+
+        /**
+         * Support grouping window in time-series for example: rate(counter, "1m") or avg_over_time(field, "5m")
+         */
+        TIME_SERIES_WINDOW_V1,
+
+        /**
+         * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
+         */
+        LIKE_PARAMETER_SUPPORT,
+
+        /**
+         * PromQL support in ESQL, before it is released into tech preview.
+         * When implementing new functionality or breaking changes,
+         * we'll simply increment the version suffix at the end to prevent bwc tests from running.
+         * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
+         * At this point, we need to add new capabilities for any further changes.
+         */
+        PROMQL_PRE_TECH_PREVIEW_V1(Build.current().isSnapshot()),
+
+        /**
+         * KNN function adds support for k and visit_percentage options
+         */
+        KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,
+        // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
+        // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
+        ;
 
         private final boolean enabled;
 

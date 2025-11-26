@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.inference.TaskType;
@@ -37,13 +38,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
-import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
-import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
-import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.junit.After;
 import org.junit.Before;
 
@@ -123,6 +121,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
             randomIntBetween(1, 100),
             randomIntBetween(1, 10_000),
             null,
+            ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled() && randomBoolean(),
             null
         );
         assertAcked(
@@ -153,32 +152,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
     }
 
     private void createInferenceEndpoint(TaskType taskType, String inferenceId, Map<String, Object> serviceSettings) throws IOException {
-        final String service = switch (taskType) {
-            case TEXT_EMBEDDING -> TestDenseInferenceServiceExtension.TestInferenceService.NAME;
-            case SPARSE_EMBEDDING -> TestSparseInferenceServiceExtension.TestInferenceService.NAME;
-            default -> throw new IllegalArgumentException("Unhandled task type [" + taskType + "]");
-        };
-
-        final BytesReference content;
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            builder.startObject();
-            builder.field("service", service);
-            builder.field("service_settings", serviceSettings);
-            builder.endObject();
-
-            content = BytesReference.bytes(builder);
-        }
-
-        PutInferenceModelAction.Request request = new PutInferenceModelAction.Request(
-            taskType,
-            inferenceId,
-            content,
-            XContentType.JSON,
-            TEST_REQUEST_TIMEOUT
-        );
-        var responseFuture = client().execute(PutInferenceModelAction.INSTANCE, request);
-        assertThat(responseFuture.actionGet(TEST_REQUEST_TIMEOUT).getModel().getInferenceEntityId(), equalTo(inferenceId));
-
+        IntegrationTestUtils.createInferenceEndpoint(client(), taskType, inferenceId, serviceSettings);
         inferenceIds.put(inferenceId, taskType);
     }
 

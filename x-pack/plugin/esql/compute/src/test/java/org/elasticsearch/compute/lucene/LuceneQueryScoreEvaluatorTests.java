@@ -49,7 +49,7 @@ public class LuceneQueryScoreEvaluatorTests extends LuceneQueryEvaluatorTests<Do
     }
 
     @Override
-    protected Operator createOperator(DriverContext ctx, LuceneQueryEvaluator.ShardConfig[] shards) {
+    protected Operator createOperator(DriverContext ctx, IndexedByShardId<LuceneQueryEvaluator.ShardConfig> shards) {
         return new ScoreOperator(ctx.blockFactory(), new LuceneQueryScoreEvaluator(ctx.blockFactory(), shards), 1);
     }
 

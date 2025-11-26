@@ -36,21 +36,22 @@ public final class DerParser {
     private static final int CONSTRUCTED = 0x20;
 
     // Tag and data types
-    static final class Type {
-        static final int INTEGER = 0x02;
-        static final int OCTET_STRING = 0x04;
-        static final int OBJECT_OID = 0x06;
-        static final int SEQUENCE = 0x10;
-        static final int NUMERIC_STRING = 0x12;
-        static final int PRINTABLE_STRING = 0x13;
-        static final int VIDEOTEX_STRING = 0x15;
-        static final int IA5_STRING = 0x16;
-        static final int GRAPHIC_STRING = 0x19;
-        static final int ISO646_STRING = 0x1A;
-        static final int GENERAL_STRING = 0x1B;
-        static final int UTF8_STRING = 0x0C;
-        static final int UNIVERSAL_STRING = 0x1C;
-        static final int BMP_STRING = 0x1E;
+    public static final class Type {
+        public static final int INTEGER = 0x02;
+        public static final int OCTET_STRING = 0x04;
+        public static final int OBJECT_OID = 0x06;
+        public static final int SEQUENCE = 0x10;
+        public static final int SET = 0x11;
+        public static final int NUMERIC_STRING = 0x12;
+        public static final int PRINTABLE_STRING = 0x13;
+        public static final int VIDEOTEX_STRING = 0x15;
+        public static final int IA5_STRING = 0x16;
+        public static final int GRAPHIC_STRING = 0x19;
+        public static final int ISO646_STRING = 0x1A;
+        public static final int GENERAL_STRING = 0x1B;
+        public static final int UTF8_STRING = 0x0C;
+        public static final int UNIVERSAL_STRING = 0x1C;
+        public static final int BMP_STRING = 0x1E;
     }
 
     private InputStream derInputStream;

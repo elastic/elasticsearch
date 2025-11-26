@@ -1099,8 +1099,7 @@ create logsdb data stream with custom empty sorting:
         index: $backing_index
 
   - match: { .$backing_index.mappings.properties.@timestamp.type: date }
-  - match: { .$backing_index.mappings.properties.host.properties.name.type: keyword }
-  - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: 1024 }
+  - match: { .$backing_index.mappings.properties.host: null }
 
 ---
 create logsdb data stream with custom sorting on timestamp:

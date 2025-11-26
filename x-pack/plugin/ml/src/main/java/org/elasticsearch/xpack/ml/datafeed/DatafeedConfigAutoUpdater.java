@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -46,7 +47,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
 
     @Override
     public boolean isMinTransportVersionSupported(TransportVersion minNodeVersion) {
-        return true;
+        return minNodeVersion.onOrAfter(TransportVersions.V_8_0_0);
     }
 
     @Override

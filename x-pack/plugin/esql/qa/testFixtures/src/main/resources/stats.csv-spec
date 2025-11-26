@@ -835,6 +835,21 @@ c:l | l:i
 15  |1
 ;
 
+countStarGroupedTrunc
+from employees | stats c = count(*) by d=date_trunc(1 year, hire_date) | sort d | limit 10;
+c:l | d:datetime
+11     | 1985-01-01T00:00:00.000Z
+11     | 1986-01-01T00:00:00.000Z
+15     | 1987-01-01T00:00:00.000Z
+9      | 1988-01-01T00:00:00.000Z
+13     | 1989-01-01T00:00:00.000Z
+12     | 1990-01-01T00:00:00.000Z
+6      | 1991-01-01T00:00:00.000Z
+8      | 1992-01-01T00:00:00.000Z
+3      | 1993-01-01T00:00:00.000Z
+4      | 1994-01-01T00:00:00.000Z
+;
+
 countAllAndOtherStatGrouped
 from employees | stats c = count(*), min = min(emp_no) by languages | sort languages;
 
@@ -2969,6 +2984,22 @@ std_dev_height:double
 // end::stdev-result[]
 ;
 
+varianceSimple
+required_capability: variance_stddev_over_time
+
+// tag::variance[]
+FROM employees
+| STATS var_height = VARIANCE(height)
+// end::variance[]
+| EVAL var_height = ROUND(var_height, 7)
+;
+
+// tag::variance-result[]
+var_height:double
+0.0425888
+// end::variance-result[]
+;
+
 stdDeviationNested
 required_capability: std_dev
 // tag::docsStatsStdDevNestedExpression[]
@@ -2985,6 +3016,22 @@ stddev_salary_change:double
 ;
 
 
+varianceNested
+required_capability: variance_stddev_over_time
+
+# tag::variance[]
+FROM employees
+| STATS var_salary_change = VARIANCE(MV_MAX(salary_change))
+# end::variance[]
+| EVAL var_salary_change = ROUND(var_salary_change, 5)
+;
+
+# tag::variance-result[]
+var_salary_change:double
+47.27703
+# end::variance-result[]
+;
+
 stdDeviationWithLongs
 required_capability: std_dev
 FROM employees
@@ -2996,6 +3043,17 @@ std_dev:double
 5.7601043E7
 ;
 
+varianceWithLongs
+required_capability: variance_stddev_over_time
+FROM employees
+| STATS var = variance(avg_worked_seconds)
+| EVAL var = ROUND(var, 7)
+;
+
+var:double
+3.317880108280233E15
+;
+
 stdDeviationWithInts
 required_capability: std_dev
 FROM employees
@@ -3005,6 +3063,17 @@ FROM employees
 
 std_dev:double
 13765.1255
+;
+
+varianceWithInts
+required_capability: variance_stddev_over_time
+FROM employees
+| STATS var = STD_VAR(salary)
+| EVAL var = ROUND(var, 5)
+;
+
+var:double
+1.894786801075E8
 ;
 
 stdDeviationConstantValue
@@ -3059,10 +3128,10 @@ stdDeviationNoRows
 required_capability: std_dev
 FROM employees
 | WHERE languages IS null
-| STATS STD_DEV(languages)
+| STATS sd=STD_DEV(languages)
 ;
 
-STD_DEV(languages):double
+sd:double
 null
 ;
 
@@ -3380,4 +3449,101 @@ VALUES(color):keyword | color:keyword
                  pink | pink
                yellow | yellow
 // end::mv-group-values-expand-result[]
+;
+
+filterOrdinalValues
+required_capability: fix_filter_ordinals
+from employees 
+| MV_EXPAND job_positions
+| WHERE job_positions != "Purchase Manager"
+| STATS employees=count(*) BY job_positions
+| SORT job_positions
+| LIMIT 1000
+;
+
+employees:long | job_positions:keyword
+18             | Accountant
+13             | Architect
+11             | Business Analyst
+13             | Data Scientist
+10             | Head Human Resources
+15             | Internship
+14             | Junior Developer
+20             | Principal Support Engineer
+13             | Python Developer
+15             | Reporting Analyst
+20             | Senior Python Developer
+15             | Senior Team Lead
+11             | Support Engineer
+15             | Tech Lead    
+;
+
+fixClassCastBugWithCountDistinct
+required_capability: fix_stats_classcast_exception
+
+from airports 
+| rename scalerank AS x 
+| stats  a = count(x), b = count(x) + count(x), c = count_distinct(x)
+;
+
+a:long | b:long | c:long
+891    | 1782   | 8
+;
+
+fixClassCastBugWithValuesFn
+required_capability: fix_stats_classcast_exception
+
+ROW x = [1,2,3] 
+| STATS a = MV_COUNT(VALUES(x)), b = VALUES(x), c = SUM(x)
+;
+
+a:integer | b:integer | c:long
+3         | [1, 2, 3] | 6
+;
+
+fixClassCastBugWithSeveralCountDistincts
+required_capability: fix_stats_classcast_exception
+
+ROW x = 1 
+| STATS a = 2*COUNT_DISTINCT(x), b = COUNT_DISTINCT(x), c = MAX(x)
+;
+
+a:long | b:long | c:integer
+2      | 1      | 1
+;
+
+fixClassCastBugWithMedianPlusCountDistinct
+required_capability: fix_stats_classcast_exception
+
+FROM sample_data_ts_long 
+| EVAL sym1 = 0, sym5 = 1
+| STATS sym2 = median(sym5) + 0, sym3 = median(sym5), sym4 = count_distinct(sym1)
+;
+
+sym2:double |sym3:double | sym4:long
+1.0         | 1.0        | 1
+;
+
+fixClassCastBugWithFoldableLiterals
+required_capability: fix_stats_classcast_exception
+
+from airports 
+| rename scalerank AS x 
+| stats  a = count(x), b = count(x) + count(x), c = count_distinct(x, 10), d = count_distinct(x, 10 + 1 - 1)
+;
+
+a:long | b:long | c:long | d:long
+891    | 1782   | 8      | 8
+;
+
+fixClassCastBugWithSurrogateExpressions
+required_capability: fix_stats_classcast_exception
+
+from airports 
+| rename scalerank AS x 
+| stats a = median(x), b = percentile(x, 50), c = count_distinct(x)
+;
+
+a:double | b:double | c:long
+6.0      | 6.0      | 8
 ;

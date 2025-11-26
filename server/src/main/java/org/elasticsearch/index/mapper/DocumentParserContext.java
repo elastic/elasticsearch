@@ -559,6 +559,24 @@ public abstract class DocumentParserContext {
                 mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd);
             }
             dynamicMappersSize.add(mapperSize);
+
+            if (indexSettings().isIgnoreDynamicFieldNamesBeyondLimit()) {
+                if (mapper.leafName().length() > indexSettings().getMappingFieldNameLengthLimit()) {
+                    if (canAddIgnoredField()) {
+                        try {
+                            addIgnoredField(
+                                IgnoredSourceFieldMapper.NameValue.fromContext(this, mapper.fullPath(), encodeFlattenedToken())
+                            );
+                        } catch (IOException e) {
+                            throw new IllegalArgumentException("failed to parse field [" + mapper.fullPath() + "]", e);
+                        }
+                    }
+                    addIgnoredField(mapper.fullPath());
+                    return false;
+                } else {
+                    mappingLookup.checkFieldNameLengthLimit(indexSettings().getMappingFieldNameLengthLimit());
+                }
+            }
         }
         if (mapper instanceof ObjectMapper objectMapper) {
             dynamicObjectMappers.put(objectMapper.fullPath(), objectMapper);

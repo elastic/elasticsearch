@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -259,6 +260,20 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return UPPER_BOUNDS_DIR.resolve(name + ".csv");
     }
 
+    boolean checkIfDefinitelyOnReleaseBranch(Collection<TransportVersionUpperBound> upperBounds, String currentUpperBoundName) {
+        // only want to look at definitions <= the current upper bound.
+        // TODO: we should filter all of the upper bounds/definitions that are validated by this, not just in this method
+        TransportVersionUpperBound currentUpperBound = upperBounds.stream()
+            .filter(u -> u.name().equals(currentUpperBoundName))
+            .findFirst()
+            .orElse(null);
+        if (currentUpperBound == null) {
+            // since there is no current upper bound, we don't know if we are on a release branch
+            return false;
+        }
+        return upperBounds.stream().anyMatch(u -> u.definitionId().complete() > currentUpperBound.definitionId().complete());
+    }
+
     private String getBaseRefName() {
         if (baseRefName.get() == null) {
             synchronized (baseRefName) {
@@ -284,6 +299,16 @@ public abstract class TransportVersionResourcesService implements BuildService<T
             logger.warn("No remotes found. Using 'main' branch as upstream ref for transport version resources");
             return "main";
         }
+        // default the branch name to look at to that which a PR in CI is targeting
+        String branchName = System.getenv("BUILDKITE_PULL_REQUEST_BASE_BRANCH");
+        if (branchName == null || branchName.strip().isEmpty()) {
+            // fallback to the local branch being tested in CI
+            branchName = System.getenv("BUILDKITE_BRANCH");
+            if (branchName == null || branchName.strip().isEmpty()) {
+                // fallback to main if we aren't in CI
+                branchName = "main";
+            }
+        }
         List<String> remoteNames = List.of(remotesOutput.split("\n"));
         if (remoteNames.contains(UPSTREAM_REMOTE_NAME) == false) {
             // our special remote doesn't exist yet, so create it
@@ -299,14 +324,14 @@ public abstract class TransportVersionResourcesService implements BuildService<T
                 gitCommand("remote", "add", UPSTREAM_REMOTE_NAME, upstreamUrl);
             } else {
                 logger.warn("No elastic github remotes found to copy. Using 'main' branch as upstream ref for transport version resources");
-                return "main";
+                return branchName;
             }
         }
 
         // make sure the remote main ref is up to date
-        gitCommand("fetch", UPSTREAM_REMOTE_NAME, "main");
+        gitCommand("fetch", UPSTREAM_REMOTE_NAME, branchName);
 
-        return UPSTREAM_REMOTE_NAME + "/main";
+        return UPSTREAM_REMOTE_NAME + "/" + branchName;
     }
 
     // Return the transport version resources paths that exist in upstream

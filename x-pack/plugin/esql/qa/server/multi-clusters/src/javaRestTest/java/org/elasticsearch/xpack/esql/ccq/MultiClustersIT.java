@@ -262,7 +262,11 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     private <C, V> void assertResultMap(boolean includeCCSMetadata, Map<String, Object> result, C columns, V values, boolean remoteOnly) {
-        MapMatcher mapMatcher = getResultMatcher(result.containsKey("is_partial"), result.containsKey("documents_found")).extraOk();
+        MapMatcher mapMatcher = getResultMatcher(
+            result.containsKey("is_partial"),
+            result.containsKey("documents_found"),
+            result.containsKey("start_time_in_millis")
+        ).extraOk();
         if (includeCCSMetadata) {
             mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
         }
@@ -523,7 +527,11 @@ public class MultiClustersIT extends ESRestTestCase {
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(localDocs.size()));
 
-            MapMatcher mapMatcher = getResultMatcher(false, result.containsKey("documents_found")).extraOk();
+            MapMatcher mapMatcher = getResultMatcher(
+                false,
+                result.containsKey("documents_found"),
+                result.containsKey("start_time_in_millis")
+            ).extraOk();
             mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
             mapMatcher = mapMatcher.entry("is_partial", true);
             assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));

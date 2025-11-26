@@ -45,14 +45,7 @@ public class OpenAiEmbeddingsTaskSettings extends OpenAiTaskSettings<OpenAiEmbed
     }
 
     private static Settings readTaskSettingsFromStream(StreamInput in) throws IOException {
-        String user;
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            user = in.readOptionalString();
-        } else {
-            var discard = in.readString();
-            user = in.readOptionalString();
-        }
+        String user = in.readOptionalString();
 
         Map<String, String> headers;
 
@@ -77,12 +70,7 @@ public class OpenAiEmbeddingsTaskSettings extends OpenAiTaskSettings<OpenAiEmbed
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeOptionalString(user());
-        } else {
-            out.writeString("m"); // write any string
-            out.writeOptionalString(user());
-        }
+        out.writeOptionalString(user());
 
         if (out.getTransportVersion().supports(INFERENCE_API_OPENAI_EMBEDDINGS_HEADERS)) {
             out.writeOptionalMap(headers(), StreamOutput::writeString, StreamOutput::writeString);

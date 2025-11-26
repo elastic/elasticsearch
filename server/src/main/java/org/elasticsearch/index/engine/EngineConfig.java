@@ -23,6 +23,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecProvider;
@@ -131,6 +132,7 @@ public final class EngineConfig {
      * TODO: Remove in 9.0
      */
     @Deprecated
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_INDEXING)
     public static final Setting<Boolean> INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting(
         "index.optimize_auto_generated_id",
         true,
@@ -213,6 +215,7 @@ public final class EngineConfig {
         // Add an escape hatch in case this change proves problematic - it used
         // to be a fixed amound of RAM: 256 MB.
         // TODO: Remove this escape hatch in 8.x
+        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_INDEXING)
         final String escapeHatchProperty = "es.index.memory.max_index_buffer_size";
         String maxBufferSize = System.getProperty(escapeHatchProperty);
         if (maxBufferSize != null) {

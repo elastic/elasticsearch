@@ -597,7 +597,7 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "&lt;OTHER_HOST_URL>",
+      "host": "<OTHER_HOST_URL>",
       "username": "user",
       "password": "pass"
     },
@@ -615,7 +615,7 @@ POST _reindex
 ```
 % TEST[setup:host]
 % TEST[s/^/PUT my-index-000001\n/]
-% TEST[s/otherhost:9200",/\${host}",/]
+% TEST[s/"host": [^}]*,/"host": "http:\/\/\${host}",/]
 % TEST[s/"username": "user",/"username": "test_admin",/]
 % TEST[s/"password": "pass"/"password": "x-pack-test-password"/]
 
@@ -638,8 +638,8 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "&lt;OTHER_HOST_URL>",
-      "api_key": "&lt;API_KEY_VALUE>"
+      "host": "<OTHER_HOST_URL>",
+      "api_key": "<API_KEY_VALUE>"
     },
     "index": "my-index-000001",
     "query": {
@@ -655,7 +655,7 @@ POST _reindex
 ```
 % TEST[setup:host]
 % TEST[s/^/PUT my-index-000001\n/]
-% TEST[s/otherhost:9200",/\${host}",/]
+% TEST[s/"host": [^}]*,/"host": "http:\/\/\${host}",/]
 % TEST[s/"headers": \{[^}]*\}/"username": "test_admin", "password": "x-pack-test-password"/]
 :::
 
@@ -665,9 +665,9 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "&lt;OTHER_HOST_URL>",
+      "host": "<OTHER_HOST_URL>",
       "headers": {
-        "Authorization": "ApiKey &lt;API_KEY_VALUE>"
+        "Authorization": "<API_KEY_VALUE>"
       }
     },
     "index": "my-index-000001",
@@ -684,7 +684,7 @@ POST _reindex
 ```
 % TEST[setup:host]
 % TEST[s/^/PUT my-index-000001\n/]
-% TEST[s/otherhost:9200",/\${host}",/]
+% TEST[s/"host": [^}]*,/"host": "http:\/\/\${host}",/]
 % TEST[s/"headers": \{[^}]*\}/"username": "test_admin", "password": "x-pack-test-password"/]
 :::
 
@@ -727,7 +727,7 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "&lt;OTHER_HOST_URL>",
+      "host": "<OTHER_HOST_URL>",
       ...
     },
     "index": "source",
@@ -745,7 +745,7 @@ POST _reindex
 ```
 % TEST[setup:host]
 % TEST[s/^/PUT source\n/]
-% TEST[s/otherhost:9200/\${host}/]
+% TEST[s/"host": [^}]*,/"host": "http:\/\/\${host}",/]
 % TEST[s/\.\.\./"username": "test_admin", "password": "x-pack-test-password"/]
 
 It is also possible to set the socket read timeout on the remote connection with the `socket_timeout` field and the connection timeout with the `connect_timeout` field.
@@ -757,7 +757,7 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "&lt;OTHER_HOST_URL>",
+      "host": "<OTHER_HOST_URL>",
       ...,
       "socket_timeout": "1m",
       "connect_timeout": "10s"
@@ -776,7 +776,7 @@ POST _reindex
 ```
 % TEST[setup:host]
 % TEST[s/^/PUT source\n/]
-% TEST[s/otherhost:9200/\${host}/]
+% TEST[s/"host": [^}]*,/"host": "http:\/\/\${host}",/]
 % TEST[s/\.\.\.,/"username": "test_admin", "password": "x-pack-test-password",/]
 
 ### Configuring SSL parameters [reindex-ssl]

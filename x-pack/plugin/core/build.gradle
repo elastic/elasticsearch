@@ -8,6 +8,7 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.Version
 import java.nio.file.Paths
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
@@ -29,10 +30,10 @@ esplugin {
   requiresKeystore =false
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
-  mapping from: /slf4j-.*/, to: 'slf4j' 
+  mapping from: /slf4j-.*/, to: 'slf4j'
 }
 
 configurations {
@@ -54,6 +55,8 @@ dependencies {
   api "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
   api "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
 
+  api "com.ibm.icu:icu4j:${versions.icu4j}"
+
   // Ideally this would be `runtimeOnly` so that we don't accidentally write code against the SLF4j API
   // However, some child plugins (like security) need to use slf4j directly in order to manage logging for their dependencies :(
   // And due to the way our plugin loading handles java modules between dependent plugins, this plugin (x-pack-core) needs to declare
@@ -73,7 +76,7 @@ dependencies {
   testImplementation project(':modules:mapper-extras')
 
   // security deps
-  api 'com.unboundid:unboundid-ldapsdk:6.0.3'
+  api "com.unboundid:unboundid-ldapsdk:${versions.ldapsdk}"
 
   implementation project(":x-pack:plugin:core:template-resources")
 

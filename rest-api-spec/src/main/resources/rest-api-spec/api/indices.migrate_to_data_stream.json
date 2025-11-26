@@ -30,6 +30,7 @@
     "params": {
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Specify timeout for acknowledging the cluster state update"
       },
       "master_timeout": {

@@ -154,7 +154,7 @@ public final class TopBytesRefAggregatorFunction implements AggregatorFunction {
     }
     BytesRefBlock top = (BytesRefBlock) topUncast;
     assert top.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
+    BytesRef topScratch = new BytesRef();
     TopBytesRefAggregator.combineIntermediate(state, top);
   }
 

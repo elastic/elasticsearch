@@ -21,11 +21,11 @@ public class DimensionFieldValueFetcher extends FieldValueFetcher {
     private final DimensionFieldProducer dimensionFieldProducer = createFieldProducer();
 
     protected DimensionFieldValueFetcher(final String fieldName, final MappedFieldType fieldType, final IndexFieldData<?> fieldData) {
-        super(fieldName, fieldType, fieldData);
+        super(fieldName, fieldType, fieldData, null);
     }
 
     private DimensionFieldProducer createFieldProducer() {
-        return new DimensionFieldProducer(name, new DimensionFieldProducer.Dimension(name));
+        return new DimensionFieldProducer(name);
     }
 
     @Override

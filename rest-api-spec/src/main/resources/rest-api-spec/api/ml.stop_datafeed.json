@@ -33,14 +33,17 @@
     "params": {
       "allow_no_match": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to ignore if a wildcard expression matches no datafeeds. (This includes `_all` string or when no datafeeds have been specified)"
       },
       "force": {
         "type": "boolean",
+        "default": false,
         "description": "True if the datafeed should be forcefully stopped."
       },
       "timeout": {
         "type": "time",
+        "default": "20s",
         "description": "Controls the time to wait until a datafeed has stopped. Default to 20 seconds"
       }
     },

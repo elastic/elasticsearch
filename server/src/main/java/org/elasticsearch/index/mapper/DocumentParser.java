@@ -676,9 +676,29 @@ public final class DocumentParser {
                         throw new IllegalArgumentException("failed to parse field [" + currentFieldName + " ]", e);
                     }
                 }
-                context.addIgnoredField(currentFieldName);
+                context.addIgnoredField(context.path().pathAsText(currentFieldName));
                 return;
             }
+
+            if (context.indexSettings().isIgnoreDynamicFieldNamesBeyondLimit()
+                && currentFieldName.length() > context.indexSettings().getMappingFieldNameLengthLimit()) {
+                if (context.canAddIgnoredField()) {
+                    try {
+                        context.addIgnoredField(
+                            IgnoredSourceFieldMapper.NameValue.fromContext(
+                                context,
+                                context.path().pathAsText(currentFieldName),
+                                context.encodeFlattenedToken()
+                            )
+                        );
+                    } catch (IOException e) {
+                        throw new IllegalArgumentException("failed to parse field [" + currentFieldName + "]", e);
+                    }
+                }
+                context.addIgnoredField(context.path().pathAsText(currentFieldName));
+                return;
+            }
+
             parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
         } else {
             if (parsesArrayValue(objectMapperFromTemplate)) {

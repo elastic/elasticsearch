@@ -87,7 +87,7 @@ public class TransformMetadata implements Metadata.ProjectCustom {
 
     public TransformMetadata(StreamInput in) throws IOException {
         this.resetMode = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.TRANSFORMS_UPGRADE_MODE)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             this.upgradeMode = in.readBoolean();
         } else {
             this.upgradeMode = false;
@@ -97,7 +97,7 @@ public class TransformMetadata implements Metadata.ProjectCustom {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(resetMode);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.TRANSFORMS_UPGRADE_MODE)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeBoolean(upgradeMode);
         }
     }
@@ -122,7 +122,7 @@ public class TransformMetadata implements Metadata.ProjectCustom {
 
         public TransformMetadataDiff(StreamInput in) throws IOException {
             resetMode = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.TRANSFORMS_UPGRADE_MODE)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                 this.upgradeMode = in.readBoolean();
             } else {
                 this.upgradeMode = false;
@@ -142,7 +142,7 @@ public class TransformMetadata implements Metadata.ProjectCustom {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(resetMode);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.TRANSFORMS_UPGRADE_MODE)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                 out.writeBoolean(upgradeMode);
             }
         }

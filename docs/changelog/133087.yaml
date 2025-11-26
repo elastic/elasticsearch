@@ -1,6 +1,0 @@
-pr: 133087
-summary: Esql skip null metrics
-area: ES|QL
-type: enhancement
-issues:
- - 129524

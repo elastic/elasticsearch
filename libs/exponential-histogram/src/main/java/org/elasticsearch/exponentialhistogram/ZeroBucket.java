@@ -60,6 +60,11 @@ public final class ZeroBucket {
      */
     private double realThreshold;
 
+    /**
+     * True if the zero threshold was created from an index/scale pair, false if it was created from a real-valued threshold.
+     */
+    private final boolean isIndexBased;
+
     private final long count;
     // A singleton for an empty zero bucket with the smallest possible threshold.
     private static final ZeroBucket MINIMAL_EMPTY = new ZeroBucket(MIN_INDEX, MIN_SCALE, 0);
@@ -70,6 +75,7 @@ public final class ZeroBucket {
         this.scale = MAX_SCALE;
         this.realThreshold = zeroThreshold;
         this.count = count;
+        this.isIndexBased = false;
     }
 
     private ZeroBucket(long index, int scale, long count) {
@@ -79,12 +85,14 @@ public final class ZeroBucket {
         this.scale = scale;
         this.realThreshold = Double.NaN; // compute lazily when needed
         this.count = count;
+        this.isIndexBased = true;
     }
 
     private ZeroBucket(ZeroBucket toCopy, long newCount) {
         this.realThreshold = toCopy.realThreshold;
         this.index = toCopy.index;
         this.scale = toCopy.scale;
+        this.isIndexBased = toCopy.isIndexBased;
         this.count = newCount;
     }
 
@@ -161,6 +169,13 @@ public final class ZeroBucket {
 
     public long count() {
         return count;
+    }
+
+    /**
+     * @return True if the zero threshold was created from an index/scale pair, false if it was created from a real-valued threshold.
+     */
+    public boolean isIndexBased() {
+        return isIndexBased;
     }
 
     /**

@@ -65,6 +65,9 @@ import static java.util.Objects.requireNonNull;
 public class NodeIndicesStats implements Writeable, ChunkedToXContent {
 
     private static final TransportVersion VERSION_SUPPORTING_STATS_BY_INDEX = TransportVersions.V_8_5_0;
+    private static final TransportVersion NODES_STATS_SUPPORTS_MULTI_PROJECT = TransportVersion.fromName(
+        "nodes_stats_supports_multi_project"
+    );
     private static final Map<Index, List<IndexShardStats>> EMPTY_STATS_BY_SHARD = Map.of();
 
     private final CommonStats stats;
@@ -93,7 +96,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
             statsByIndex = new HashMap<>();
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
+        if (in.getTransportVersion().supports(NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
             projectsByIndex = in.readMap(Index::new, ProjectId::readFrom);
         } else {
             // Older nodes do not include the index-to-project map, so we leave it empty. This means all indices will be treated as if the
@@ -243,7 +246,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
             out.writeMap(statsByIndex);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
+        if (out.getTransportVersion().supports(NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
             out.writeMap(projectsByIndex);
         }
     }

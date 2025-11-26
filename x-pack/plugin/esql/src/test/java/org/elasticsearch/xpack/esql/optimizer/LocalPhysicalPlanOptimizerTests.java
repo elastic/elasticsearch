@@ -45,7 +45,9 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -79,6 +81,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -115,10 +118,12 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithD
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -182,7 +187,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
               from test | eval s = salary | rename s as sr | eval hidden_s = sr | rename emp_no as e | where e < 10050
             | stats c = count(*)
             """);
-        var stat = queryStatsFor(plan);
+        var stat = (EsStatsQueryExec.BasicStat) queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
         assertThat(stat.query(), is(nullValue()));
     }
@@ -198,7 +203,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      */
     public void testCountAllWithFilter() {
         var plan = plannerOptimizer.plan("from test | where emp_no > 10040 | stats c = count(*)");
-        var stat = queryStatsFor(plan);
+        var stat = (EsStatsQueryExec.BasicStat) queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
         assertThat(stat.query(), is(nullValue()));
     }
@@ -218,7 +223,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      */
     public void testCountFieldWithFilter() {
         var plan = plannerOptimizer.plan("from test | where emp_no > 10040 | stats c = count(emp_no)", IS_SV_STATS);
-        var stat = queryStatsFor(plan);
+        var stat = (EsStatsQueryExec.BasicStat) queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
         assertThat(stat.query(), is(existsQuery("emp_no")));
     }
@@ -247,7 +252,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
         assertThat(esStatsQuery.limit(), is(nullValue()));
         assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
-        var stat = as(esStatsQuery.stats().get(0), Stat.class);
+        var stat = as(esStatsQuery.stat(), EsStatsQueryExec.BasicStat.class);
         assertThat(stat.query(), is(existsQuery("salary")));
     }
 
@@ -268,7 +273,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
         assertThat(esStatsQuery.limit(), is(nullValue()));
         assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
-        var stat = as(esStatsQuery.stats().get(0), Stat.class);
+        var stat = as(esStatsQuery.stat(), EsStatsQueryExec.BasicStat.class);
         Source source = new Source(2, 8, "salary > 1000");
         var exists = existsQuery("salary");
         assertThat(stat.query(), is(exists));
@@ -323,14 +328,14 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             });
 
             String expectedStats = """
-                [Stat[name=salary, type=COUNT, query={
+                BasicStat[name=salary, type=COUNT, query={
                   "exists" : {
                     "field" : "salary",
                     "boost" : 1.0
                   }
-                }]]""";
+                }]""";
             assertNotNull(leaf.get());
-            assertThat(leaf.get().stats().toString(), equalTo(expectedStats));
+            assertThat(leaf.get().stat().toString(), equalTo(expectedStats));
         }
     }
 
@@ -648,7 +653,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var esStatsQuery = as(exg.child(), EsStatsQueryExec.class);
         assertThat(esStatsQuery.limit(), is(nullValue()));
         assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
-        var stat = as(esStatsQuery.stats().get(0), Stat.class);
+        var stat = as(esStatsQuery.stat(), EsStatsQueryExec.BasicStat.class);
         assertThat(stat.query(), is(existsQuery("job")));
     }
 
@@ -1120,7 +1125,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var analyzer = makeAnalyzer("mapping-all-types.json");
         // Check for every possible query data type
         for (DataType fieldDataType : fieldDataTypes) {
-            if (DataType.UNDER_CONSTRUCTION.contains(fieldDataType)) {
+            if (DataType.UNDER_CONSTRUCTION.contains(fieldDataType) || fieldDataType == NULL) {
                 continue;
             }
 
@@ -1281,7 +1286,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         String query = """
             from test
             | where KNN(dense_vector, [0.1, 0.2, 0.3],
-                { "similarity": 0.001, "min_candidates": 5000, "rescore_oversample": 7, "boost": 3.5 })
+                {"k": 10, "min_candidates": 20, "rescore_oversample": 1.5, "similarity": 0.5, "boost": 2.0, "visit_percentage": 0.25})
+            | limit 50
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
@@ -1292,12 +1298,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var expectedQuery = new KnnVectorQueryBuilder(
             "dense_vector",
             new float[] { 0.1f, 0.2f, 0.3f },
-            5000,
-            5000,
-            null,
-            new RescoreVectorBuilder(7),
-            0.001f
-        ).boost(3.5f);
+            10,
+            20,
+            0.25f,
+            new RescoreVectorBuilder(1.5f),
+            0.5f
+        ).boost(2.0f);
         assertEquals(expectedQuery.toString(), planStr.get());
     }
 
@@ -1317,10 +1323,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertEquals(expectedQuery.toString(), planStr.get());
     }
 
-    public void testKnnKAndMinCandidatesLowerK() {
+    public void testKnnKOverridesLimitK() {
         String query = """
             from test
-            | where KNN(dense_vector, [0.1, 0.2, 0.3], {"min_candidates": 50})
+            | where KNN(dense_vector, [0.1, 0.2, 0.3], {"k": 20})
             | limit 10
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
@@ -1329,23 +1335,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
 
-        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 50, 50, null, null, null);
-        assertEquals(expectedQuery.toString(), planStr.get());
-    }
-
-    public void testKnnKAndMinCandidatesHigherK() {
-        String query = """
-            from test
-            | where KNN(dense_vector, [0.1, 0.2, 0.3], {"min_candidates": 10})
-            | limit 50
-            """;
-        var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
-
-        AtomicReference<String> planStr = new AtomicReference<>();
-        plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
-
-        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 50, 50, null, null, null);
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 20, null, null, null, null);
         assertEquals(expectedQuery.toString(), planStr.get());
     }
 
@@ -2274,7 +2264,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         plannerOptimizerDateDateNanosUnionTypes = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer(indexWithUnionTypedFields));
         var stats = EsqlTestUtils.statsForExistingField("date_and_date_nanos", "date_and_date_nanos_and_long");
         String query = """
-            from test*
+            from index*
             | where date_and_date_nanos < "2025-01-01" and date_and_date_nanos_and_long::date_nanos >= "2024-01-01\"""";
         var plan = plannerOptimizerDateDateNanosUnionTypes.plan(query, stats);
 
@@ -2450,6 +2440,32 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(e.getMessage(), containsString("Output has changed from"));
     }
 
+    public void testTranslateMetricsGroupedByTwoDimension() {
+        var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY cluster, pod";
+        var plan = plannerOptimizerTimeSeries.plan(query);
+        var project = as(plan, ProjectExec.class);
+        var unpack = as(project.child(), EvalExec.class);
+        var limit = as(unpack.child(), LimitExec.class);
+        var secondAgg = as(limit.child(), AggregateExec.class);
+        var pack = as(secondAgg.child(), EvalExec.class);
+        var finalAgg = as(pack.child(), TimeSeriesAggregateExec.class);
+        var sink = as(finalAgg.child(), ExchangeExec.class);
+        ProjectExec projectExec = as(sink.child(), ProjectExec.class);
+        EvalExec evalExec = as(projectExec.child(), EvalExec.class);
+        FieldExtractExec readDimensions = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(readDimensions.attributesToExtract()), containsInAnyOrder("cluster", "pod"));
+        TimeSeriesAggregateExec partialAgg = as(readDimensions.child(), TimeSeriesAggregateExec.class);
+        assertThat(partialAgg.aggregates(), hasSize(2));
+        assertThat(Alias.unwrap(partialAgg.aggregates().get(0)), instanceOf(Rate.class));
+        assertThat(Alias.unwrap(partialAgg.aggregates().get(1)), instanceOf(FirstDocId.class));
+        FieldExtractExec readMetrics = as(partialAgg.child(), FieldExtractExec.class);
+        assertThat(
+            Expressions.names(readMetrics.attributesToExtract()),
+            containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in")
+        );
+        as(readMetrics.child(), EsQueryExec.class);
+    }
+
     private boolean isMultiTypeEsField(Expression e) {
         return e instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;
     }
@@ -2459,14 +2475,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var agg = as(limit.child(), AggregateExec.class);
         var exg = as(agg.child(), ExchangeExec.class);
         var statSource = as(exg.child(), EsStatsQueryExec.class);
-        var stats = statSource.stats();
-        assertThat(stats, hasSize(1));
-        var stat = stats.get(0);
-        return stat;
-    }
-
-    private static KqlQueryBuilder kqlQueryBuilder(String query) {
-        return new KqlQueryBuilder(query);
+        return statSource.stat();
     }
 
     /**

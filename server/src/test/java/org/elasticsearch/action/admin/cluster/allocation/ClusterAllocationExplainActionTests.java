@@ -81,7 +81,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                 }
 
                 @Override
-                public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                     if (shard.initializing() || shard.relocating()) {
                         return ShardAllocationDecision.NOT_TAKEN;
                     } else {

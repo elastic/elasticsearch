@@ -10,13 +10,19 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.SamplingService.SampleStats;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Map;
 
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertNotSame;
 
@@ -36,6 +42,7 @@ public class SamplingServiceSampleStatsTests extends AbstractWireSerializingTest
         stats.samplesRejectedForCondition.add(randomReasonableLong());
         stats.samplesRejectedForRate.add(randomReasonableLong());
         stats.samplesRejectedForException.add(randomReasonableLong());
+        stats.samplesRejectedForSize.add(randomReasonableLong());
         stats.timeSamplingInNanos.add(randomReasonableLong());
         stats.timeEvaluatingConditionInNanos.add(randomReasonableLong());
         stats.timeCompilingConditionInNanos.add(randomReasonableLong());
@@ -58,17 +65,18 @@ public class SamplingServiceSampleStatsTests extends AbstractWireSerializingTest
     @Override
     protected SampleStats mutateInstance(SampleStats instance) throws IOException {
         SampleStats mutated = instance.combine(new SampleStats());
-        switch (between(0, 9)) {
+        switch (between(0, 10)) {
             case 0 -> mutated.samples.add(1);
             case 1 -> mutated.potentialSamples.add(1);
             case 2 -> mutated.samplesRejectedForMaxSamplesExceeded.add(1);
             case 3 -> mutated.samplesRejectedForCondition.add(1);
             case 4 -> mutated.samplesRejectedForRate.add(1);
             case 5 -> mutated.samplesRejectedForException.add(1);
-            case 6 -> mutated.timeSamplingInNanos.add(1);
-            case 7 -> mutated.timeEvaluatingConditionInNanos.add(1);
-            case 8 -> mutated.timeCompilingConditionInNanos.add(1);
-            case 9 -> mutated.lastException = mutated.lastException == null
+            case 6 -> mutated.samplesRejectedForSize.add(1);
+            case 7 -> mutated.timeSamplingInNanos.add(1);
+            case 8 -> mutated.timeEvaluatingConditionInNanos.add(1);
+            case 9 -> mutated.timeCompilingConditionInNanos.add(1);
+            case 10 -> mutated.lastException = mutated.lastException == null
                 ? new ElasticsearchException(randomAlphanumericOfLength(10))
                 : null;
             default -> throw new IllegalArgumentException("Should never get here");
@@ -105,6 +113,10 @@ public class SamplingServiceSampleStatsTests extends AbstractWireSerializingTest
             equalTo(stats1.getSamplesRejectedForException() + stats2.getSamplesRejectedForException())
         );
         assertThat(
+            stats1CombineStats2.getSamplesRejectedForSize(),
+            equalTo(stats1.getSamplesRejectedForSize() + stats2.getSamplesRejectedForSize())
+        );
+        assertThat(
             stats1CombineStats2.getTimeSampling(),
             equalTo(TimeValue.timeValueNanos(stats1.getTimeSampling().nanos() + stats2.getTimeSampling().nanos()))
         );
@@ -116,5 +128,50 @@ public class SamplingServiceSampleStatsTests extends AbstractWireSerializingTest
             stats1CombineStats2.getTimeCompilingCondition(),
             equalTo(TimeValue.timeValueNanos(stats1.getTimeCompilingCondition().nanos() + stats2.getTimeCompilingCondition().nanos()))
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testToXContent() throws IOException {
+        /*
+         * SampleStats class is only used in the user response, so there is no parser for it, meaning it can't be tested with
+         * AbstractXContentSerializingTestCase.
+         */
+        SampleStats sampleStats = createTestInstance();
+        boolean humanReadable = randomBoolean();
+        try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent)) {
+            builder.humanReadable(humanReadable);
+            sampleStats.toXContent(builder, EMPTY_PARAMS);
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                Map<String, Object> parserMap = parser.map();
+                assertThat(parserMap.get("potential_samples"), equalTo(sampleStats.getPotentialSamples()));
+                assertThat(
+                    parserMap.get("samples_rejected_for_max_samples_exceeded"),
+                    equalTo(sampleStats.getSamplesRejectedForMaxSamplesExceeded())
+                );
+                assertThat(parserMap.get("samples_rejected_for_condition"), equalTo(sampleStats.getSamplesRejectedForCondition()));
+                assertThat(parserMap.get("samples_rejected_for_rate"), equalTo(sampleStats.getSamplesRejectedForRate()));
+                assertThat(parserMap.get("samples_rejected_for_exception"), equalTo(sampleStats.getSamplesRejectedForException()));
+                assertThat(parserMap.get("samples_rejected_for_size"), equalTo(sampleStats.getSamplesRejectedForSize()));
+                assertThat(parserMap.get("samples_accepted"), equalTo(sampleStats.getSamples()));
+                assertThat(parserMap.get("time_sampling_millis"), equalTo(sampleStats.getTimeSampling().millis()));
+                assertThat(parserMap.get("time_compiling_condition_millis"), equalTo(sampleStats.getTimeCompilingCondition().millis()));
+                if (humanReadable) {
+                    assertThat(parserMap.get("time_sampling"), equalTo(sampleStats.getTimeSampling().toHumanReadableString(1)));
+                    assertThat(
+                        parserMap.get("time_compiling_condition"),
+                        equalTo(sampleStats.getTimeCompilingCondition().toHumanReadableString(1))
+                    );
+                } else {
+                    assertThat(parserMap.containsKey("time_sampling"), equalTo(false));
+                    assertThat(parserMap.containsKey("time_compiling_condition"), equalTo(false));
+                }
+                if (sampleStats.getLastException() == null) {
+                    assertThat(parserMap.containsKey("last_exception"), equalTo(false));
+                } else {
+                    Map<String, Object> exceptionMap = (Map<String, Object>) parserMap.get("last_exception");
+                    assertThat(exceptionMap.get("message"), equalTo(sampleStats.getLastException().getMessage()));
+                }
+            }
+        }
     }
 }

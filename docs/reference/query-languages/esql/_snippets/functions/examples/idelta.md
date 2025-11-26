@@ -4,7 +4,7 @@
 
 ```esql
 TS k8s
-| STATS events = sum(idelta(events_received)) by pod, time_bucket = bucket(@timestamp, 10minute)
+| STATS events = SUM(IDELTA(events_received)) by pod, time_bucket = TBUCKET(10minute)
 ```
 
 | events:double | pod:keyword | time_bucket:datetime |

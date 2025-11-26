@@ -17,8 +17,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiReader;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
@@ -34,6 +32,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -114,8 +113,44 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         isFieldWithinRangeTestCase(ft);
     }
 
-    public void isFieldWithinRangeTestCase(DateFieldType ft) throws IOException {
+    public void testIsFieldWithinQueryDocValueSkipperNotInAllSegments() throws IOException {
+        var ft = new DateFieldType(
+            "my_date",
+            IndexType.skippers(),
+            false,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            Resolution.NANOSECONDS,
+            null,
+            null,
+            Collections.emptyMap()
+        );
 
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
+                // Simulates one segment have no my_date field
+                LuceneDocument doc = new LuceneDocument();
+                doc.add(SortedNumericDocValuesField.indexedField("my_other_date", 123456789000L));
+                w.addDocument(doc);
+                w.flush();
+
+                doc = new LuceneDocument();
+                Field field = SortedNumericDocValuesField.indexedField("my_date", ft.parse("2015-10-12"));
+                doc.add(field);
+                w.addDocument(doc);
+                field.setLongValue(ft.parse("2016-04-03"));
+                w.addDocument(doc);
+                try (DirectoryReader reader = DirectoryReader.open(w)) {
+                    DateMathParser alternateFormat = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
+                    doTestIsFieldWithinQuery(ft, reader, null, null);
+                    doTestIsFieldWithinQuery(ft, reader, null, alternateFormat);
+                    doTestIsFieldWithinQuery(ft, reader, ZoneOffset.UTC, null);
+                    doTestIsFieldWithinQuery(ft, reader, ZoneOffset.UTC, alternateFormat);
+                }
+            }
+        }
+    }
+
+    public void isFieldWithinRangeTestCase(DateFieldType ft) throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
         LuceneDocument doc = new LuceneDocument();
@@ -521,16 +556,15 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             IndexNumericFieldData.NumericType.DATE_NANOSECONDS,
             CoreValuesSourceType.DATE,
             DateNanosDocValuesField::new,
-            false
+            IndexType.NONE
         );
         // Read index and check the doc values
         DirectoryReader reader = DirectoryReader.open(w);
         assertTrue(reader.leaves().size() > 0);
         LeafNumericFieldData a = fieldData.load(reader.leaves().get(0).reader().getContext());
-        SortedNumericDocValues docValues = a.getLongValues();
-        assertEquals(0, docValues.nextDoc());
-        assertEquals(1, docValues.nextDoc());
-        assertEquals(DocIdSetIterator.NO_MORE_DOCS, docValues.nextDoc());
+        SortedNumericLongValues docValues = a.getLongValues();
+        assertTrue(docValues.advanceExact(0));
+        assertTrue(docValues.advanceExact(1));
         reader.close();
         w.close();
         dir.close();

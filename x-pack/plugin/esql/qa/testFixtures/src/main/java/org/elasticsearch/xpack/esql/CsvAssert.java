@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.logging.Logger;
@@ -46,6 +47,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAs
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleLiteralToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.exponentialHistogramToString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
@@ -430,6 +432,11 @@ public final class CsvAssert {
                 expectedValue,
                 AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class,
                 x -> aggregateMetricDoubleLiteralToString((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) x)
+            );
+            case EXPONENTIAL_HISTOGRAM -> rebuildExpected(
+                expectedValue,
+                ExponentialHistogram.class,
+                x -> exponentialHistogramToString((ExponentialHistogram) x)
             );
             default -> expectedValue;
         };

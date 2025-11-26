@@ -26,6 +26,8 @@ import org.junit.ClassRule;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -194,7 +196,13 @@ public class LazyRolloverDataStreamIT extends ESRestTestCase {
                 simpleUserClient.performRequest(createDocRequest);
                 fail("Indexing should have failed.");
             } catch (ResponseException responseException) {
-                assertThat(responseException.getMessage(), containsString("this action would add [2] shards"));
+                assertThat(
+                    responseException.getMessage(),
+                    anyOf(
+                        allOf(containsString("this action would add [2] shards"), containsString("maximum normal shards")),
+                        allOf(containsString("this action would add [1] shards"), containsString("maximum index shards"))
+                    )
+                );
             }
 
             updateClusterSettingsRequest = new Request("PUT", "_cluster/settings");

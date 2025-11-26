@@ -303,22 +303,15 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         }
     }
 
-    private boolean nodeSupportTransportVersion(Map<String, Object> nodeDetails, TransportVersion transportVersion) {
-        String nodeVersionString = (String) nodeDetails.get("version");
-        TransportVersion nodeTransportVersion = getTransportVersionWithFallback(
-            nodeVersionString,
-            nodeDetails.get("transport_version"),
-            () -> TransportVersion.zero()
-        );
-
-        if (nodeTransportVersion.equals(TransportVersion.zero())) {
+    private boolean nodeSupportTransportVersion(TestNodeInfo testNodeInfo, TransportVersion transportVersion) {
+        if (testNodeInfo.transportVersion().equals(TransportVersion.zero())) {
             // In cases where we were not able to find a TransportVersion, a pre-8.8.0 node answered about a newer (upgraded) node.
             // In that case, the node will be current (upgraded), and remote indices are supported for sure.
-            var nodeIsCurrent = nodeVersionString.equals(Build.current().version());
+            var nodeIsCurrent = testNodeInfo.version().equals(Build.current().version());
             assertTrue(nodeIsCurrent);
             return true;
         }
-        return nodeTransportVersion.onOrAfter(transportVersion);
+        return testNodeInfo.transportVersion().onOrAfter(transportVersion);
     }
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeDescription, boolean includeManageRoles) {

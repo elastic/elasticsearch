@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -37,11 +38,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.getMatchingInferenceFields;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.convertFromBwcInferenceResultsMap;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.getInferenceResults;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.getNewInferenceResultsFromSupplier;
 
 /**
  * <p>
@@ -67,6 +72,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     protected final T originalQuery;
     protected final Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap;
+    protected final SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier;
     protected final boolean ccsRequest;
 
     protected InterceptedInferenceQueryBuilder(T originalQuery) {
@@ -77,6 +83,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         Objects.requireNonNull(originalQuery, "original query must not be null");
         this.originalQuery = originalQuery;
         this.inferenceResultsMap = inferenceResultsMap != null ? Map.copyOf(inferenceResultsMap) : null;
+        this.inferenceResultsMapSupplier = null;
         this.ccsRequest = false;
     }
 
@@ -98,15 +105,19 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         } else {
             this.ccsRequest = false;
         }
+
+        this.inferenceResultsMapSupplier = null;
     }
 
     protected InterceptedInferenceQueryBuilder(
         InterceptedInferenceQueryBuilder<T> other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
         boolean ccsRequest
     ) {
         this.originalQuery = other.originalQuery;
         this.inferenceResultsMap = inferenceResultsMap;
+        this.inferenceResultsMapSupplier = inferenceResultsMapSupplier;
         this.ccsRequest = ccsRequest;
     }
 
@@ -144,13 +155,18 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     protected abstract QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext);
 
     /**
-     * Generate a copy of {@code this} using the provided inference results map.
+     * Generate a copy of {@code this}.
      *
      * @param inferenceResultsMap The inference results map
+     * @param inferenceResultsMapSupplier The inference results map supplier
      * @param ccsRequest Flag indicating if this is a CCS request
      * @return A copy of {@code this} with the provided inference results map
      */
-    protected abstract QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap, boolean ccsRequest);
+    protected abstract QueryBuilder copy(
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
+        boolean ccsRequest
+    );
 
     /**
      * Rewrite to a {@link QueryBuilder} appropriate for a specific index's mappings. The implementation can use
@@ -195,6 +211,12 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
+        if (inferenceResultsMapSupplier != null) {
+            throw new IllegalStateException(
+                "inferenceResultsMapSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?"
+            );
+        }
+
         out.writeNamedWriteable(originalQuery);
         if (out.getTransportVersion().supports(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)) {
             out.writeOptional(
@@ -238,12 +260,13 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     protected boolean doEquals(InterceptedInferenceQueryBuilder<T> other) {
         return Objects.equals(originalQuery, other.originalQuery)
             && Objects.equals(inferenceResultsMap, other.inferenceResultsMap)
+            && Objects.equals(inferenceResultsMapSupplier, other.inferenceResultsMapSupplier)
             && Objects.equals(ccsRequest, other.ccsRequest);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(originalQuery, inferenceResultsMap, ccsRequest);
+        return Objects.hash(originalQuery, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
     }
 
     @Override
@@ -321,29 +344,37 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             );
         }
 
+        if (inferenceResultsMapSupplier != null) {
+            // Additional inference results have already been requested, and we are waiting for them to continue the rewrite process
+            return getNewInferenceResultsFromSupplier(inferenceResultsMapSupplier, this, m -> copy(m, null, ccsRequest));
+        }
+
         FullyQualifiedInferenceId inferenceIdOverride = getInferenceIdOverride();
         if (inferenceIdOverride != null) {
             inferenceIds = Set.of(inferenceIdOverride);
         }
 
-        QueryBuilder rewritten = this;
-        if (queryRewriteContext.hasAsyncActions() == false) {
-            // If the query is null, there's nothing to generate inference results for. This can happen if pre-computed inference results
-            // are provided by the user. Ensure that we set an empty inference results map in this case so that it is always non-null after
-            // coordinator node rewrite.
-            Map<FullyQualifiedInferenceId, InferenceResults> modifiedInferenceResultsMap = SemanticQueryBuilder.getInferenceResults(
-                queryRewriteContext,
-                inferenceIds,
-                this.inferenceResultsMap,
-                getQuery()
-            );
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> newInferenceResultsMapSupplier = getInferenceResults(
+            queryRewriteContext,
+            inferenceIds,
+            inferenceResultsMap,
+            getQuery()
+        );
 
-            if (modifiedInferenceResultsMap == this.inferenceResultsMap) {
+        QueryBuilder rewritten = this;
+        if (newInferenceResultsMapSupplier == null) {
+            // No additional inference results are required
+            if (inferenceResultsMap != null) {
                 // The inference results map is fully populated, so we can perform error checking
-                inferenceResultsErrorCheck(modifiedInferenceResultsMap);
+                inferenceResultsErrorCheck(inferenceResultsMap);
             } else {
-                rewritten = copy(modifiedInferenceResultsMap, ccsRequest);
+                // No inference results have been collected yet, indicating we don't need any to rewrite this query.
+                // This can happen when pre-computed inference results are provided by the user.
+                // Set an empty inference results map so that rewriting can continue.
+                rewritten = copy(Map.of(), null, ccsRequest);
             }
+        } else {
+            rewritten = copy(inferenceResultsMap, newInferenceResultsMapSupplier, ccsRequest);
         }
 
         return rewritten;
@@ -402,39 +433,19 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         Map<String, Float> queryFields,
         boolean resolveWildcards
     ) {
-        Map<String, Float> inferenceFieldsToQuery = new HashMap<>();
         Map<String, InferenceFieldMetadata> indexInferenceFields = indexMetadataContext.getMappingLookup().inferenceFields();
-        for (Map.Entry<String, Float> entry : queryFields.entrySet()) {
-            String queryField = entry.getKey();
-            Float weight = entry.getValue();
+        Map<InferenceFieldMetadata, Float> matchingInferenceFields = getMatchingInferenceFields(
+            indexInferenceFields,
+            queryFields,
+            resolveWildcards
+        );
 
-            if (indexInferenceFields.containsKey(queryField)) {
-                // No wildcards in field name
-                addToInferenceFieldsMap(inferenceFieldsToQuery, queryField, weight);
-                continue;
-            }
-            if (resolveWildcards) {
-                if (Regex.isMatchAllPattern(queryField)) {
-                    indexInferenceFields.keySet().forEach(f -> addToInferenceFieldsMap(inferenceFieldsToQuery, f, weight));
-                } else if (Regex.isSimpleMatchPattern(queryField)) {
-                    indexInferenceFields.keySet()
-                        .stream()
-                        .filter(f -> Regex.simpleMatch(queryField, f))
-                        .forEach(f -> addToInferenceFieldsMap(inferenceFieldsToQuery, f, weight));
-                }
-            }
-        }
-
-        return inferenceFieldsToQuery;
+        return matchingInferenceFields.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getName(), Map.Entry::getValue));
     }
 
     private static Map<String, Float> getDefaultFields(Settings settings) {
         List<String> defaultFieldsList = settings.getAsList(DEFAULT_FIELD_SETTING.getKey(), DEFAULT_FIELD_SETTING.getDefault(settings));
         return QueryParserHelper.parseFieldsAndWeights(defaultFieldsList);
-    }
-
-    private static void addToInferenceFieldsMap(Map<String, Float> inferenceFields, String field, Float weight) {
-        inferenceFields.compute(field, (k, v) -> v == null ? weight : v * weight);
     }
 
     private static void inferenceResultsErrorCheck(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {

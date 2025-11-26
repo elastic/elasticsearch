@@ -37,14 +37,17 @@
     "params": {
       "from": {
         "type": "int",
+        "default": 0,
         "description": "skips a number of transform configs, defaults to 0"
       },
       "size": {
         "type": "int",
+        "default": 100,
         "description": "specifies a max number of transforms to get, defaults to 100"
       },
       "allow_no_match": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to ignore if a wildcard expression matches no transforms. (This includes `_all` string or when no transforms have been specified)"
       },
       "format": {
@@ -54,7 +57,43 @@
       },
       "h": {
         "type": "list",
-        "description": "Comma-separated list of column names to display"
+        "default": "changes_last_detection_time,checkpoint,checkpoint_progress,documents_processed,id,last_search_time,state",
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "changes_last_detection_time",
+          "checkpoint",
+          "checkpoint_duration_time_exp_avg",
+          "checkpoint_progress",
+          "create_time",
+          "delete_time",
+          "description",
+          "dest_index",
+          "documents_deleted",
+          "documents_indexed",
+          "docs_per_second",
+          "documents_processed",
+          "frequency",
+          "id",
+          "index_failure",
+          "index_time",
+          "index_total",
+          "indexed_documents_exp_avg",
+          "last_search_time",
+          "max_page_search_size",
+          "pages_processed",
+          "pipeline",
+          "processed_documents_exp_avg",
+          "processing_time",
+          "reason",
+          "search_failure",
+          "search_time",
+          "search_total",
+          "source_index",
+          "state",
+          "transform_type",
+          "trigger_count",
+          "version"
+        ]
       },
       "help": {
         "type": "boolean",
@@ -63,7 +102,42 @@
       },
       "s": {
         "type": "list",
-        "description": "Comma-separated list of column names or column aliases to sort by"
+        "description": "Comma-separated list of column names or column aliases to sort by",
+        "options": [
+          "changes_last_detection_time",
+          "checkpoint",
+          "checkpoint_duration_time_exp_avg",
+          "checkpoint_progress",
+          "create_time",
+          "delete_time",
+          "description",
+          "dest_index",
+          "documents_deleted",
+          "documents_indexed",
+          "docs_per_second",
+          "documents_processed",
+          "frequency",
+          "id",
+          "index_failure",
+          "index_time",
+          "index_total",
+          "indexed_documents_exp_avg",
+          "last_search_time",
+          "max_page_search_size",
+          "pages_processed",
+          "pipeline",
+          "processed_documents_exp_avg",
+          "processing_time",
+          "reason",
+          "search_failure",
+          "search_time",
+          "search_total",
+          "source_index",
+          "state",
+          "transform_type",
+          "trigger_count",
+          "version"
+        ]
       },
       "time": {
         "type": "enum",

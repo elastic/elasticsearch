@@ -5,7 +5,7 @@
 ```esql
 TS k8s
 | WHERE pod == "one"
-| STATS increase_bytes_in = sum(increase(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| STATS increase_bytes_in = SUM(INCREASE(network.total_bytes_in)) BY cluster, time_bucket = TBUCKET(10minute)
 ```
 
 | increase_bytes_in:double | cluster:keyword | time_bucket:datetime |

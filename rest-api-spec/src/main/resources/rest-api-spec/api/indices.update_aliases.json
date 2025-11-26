@@ -27,6 +27,7 @@
     "params": {
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Request timeout"
       },
       "master_timeout": {

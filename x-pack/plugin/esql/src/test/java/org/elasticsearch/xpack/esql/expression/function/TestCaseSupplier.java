@@ -23,6 +23,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -42,10 +43,13 @@ import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
+import java.util.function.Consumer;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -1156,9 +1160,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      */
     public static List<TypedDataSupplier> dateCases(long min, long max) {
         List<TypedDataSupplier> cases = new ArrayList<>();
-        if (min <= 0 && max >= 0) {
-            cases.add(new TypedDataSupplier("<1970-01-01T00:00:00Z>", () -> 0L, DataType.DATETIME));
-        }
+        Consumer<String> addExactCase = (value) -> {
+            long date = Instant.parse(value).toEpochMilli();
+            if (date >= min && date <= max) {
+                cases.add(new TypedDataSupplier("<" + value + ">", () -> date, DataType.DATETIME));
+            }
+        };
+
+        addExactCase.accept("1970-01-01T00:00:00Z");
+        addExactCase.accept("2025-03-30T01:00:00+01:00"); // Before Europe/Paris DST change
+        addExactCase.accept("2025-03-30T03:00:00+02:00"); // After Europe/Paris DST change
 
         // 1970-01-01T00:00:00Z - 2286-11-20T17:46:40Z
         long lower1 = Math.max(min, 0);
@@ -1215,11 +1226,17 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Instant twentyTwoFifty = Instant.parse("2250-01-01T00:00:00Z");
 
         List<TypedDataSupplier> cases = new ArrayList<>();
-        if (minValue.isAfter(Instant.EPOCH) == false) {
-            cases.add(
-                new TypedDataSupplier("<1970-01-01T00:00:00.000000000Z>", () -> DateUtils.toLong(Instant.EPOCH), DataType.DATE_NANOS)
-            );
-        }
+        Consumer<String> addExactCase = (value) -> {
+            Instant instant = Instant.parse(value);
+            long date = DateUtils.toLong(Instant.parse(value));
+            if (minValue.isAfter(instant) == false && maxValue.isBefore(instant) == false) {
+                cases.add(new TypedDataSupplier("<" + value + ">", () -> date, DataType.DATE_NANOS));
+            }
+        };
+
+        addExactCase.accept("1970-01-01T00:00:00.000000000Z");
+        addExactCase.accept("2025-03-30T01:00:00.000000001+01:00"); // Before Europe/Paris DST change
+        addExactCase.accept("2025-03-30T03:00:00.000000002+02:00"); // After Europe/Paris DST change
 
         Instant lower = Instant.EPOCH.isBefore(minValue) ? minValue : Instant.EPOCH;
         Instant upper = twentyOneHundred.isAfter(maxValue) ? maxValue : twentyOneHundred;
@@ -1506,6 +1523,19 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    /**
+     * Generate cases for {@link DataType#EXPONENTIAL_HISTOGRAM}.
+     */
+    public static List<TypedDataSupplier> exponentialHistogramCases() {
+        return List.of(
+            new TypedDataSupplier(
+                "<random exponential histogram>",
+                EsqlTestUtils::randomExponentialHistogram,
+                DataType.EXPONENTIAL_HISTOGRAM
+            )
+        );
+    }
+
     public static String getCastEvaluator(String original, DataType current, DataType target) {
         if (current == target) {
             return original;
@@ -1568,6 +1598,15 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return "CastUnsignedLongToDoubleEvaluator[v=" + original + "]";
         }
         throw new UnsupportedOperationException();
+    }
+
+    public static List<TestCaseSupplier> mapTestCases(
+        Collection<TestCaseSupplier> suppliers,
+        Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> mapper
+    ) {
+        return suppliers.stream()
+            .map(supplier -> new TestCaseSupplier(supplier.name(), supplier.types(), () -> mapper.apply(supplier.get())))
+            .collect(Collectors.toCollection(ArrayList::new));
     }
 
     public static final class TestCase {
@@ -1655,6 +1694,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Object extra
         ) {
             this(
+                TEST_SOURCE,
+                ConfigurationTestUtils.randomConfiguration(TEST_SOURCE.text(), Map.of()),
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1670,6 +1711,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         TestCase(
+            Source source,
+            Configuration configuration,
             List<TypedData> data,
             Matcher<String> evaluatorToString,
             DataType expectedType,
@@ -1682,8 +1725,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Object extra,
             boolean canBuildEvaluator
         ) {
-            this.source = TEST_SOURCE;
-            this.configuration = TEST_CONFIGURATION;
+            this.source = source;
+            this.configuration = configuration;
             this.data = data;
             this.evaluatorToString = evaluatorToString;
             this.expectedType = expectedType == null ? null : expectedType.noText();
@@ -1780,10 +1823,36 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
+         * Build a new {@link TestCase} with new {@link #configuration}.
+         * <p>
+         *     As the configuration query should match the source, the source is also updated here.
+         * </p>
+         */
+        public TestCase withConfiguration(Source source, Configuration configuration) {
+            return new TestCase(
+                source,
+                configuration,
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                expectedWarnings,
+                expectedBuildEvaluatorWarnings,
+                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra,
+                canBuildEvaluator
+            );
+        }
+
+        /**
          * Build a new {@link TestCase} with new {@link #data}.
          */
         public TestCase withData(List<TestCaseSupplier.TypedData> data) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1803,6 +1872,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public TestCase withExtra(Object extra) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1819,6 +1890,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         public TestCase withWarning(String warning) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1839,6 +1912,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public TestCase withBuildEvaluatorWarning(String warning) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1864,6 +1939,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         public TestCase withFoldingException(Class<? extends Throwable> clazz, String message) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1886,6 +1963,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public TestCase withoutEvaluator() {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,

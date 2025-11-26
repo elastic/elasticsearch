@@ -30,6 +30,7 @@
       },
       "local": {
         "type": "boolean",
+        "default": false,
         "description": "Return local information, do not retrieve the state from master node (default: false)"
       },
       "master_timeout": {
@@ -39,7 +40,17 @@
       },
       "h": {
         "type": "list",
-        "description": "Comma-separated list of column names to display"
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "node",
+          "id",
+          "pid",
+          "host",
+          "ip",
+          "port",
+          "attr",
+          "value"
+        ]
       },
       "help": {
         "type": "boolean",

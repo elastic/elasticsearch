@@ -24,7 +24,12 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<RegexExtract>, PostAnalysisVerificationAware, SortAgnostic {
+public abstract class RegexExtract extends UnaryPlan
+    implements
+        GeneratingPlan<RegexExtract>,
+        PostAnalysisVerificationAware,
+        Streaming,
+        SortAgnostic {
     protected final Expression input;
     protected final List<Attribute> extractedFields;
 

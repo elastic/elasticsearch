@@ -41,7 +41,7 @@ FROM employees
 ;
 
 count:long | avg_emp_no:double | sum_emp_no:long
-<10-90>    | <10010-10090>     | <100100-908100>
+<10;90>    | <10010.0;10090.0> | <100100;908100>
 ;
 
 
@@ -55,7 +55,7 @@ FROM employees
 ;
 
 count:long | avg_emp_no:double
-<2-48>     | <10055-10095>
+<2;48>     | <10055;10095>
 ;
 
 
@@ -69,7 +69,7 @@ FROM employees
 ;
 
 count:long | avg_emp_no:double
-<2-48>     | <10005-10045>
+<2;48>     | <10005;10045>
 ;
 
 
@@ -83,7 +83,7 @@ FROM employees
 ;
 
 count:long | avg_emp_no:double
-<10-90>    | <10010-10090>
+<10;90>    | <10010;10090>
 ;
 
 
@@ -97,7 +97,7 @@ FROM employees
 ;
 
 count:long | avg_emp_no:double
-<10-90>    | <10010-10090>
+<10;90>    | <10010;10090>
 ;
 
 
@@ -125,7 +125,7 @@ FROM employees
 ;
 
 count:long
-<2-48>
+<2;48>
 ;
 
 
@@ -173,7 +173,7 @@ FROM employees
 ;
 
 count:long | avg_emp_no:double
-<10-90>    | <10010-10090>
+<10;90>    | <10010;10090>
 ;
 
 
@@ -188,7 +188,7 @@ FROM employees
 ;
 
 count:long | avg_avg_salary:double
-<1-16>     | <25000-75000>
+<1;16>     | <25000;75000>
 ;
 
 
@@ -220,6 +220,7 @@ emp_no:integer
 sampleStatsEval
 required_capability: fix_no_columns
 required_capability: sample_v3
+
 FROM employees | SAMPLE 0.5 | LIMIT 10 | STATS count = COUNT() | EVAL is_expected = count > 0;
 
 count:long | is_expected:boolean

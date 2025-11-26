@@ -624,9 +624,9 @@ public final class CsvTestUtils {
             if (value == null) {
                 return null;
             }
-            if (Number.class.isAssignableFrom(clazz) && value.startsWith("<") && value.endsWith(">") && value.contains("-")) {
-                // Numbers of the form "<lower-upper>" are parsed to a Range.
-                int separator = value.indexOf('-');
+            if (Number.class.isAssignableFrom(clazz) && value.startsWith("<") && value.endsWith(">") && value.contains(";")) {
+                // Numbers of the form "<lower;upper>" are parsed to a Range.
+                int separator = value.indexOf(';');
                 Object lowerBound = converter.apply(value.substring(1, separator).trim());
                 Object upperBound = converter.apply(value.substring(separator + 1, value.length() - 1).trim());
                 return new Range(lowerBound, upperBound);

@@ -94,14 +94,10 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     @Override
-    protected QueryBuilder customCoordinatorNodeRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder customDoRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) throws IOException {
         // knn query may contain filters that are also intercepted.
         // We need to rewrite those here so that we can get inference results for them too.
-        QueryBuilder rewritten = rewriteFilterQueries(queryRewriteContext);
-        if (rewritten != this) {
-            return rewritten;
-        }
-        return super.customCoordinatorNodeRewrite(queryRewriteContext);
+        return rewriteFilterQueries(queryRewriteContext);
     }
 
     private QueryBuilder rewriteFilterQueries(QueryRewriteContext queryRewriteContext) throws IOException {

@@ -67,8 +67,8 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
     }
 
     @Override
-    protected List<QueryRewriteInterceptor> createQueryRewriteInterceptors() {
-        return List.of(new SemanticSparseVectorQueryRewriteInterceptor());
+    protected QueryRewriteInterceptor createQueryRewriteInterceptor() {
+        return new SemanticSparseVectorQueryRewriteInterceptor();
     }
 
     @Override

@@ -209,7 +209,11 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      */
     protected void coordinatorNodeValidate(ResolvedIndices resolvedIndices) {}
 
-    protected QueryBuilder customCoordinatorNodeRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    /**
+     * A hook for subclasses to do additional rewriting and inference result fetching while we are on the coordinator node.
+     * An example usage is {@link InterceptedInferenceKnnVectorQueryBuilder} which needs to rewrite the knn queries filters.
+     */
+    protected QueryBuilder customDoRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) throws IOException {
         return this;
     }
 
@@ -348,18 +352,11 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             );
         }
 
-        QueryBuilder rewritten = customCoordinatorNodeRewrite(queryRewriteContext);
+        QueryBuilder rewritten = customDoRewriteGetInferenceResults(queryRewriteContext);
         if (this != rewritten) {
             return rewritten;
         }
-        return coordinatorNodeRewrite(queryRewriteContext, inferenceIds, ccsRequest);
-    }
 
-    private QueryBuilder coordinatorNodeRewrite(
-        QueryRewriteContext queryRewriteContext,
-        Set<FullyQualifiedInferenceId> inferenceIds,
-        boolean ccsRequest
-    ) {
         if (inferenceResultsMapSupplier != null) {
             // Additional inference results have already been requested, and we are waiting for them to continue the rewrite process
             return getNewInferenceResultsFromSupplier(inferenceResultsMapSupplier, this, m -> copy(m, null, ccsRequest));
@@ -377,7 +374,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             getQuery()
         );
 
-        QueryBuilder rewritten = this;
         if (newInferenceResultsMapSupplier == null) {
             // No additional inference results are required
             if (inferenceResultsMap != null) {

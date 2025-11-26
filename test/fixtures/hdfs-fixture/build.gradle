@@ -200,8 +200,6 @@ tasks.named("shadowJar").configure {
     exclude "org.apache.hadoop.ipc.StandbyException"
     exclude "org.apache.hadoop.application-classloader.properties"
   }
-  relocate("org.apache.commons.lang", "fixture.hdfs2.org.apache.commons.lang")
-  relocate("org.apache.commons.io", "fixture.hdfs2.org.apache.commons.io")
   configurations.add(project.configurations.hdfs3)
 }
 
@@ -211,11 +209,24 @@ def hdfs2Jar = tasks.register("hdfs2jar", ShadowJar) {
     exclude "org.apache.hadoop.ipc.StandbyException"
     exclude "org.apache.hadoop.application-classloader.properties"
   }
-  relocate("org.apache.commons.lang", "fixture.hdfs2.org.apache.commons.lang")
-  relocate("org.apache.commons.io", "fixture.hdfs2.org.apache.commons.io")
   archiveClassifier.set("hdfs2")
   from sourceSets.main.output
   configurations.add(project.configurations.hdfs2)
+
+  // Rename webapps directories for Hadoop 2.x compatibility with Jetty 6
+  // Jetty 6 expects webapps/{name}/{name} structure
+  eachFile { fileCopyDetails ->
+    def pathStr = fileCopyDetails.path
+    if (pathStr.startsWith("webapps/hdfs/") && !pathStr.startsWith("webapps/hdfs/hdfs/")) {
+      fileCopyDetails.path = pathStr.replace("webapps/hdfs/", "webapps/hdfs/hdfs/")
+    } else if (pathStr.startsWith("webapps/datanode/") && !pathStr.startsWith("webapps/datanode/datanode/")) {
+      fileCopyDetails.path = pathStr.replace("webapps/datanode/", "webapps/datanode/datanode/")
+    } else if (pathStr.startsWith("webapps/secondary/") && !pathStr.startsWith("webapps/secondary/secondary/")) {
+      fileCopyDetails.path = pathStr.replace("webapps/secondary/", "webapps/secondary/secondary/")
+    } else if (pathStr.startsWith("webapps/journal/") && !pathStr.startsWith("webapps/journal/journal/")) {
+      fileCopyDetails.path = pathStr.replace("webapps/journal/", "webapps/journal/journal/")
+    }
+  }
 }
 
 tasks.withType(ShadowJar).configureEach {
@@ -243,6 +254,9 @@ tasks.withType(ShadowJar).configureEach {
     resource = "hdfs-default.xml"
     enabled = true
   }
+
+  relocate("org.apache.commons.lang", "fixture.org.apache.commons.lang")
+  relocate("org.apache.commons.io", "fixture.org.apache.commons.io")
 }
 
 artifacts {

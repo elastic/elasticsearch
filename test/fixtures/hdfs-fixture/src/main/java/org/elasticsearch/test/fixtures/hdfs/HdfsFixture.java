@@ -201,6 +201,13 @@ public class HdfsFixture extends ExternalResource {
                 if (attempt == maxAttempts) {
                     throw e;
                 }
+                // Add a small delay before retrying to allow filesystem to stabilize
+                try {
+                    Thread.sleep(1000 * attempt); // Progressive backoff: 1s, 2s
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted while waiting to retry HDFS startup", ie);
+                }
             }
         }
     }

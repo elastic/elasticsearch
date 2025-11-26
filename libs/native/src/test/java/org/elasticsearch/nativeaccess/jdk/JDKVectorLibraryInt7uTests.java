@@ -137,7 +137,8 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         var nativeQuerySeg = segment.asSlice((long) queryOrd * dims, dims);
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
         var offsetsSeg = arena.allocate((long) numVecs * Integer.BYTES);
-        dotProduct7uBulkWithOffsets(segment, nativeQuerySeg, dims, offsetsSeg, numVecs, bulkScoresSeg);
+        // TODO: test pitch
+        dotProduct7uBulkWithOffsets(segment, nativeQuerySeg, dims, dims, offsetsSeg, numVecs, 1.0f, bulkScoresSeg);
         assertScoresEquals(expectedScores, bulkScoresSeg);
 
         if (supportsHeapSegments()) {
@@ -146,8 +147,10 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
                 segment,
                 nativeQuerySeg,
                 dims,
+                dims,
                 MemorySegment.ofArray(offsets),
                 numVecs,
+                1.0f,
                 MemorySegment.ofArray(bulkScores)
             );
             assertArrayEquals(expectedScores, bulkScores, 0f);
@@ -239,9 +242,18 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         }
     }
 
-    void dotProduct7uBulkWithOffsets(MemorySegment a, MemorySegment b, int dims, MemorySegment offsets, int count, MemorySegment result) {
+    void dotProduct7uBulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int dims,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        float scoreCorrection,
+        MemorySegment result
+    ) {
         try {
-            getVectorDistance().dotProductHandle7uBulkWithOffsets().invokeExact(a, b, dims, count, result);
+            getVectorDistance().dotProductHandle7uBulkWithOffsets().invokeExact(a, b, dims, pitch, offsets, count, scoreCorrection, result);
         } catch (Throwable e) {
             if (e instanceof Error err) {
                 throw err;

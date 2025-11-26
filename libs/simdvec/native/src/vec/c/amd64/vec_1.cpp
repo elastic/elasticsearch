@@ -158,12 +158,21 @@ EXPORT int32_t vec_dot7u(const int8_t* a, const int8_t* b, const int32_t dims) {
 }
 
 template <int32_t(*mapper)(int32_t, const int32_t*)>
-static inline void dot7u_inner_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t* offsets, const int32_t count, f32_t* results) {
+static inline void dot7u_inner_bulk(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    const f32_t score_correction, // TODO
+    f32_t* results
+) {
     int32_t res = 0;
     if (dims > STRIDE_BYTES_LEN) {
         const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
         for (int32_t c = 0; c < count; c++) {
-            const int8_t* a0 = a + mapper(c, offsets) * dims;
+            const int8_t* a0 = a + mapper(c, offsets) * pitch;
             int i = limit;
             res = dot7u_inner(a, b, i);
             for (; i < dims; i++) {
@@ -173,7 +182,7 @@ static inline void dot7u_inner_bulk(const int8_t* a, const int8_t* b, const int3
         }
     } else {
         for (int32_t c = 0; c < count; c++) {
-            const int8_t* a0 = a + mapper(c, offsets) * dims;
+            const int8_t* a0 = a + mapper(c, offsets) * pitch;
             res = 0;
             for (int32_t i = 0; i < dims; i++) {
                 res += a0[i] * b[i];
@@ -192,12 +201,20 @@ static inline int index(const int32_t i, const int32_t* offsets) {
 }
 
 EXPORT void vec_dot7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    dot7u_inner_bulk<identity>(a, b, dims, NULL, count, results);
+    dot7u_inner_bulk<identity>(a, b, dims, dims, NULL, count, 1.0f, results);
 }
 
 
-EXPORT void vec_dot7u_bulk_offsets(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t* offsets, const int32_t count, f32_t* results) {
-    dot7u_inner_bulk<index>(a, b, dims, offsets, count, results);
+EXPORT void vec_dot7u_bulk_offsets(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    const f32_t score_correction,
+    f32_t* results) {
+    dot7u_inner_bulk<index>(a, b, dims, pitch, offsets, count, score_correction, results);
 }
 
 static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, const int32_t dims) {

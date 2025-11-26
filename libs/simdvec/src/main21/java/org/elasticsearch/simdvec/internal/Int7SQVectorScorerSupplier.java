@@ -17,7 +17,9 @@ import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import org.elasticsearch.simdvec.QuantizedByteVectorValuesAccess;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
@@ -34,6 +36,8 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     final MemorySegmentAccessInput input;
     final QuantizedByteVectorValues values; // to support ordToDoc/getAcceptOrds
     final ScalarQuantizedVectorSimilarity fallbackScorer;
+
+    static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
     protected Int7SQVectorScorerSupplier(
         MemorySegmentAccessInput input,
@@ -52,6 +56,50 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     protected final void checkOrdinal(int ord) {
         if (ord < 0 || ord > maxOrd) {
             throw new IllegalArgumentException("illegal ordinal: " + ord);
+        }
+    }
+
+    final void bulkScoreFromOrds(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
+        // throw new UnsupportedOperationException("not implemented");
+
+        MemorySegment segment = input.segmentSliceOrNull(0, input.length());
+        if (segment == null) {
+            bulkFallbackScore(firstOrd, ordinals, scores, numNodes);
+        } else {
+            final int vectorLength = dims;
+            final int vectorPitch = vectorLength + Float.BYTES;
+
+            if (SUPPORTS_HEAP_SEGMENTS) {
+                bulkScoreFromSegment(
+                    segment,
+                    vectorLength,
+                    vectorPitch,
+                    firstOrd,
+                    MemorySegment.ofArray(ordinals),
+                    MemorySegment.ofArray(scores),
+                    numNodes
+                );
+            } else {
+                try (var arena = Arena.ofConfined()) {
+                    var ordinalsMemorySegment = arena.allocate((long) numNodes * Integer.BYTES, 32);
+                    var scoresMemorySegment = arena.allocate((long) numNodes * Float.BYTES, 32);
+
+                    MemorySegment.copy(ordinals, 0, ordinalsMemorySegment, ValueLayout.JAVA_INT, 0, numNodes);
+
+                    bulkScoreFromSegment(
+                        segment,
+                        vectorLength,
+                        vectorPitch,
+                        firstOrd,
+                        ordinalsMemorySegment,
+                        scoresMemorySegment,
+                        numNodes
+                    );
+
+                    MemorySegment.copy(scoresMemorySegment, ValueLayout.JAVA_FLOAT, 0, scores, 0, numNodes);
+                }
+            }
+
         }
     }
 
@@ -77,7 +125,30 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
     abstract float scoreFromSegments(MemorySegment a, float aOffset, MemorySegment b, float bOffset);
 
-    protected final float fallbackScore(long firstByteOffset, long secondByteOffset) throws IOException {
+    // TODO: make this abstract when we have bulk implementations for all subclasses
+    protected void bulkScoreFromSegment(
+        MemorySegment vectors,
+        int vectorLength,
+        int vectorPitch,
+        int firstOrd,
+        MemorySegment ordinals,
+        MemorySegment scores,
+        int numNodes
+    ) {
+        long firstByteOffset = (long) firstOrd * vectorPitch;
+        var a = vectors.asSlice(firstByteOffset, vectorLength);
+        var aOffset = Float.intBitsToFloat(vectors.asSlice(firstByteOffset + vectorLength, Float.BYTES).get(ValueLayout.JAVA_INT, 0));
+        for (int i = 0; i < numNodes; ++i) {
+            var secondOrd = ordinals.get(ValueLayout.JAVA_INT, i);
+            long secondByteOffset = (long) secondOrd * vectorPitch;
+            var b = vectors.asSlice(secondByteOffset, vectorLength);
+            var bOffset = Float.intBitsToFloat(vectors.asSlice(secondByteOffset + vectorLength, Float.BYTES).get(ValueLayout.JAVA_INT, 0));
+            var score = scoreFromSegments(a, aOffset, b, bOffset);
+            scores.set(ValueLayout.JAVA_FLOAT, i, score);
+        }
+    }
+
+    private float fallbackScore(long firstByteOffset, long secondByteOffset) throws IOException {
         byte[] a = new byte[dims];
         input.readBytes(firstByteOffset, a, 0, a.length);
         float aOffsetValue = Float.intBitsToFloat(input.readInt(firstByteOffset + dims));
@@ -89,6 +160,24 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         return fallbackScorer.score(a, aOffsetValue, b, bOffsetValue);
     }
 
+    private void bulkFallbackScore(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
+        final int vectorPitch = dims + Float.BYTES;
+        long firstByteOffset = (long) firstOrd * vectorPitch;
+
+        byte[] a = new byte[dims];
+        input.readBytes(firstByteOffset, a, 0, a.length);
+        float aOffsetValue = Float.intBitsToFloat(input.readInt(firstByteOffset + dims));
+
+        byte[] b = new byte[dims];
+        for (int c = 0; c < numNodes; ++c) {
+            long secondByteOffset = (long) ordinals[c] * vectorPitch;
+            input.readBytes(secondByteOffset, b, 0, a.length);
+            float bOffsetValue = Float.intBitsToFloat(input.readInt(secondByteOffset + dims));
+
+            scores[c] = fallbackScorer.score(a, aOffsetValue, b, bOffsetValue);
+        }
+    }
+
     @Override
     public UpdateableRandomVectorScorer scorer() {
         return new UpdateableRandomVectorScorer.AbstractUpdateableRandomVectorScorer(values) {
@@ -98,6 +187,11 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             public float score(int node) throws IOException {
                 checkOrdinal(node);
                 return scoreFromOrds(ord, node);
+            }
+
+            @Override
+            public void bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+                bulkScoreFromOrds(ord, nodes, scores, numNodes);
             }
 
             @Override
@@ -144,6 +238,34 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             assert dotProduct >= 0;
             float adjustedDistance = dotProduct * scoreCorrectionConstant + aOffset + bOffset;
             return Math.max((1 + adjustedDistance) / 2, 0f);
+        }
+
+        @Override
+        protected void bulkScoreFromSegment(
+            MemorySegment vectors,
+            int vectorLength,
+            int vectorPitch,
+            int firstOrd,
+            MemorySegment ordinals,
+            MemorySegment scores,
+            int numNodes
+        ) {
+            long firstByteOffset = (long) firstOrd * vectorPitch;
+            var a = vectors.asSlice(firstByteOffset, vectorPitch);
+            Similarities.dotProduct7uBulkWithOffsets(vectors, a, dims, vectorPitch, numNodes, ordinals, scoreCorrectionConstant, scores);
+
+            // Java-side adjustment
+            var aOffset = Float.intBitsToFloat(vectors.asSlice(firstByteOffset + vectorLength, Float.BYTES).get(ValueLayout.JAVA_INT, 0));
+            for (int i = 0; i < numNodes; ++i) {
+                var dotProduct = scores.get(ValueLayout.JAVA_FLOAT, i);
+                var secondOrd = ordinals.get(ValueLayout.JAVA_INT, i);
+                long secondByteOffset = (long) secondOrd * vectorPitch;
+                var bOffset = Float.intBitsToFloat(
+                    vectors.asSlice(secondByteOffset + vectorLength, Float.BYTES).get(ValueLayout.JAVA_INT, 0)
+                );
+                float adjustedDistance = dotProduct * scoreCorrectionConstant + aOffset + bOffset;
+                scores.set(ValueLayout.JAVA_FLOAT, i, Math.max((1 + adjustedDistance) / 2, 0f));
+            }
         }
 
         @Override

@@ -1444,6 +1444,14 @@ public abstract class FieldMapper extends Mapper {
                 } else {
                     setValue(Values.DISABLED);
                 }
+            } else if (value instanceof String) {
+                if (value.equals("true")) {
+                    setValue(getDefaultValue());
+                } else if (value.equals("false")) {
+                    setValue(Values.DISABLED);
+                } else {
+                    throw new IllegalArgumentException("Illegal value [" + value + "] for parameter [" + name + "]");
+                }
             } else if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> valueMap = (Map<String, Object>) value;

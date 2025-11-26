@@ -17,7 +17,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthApiKeyHeader;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_CCM_PATH;
 
 /**
@@ -70,7 +70,7 @@ public class CCMAuthenticationApplierFactory {
 
         @Override
         public HttpRequestBase apply(HttpRequestBase request) {
-            request.setHeader(createAuthBearerHeader(apiKey));
+            request.setHeader(createAuthApiKeyHeader(apiKey));
             return request;
         }
     }

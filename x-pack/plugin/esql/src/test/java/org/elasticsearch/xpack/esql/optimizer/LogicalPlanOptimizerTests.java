@@ -9078,13 +9078,54 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testKnnWithRerankAmdTopN() {
-        assertThat(typesError("""
+        var query = """
+            from types metadata _score
+            | where knn(dense_vector, [0, 1, 2])
+            | LIMIT 100
+            | rerank "some text" on text with { "inference_id" : "reranking-inference-id" }
+            | sort _score desc
+            | limit 10
+            """;
+
+        var optimized = planTypes(query);
+
+        var topN = as(optimized, TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
+
+        var rerank = as(topN.child(), Rerank.class);
+        var rerankLimit = as(rerank.child(), Limit.class);
+        assertThat(rerankLimit.limit().fold(FoldContext.small()), equalTo(100));
+        var filter = as(rerankLimit.child(), Filter.class);
+
+        // KNN is using the first limit (100)
+        var knn = as(filter.condition(), Knn.class);
+        assertThat(knn.implicitK(), equalTo(100));
+    }
+
+    public void testKnnWithRerankImplicitLimitAmdTopN() {
+        var query = """
             from types metadata _score
             | where knn(dense_vector, [0, 1, 2])
             | rerank "some text" on text with { "inference_id" : "reranking-inference-id" }
             | sort _score desc
             | limit 10
-            """), containsString("Knn function must be used with a LIMIT clause"));
+            """;
+
+        var optimized = planTypes(query);
+
+        var topN = as(optimized, TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
+
+        var rerank = as(topN.child(), Rerank.class);
+
+        // RERANK implicit limit is set by setting (1000)
+        var rerankLimit = as(rerank.child(), Limit.class);
+        assertThat(rerankLimit.limit().fold(FoldContext.small()), equalTo(1000));
+        var filter = as(rerankLimit.child(), Filter.class);
+
+        // KNN is using the implicit limit of RERANK (1000)
+        var knn = as(filter.condition(), Knn.class);
+        assertThat(knn.implicitK(), equalTo(1000));
     }
 
     public void testKnnWithRerankAmdLimit() {
@@ -9099,7 +9140,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var rerank = as(optimized, Rerank.class);
         var limit = as(rerank.child(), Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), equalTo(100));
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1_000));
+
         var filter = as(limit.child(), Filter.class);
         var knn = as(filter.condition(), Knn.class);
         assertThat(knn.implicitK(), equalTo(100));

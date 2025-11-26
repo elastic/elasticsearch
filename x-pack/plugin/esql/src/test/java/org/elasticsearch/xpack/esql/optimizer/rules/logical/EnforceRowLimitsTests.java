@@ -60,13 +60,13 @@ public class EnforceRowLimitsTests extends ESTestCase {
 
     public static class CompletionTestCase extends TestCase {
         public String name() {
-            return "Rerank";
+            return "Completion";
         }
 
         public Completion createPlan(LogicalPlan child, Expression rowLimit) {
             Source source = EMPTY;
             Expression prompt = Literal.keyword(source, "test prompt");
-            Attribute targetField = new ReferenceAttribute(source, null, "completion", DataType.KEYWORD);
+            Attribute targetField = new ReferenceAttribute(source, "completion", DataType.KEYWORD);
             return new Completion(source, child, Literal.keyword(source, "test-inference-id"), prompt, targetField, rowLimit);
         }
     }
@@ -80,7 +80,7 @@ public class EnforceRowLimitsTests extends ESTestCase {
         public Rerank createPlan(LogicalPlan child, Expression rowLimit) {
             Source source = EMPTY;
             Expression queryText = Literal.keyword(source, "test query");
-            Attribute scoreAttribute = new ReferenceAttribute(source, null, "score", DataType.DOUBLE);
+            Attribute scoreAttribute = new ReferenceAttribute(source, "score", DataType.DOUBLE);
             List<Alias> rerankFields = List.of();
             return new Rerank(
                 source,

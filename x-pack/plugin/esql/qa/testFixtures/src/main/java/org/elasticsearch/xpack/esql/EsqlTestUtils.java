@@ -565,7 +565,7 @@ public final class EsqlTestUtils {
         mock(ProjectResolver.class),
         mock(IndexNameExpressionResolver.class),
         null,
-        new InferenceService(mock(Client.class)),
+        new InferenceService(createMockClient()),
         new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
         TEST_PLANNER_SETTINGS,
         new CrossProjectModeDecider(Settings.EMPTY)
@@ -574,6 +574,7 @@ public final class EsqlTestUtils {
     private static ClusterService createMockClusterService() {
         var service = mock(ClusterService.class);
         doReturn(new ClusterName("test-cluster")).when(service).getClusterName();
+        doReturn(Settings.EMPTY).when(service).getSettings();
         return service;
     }
 
@@ -587,6 +588,13 @@ public final class EsqlTestUtils {
         var threadPool = mock(ThreadPool.class);
         doReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE).when(threadPool).executor(anyString());
         return threadPool;
+    }
+
+    private static Client createMockClient() {
+        var client = mock(Client.class);
+        doReturn(Settings.EMPTY).when(client).settings();
+        doReturn(createMockThreadPool()).when(client).threadPool();
+        return client;
     }
 
     private EsqlTestUtils() {}
@@ -744,6 +752,8 @@ public final class EsqlTestUtils {
     public static List<String> withDefaultLimitWarning(List<String> warnings) {
         List<String> result = warnings == null ? new ArrayList<>() : new ArrayList<>(warnings);
         result.add("No limit defined, adding default limit of [1000]");
+
+        result.add("No limit defined, adding default limit of [100]");
         return result;
     }
 

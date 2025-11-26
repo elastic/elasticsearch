@@ -180,6 +180,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private final MasterServiceTaskQueue<DeleteSourceAndAddDownsampleToDS> swapSourceWithDownsampleIndexQueue;
     private volatile ByteSizeValue targetMergePolicyFloorSegment;
     private volatile int targetMergePolicyFactor;
+    private final AdditionalDataStreamLifecycleActions additionalDataStreamLifecycleActions;
     /**
      * The number of retries for a particular index and error after which DSL will emmit a signal (e.g. log statement)
      */
@@ -218,7 +219,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         DataStreamLifecycleErrorStore errorStore,
         AllocationService allocationService,
         DataStreamLifecycleHealthInfoPublisher dataStreamLifecycleHealthInfoPublisher,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        @Nullable AdditionalDataStreamLifecycleActions additionalDataStreamLifecycleActions
     ) {
         this.settings = settings;
         this.client = client;
@@ -248,6 +250,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             new DeleteSourceAndAddDownsampleIndexExecutor(allocationService)
         );
         this.dslHealthInfoPublisher = dataStreamLifecycleHealthInfoPublisher;
+        this.additionalDataStreamLifecycleActions = additionalDataStreamLifecycleActions;
     }
 
     /**
@@ -378,7 +381,16 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             // the following indices should not be considered for the remainder of this service run, for various reasons.
             Set<Index> indicesToExcludeForRemainingRun = new HashSet<>();
             for (DataStreamLifecycleAction action : actions) {
-                indicesToExcludeForRemainingRun.addAll(action.apply(projectState, dataStream, indicesToExcludeForRemainingRun));
+                indicesToExcludeForRemainingRun.addAll(
+                    action.apply(projectState, dataStream, indicesToExcludeForRemainingRun, client, errorStore)
+                );
+            }
+            if (additionalDataStreamLifecycleActions != null) {
+                for (DataStreamLifecycleAction action : additionalDataStreamLifecycleActions.getDataStreamLifecycleActions()) {
+                    indicesToExcludeForRemainingRun.addAll(
+                        action.apply(projectState, dataStream, indicesToExcludeForRemainingRun, client, errorStore)
+                    );
+                }
             }
             affectedIndices += indicesToExcludeForRemainingRun.size();
             affectedDataStreams++;
@@ -396,7 +408,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private Set<Index> timeSeriesIndicesStillWithinTimeBounds(
         ProjectState projectState,
         DataStream dataStream,
-        Set<Index> indicesToExcludeForRemainingRun
+        Set<Index> indicesToExcludeForRemainingRun,
+        Client client,
+        DataStreamLifecycleErrorStore errorStore
     ) {
         return timeSeriesIndicesStillWithinTimeBounds(projectState, dataStream, indicesToExcludeForRemainingRun, nowSupplier);
     }
@@ -449,7 +463,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * replacing an index in the data stream, deleting a source index, or downsampling itself) so these indices can be skipped in case
      * there are other operations to be executed by the data stream lifecycle after downsampling.
      */
-    Set<Index> maybeExecuteDownsampling(ProjectState projectState, DataStream dataStream, Set<Index> indicesToExcludeForRemainingRun) {
+    Set<Index> maybeExecuteDownsampling(
+        ProjectState projectState,
+        DataStream dataStream,
+        Set<Index> indicesToExcludeForRemainingRun,
+        Client client,
+        DataStreamLifecycleErrorStore errorStore
+    ) {
         Set<Index> affectedIndices = new HashSet<>();
         try {
             List<Index> targetIndices = getTargetIndices(
@@ -836,7 +856,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
     }
 
-    private Set<Index> maybeExecuteRollover(ProjectState projectState, DataStream dataStream, Set<Index> indicesToExcludeForRemainingRun) {
+    private Set<Index> maybeExecuteRollover(
+        ProjectState projectState,
+        DataStream dataStream,
+        Set<Index> indicesToExcludeForRemainingRun,
+        Client client,
+        DataStreamLifecycleErrorStore errorStore
+    ) {
         var dataRetention = getEffectiveRetention(dataStream, globalRetentionSettings, false);
         var failuresRetention = getEffectiveRetention(dataStream, globalRetentionSettings, true);
         // These are the pre-rollover write indices. They may or may not be the write index after maybeExecuteRollover has executed,
@@ -919,7 +945,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * @param indicesToExcludeForRemainingRun Indices to exclude from retention even if it would be time for them to be deleted
      * @return The set of indices that delete requests have been sent for
      */
-    Set<Index> maybeExecuteRetention(ProjectState projectState, DataStream dataStream, Set<Index> indicesToExcludeForRemainingRun) {
+    Set<Index> maybeExecuteRetention(
+        ProjectState projectState,
+        DataStream dataStream,
+        Set<Index> indicesToExcludeForRemainingRun,
+        Client client,
+        DataStreamLifecycleErrorStore errorStore
+    ) {
         Set<Index> indicesToBeRemoved = new HashSet<>();
         try {
             var dataRetention = getEffectiveRetention(dataStream, globalRetentionSettings, false);
@@ -1012,7 +1044,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private Set<Index> maybeExecuteForceMerge(
         ProjectState projectState,
         DataStream dataStream,
-        Set<Index> indicesToExcludeForRemainingRun
+        Set<Index> indicesToExcludeForRemainingRun,
+        Client client,
+        DataStreamLifecycleErrorStore errorStore
     ) {
         Set<Index> affectedIndices = new HashSet<>();
         try {
@@ -1725,16 +1759,4 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
     }
 
-    @FunctionalInterface
-    public interface DataStreamLifecycleAction {
-        /**
-         *
-         * This takes some action on the data stream. The action is expected to be fast, or run asynchronously. It returns a set of indices
-         * that ought to be ignored by subsequent actions in the current pass.
-         * @param projectState The current ProjectState
-         * @param dataStream The data stream to be acted upon
-         * @param indicesToExcludeForRemainingRun A set of indices that ought to be ignored by this action.
-         */
-        Set<Index> apply(ProjectState projectState, DataStream dataStream, Set<Index> indicesToExcludeForRemainingRun);
-    }
 }

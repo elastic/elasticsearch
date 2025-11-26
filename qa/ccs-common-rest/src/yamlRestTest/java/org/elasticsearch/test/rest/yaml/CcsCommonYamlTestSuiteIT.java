@@ -85,7 +85,6 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final AtomicReference<TestFeatureService> combinedTestFeatureServiceRef = new AtomicReference<>();
     private static final AtomicReference<Set<String>> combinedOsSetRef = new AtomicReference<>();
     private static final AtomicReference<Set<String>> combinedNodeVersionsRef = new AtomicReference<>();
-
     private static LocalClusterConfigProvider commonClusterConfig = cluster -> cluster.module("x-pack-async-search")
         .module("aggregations")
         .module("analysis-common")
@@ -98,9 +97,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         // geohex_grid requires gold license
         .setting("xpack.license.self_generated.type", "trial")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
         .feature(FeatureFlag.IVF_FORMAT);
-
     private static ElasticsearchCluster remoteCluster = ElasticsearchCluster.local()
         .name(REMOTE_CLUSTER_NAME)
         .nodes(2)

@@ -287,9 +287,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {knn-function.KnnSearchWithKOption SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129512
-- class: org.elasticsearch.upgrades.IndexingIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/129533
 - class: org.elasticsearch.upgrades.QueryableBuiltInRolesUpgradeIT
   method: testBuiltInRolesSyncedOnClusterUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/129534

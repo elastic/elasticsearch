@@ -14,10 +14,13 @@ import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -33,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -42,6 +46,7 @@ import org.junit.BeforeClass;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -104,6 +109,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | WHERE TRANGE($now-1h, $now)
             | STATS AVG(AVG_OVER_TIME(network.bytes_in)) BY TBUCKET(1h)
             """);
+        List<Attribute> output = plan.output();
 
     }
 
@@ -145,12 +151,10 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(3));
 
-        var topN = as(project.child(), TopN.class);
-        assertThat(topN.order(), hasSize(1));
+        var evalOuter = as(project.child(), Eval.class);
+        var limit = as(evalOuter.child(), Limit.class);
 
-        var evalOuter = as(topN.child(), Eval.class);
-
-        var aggregate = as(evalOuter.child(), Aggregate.class);
+        var aggregate = as(limit.child(), Aggregate.class);
         assertThat(aggregate.groupings(), hasSize(2));
 
         var evalMiddle = as(aggregate.child(), Eval.class);
@@ -235,6 +239,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | STATS AVG(AVG_OVER_TIME(network.bytes_in)) BY pod, TBUCKET(1h)
             | LIMIT 1000
             """);
+        List<Attribute> output = plan.output();
 
     }
 
@@ -298,6 +303,35 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | LIMIT 1000
             """);
 
+    }
+
+    public void testPromqlMaxOfLongField() {
+        var plan = planPromql("""
+            TS k8s
+            | promql step 1h (
+                max(network.bytes_in)
+              )
+            """);
+        // In PromQL, the output is always double
+        assertThat(plan.output().getFirst().dataType(), equalTo(DataType.DOUBLE));
+    }
+
+    public void testSort() {
+        var plan = planPromql("""
+            TS k8s
+            | promql step 1h (
+                avg(network.bytes_in) by (pod)
+              )
+            | SORT step, pod, `avg(network.bytes_in) by (pod)`
+            """);
+        List<String> order = plan.collect(TopN.class)
+            .getFirst()
+            .order()
+            .stream()
+            .map(o -> as(o.child(), NamedExpression.class).name())
+            .toList();
+        assertThat(order, hasSize(3));
+        assertThat(order, equalTo(List.of("step", "pod", "avg(network.bytes_in) by (pod)")));
     }
 
     /**

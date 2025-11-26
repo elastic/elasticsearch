@@ -24,8 +24,10 @@ import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -33,7 +35,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -56,15 +57,16 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -178,18 +180,25 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
         if (indicesPerCluster.isEmpty()) {
             // for CPS requests that are targeting origin only, could be because of project_routing or other reasons, execute standard pit.
+            final Exception ex = CrossProjectIndexResolutionValidator.validate(
+                originalIndicesOptions,
+                request.getProjectRouting(),
+                localResolvedIndexExpressions,
+                Map.of()
+            );
+            if (ex != null) {
+                listener.onFailure(ex);
+                return;
+            }
             executeOpenPit(task, request, listener);
             return;
         }
 
         // CPS
         final int linkedProjectsToQuery = indicesPerCluster.size();
-        final Map<String, ResolveIndexAction.Response> remoteResponses = new ConcurrentHashMap<>(linkedProjectsToQuery);
-        final CountDown completionCounter = new CountDown(linkedProjectsToQuery);
-        final Runnable terminalHandler = () -> {
-            if (completionCounter.countDown()) {
-                Map<String, ResolvedIndexExpressions> resolvedRemoteExpressions = remoteResponses.entrySet()
-                    .stream()
+        ActionListener<Collection<Map.Entry<String, ResolveIndexAction.Response>>> responsesListener = listener.delegateFailureAndWrap(
+            (l, responses) -> {
+                Map<String, ResolvedIndexExpressions> resolvedRemoteExpressions = responses.stream()
                     .filter(e -> e.getValue().getResolvedIndexExpressions() != null)
                     .collect(
                         Collectors.toMap(
@@ -198,7 +207,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
                         )
                     );
-
                 final Exception ex = CrossProjectIndexResolutionValidator.validate(
                     originalIndicesOptions,
                     request.getProjectRouting(),
@@ -233,31 +241,47 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 request.indices(collectedIndices.toArray(String[]::new));
                 executeOpenPit(task, request, listener);
             }
-        };
+        );
+        ActionListener<Map.Entry<String, ResolveIndexAction.Response>> groupedListener = new GroupedActionListener<>(
+            linkedProjectsToQuery,
+            responsesListener
+        );
 
         // make CPS calls
         for (Map.Entry<String, OriginalIndices> remoteClusterIndices : indicesPerCluster.entrySet()) {
             String clusterAlias = remoteClusterIndices.getKey();
             OriginalIndices originalIndices = remoteClusterIndices.getValue();
-            // form indicesOptionsForCrossProjectFanout
-            IndicesOptions relaxedFanoutIndicesOptions = originalIndices.indicesOptions();
-            var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                clusterAlias,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                RemoteClusterService.DisconnectedStrategy.FAIL_IF_DISCONNECTED
-            );
-            ResolveIndexAction.Request remoteRequest = new ResolveIndexAction.Request(
-                originalIndices.indices(),
-                relaxedFanoutIndicesOptions
-            );
-            remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
-                remoteResponses.put(clusterAlias, response);
-                terminalHandler.run();
-            }, failure -> {
-                logger.info("failed to resolve indices on remote cluster [" + clusterAlias + "]", failure);
-                terminalHandler.run();
-            }));
+            IndicesOptions relaxedFanoutIdxOptions = originalIndices.indicesOptions(); // form indicesOptionsForCrossProjectFanout
+            ResolveIndexAction.Request remoteRequest = new ResolveIndexAction.Request(originalIndices.indices(), relaxedFanoutIdxOptions);
 
+            SubscribableListener<Transport.Connection> connectionListener = new SubscribableListener<>();
+            connectionListener.addTimeout(
+                TimeValue.timeValueSeconds(3L),
+                transportService.getThreadPool(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
+
+            connectionListener.addListener(groupedListener.delegateResponse((l, failure) -> {
+                logger.info("failed to resolve indices on remote cluster [{}]", clusterAlias, failure);
+                l.onFailure(failure);
+            })
+                .delegateFailure(
+                    (ignored, connection) -> transportService.sendRequest(
+                        connection,
+                        ResolveIndexAction.REMOTE_TYPE.name(),
+                        remoteRequest,
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(groupedListener.delegateResponse((l, failure) -> {
+                            logger.info("Error occurred on remote cluster [{}]", clusterAlias, failure);
+                            l.onFailure(failure);
+                        }).map(resolveIndexResponse -> Map.entry(clusterAlias, resolveIndexResponse)),
+                            ResolveIndexAction.Response::new,
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE
+                        )
+                    )
+                ));
+
+            remoteClusterService.maybeEnsureConnectedAndGetConnection(clusterAlias, true, connectionListener);
         }
     }
 

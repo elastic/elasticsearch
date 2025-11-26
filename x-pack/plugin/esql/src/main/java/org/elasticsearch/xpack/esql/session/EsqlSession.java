@@ -78,7 +78,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
-import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -100,7 +99,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
@@ -607,11 +605,6 @@ public class EsqlSession {
         indexResolver.resolveIndices(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
-            null,
-            false,
-            // Disable aggregate_metric_double and dense_vector until we get version checks in planning
-            false,
-            false,
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
     }
@@ -760,8 +753,15 @@ public class EsqlSession {
         var localIndexNames = indexNames.stream().map(n -> RemoteClusterAware.splitIndexName(n)[1]).collect(toSet());
         if (localIndexNames.size() == 1) {
             String indexName = localIndexNames.iterator().next();
-            EsIndex newIndex = new EsIndex(index, lookupIndexResolution.get().mapping(), Map.of(indexName, IndexMode.LOOKUP), Set.of());
-            return IndexResolution.valid(newIndex, newIndex.concreteIndices(), lookupIndexResolution.failures());
+            EsIndex newIndex = new EsIndex(
+                index,
+                lookupIndexResolution.get().mapping(),
+                Map.of(indexName, IndexMode.LOOKUP),
+                Map.of(),
+                Map.of(),
+                Set.of()
+            );
+            return IndexResolution.valid(newIndex, newIndex.concreteQualifiedIndices(), lookupIndexResolution.failures());
         }
         // validate remotes to be able to handle multiple indices in LOOKUP JOIN
         validateRemoteVersions(executionInfo);
@@ -805,20 +805,34 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        EsqlCCSUtils.initCrossClusterState(
-            indicesExpressionGrouper,
-            verifier.licenseState(),
-            preAnalysis.indexes().keySet(),
-            executionInfo
+        assert ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_COORDINATION,
+            ThreadPool.Names.SYSTEM_READ
         );
-        // The main index pattern dictates on which nodes the query can be executed,
-        // so we use the minimum transport version from this field caps request.
-        forAll(
-            preAnalysis.indexes().entrySet().iterator(),
-            result,
-            (entry, r, l) -> preAnalyzeMainIndices(entry.getKey(), entry.getValue(), preAnalysis, executionInfo, r, requestFilter, l),
-            listener
-        );
+        if (crossProjectModeDecider.crossProjectEnabled() == false) {
+            EsqlCCSUtils.initCrossClusterState(
+                indicesExpressionGrouper,
+                verifier.licenseState(),
+                preAnalysis.indexes().keySet(),
+                executionInfo
+            );
+            // The main index pattern dictates on which nodes the query can be executed,
+            // so we use the minimum transport version from this field caps request.
+            forAll(
+                preAnalysis.indexes().entrySet().iterator(),
+                result,
+                (e, r, l) -> preAnalyzeMainIndices(e.getKey(), e.getValue(), preAnalysis, executionInfo, r, requestFilter, l),
+                listener
+            );
+        } else {
+            forAll(
+                preAnalysis.indexes().entrySet().iterator(),
+                result,
+                (e, r, l) -> preAnalyzeFlatMainIndices(e.getKey(), e.getValue(), preAnalysis, executionInfo, r, requestFilter, l),
+                listener
+            );
+        }
     }
 
     private void preAnalyzeMainIndices(
@@ -830,11 +844,6 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        assert ThreadPool.assertCurrentThreadPool(
-            ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_COORDINATION,
-            ThreadPool.Names.SYSTEM_READ
-        );
         if (executionInfo.clusterAliases().isEmpty()) {
             // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
             listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
@@ -842,19 +851,11 @@ public class EsqlSession {
             indexResolver.resolveIndicesVersioned(
                 indexPattern.indexPattern(),
                 result.fieldNames,
-                // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
-                switch (indexMode) {
-                    case IndexMode.TIME_SERIES -> {
-                        var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
-                        yield requestFilter != null
-                            ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter)
-                            : indexModeFilter;
-                    }
-                    default -> requestFilter;
-                },
+                createQueryFilter(indexMode, requestFilter),
                 indexMode == IndexMode.TIME_SERIES,
                 preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                 preAnalysis.useDenseVectorWhenNotSupported(),
+                indicesExpressionGrouper,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                     l.onResponse(
@@ -864,6 +865,43 @@ public class EsqlSession {
                 })
             );
         }
+    }
+
+    private void preAnalyzeFlatMainIndices(
+        IndexPattern indexPattern,
+        IndexMode indexMode,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        EsqlExecutionInfo executionInfo,
+        PreAnalysisResult result,
+        QueryBuilder requestFilter,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        indexResolver.resolveFlatWorldIndicesVersioned(
+            indexPattern.indexPattern(),
+            result.fieldNames,
+            createQueryFilter(indexMode, requestFilter),
+            indexMode == IndexMode.TIME_SERIES,
+            preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+            preAnalysis.useDenseVectorWhenNotSupported(),
+            listener.delegateFailureAndWrap((l, indexResolution) -> {
+                EsqlCCSUtils.initCrossClusterState(indexResolution.inner().get(), executionInfo);
+                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                l.onResponse(
+                    result.withIndices(indexPattern, indexResolution.inner()).withMinimumTransportVersion(indexResolution.minimumVersion())
+                );
+            })
+        );
+    }
+
+    private static QueryBuilder createQueryFilter(IndexMode indexMode, QueryBuilder requestFilter) {
+        // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
+        return switch (indexMode) {
+            case IndexMode.TIME_SERIES -> {
+                var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+                yield requestFilter != null ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter) : indexModeFilter;
+            }
+            default -> requestFilter;
+        };
     }
 
     private void analyzeWithRetry(
@@ -921,19 +959,7 @@ public class EsqlSession {
         PhysicalPlanOptimizer physicalPlanOptimizer
     ) {
         PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan, physicalPlanOptimizer);
-        physicalPlan = physicalPlan.transformUp(FragmentExec.class, f -> {
-            QueryBuilder filter = request.filter();
-            if (filter != null) {
-                var fragmentFilter = f.esFilter();
-                // TODO: have an ESFilter and push down to EsQueryExec / EsSource
-                // This is an ugly hack to push the filter parameter to Lucene
-                // TODO: filter integration testing
-                filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
-                LOGGER.debug("Fold filter {} to EsQueryExec", filter);
-                f = f.withFilter(filter);
-            }
-            return f;
-        });
+        physicalPlan = PlannerUtils.integrateEsFilterIntoFragment(physicalPlan, request.filter());
         return EstimatesRowSize.estimateRowSize(0, physicalPlan);
     }
 

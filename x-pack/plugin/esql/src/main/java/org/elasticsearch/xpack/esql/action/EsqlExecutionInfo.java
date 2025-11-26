@@ -276,6 +276,19 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
+     * This creates an initial Cluster object with indexExpression and skipUnavailable.
+     */
+    public void initCluster(String clusterAlias, String indexExpression) {
+        swapCluster(clusterAlias, (ca, previous) -> {
+            var expr = indexExpression;
+            if (previous != null) {
+                expr = previous.getIndexExpression() + "," + indexExpression;
+            }
+            return new Cluster(clusterAlias, expr, shouldSkipOnFailure(clusterAlias));
+        });
+    }
+
+    /**
      * Utility to swap a Cluster object. Guidelines for the remapping function:
      * <ul>
      * <li> The remapping function should return a new Cluster object to swap it for

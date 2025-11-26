@@ -626,7 +626,7 @@ public class QueryRewriteContext {
         this.trackTimeRangeFilterFrom = trackTimeRangeFilterFrom;
     }
 
-    private final Map<QueryRewriteAsyncAction<?>, List<Consumer<Object>>> uniqueRewriteActions = new HashMap<>();
+    private final Map<QueryRewriteAsyncAction<?>, List<Consumer<?>>> uniqueRewriteActions = new HashMap<>();
 
     /**
      * Registers an async action that must be executed only once before the next rewrite round.
@@ -635,7 +635,7 @@ public class QueryRewriteContext {
      * After the async action is executed, all consumers associated with it will be executed and receive as argument
      * the result of the async action.
      */
-    public void registerUniqueRewriteAction(QueryRewriteAsyncAction<?> action, Consumer<Object> consumer) {
+    public <T> void registerUniqueRewriteAction(QueryRewriteAsyncAction<T> action, Consumer<T> consumer) {
         uniqueRewriteActions.computeIfAbsent(action, k -> new ArrayList<>()).add(consumer);
     }
 }

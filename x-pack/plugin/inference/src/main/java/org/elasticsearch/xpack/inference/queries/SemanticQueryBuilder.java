@@ -323,7 +323,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return inferenceResultsMapSupplier;
     }
 
-    @SuppressWarnings("unchecked")
     static void registerInferenceAsyncActions(
         QueryRewriteContext queryRewriteContext,
         SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
@@ -332,9 +331,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     ) {
         queryRewriteContext.registerUniqueRewriteAction(
             new InferenceRewriteAsyncAction(queryRewriteContext, inferenceIds, query),
-            (obj) -> {
-                Collection<Tuple<FullyQualifiedInferenceId, InferenceResults>> responses = (List<
-                    Tuple<FullyQualifiedInferenceId, InferenceResults>>) obj;
+            (responses) -> {
                 Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = new HashMap<>(responses.size());
                 responses.forEach(r -> inferenceResultsMap.put(r.v1(), r.v2()));
                 inferenceResultsMapSupplier.set(inferenceResultsMap);

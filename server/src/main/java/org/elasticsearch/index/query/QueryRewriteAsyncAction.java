@@ -41,11 +41,12 @@ public abstract class QueryRewriteAsyncAction<T> {
      * @param listener The listener that will be called after the action and consumers have been executed.
      * @param consumers A list of consumer that expect the result of the action.
      */
-    public void execute(Client client, ActionListener<?> listener, List<Consumer<Object>> consumers) {
+    @SuppressWarnings("unchecked")
+    public void execute(Client client, ActionListener<?> listener, List<Consumer<?>> consumers) {
         ActionListener<T> actionListener = new ActionListener<T>() {
             @Override
             public void onResponse(T result) {
-                consumers.forEach(consumer -> consumer.accept((Object) result));
+                consumers.forEach(consumer -> ((Consumer<T>) consumer).accept(result));
                 listener.onResponse(null);
             }
 

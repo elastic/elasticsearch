@@ -2,4 +2,5 @@ pr: 136309
 summary: Adds ST_SIMPLIFY geo spatial function
 area: ES|QL
 type: enhancement
-issues: []
+issues:
+ - 44747

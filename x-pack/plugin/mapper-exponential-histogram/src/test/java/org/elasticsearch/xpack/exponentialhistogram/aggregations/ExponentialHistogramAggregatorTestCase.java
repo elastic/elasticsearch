@@ -52,7 +52,7 @@ public abstract class ExponentialHistogramAggregatorTestCase extends AggregatorT
     ) {
         try {
             if (histogram == null) {
-                iw.addDocument(Collections.emptyList());
+                iw.addDocument(List.of(additionalFields));
             } else {
                 ExponentialHistogramFieldMapper.HistogramDocValueFields docValues = ExponentialHistogramFieldMapper.buildDocValueFields(
                     fieldName,

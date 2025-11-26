@@ -189,8 +189,8 @@ public final class IndexSortConfig {
                         IndexVersions.UPGRADE_TO_LUCENE_10_0_0
                     )) {
 
-                    boolean sortOnHostName = IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(settings);
-                    boolean sortOnMessageTemplate = IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE.get(settings);
+                    boolean sortOnHostName = settings.getAsBoolean(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), false);
+                    boolean sortOnMessageTemplate = settings.getAsBoolean(IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE.getKey(), false);
                     if (sortOnHostName && sortOnMessageTemplate) {
                         return HOSTNAME_MESSAGE_PATTERN_TIMESTAMP_SORT;
                     } else if (sortOnHostName) {
@@ -213,11 +213,11 @@ public final class IndexSortConfig {
         }
 
         public static List<String> getDefaultSortOrder(Settings settings) {
-            if (INDEX_SORT_FIELD_SETTING.exists(settings) == false) {
+            if (settings.hasValue(INDEX_SORT_FIELD_SETTING.getKey()) == false) {
                 return getSortDefault(settings).order();
             }
 
-            List<String> sortFields = INDEX_SORT_FIELD_SETTING.get(settings);
+            List<String> sortFields = settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
             List<String> order = new ArrayList<>(sortFields.size());
             for (int i = 0; i < sortFields.size(); ++i) {
                 order.add("asc");
@@ -226,16 +226,16 @@ public final class IndexSortConfig {
         }
 
         public static List<String> getDefaultSortMode(Settings settings) {
-            if (INDEX_SORT_FIELD_SETTING.exists(settings) == false) {
+            if (settings.hasValue(INDEX_SORT_FIELD_SETTING.getKey()) == false) {
                 return getSortDefault(settings).mode();
             }
 
-            List<String> sortFields = INDEX_SORT_FIELD_SETTING.get(settings);
-            List<SortOrder> sortOrder = INDEX_SORT_ORDER_SETTING.exists(settings) ? INDEX_SORT_ORDER_SETTING.get(settings) : null;
+            List<String> sortFields = settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
+            List<String> sortOrder = settings.getAsList(INDEX_SORT_ORDER_SETTING.getKey(), null);
 
             List<String> mode = new ArrayList<>(sortFields.size());
             for (int i = 0; i < sortFields.size(); ++i) {
-                if (sortOrder != null && sortOrder.get(i) == SortOrder.DESC) {
+                if (sortOrder != null && sortOrder.get(i).equals(SortOrder.DESC.toString())) {
                     mode.add("max");
                 } else {
                     mode.add("min");
@@ -245,11 +245,11 @@ public final class IndexSortConfig {
         }
 
         public static List<String> getDefaultSortMissing(Settings settings) {
-            if (INDEX_SORT_FIELD_SETTING.exists(settings) == false) {
+            if (settings.hasValue(INDEX_SORT_FIELD_SETTING.getKey()) == false) {
                 return getSortDefault(settings).missing();
             }
 
-            List<String> sortFields = INDEX_SORT_FIELD_SETTING.get(settings);
+            List<String> sortFields = settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
             List<String> missing = new ArrayList<>(sortFields.size());
             for (int i = 0; i < sortFields.size(); ++i) {
                 // _last is the default per IndexFieldData.XFieldComparatorSource.Nested#sortMissingLast

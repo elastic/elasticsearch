@@ -61,7 +61,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                         LinkerHelperUtil.critical()
                     );
                     dot7uBulkWithOffsets$mh = downcallHandle(
-                        "dot7u_bulk_offsets_2",
+                        "vec_dot7u_bulk_offsets_2",
                         FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS),
                         LinkerHelperUtil.critical()
                     );
@@ -97,7 +97,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                         LinkerHelperUtil.critical()
                     );
                     dot7uBulkWithOffsets$mh = downcallHandle(
-                        "dot7u_bulk_offsets",
+                        "vec_dot7u_bulk_offsets",
                         FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS),
                         LinkerHelperUtil.critical()
                     );

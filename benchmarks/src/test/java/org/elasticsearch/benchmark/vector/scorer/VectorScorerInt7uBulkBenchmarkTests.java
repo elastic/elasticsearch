@@ -18,6 +18,8 @@ import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
+
 public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
 
     final float delta = 1e-3f;
@@ -61,6 +63,11 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
                 assertArrayEquals(expected, bench.dotProductLuceneMultipleRandom(), delta);
                 assertArrayEquals(expected, bench.dotProductNativeMultipleRandom(), delta);
                 assertArrayEquals(expected, bench.dotProductNativeMultipleRandomBulk(), delta);
+                if (supportsHeapSegments()) {
+                    assertArrayEquals(expected, bench.dotProductLuceneQueryMultipleRandom(), delta);
+                    assertArrayEquals(expected, bench.dotProductNativeQueryMultipleRandom(), delta);
+                    assertArrayEquals(expected, bench.dotProductNativeQueryMultipleRandomBulk(), delta);
+                }
             } finally {
                 bench.teardown();
             }

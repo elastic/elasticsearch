@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -75,6 +76,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTim
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
@@ -223,6 +225,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ImplicitCasting(),
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
             new ImplicitCastAggregateMetricDoubles(),
+            new InsertFromAggregateMetricDouble(),
             new ResolveUnionTypesInUnionAll()
         ),
         new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
@@ -2293,21 +2296,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             Map<String, Expression> typeConverter = new HashMap<>();
             for (DataType type : mtf.types()) {
-                final ConvertFunction convert;
-                // Counting on aggregate metric double has unique behavior in that we cannot just provide the number of
-                // documents, instead we have to look inside the aggregate metric double's count field and sum those together.
-                // Grabbing the count value with FromAggregateMetricDouble the same way we do with min/max/sum would result in
-                // a single Int field, and incorrectly be treated as 1 document (instead of however many originally went into
-                // the aggregate metric double).
-                if (metric == AggregateMetricDoubleBlockBuilder.Metric.COUNT) {
-                    convert = new ToAggregateMetricDouble(fa.source(), fa);
-                } else if (type == AGGREGATE_METRIC_DOUBLE) {
-                    convert = FromAggregateMetricDouble.withMetric(aggFunc.source(), fa, metric);
-                } else if (type.isNumeric()) {
-                    convert = new ToDouble(fa.source(), fa);
-                } else {
-                    return null;
-                }
+                final ConvertFunction convert = new ToAggregateMetricDouble(fa.source(), fa);
                 Expression expression = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), type, mtf);
                 typeConverter.put(type.typeName(), expression);
             }
@@ -2336,7 +2325,39 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (aggFunc instanceof Absent || aggFunc instanceof AbsentOverTime) {
                 return AggregateMetricDoubleBlockBuilder.Metric.COUNT;
             }
-            return null;
+            return AggregateMetricDoubleBlockBuilder.Metric.DEFAULT;
+        }
+    }
+
+    private static class InsertFromAggregateMetricDouble extends Rule<LogicalPlan, LogicalPlan> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            return plan.transformUp(Aggregate.class, p -> p.childrenResolved() == false ? p : doRule(p));
+        }
+
+        private LogicalPlan doRule(Aggregate plan) {
+            Holder<Boolean> modified = new Holder<>(Boolean.FALSE);
+            Holder<IndexMode> indexMode = new Holder<>(IndexMode.STANDARD);
+            plan.forEachUp(EsRelation.class, esRelation -> { indexMode.set(esRelation.indexMode()); });
+            var newPlan = plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
+                if (aggFunc instanceof AggregateMetricDoubleNativeSupport
+                    && (indexMode.get() != IndexMode.TIME_SERIES || aggFunc instanceof TimeSeriesAggregateFunction)) {
+                    return aggFunc;
+                }
+                if (aggFunc.field() instanceof FieldAttribute fa && fa.field().getDataType() == AGGREGATE_METRIC_DOUBLE) {
+                    Expression newField = FromAggregateMetricDouble.withMetric(
+                        fa.source(),
+                        fa,
+                        AggregateMetricDoubleBlockBuilder.Metric.DEFAULT
+                    );
+                    List<Expression> children = new ArrayList<>(aggFunc.children());
+                    children.set(0, newField);
+                    modified.set(Boolean.TRUE);
+                    return aggFunc.replaceChildren(children);
+                }
+                return aggFunc;
+            });
+            return newPlan;
         }
     }
 

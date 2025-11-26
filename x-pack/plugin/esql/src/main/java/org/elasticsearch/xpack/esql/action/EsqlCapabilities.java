@@ -960,6 +960,11 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_V0,
 
         /**
+         * Support running all aggregations on aggregate_metric_double using the default metric
+         */
+        AGGREGATE_METRIC_DOUBLE_DEFAULT_METRIC,
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,

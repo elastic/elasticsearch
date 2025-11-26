@@ -36,7 +36,7 @@ Both the standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/p
 
 ## Example
 
-To run the example, first follow the [eCommerce sample data installation steps](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
 The following request boosts results for customers in New York, helping highlight local preferences or regional inventory. It uses a `function_score` query to match products with "jeans" in the name and increase their score when the city is New York.
 

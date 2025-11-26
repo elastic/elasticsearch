@@ -34,7 +34,7 @@ The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painle
 
 ## Example
 
-To run the example, first follow the [eCommerce sample data installation steps](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
 This example shows conditional matching requirements. The script checks if a document contains both “Men’s Clothing” and “Men’s Shoes” categories. If this combination exists, only two terms need to match. Otherwise, three terms must match. This creates different qualification thresholds based on document content.
 

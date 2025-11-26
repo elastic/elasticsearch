@@ -38,7 +38,7 @@ Both the standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/p
 
 ## Example
 
-To run the example, first follow the [eCommerce sample data installation steps](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
 The first script extracts the day index from the `day_of_week_i` field to determine whether the order was placed on a weekday or during the weekend:
 

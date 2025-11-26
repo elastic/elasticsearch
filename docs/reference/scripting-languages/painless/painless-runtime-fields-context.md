@@ -97,7 +97,7 @@ Both the standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/p
 
 ## Example
 
-To run the example, first follow the [eCommerce sample data installation steps](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
 Run the following request to define a runtime field named `full_day_name`. This field contains a script that extracts the day of the week from the `order_date` field and assigns the full day name using the `dayOfWeekEnum` enumeration. The script uses the `emit` function, which is required for runtime fields.
 

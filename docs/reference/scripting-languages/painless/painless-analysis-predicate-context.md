@@ -56,9 +56,9 @@ The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painle
 
 ## Example
 
-To run the example, first follow the [eCommerce sample data installation steps](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
-This example ensures that only properly formatted SKUs are processed. The analyzer checks that SKU codes start with "ZO" and are exactly 13 characters long, filtering out malformed or invalid product codes that could break inventory systems or search functionality.
+This example ensures that only properly formatted SKUs are processed. The analyzer checks that SKU codes start with "ZO" and are exactly thirteen characters long, filtering out malformed or invalid product codes that could break inventory systems or search functionality.
 
 ```json
 PUT sku_analysis

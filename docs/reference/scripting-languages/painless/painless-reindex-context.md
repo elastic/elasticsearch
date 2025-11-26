@@ -66,7 +66,7 @@ The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painle
 
 ## Example
 
-To run the example, first follow the [eCommerce sample data installation steps](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
 The following request copies all documents from the `kibana_sample_data_ecommerce` index to a new index called `data_ecommerce_usd`. During this process, a script is used to convert all monetary values to a new currency using a specified exchange rate in the `params`.
 

@@ -51,7 +51,7 @@ The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painle
 
 ## Example
 
-To run the examples, first follow the [eCommerce sample data installation steps](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
+To run the examples, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
 **Manufacturer revenue anomaly detection**  
 The following script creates a watcher that runs daily to monitor manufacturer revenue anomalies by querying the last seven days of documents and calculating `total_revenue` per `manufacturer.keyword`.
@@ -118,7 +118,7 @@ POST _watcher/watch/_execute
 ```
 
 **High-value order detection**  
-The next example runs hourly to detect high-value orders by filtering orders from the last hour when `taxful_total_price` is more than 150\. A log message is generated whenever high-value orders are found.
+This example runs hourly to detect high-value orders by filtering orders from the last hour when `taxful_total_price` is more than 150. The script generates a log message when it finds high-value orders.
 
 ```json
 POST _watcher/watch/_execute

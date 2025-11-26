@@ -31,12 +31,12 @@ The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painle
 
 ## Example
 
-To run the example, first follow the [eCommerce sample data installation steps](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
 This example filters documents where the average price per item in an order exceeds a minimum threshold of 30\.
 
 :::{tip}
-Filters answer the question “Does this document match?” with the simple “Yes or No” response. Use filter context for all conditions that don’t need scoring. Refer to [Query and filter context](/reference/query-languages/query-dsl/query-filter-context.md) to learn more.
+Filters answer the question “Does this document match?” with a simple “Yes or No” response. Use filter context for all conditions that don’t need scoring. Refer to [Query and filter context](/reference/query-languages/query-dsl/query-filter-context.md) to learn more.
 :::
 
 ```json

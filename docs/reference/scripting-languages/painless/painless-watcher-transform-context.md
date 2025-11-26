@@ -51,9 +51,9 @@ The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painle
 
 ## Example
 
-To run the example, first follow the [eCommerce sample data installation steps](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
-This request creates an automated sales monitoring system that checks your e-commerce data every hour and sends alerts when certain product categories are performing well.
+This request creates an automated sales monitoring system that checks your eCommerce data every hour and sends alerts when certain product categories are performing well.
 
 The transform script processes the aggregation results from the search input, extracting `bucket.key` (category name) and `bucket.revenue.value` (sales amount) from each category. It uses `ctx.metadata.alert_threshold` (50 USD) to determine which categories trigger alerts, creating a structured output with category details and alert flags for the logging action. 
 

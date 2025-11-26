@@ -31,7 +31,7 @@ The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painle
 
 ## Example [_example]
 
-To run the example, first follow the [eCommerce sample data installation steps](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
 The following request is useful for identifying high-value markets by comparing average order values across countries. It groups orders by country and calculates metrics for each country, including `total_revenue` and `order_count`, then uses a bucket script to compute `revenue_per_order` for performance analysis.
 

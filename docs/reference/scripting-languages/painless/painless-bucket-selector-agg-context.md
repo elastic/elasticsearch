@@ -31,7 +31,7 @@ The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painle
 
 ## Example [_example_2]
 
-To run the example, first follow the [eCommerce sample data installation steps](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
 The following request filters out low-performing manufacturers and focuses only on brands with significant sales volume. The query groups orders by manufacturer, counts total orders for each brand, then uses a bucket selector to show only manufacturers with 50 or more orders. 
 

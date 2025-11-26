@@ -45,7 +45,7 @@ The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painle
 
 ## Example
 
-To run the example, first follow the [eCommerce sample data installation steps](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
 This request creates an index with a smart search system that automatically boosts products with rare, distinctive features like "vintage", "handcrafted", or unique materials. It helps discover special items by making uncommon products rank higher in search results.
 
@@ -62,9 +62,9 @@ PUT kibana_sample_data_ecommerce-weight
             
             double rarityFactor = 1.0;
             if (term.docFreq < field.docCount * 0.02) {
-              rarityFactor = 3.0;  // Very rare terms get high boost
+              rarityFactor = 3.0;  // Very rare terms get a high boost
             } else if (term.docFreq < field.docCount * 0.10) {
-              rarityFactor = 1.5;  // Somewhat rare terms get medium boost
+              rarityFactor = 1.5;  // Somewhat rare terms get a medium boost
             }
             
             return query.boost * idf * rarityFactor;

@@ -35,7 +35,7 @@ The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painle
 
 ## Example
 
-To run the example, first follow the [eCommerce sample data installation steps](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
 :::{tip}You are viewing Phase 3 of 4 in the scripted metric aggregation pipeline. This combined script runs once per shard to prepare results for the final reduce phase. This is the same complete example shown across all metric aggregation contexts.
 :::
@@ -43,21 +43,21 @@ To run the example, first follow the [eCommerce sample data installation steps](
 In the following example, we build a query that analyzes the data to calculate the total number of products sold across all orders, using the map-reduce pattern where each shard processes documents locally and results are combined into a final total.
 
 **Initialization phase (sets up data structures):**  
-The first code snippet is contained by the `init_script` that initializes an empty array to collect quantity values from each document. Runs once per shard.
+The first code snippet is part of the `init_script` that initializes an empty array to collect quantity values from each document. It runs once per shard.
 
 ```java
 state.quantities = []
 ```
 
 **Map phase (processes each document):**  
-The code in the `map_script` section is executed for each document. It extracts the total quantity of products in each order and adds it to the shard's collection array.
+The code in the `map_script` section runs for each document. It extracts the total quantity of products in each order and adds it to the shard's collection array.
 
 ```java
 state.quantities.add(doc['total_quantity'].value)
 ```
 
 **>Combine phase (this context - returns shard results):**  
-In the `combine_script`, we process all the quantities collected in this shard by iterating through the array and summing all values. This reduces the data sent to the reduce phase from an array of individual quantities to a single total per shard.
+The `combine_script` processes all the quantities collected in this shard by iterating through the array and summing all values. This reduces the data sent to the reduce phase from an array of individual quantities to a single total per shard.
 
 ```java
 int shardTotal = 0;
@@ -70,4 +70,4 @@ return shardTotal;
 ```
 
 **Reduce phase (merges all shard results):**  
-Finally, the `reduce_script` merges results from all shards by iterating through each shard's total and adding the results together to get the grand total of products sold across the entire dataset.
+Finally, the `reduce_script` merges results from all shards by iterating through each shard's total, and adds the results together to get the grand total of products sold across the entire dataset.

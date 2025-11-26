@@ -10,11 +10,11 @@ products:
 
 # Context example data (eCommerce) [painless-context-examples]
 
-Complete the following installation steps to index the Sample eCommerce orders data into {{es}}. You can run any of the context examples against this sample data after you configure it.  
+Complete the following installation steps to index the sample eCommerce orders data into {{es}}. You can run any of the context examples against this sample data after you've configured it.  
 
-Each document in this dataset represents a complete eCommerce order. Every order contains complete transaction data including product details, pricing information, customer data, and geographic location. Orders may include multiple products, with product-specific information stored as values within individual fields.
+Each document in this dataset represents a complete eCommerce order. Every order contains complete transaction data including product details, pricing information, customer data, and geographic location. Orders might include multiple products, with product-specific information stored as values within individual fields.
 
-## Installing the eCommerce Sample Data [painless-sample-data-install]
+## Install the eCommerce sample data [painless-sample-data-install]
 
 1. Go to **Integrations** and search for **Sample Data**.   
 2. On the **Sample data** page, expand the **Other sample data sets**.
@@ -157,7 +157,7 @@ Here’s an example of a complete eCommerce order document with two products (ba
 
 * **Order timing**
 
-    `day_of_week` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md)): Day when the order was placed (Monday, Tuesday, etc.).
+    `day_of_week` ([`keyword`](/reference/elasticsearch/mapping-reference/keyword.md)): Day when the order was placed (Monday, Tuesday, and so on).
     
     `day_of_week_i` ([`integer`](/reference/elasticsearch/mapping-reference/number.md)): Numeric day of week (0-6).
 

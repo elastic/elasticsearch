@@ -60,7 +60,7 @@ The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painle
 
 ## Example
 
-To run the example, first follow the [eCommerce sample data installation steps](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
 The following request creates a new index named `ecommerce_rare_terms` with a custom `similarity` equation called `rare_boost`. This similarity function modifies how document relevance scores are calculated during search by giving more weight to rare terms. 
 

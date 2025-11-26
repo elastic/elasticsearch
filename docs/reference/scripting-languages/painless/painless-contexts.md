@@ -10,11 +10,11 @@ products:
 
 # Painless contexts [painless-contexts]
 
-**In Painless, a context defines where and how your script runs within {{es}}**. Each context determines three key aspects: which variables are available to your script (such as `doc`, `ctx`, or `_source`), which Java classes and methods your script can access for security, and what type of value your script should return.
+In Painless, a context defines where and how your script runs in {{es}}. Each context determines three key aspects: which variables are available to your script (such as `doc`, `ctx`, or `_source`), which Java classes and methods your script can access for security, and what type of value your script should return.
 
 ## What are contexts?
 
-Contexts are runtime environments that determine script behavior within specific {{es}} operations. Unlike traditional scripting languages, where code runs consistently everywhere, Painless scripts are context-aware, the same syntax can access different variables and produce different results depending on the {{es}} operation that calls it.
+Contexts are runtime environments that determine script behavior within specific {{es}} operations. Unlike traditional scripting languages, where code runs consistently everywhere, Painless scripts are context-aware: the same syntax can access different variables and produce different results depending on the {{es}} operation that calls it.
 
 ## How contexts work
 
@@ -22,18 +22,25 @@ Painless supports scripting across numerous {{es}} operations, from search scori
 
 Contexts ensure appropriate access and capabilities for each {{es}} operation while maintaining security and performance by providing exactly the inputs and APIs needed for a specific task through fine-grained allowlists and optimized data access patterns.
 
-For example, search scoring contexts provide document fields as input and generate numerical scores as output, while ingest contexts provide documents as input for modification and generate transformed documents as output. Even if some contexts appear similar, each one has its specific tools and restrictions designed for its intended purpose.
+For example, search scoring contexts provide document fields as input and generate numerical scores as output, while ingest contexts provide documents as input for modification and generate transformed documents as output. Even if some contexts appear to be similar, each has tools and restrictions designed for a specific purpose.
 
 ## Context and data access
 
-Contexts directly determine how you can access document data in Painless scripts:
+Contexts determine how you can access document data in Painless scripts:
 
-* **`doc` values:** Read-only field access using columnar storage for search, aggregation, and sorting context 
-* **`ctx` access:** Document modification capabilities in update, ingest, and reindex context
-* **`_source` access:** Complete document JSON for runtime fields and transformations
-* **`params`**: User-defined parameters passed into scripts, available across all contexts
+**`doc` values:**
+:   Read-only field access using columnar storage for search, aggregation, and sorting context
 
-For detailed data access patterns and examples, refer to Painless syntax-context bridge.
+**`ctx` access:**
+:   Document modification capabilities in update, ingest, and reindex context
+
+**`_source` access:**
+:   Complete document JSON for runtime fields and transformations
+
+**`params`**
+:   User-defined parameters passed into scripts, available across all contexts
+
+For detailed data access patterns and examples, refer to [Painless syntax-context bridge](docs-content://explore-analyze/scripting/painless-syntax-context-bridge.md).
 
 ## Context Categories overview
 

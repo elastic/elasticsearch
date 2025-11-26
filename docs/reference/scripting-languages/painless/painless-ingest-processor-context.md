@@ -58,7 +58,7 @@ Both the standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/p
 
 ## Example
 
-To run the example, first follow the [eCommerce sample data installation steps](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
 The following example demonstrates how to use a script inside an ingest pipeline to create a new field named `custom_region_code`. This field combines the `geoip.country_iso_code` and the first two uppercase letters of `geoip.continent_name`.
 

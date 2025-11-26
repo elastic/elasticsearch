@@ -133,7 +133,7 @@ class LateMaterializationPlanner {
     }
 
     private static PhysicalPlan toPhysical(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
-        return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(new LocalMapper().map(plan)), context);
+        return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(LocalMapper.INSTANCE.map(plan)), context);
     }
 
     private LateMaterializationPlanner() { /* static class */ }

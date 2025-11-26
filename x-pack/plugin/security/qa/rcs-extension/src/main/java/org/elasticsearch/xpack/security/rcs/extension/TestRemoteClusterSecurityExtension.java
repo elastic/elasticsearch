@@ -10,25 +10,20 @@ package org.elasticsearch.xpack.security.rcs.extension;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.SslConfiguration;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.authc.RemoteClusterAuthenticationService;
 import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.ServerTransportFilter;
 import org.elasticsearch.xpack.security.transport.extension.RemoteClusterSecurityExtension;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class TestRemoteClusterSecurityExtension implements RemoteClusterSecurityExtension {
 
@@ -58,40 +53,16 @@ public class TestRemoteClusterSecurityExtension implements RemoteClusterSecurity
                 return false;
             }
 
-            public boolean hasRemoteClusterAccessHeadersInContext(SecurityContext securityContext) {
-                return false;
-            }
-
             @Override
-            public Map<String, ServerTransportFilter> getProfileTransportFilters(
-                Map<String, SslProfile> profileConfigurations,
+            public Optional<ServerTransportFilter> getRemoteProfileTransportFilter(
+                SslProfile sslProfile,
                 DestructiveOperations destructiveOperations
             ) {
-                Map<String, ServerTransportFilter> profileFilters = Maps.newMapWithExpectedSize(profileConfigurations.size() + 1);
-                Settings settings = components.settings();
-                final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
+                return Optional.empty();
+            }
 
-                for (Map.Entry<String, SslProfile> entry : profileConfigurations.entrySet()) {
-                    final String profileName = entry.getKey();
-                    final SslProfile sslProfile = entry.getValue();
-                    final SslConfiguration profileConfiguration = sslProfile.configuration();
-                    profileFilters.put(
-                        profileName,
-                        new ServerTransportFilter(
-                            components.authenticationService(),
-                            components.authorizationService(),
-                            components.threadPool().getThreadContext(),
-                            transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
-                            destructiveOperations,
-                            components.securityContext()
-                        )
-                    );
-                }
-                // We need to register here the default security
-                // server transport filter which ensures that all
-                // incoming transport requests are properly
-                // authenticated and authorized.
-                return Collections.unmodifiableMap(profileFilters);
+            public boolean hasRemoteClusterAccessHeadersInContext(SecurityContext securityContext) {
+                return false;
             }
 
         };

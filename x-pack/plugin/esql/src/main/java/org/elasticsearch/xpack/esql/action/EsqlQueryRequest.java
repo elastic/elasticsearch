@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
@@ -47,6 +48,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean profile;
     private Boolean includeCCSMetadata;
     private Boolean includeExecutionMetadata;
+    private ZoneId timeZone;
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
@@ -63,16 +65,17 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      */
     private final Map<String, Map<String, Column>> tables = new TreeMap<>();
 
-    public static EsqlQueryRequest syncEsqlQueryRequest() {
-        return new EsqlQueryRequest(false);
+    public static EsqlQueryRequest syncEsqlQueryRequest(String query) {
+        return new EsqlQueryRequest(false, query);
     }
 
-    public static EsqlQueryRequest asyncEsqlQueryRequest() {
-        return new EsqlQueryRequest(true);
+    public static EsqlQueryRequest asyncEsqlQueryRequest(String query) {
+        return new EsqlQueryRequest(true, query);
     }
 
-    private EsqlQueryRequest(boolean async) {
+    private EsqlQueryRequest(boolean async, String query) {
         this.async = async;
+        this.query = query;
     }
 
     public EsqlQueryRequest(StreamInput in) throws IOException {
@@ -87,6 +90,12 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         }
 
         if (onSnapshotBuild == false) {
+            if (timeZone != null) {
+                validationException = addValidationError(
+                    "[" + RequestXContent.TIME_ZONE_FIELD + "] only allowed in snapshot builds",
+                    validationException
+                );
+            }
             if (pragmas.isEmpty() == false && acceptedPragmaRisks == false) {
                 validationException = addValidationError(
                     "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
@@ -119,8 +128,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return async;
     }
 
-    public void columnar(boolean columnar) {
+    public EsqlQueryRequest columnar(boolean columnar) {
         this.columnar = columnar;
+        return this;
     }
 
     public boolean columnar() {
@@ -131,20 +141,23 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      * Enable profiling, sacrificing performance to return information about
      * what operations are taking the most time.
      */
-    public void profile(boolean profile) {
+    public EsqlQueryRequest profile(boolean profile) {
         this.profile = profile;
+        return this;
     }
 
-    public void includeCCSMetadata(Boolean include) {
+    public EsqlQueryRequest includeCCSMetadata(Boolean include) {
         this.includeCCSMetadata = include;
+        return this;
     }
 
     public Boolean includeCCSMetadata() {
         return includeCCSMetadata;
     }
 
-    public void includeExecutionMetadata(Boolean include) {
+    public EsqlQueryRequest includeExecutionMetadata(Boolean include) {
         this.includeExecutionMetadata = include;
+        return this;
     }
 
     public Boolean includeExecutionMetadata() {
@@ -156,6 +169,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      */
     public boolean profile() {
         return profile;
+    }
+
+    public void timeZone(ZoneId timeZone) {
+        this.timeZone = timeZone;
+    }
+
+    public ZoneId timeZone() {
+        return timeZone;
     }
 
     public void locale(Locale locale) {
@@ -197,24 +218,27 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return waitForCompletionTimeout;
     }
 
-    public void waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
+    public EsqlQueryRequest waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
         this.waitForCompletionTimeout = waitForCompletionTimeout;
+        return this;
     }
 
     public TimeValue keepAlive() {
         return keepAlive;
     }
 
-    public void keepAlive(TimeValue keepAlive) {
+    public EsqlQueryRequest keepAlive(TimeValue keepAlive) {
         this.keepAlive = keepAlive;
+        return this;
     }
 
     public boolean keepOnCompletion() {
         return keepOnCompletion;
     }
 
-    public void keepOnCompletion(boolean keepOnCompletion) {
+    public EsqlQueryRequest keepOnCompletion(boolean keepOnCompletion) {
         this.keepOnCompletion = keepOnCompletion;
+        return this;
     }
 
     /**

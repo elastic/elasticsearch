@@ -31,6 +31,7 @@ public class SecureHdfsRepositoryAnalysisRestIT extends AbstractHdfsRepositoryAn
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .plugin("repository-hdfs")
+        .setting("thread_pool.snapshot.max", "10")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
         .systemProperty("java.security.krb5.conf", () -> krb5Fixture.getConfPath().toString())

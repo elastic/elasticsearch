@@ -217,6 +217,20 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
         }
 
         @Override
+        public String toString() {
+            return "Split{"
+                + "oldShardCount="
+                + oldShardCount
+                + ", newShardCount="
+                + newShardCount
+                + ", sourceShards="
+                + Arrays.toString(sourceShards)
+                + ", targetShards="
+                + Arrays.toString(targetShards)
+                + '}';
+        }
+
+        @Override
         public boolean equals(Object other) {
             if (this == other) {
                 return true;
@@ -254,8 +268,22 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return targetShards.clone();
         }
 
+        /** Return the source shard from which this target shard was split
+         * @param targetShard    target shard id
+         * @return source shard id
+         */
         public int sourceShard(int targetShard) {
             return targetShard % shardCountBefore();
+        }
+
+        /** Return the new target shard that is split from the given source shard
+         * This calculation assumes we only always double the number of shards in
+         * a reshard split operation, so that only one target shard is created per source shard.
+         * @param sourceShard    source shard id
+         * @return target shard id
+         */
+        public int targetShard(int sourceShard) {
+            return (sourceShard + shardCountBefore());
         }
 
         /**

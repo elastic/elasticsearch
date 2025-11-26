@@ -1,6 +1,0 @@
-pr: 134656
-summary: Fix deadlock in `ThreadPoolMergeScheduler` when a failing merge closes the
-  `IndexWriter`
-area: Engine
-type: bug
-issues: []

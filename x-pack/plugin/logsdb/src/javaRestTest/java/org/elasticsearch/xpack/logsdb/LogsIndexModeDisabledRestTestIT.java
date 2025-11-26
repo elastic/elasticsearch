@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -21,6 +24,9 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LogsIndexModeDisabledRestTestIT extends LogsIndexModeRestTestIT {
+
+    private static final String USER = "test_admin";
+    private static final String PASS = "x-pack-test-password";
 
     private static final String MAPPINGS = """
         {
@@ -46,7 +52,8 @@ public class LogsIndexModeDisabledRestTestIT extends LogsIndexModeRestTestIT {
         .module("mapper-extras")
         .module("x-pack-aggregate-metric")
         .module("x-pack-stack")
-        .setting("xpack.security.enabled", "false")
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .user(USER, PASS)
         .setting("xpack.license.self_generated.type", "trial")
         .build();
 
@@ -62,6 +69,11 @@ public class LogsIndexModeDisabledRestTestIT extends LogsIndexModeRestTestIT {
     }
 
     private RestClient client;
+
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
 
     public void testLogsSettingsIndexModeEnabledByDefault() throws IOException {
         assertOK(createDataStream(client, "logs-custom-dev"));

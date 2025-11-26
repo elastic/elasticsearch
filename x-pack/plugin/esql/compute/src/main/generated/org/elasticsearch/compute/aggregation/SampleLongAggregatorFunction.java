@@ -107,11 +107,12 @@ public final class SampleLongAggregatorFunction implements AggregatorFunction {
 
   private void addRawBlock(LongBlock valueBlock) {
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         long valueValue = valueBlock.getLong(valueOffset);
         SampleLongAggregator.combine(state, valueValue);
@@ -124,11 +125,12 @@ public final class SampleLongAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         long valueValue = valueBlock.getLong(valueOffset);
         SampleLongAggregator.combine(state, valueValue);
@@ -146,7 +148,7 @@ public final class SampleLongAggregatorFunction implements AggregatorFunction {
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
     assert sample.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     SampleLongAggregator.combineIntermediate(state, sample);
   }
 

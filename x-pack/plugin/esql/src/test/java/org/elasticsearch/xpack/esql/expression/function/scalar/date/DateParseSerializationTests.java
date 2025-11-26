@@ -19,19 +19,21 @@ public class DateParseSerializationTests extends AbstractExpressionSerialization
         Source source = randomSource();
         Expression first = randomChild();
         Expression second = randomBoolean() ? null : randomChild();
-        return new DateParse(source, first, second);
+        Expression third = randomBoolean() ? randomChild() : null;
+        return new DateParse(source, first, second, third);
     }
 
     @Override
     protected DateParse mutateInstance(DateParse instance) throws IOException {
         Source source = instance.source();
         Expression first = instance.children().get(0);
-        Expression second = instance.children().size() == 1 ? null : instance.children().get(1);
-        if (randomBoolean()) {
-            first = randomValueOtherThan(first, AbstractExpressionSerializationTests::randomChild);
-        } else {
-            second = randomValueOtherThan(second, () -> randomBoolean() ? null : randomChild());
+        Expression second = instance.children().size() > 1 ? instance.children().get(1) : null;
+        Expression third = instance.children().size() > 2 ? instance.children().get(2) : null;
+        switch (between(0, 2)) {
+            case 0 -> first = randomValueOtherThan(first, AbstractExpressionSerializationTests::randomChild);
+            case 1 -> second = randomValueOtherThan(second, () -> randomBoolean() ? null : randomChild());
+            case 2 -> third = randomValueOtherThan(third, () -> randomBoolean() ? null : randomChild());
         }
-        return new DateParse(source, first, second);
+        return new DateParse(source, first, second, third);
     }
 }

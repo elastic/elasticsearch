@@ -27,6 +27,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -88,9 +89,8 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         // searching doubles that are rounded to the closest half float
         ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType(
             "scaled_float",
-            randomBoolean(),
+            IndexType.points(true, randomBoolean()),
             false,
-            true,
             Collections.emptyMap(),
             0.1 + randomDouble() * 100,
             null,
@@ -222,14 +222,14 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new ScaledFloatFieldMapper.Builder("field", false, false, null, null, null).scalingFactor(100)
+        MappedFieldType mapper = new ScaledFloatFieldMapper.Builder("field", defaultIndexSettings()).scalingFactor(100)
             .build(MapperBuilderContext.root(false, false))
             .fieldType();
         assertEquals(List.of(3.14), fetchSourceValue(mapper, 3.1415926));
         assertEquals(List.of(3.14), fetchSourceValue(mapper, "3.1415"));
         assertEquals(List.of(), fetchSourceValue(mapper, ""));
 
-        MappedFieldType nullValueMapper = new ScaledFloatFieldMapper.Builder("field", false, false, null, null, null).scalingFactor(100)
+        MappedFieldType nullValueMapper = new ScaledFloatFieldMapper.Builder("field", defaultIndexSettings()).scalingFactor(100)
             .nullValue(2.71)
             .build(MapperBuilderContext.root(false, false))
             .fieldType();

@@ -65,8 +65,13 @@ public class AmazonBedrockMockRequestSender implements Sender {
     }
 
     @Override
-    public void start() {
+    public void startSynchronously() {
         // do nothing
+    }
+
+    @Override
+    public void startAsynchronously(ActionListener<Void> listener) {
+        throw new UnsupportedOperationException("not supported");
     }
 
     @Override
@@ -78,7 +83,7 @@ public class AmazonBedrockMockRequestSender implements Sender {
     ) {
         sendCounter++;
         if (inferenceInputs instanceof EmbeddingsInput embeddingsInput) {
-            inputs.add(embeddingsInput.getInputs());
+            inputs.add(embeddingsInput.getTextInputs());
             if (embeddingsInput.getInputType() != null) {
                 inputTypes.add(embeddingsInput.getInputType());
             }

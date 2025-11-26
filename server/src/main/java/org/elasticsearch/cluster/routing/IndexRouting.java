@@ -29,6 +29,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -97,6 +98,13 @@ public abstract class IndexRouting {
      * a document with the provided parameters.
      */
     public abstract int indexShard(IndexRequest indexRequest);
+
+    /**
+     * Called when indexing a document must be rerouted from the source shard to the target
+     * during resharding. Should be similar to {@link #indexShard(IndexRequest)} while avoiding
+     * the initial expense of having to calculate the routing parameters.
+     */
+    public abstract int rerouteToTarget(IndexRequest indexRequest);
 
     /**
      * Called when updating a document to generate the shard id that should contain
@@ -228,6 +236,11 @@ public abstract class IndexRouting {
         }
 
         @Override
+        public int rerouteToTarget(IndexRequest indexRequest) {
+            return indexShard(indexRequest);
+        }
+
+        @Override
         public int updateShard(String id, @Nullable String routing) {
             checkRoutingRequired(id, routing);
             int shardId = shardId(id, routing);
@@ -309,6 +322,7 @@ public abstract class IndexRouting {
         protected final XContentParserConfiguration parserConfig;
         private final IndexMode indexMode;
         private final boolean trackTimeSeriesRoutingHash;
+        private final boolean useTimeSeriesSyntheticId;
         private final boolean addIdWithRoutingHash;
         private int hash = Integer.MAX_VALUE;
 
@@ -321,6 +335,7 @@ public abstract class IndexRouting {
             assert indexMode != null : "Index mode must be set for ExtractFromSource routing";
             this.trackTimeSeriesRoutingHash = indexMode == IndexMode.TIME_SERIES
                 && metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
+            this.useTimeSeriesSyntheticId = metadata.useTimeSeriesSyntheticId();
             addIdWithRoutingHash = indexMode == IndexMode.LOGSDB;
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, Set.copyOf(includePaths), null, true);
         }
@@ -341,7 +356,23 @@ public abstract class IndexRouting {
             checkNoRouting(indexRequest.routing());
             hash = hashSource(indexRequest);
             int shardId = hashToShardId(hash);
-            return (rerouteWritesIfResharding(shardId));
+            return rerouteWritesIfResharding(shardId);
+        }
+
+        @Override
+        public int rerouteToTarget(IndexRequest indexRequest) {
+            if (trackTimeSeriesRoutingHash) {
+                String routing = indexRequest.routing();
+                if (routing == null) {
+                    throw new IllegalStateException("Routing should be set by the coordinator");
+                }
+                return hashToShardId(TimeSeriesRoutingHashFieldMapper.decode(indexRequest.routing()));
+            } else if (addIdWithRoutingHash) {
+                return hashToShardId(idToHash(indexRequest.id()));
+            } else {
+                checkNoRouting(indexRequest.routing());
+                return indexShard(indexRequest);
+            }
         }
 
         protected abstract int hashSource(IndexRequest indexRequest);
@@ -363,7 +394,7 @@ public abstract class IndexRouting {
         public int deleteShard(String id, @Nullable String routing) {
             checkNoRouting(routing);
             int shardId = idToHash(id);
-            return (rerouteWritesIfResharding(shardId));
+            return rerouteWritesIfResharding(shardId);
         }
 
         @Override
@@ -389,10 +420,19 @@ public abstract class IndexRouting {
             if (idBytes.length < 4) {
                 throw new ResourceNotFoundException("invalid id [{}] for index [{}] in " + indexMode.getName() + " mode", id, indexName);
             }
-            // For TSDB, the hash is stored as the id prefix.
-            // For LogsDB with routing on sort fields, the routing hash is stored in the range[id.length - 9, id.length - 5] of the id,
-            // see IndexRequest#autoGenerateTimeBasedId.
-            return hashToShardId(ByteUtils.readIntLE(idBytes, addIdWithRoutingHash ? idBytes.length - 9 : 0));
+            int hash;
+            if (addIdWithRoutingHash) {
+                // For LogsDB with routing on sort fields, the routing hash is stored in the range[id.length - 9, id.length - 5] of the id,
+                // see IndexRequest#autoGenerateTimeBasedId.
+                hash = ByteUtils.readIntLE(idBytes, idBytes.length - 9);
+            } else if (useTimeSeriesSyntheticId) {
+                // For TSDB with synthetic ids, the hash is stored as the id suffix.
+                hash = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(new BytesRef(idBytes));
+            } else {
+                // For TSDB, the hash is stored as the id prefix.
+                hash = ByteUtils.readIntLE(idBytes, 0);
+            }
+            return hashToShardId(hash);
         }
 
         @Override

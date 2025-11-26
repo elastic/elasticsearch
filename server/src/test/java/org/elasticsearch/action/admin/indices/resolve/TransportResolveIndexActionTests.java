@@ -81,6 +81,7 @@ public class TransportResolveIndexActionTests extends ESTestCase {
                 clusterService,
                 actionFilters,
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                Settings.EMPTY,
                 null
             );
 

@@ -119,7 +119,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                 }
                 try (
                     var response = run(
-                        syncEsqlQueryRequest().query("from test-* | stats count(user) by tags").pragmas(new QueryPragmas(pragmas.build()))
+                        syncEsqlQueryRequest("from test-* | stats count(user) by tags").pragmas(new QueryPragmas(pragmas.build()))
                     )
                 ) {
                     // do nothing
@@ -248,14 +248,18 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                 "from test-* | SORT tags | LIMIT 1000"
             );
             for (String q : queries) {
-                QueryPragmas pragmas = randomPragmas();
+                var pragmas = randomPragmas();
+                // For queries involving TopN, the node-reduce driver may hold on to contexts for longer (due to late materialization, which
+                // is only turned when the NODE_LEVEL_REDUCTION is turned on), so we don't check against the limit.
+                boolean nodeLevelReduction = QueryPragmas.NODE_LEVEL_REDUCTION.get(pragmas.getSettings());
+                int maxAllowed = q.contains("SORT tags") && nodeLevelReduction ? Integer.MAX_VALUE : pragmas.maxConcurrentShardsPerNode();
                 for (SearchService searchService : searchServices) {
-                    SearchContextCounter counter = new SearchContextCounter(pragmas.maxConcurrentShardsPerNode());
+                    SearchContextCounter counter = new SearchContextCounter(maxAllowed);
                     var mockSearchService = (MockSearchService) searchService;
                     mockSearchService.setOnCreateSearchContext(r -> counter.onNewContext());
                     mockSearchService.setOnRemoveContext(r -> counter.onContextReleased());
                 }
-                run(syncEsqlQueryRequest().query(q).pragmas(pragmas)).close();
+                run(syncEsqlQueryRequest(q).pragmas(pragmas)).close();
             }
         } finally {
             for (SearchService searchService : searchServices) {
@@ -282,9 +286,9 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
             connection.sendRequest(requestId, action, request, options);
         });
 
-        var query = syncEsqlQueryRequest();
-        query.query("from test-* | LIMIT 1");
-        query.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1).build()));
+        var query = syncEsqlQueryRequest("from test-* | LIMIT 1").pragmas(
+            new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1).build())
+        );
 
         try (var result = safeGet(client().execute(EsqlQueryAction.INSTANCE, query))) {
             assertThat(Iterables.size(result.rows()), equalTo(1L));

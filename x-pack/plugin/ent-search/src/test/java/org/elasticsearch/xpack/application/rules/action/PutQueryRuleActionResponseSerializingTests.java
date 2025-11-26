@@ -28,7 +28,7 @@ public class PutQueryRuleActionResponseSerializingTests extends AbstractBWCWireS
 
     @Override
     protected PutQueryRuleAction.Response mutateInstance(PutQueryRuleAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new PutQueryRuleAction.Response(randomValueOtherThan(instance.result, () -> randomFrom(DocWriteResponse.Result.values())));
     }
 
     @Override

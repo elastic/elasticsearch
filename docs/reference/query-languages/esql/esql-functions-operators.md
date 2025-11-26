@@ -20,6 +20,12 @@ mapped_pages:
 :::
 ::::
 
+::::{dropdown} Time-series aggregate functions
+:open:
+:::{include} _snippets/lists/time-series-aggregation-functions.md
+:::
+::::
+
 ::::{dropdown} Grouping functions
 :open:
 :::{include} _snippets/lists/grouping-functions.md
@@ -71,6 +77,12 @@ mapped_pages:
 ::::{dropdown} Type conversion functions
 :open:
 :::{include} _snippets/lists/type-conversion-functions.md
+:::
+::::
+
+::::{dropdown} Dense vector functions
+:open:
+:::{include} _snippets/lists/dense-vector-functions.md
 :::
 ::::
 

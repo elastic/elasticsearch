@@ -1,6 +1,0 @@
-pr: 135176
-summary: '`CentroidCalculator` does not return negative summation weights'
-area: Geo
-type: bug
-issues:
- - 131861

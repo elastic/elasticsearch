@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -42,6 +42,8 @@ public class ColumnInfoImpl implements ColumnInfo {
         parser.declareStringArray(optionalConstructorArg(), new ParseField("original_types"));
         PARSER = parser.build();
     }
+
+    private static final TransportVersion ESQL_REPORT_ORIGINAL_TYPES = TransportVersion.fromName("esql_report_original_types");
 
     @Override
     public boolean equals(Object o) {
@@ -100,8 +102,7 @@ public class ColumnInfoImpl implements ColumnInfo {
     public ColumnInfoImpl(StreamInput in) throws IOException {
         this.name = in.readString();
         this.type = DataType.fromEs(in.readString());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19)) {
+        if (in.getTransportVersion().supports(ESQL_REPORT_ORIGINAL_TYPES)) {
             this.originalTypes = in.readOptionalStringCollectionAsList();
             this.suggestedCast = calculateSuggestedCast(this.originalTypes);
         } else {
@@ -114,8 +115,7 @@ public class ColumnInfoImpl implements ColumnInfo {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(type.outputType());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19)) {
+        if (out.getTransportVersion().supports(ESQL_REPORT_ORIGINAL_TYPES)) {
             out.writeOptionalStringCollection(originalTypes);
         }
     }

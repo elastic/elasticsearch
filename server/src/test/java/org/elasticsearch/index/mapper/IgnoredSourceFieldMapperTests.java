@@ -343,11 +343,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         ParsedDocument parsedDocument = getParsedDocumentWithFieldLimit(b -> b.field("my_value", value));
         IgnoredSourceFieldMapper.MappedNameValue mappedNameValue;
         var bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue();
-        if (IgnoredSourceFieldMapper.COALESCE_IGNORED_SOURCE_ENTRIES.isEnabled()) {
-            mappedNameValue = IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.decodeAsMap(bytes).getFirst();
-        } else {
-            mappedNameValue = IgnoredSourceFieldMapper.LegacyIgnoredSourceEncoding.decodeAsMap(bytes);
-        }
+        mappedNameValue = IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.decodeAsMap(bytes).getFirst();
         assertEquals("my_value", mappedNameValue.nameValue().name());
         assertEquals(value, mappedNameValue.map().get("my_value"));
     }
@@ -360,18 +356,10 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         );
         var bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue();
         IgnoredSourceFieldMapper.MappedNameValue mappedNameValue;
-        if (IgnoredSourceFieldMapper.COALESCE_IGNORED_SOURCE_ENTRIES.isEnabled()) {
-            mappedNameValue = IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.decodeAsMap(bytes).getFirst();
-        } else {
-            mappedNameValue = IgnoredSourceFieldMapper.LegacyIgnoredSourceEncoding.decodeAsMap(bytes);
-        }
+        mappedNameValue = IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.decodeAsMap(bytes).getFirst();
         assertEquals("my_object", mappedNameValue.nameValue().name());
         assertEquals(value, ((Map<String, ?>) mappedNameValue.map().get("my_object")).get("my_value"));
-        if (IgnoredSourceFieldMapper.COALESCE_IGNORED_SOURCE_ENTRIES.isEnabled()) {
-            assertEquals(bytes, IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.encodeFromMap(List.of(mappedNameValue)));
-        } else {
-            assertEquals(bytes, IgnoredSourceFieldMapper.LegacyIgnoredSourceEncoding.encodeFromMap(mappedNameValue));
-        }
+        assertEquals(bytes, IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.encodeFromMap(List.of(mappedNameValue)));
     }
 
     public void testEncodeArrayToMapAndDecode() throws IOException {
@@ -383,18 +371,10 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         });
         var bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue();
         IgnoredSourceFieldMapper.MappedNameValue mappedNameValue;
-        if (IgnoredSourceFieldMapper.COALESCE_IGNORED_SOURCE_ENTRIES.isEnabled()) {
-            mappedNameValue = IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.decodeAsMap(bytes).getFirst();
-        } else {
-            mappedNameValue = IgnoredSourceFieldMapper.LegacyIgnoredSourceEncoding.decodeAsMap(bytes);
-        }
+        mappedNameValue = IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.decodeAsMap(bytes).getFirst();
         assertEquals("my_array", mappedNameValue.nameValue().name());
         assertThat((List<?>) mappedNameValue.map().get("my_array"), Matchers.contains(Map.of("int_value", 10), Map.of("int_value", 20)));
-        if (IgnoredSourceFieldMapper.COALESCE_IGNORED_SOURCE_ENTRIES.isEnabled()) {
-            assertEquals(bytes, IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.encodeFromMap(List.of(mappedNameValue)));
-        } else {
-            assertEquals(bytes, IgnoredSourceFieldMapper.LegacyIgnoredSourceEncoding.encodeFromMap(mappedNameValue));
-        }
+        assertEquals(bytes, IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.encodeFromMap(List.of(mappedNameValue)));
     }
 
     public void testMultipleIgnoredFieldsRootObject() throws IOException {

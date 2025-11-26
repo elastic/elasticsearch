@@ -42,7 +42,7 @@ public class StYMinTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedCartesian, DOUBLE, StYMinTests::valueOfCartesian, List.of());
         TestCaseSupplier.forUnaryGeoShape(suppliers, expectedGeo, DOUBLE, StYMinTests::valueOfGeo, List.of());
         TestCaseSupplier.forUnaryCartesianShape(suppliers, expectedCartesian, DOUBLE, StYMinTests::valueOfCartesian, List.of());
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static double valueOfGeo(BytesRef wkb) {

@@ -465,7 +465,7 @@ synthetic_source match_only_text as multi-field with ignored keyword as parent:
         id: "1"
         refresh: true
         body:
-          foo: [ "Apache Lucene powers Elasticsearch", "Apache" ]
+          foo: [ "Apache Lucene powers Elasticsearch", "Apache", "Apache Lucene" ]
 
   - do:
       search:
@@ -477,7 +477,7 @@ synthetic_source match_only_text as multi-field with ignored keyword as parent:
 
   - match: { "hits.total.value": 1 }
   - match:
-      hits.hits.0._source.foo: [ "Apache", "Apache Lucene powers Elasticsearch" ]
+      hits.hits.0._source.foo: [ "Apache", "Apache Lucene powers Elasticsearch", "Apache Lucene" ]
 
 ---
 synthetic_source match_only_text as multi-field with stored keyword as parent:
@@ -649,6 +649,114 @@ synthetic_source match_only_text with ignored multi-field:
   - match: { "hits.total.value": 1 }
   - match:
       hits.hits.0._source.foo: "Apache Lucene powers Elasticsearch"
+
+---
+synthetic_source match_only_text with ignored multi-field and multiple values in the same doc:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: match_only_text
+                fields:
+                  raw:
+                    type: keyword
+                    ignore_above: 20
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "1"
+        refresh: true
+        body:
+          foo: [ "This value is too long and will be ignored", "This value is short" ]
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          query:
+            match_phrase:
+              foo: this value is
+
+  - match: { "hits.total.value": 1 }
+  - match: { hits.hits.0._source.foo.0: "This value is too long and will be ignored" }
+  - match: { hits.hits.0._source.foo.1: "This value is short" }
+
+  # now, flip the values around
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "1"
+        refresh: true
+        body:
+          foo: [ "This value is short", "This value is too long and will be ignored" ]
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          query:
+            match_phrase:
+              foo: this value is
+
+  - match: { "hits.total.value": 1 }
+  # the order will be the same since text fields currently don't take offsets into account
+  - match: { hits.hits.0._source.foo.0: "This value is too long and will be ignored" }
+  - match: { hits.hits.0._source.foo.1: "This value is short" }
+
+---
+synthetic_source match_only_text with ignored multi-field and multiple values in the same doc and preserved order:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: match_only_text
+                # this will force the order to be preserved
+                synthetic_source_keep: arrays
+                fields:
+                  raw:
+                    type: keyword
+                    ignore_above: 20
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "1"
+        refresh: true
+        body:
+          foo: [ "This value is short", "This value is too long and will be ignored" ]
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          query:
+            match_phrase:
+              foo: this value is
+
+  - match: { "hits.total.value": 1 }
+  - match: { hits.hits.0._source.foo.0: "This value is short" }
+  - match: { hits.hits.0._source.foo.1: "This value is too long and will be ignored" }
 
 ---
 synthetic_source match_only_text with stored multi-field:

@@ -1,5 +1,0 @@
-pr: 130834
-summary: Ensure vectors are always included in reindex actions
-area: Vector Search
-type: enhancement
-issues: []

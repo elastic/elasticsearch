@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.esql.core.expression.ExpressionCoreWritables;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables;
@@ -77,6 +78,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
@@ -121,6 +123,12 @@ public class ExpressionWritables {
         entries.addAll(fullText());
         entries.addAll(unaryScalars());
         entries.addAll(vector());
+        return entries;
+    }
+
+    public static List<SearchPlugin.GenericNamedWriteableSpec> getGenericNamedWriteables() {
+        List<SearchPlugin.GenericNamedWriteableSpec> entries = new ArrayList<>();
+        entries.addAll(literals());
         return entries;
     }
 
@@ -208,9 +216,7 @@ public class ExpressionWritables {
         entries.add(ToDatetime.ENTRY);
         entries.add(ToDateNanos.ENTRY);
         entries.add(ToDegrees.ENTRY);
-        if (EsqlCapabilities.Cap.TO_DENSE_VECTOR_FUNCTION.isEnabled()) {
-            entries.add(ToDenseVector.ENTRY);
-        }
+        entries.add(ToDenseVector.ENTRY);
         entries.add(ToDouble.ENTRY);
         entries.add(ToGeoShape.ENTRY);
         entries.add(ToCartesianShape.ENTRY);
@@ -234,6 +240,7 @@ public class ExpressionWritables {
         entries.add(UrlEncode.ENTRY);
         entries.add(UrlEncodeComponent.ENTRY);
         entries.add(UrlDecode.ENTRY);
+        entries.add(Chunk.ENTRY);
         // mv functions
         entries.addAll(MvFunctionWritables.getNamedWriteables());
         return entries;
@@ -266,5 +273,14 @@ public class ExpressionWritables {
 
     private static List<NamedWriteableRegistry.Entry> vector() {
         return VectorWritables.getNamedWritables();
+    }
+
+    public static List<SearchPlugin.GenericNamedWriteableSpec> literals() {
+        return List.of(
+            new SearchPlugin.GenericNamedWriteableSpec(
+                "AggregateMetricDoubleLiteral",
+                AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral::new
+            )
+        );
     }
 }

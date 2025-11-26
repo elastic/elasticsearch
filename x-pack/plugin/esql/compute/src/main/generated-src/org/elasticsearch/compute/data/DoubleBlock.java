@@ -34,6 +34,24 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
      */
     double getDouble(int valueIndex);
 
+    /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+     */
+    default boolean hasValue(int position, double value) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        for (int index = startIndex; index < startIndex + count; index++) {
+            if (value == getDouble(index)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     DoubleVector asVector();
 

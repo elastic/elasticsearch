@@ -10,7 +10,6 @@
 package org.elasticsearch.action.datastreams;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
@@ -42,6 +41,7 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
     public static final String NAME = "indices:admin/data_stream/settings/update";
     public static final UpdateDataStreamSettingsAction INSTANCE = new UpdateDataStreamSettingsAction();
 
+    private static final TransportVersion SETTINGS_IN_DATA_STREAMS = TransportVersion.fromName("settings_in_data_streams");
     private static final TransportVersion DATA_STREAM_WRITE_INDEX_ONLY_SETTINGS = TransportVersion.fromName(
         "data_stream_write_index_only_settings"
     );
@@ -88,8 +88,7 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             super(in);
             this.dataStreamNames = in.readStringArray();
             this.settings = Settings.readSettingsFromStream(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS_DRY_RUN)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
+            if (in.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {
                 this.dryRun = in.readBoolean();
             } else {
                 this.dryRun = false;
@@ -101,8 +100,7 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             super.writeTo(out);
             out.writeStringArray(dataStreamNames);
             settings.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS_DRY_RUN)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
+            if (out.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {
                 out.writeBoolean(dryRun);
             }
         }

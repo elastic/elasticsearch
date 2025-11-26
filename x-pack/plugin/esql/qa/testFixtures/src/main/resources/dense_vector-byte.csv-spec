@@ -1,5 +1,6 @@
 retrieveByteVectorData
-required_capability: dense_vector_field_type_byte_elements
+required_capability: dense_vector_agg_metric_double_if_version
+required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector
 | KEEP id, byte_vector
@@ -14,7 +15,8 @@ id:l | byte_vector:dense_vector
 ;
 
 denseByteVectorWithEval
-required_capability: dense_vector_field_type_byte_elements
+required_capability: dense_vector_agg_metric_double_if_version
+required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector
 | EVAL v = byte_vector
@@ -30,10 +32,11 @@ id:l | v:dense_vector
 ;
 
 denseByteVectorWithRenameAndDrop
-required_capability: dense_vector_field_type_byte_elements
+required_capability: dense_vector_agg_metric_double_if_version
+required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector 
-| EVAL v = byte_vector 
+| EVAL v = byte_vector
 | RENAME v AS new_vector 
 | DROP float_vector, byte_vector, bit_vector
 | SORT id

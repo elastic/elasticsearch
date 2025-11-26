@@ -1,0 +1,2 @@
+com.nvidia.cuvs:
+  - load_native_libraries

@@ -1385,4 +1385,42 @@ setup:
   - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
   - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 22 }
 
+  - do:
+      search:
+        index: test-index
+        body:
+          _source:
+            exclude_vectors: false
+            excludes: ["*"]
+          query:
+            term:
+              _id: doc_1
+
+  - match:  { hits.total.value: 1 }
+  - length: { hits.hits.0._source: 0}
+
+  - do:
+      search:
+        index: test-index
+        body:
+          _source:
+            exclude_vectors: false
+            excludes: ["*_field"]
+          query:
+            term:
+              _id: doc_1
+
+  - match:  { hits.total.value: 1 }
+  - length: { hits.hits.0._source: 1}
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
+  - exists:   hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match:  { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match:  { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 14 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
+  - exists:   hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
+  - match:  { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match:  { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 22 }
+
+
 

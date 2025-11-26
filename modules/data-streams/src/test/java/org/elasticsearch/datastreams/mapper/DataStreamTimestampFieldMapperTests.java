@@ -252,9 +252,9 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             .mappers()
             .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         assumeTrue("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER);
+        assertTrue(timestampMapper.fieldType().indexType().hasPoints());
         assertTrue(timestampMapper.fieldType().hasDocValues());
         assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
-        assertTrue(timestampMapper.fieldType().isIndexed());
     }
 
     public void testFieldTypeWithDocValuesSkipper_LogsDBMode() throws IOException {
@@ -274,12 +274,11 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assertTrue(timestampMapper.fieldType().hasDocValues());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assumeTrue("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER);
-            assertFalse(timestampMapper.fieldType().isIndexed());
             assertTrue(timestampMapper.fieldType().hasDocValuesSkipper());
         } else {
             // TODO: remove this 'else' branch when removing the `doc_values_skipper` feature flag
             assumeFalse("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER == false);
-            assertTrue(timestampMapper.fieldType().isIndexed());
+            assertTrue(timestampMapper.fieldType().indexType().hasPoints());
             assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
         }
     }
@@ -297,12 +296,11 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assertTrue(timestampMapper.fieldType().hasDocValues());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assumeTrue("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER);
-            assertFalse(timestampMapper.fieldType().isIndexed());
             assertTrue(timestampMapper.fieldType().hasDocValuesSkipper());
         } else {
             // TODO: remove this 'else' branch when removing the `doc_values_skipper` feature flag
             assumeFalse("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER == false);
-            assertTrue(timestampMapper.fieldType().isIndexed());
+            assertTrue(timestampMapper.fieldType().indexType().hasPoints());
             assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
         }
     }
@@ -327,12 +325,11 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assertTrue(timestampMapper.fieldType().hasDocValues());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assumeTrue("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER);
-            assertFalse(timestampMapper.fieldType().isIndexed());
             assertTrue(timestampMapper.fieldType().hasDocValuesSkipper());
         } else {
             // TODO: remove this 'else' branch when removing the `doc_values_skipper` feature flag
             assumeFalse("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER == false);
-            assertTrue(timestampMapper.fieldType().isIndexed());
+            assertTrue(timestampMapper.fieldType().indexType().hasPoints());
             assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
         }
     }
@@ -355,12 +352,11 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assertTrue(timestampMapper.fieldType().hasDocValues());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assumeTrue("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER);
-            assertFalse(timestampMapper.fieldType().isIndexed());
             assertTrue(timestampMapper.fieldType().hasDocValuesSkipper());
         } else {
             // TODO: remove this 'else' branch when removing the `doc_values_skipper` feature flag
             assumeFalse("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER == false);
-            assertTrue(timestampMapper.fieldType().isIndexed());
+            assertTrue(timestampMapper.fieldType().indexType().hasPoints());
             assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
         }
     }
@@ -384,7 +380,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assumeFalse("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER == false);
         assertTrue(timestampMapper.fieldType().hasDocValues());
         assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
-        assertTrue(timestampMapper.fieldType().isIndexed());
+        assertTrue(timestampMapper.fieldType().indexType().hasPoints());
     }
 
     public void testFieldTypeWithDocValuesSkipper_LogsDBModeWithoutDefaultMapping() throws IOException {
@@ -407,12 +403,11 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assertTrue(timestampMapper.fieldType().hasDocValues());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assumeTrue("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER);
-            assertFalse(timestampMapper.fieldType().isIndexed());
             assertTrue(timestampMapper.fieldType().hasDocValuesSkipper());
         } else {
             // TODO: remove this 'else' branch when removing the `doc_values_skipper` feature flag
             assumeFalse("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER == false);
-            assertTrue(timestampMapper.fieldType().isIndexed());
+            assertTrue(timestampMapper.fieldType().indexType().hasPoints());
             assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
         }
     }
@@ -479,12 +474,11 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         // NOTE: in LogsDB we always sort on @timestamp (and maybe also on host.name) by default
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assumeTrue("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER);
-            assertFalse(timestampMapper.fieldType().isIndexed());
             assertTrue(timestampMapper.fieldType().hasDocValuesSkipper());
         } else {
             // TODO: remove this 'else' branch when removing the `doc_values_skipper` feature flag
             assumeFalse("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER == false);
-            assertTrue(timestampMapper.fieldType().isIndexed());
+            assertTrue(timestampMapper.fieldType().indexType().hasPoints());
             assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
         }
     }
@@ -504,7 +498,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         assumeFalse("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER == false);
         assertTrue(timestampMapper.fieldType().hasDocValues());
-        assertTrue(timestampMapper.fieldType().isIndexed());
+        assertTrue(timestampMapper.fieldType().indexType().hasPoints());
         assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
     }
 
@@ -521,7 +515,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
 
         final DateFieldMapper customTimestamp = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("timestamp");
         assertTrue(customTimestamp.fieldType().hasDocValues());
-        assertTrue(customTimestamp.fieldType().isIndexed());
+        assertTrue(customTimestamp.fieldType().indexType().hasPoints());
         assertFalse(customTimestamp.fieldType().hasDocValuesSkipper());
 
         // Default LogsDB mapping including @timestamp field is used
@@ -529,12 +523,11 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assertTrue(defaultTimestamp.fieldType().hasDocValues());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assumeTrue("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER);
-            assertFalse(defaultTimestamp.fieldType().isIndexed());
             assertTrue(defaultTimestamp.fieldType().hasDocValuesSkipper());
         } else {
             // TODO: remove this 'else' branch when removing the `doc_values_skipper` feature flag
             assumeFalse("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER == false);
-            assertTrue(defaultTimestamp.fieldType().isIndexed());
+            assertTrue(defaultTimestamp.fieldType().indexType().hasPoints());
             assertFalse(defaultTimestamp.fieldType().hasDocValuesSkipper());
         }
     }
@@ -559,7 +552,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assumeTrue("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER);
         assertTrue(timestampMapper.fieldType().hasDocValues());
         assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
-        assertTrue(timestampMapper.fieldType().isIndexed());
+        assertTrue(timestampMapper.fieldType().indexType().hasPoints());
     }
 
     public void testFieldTypeWithDocValuesSkipper_TSDBMode() throws IOException {
@@ -581,12 +574,11 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assertTrue(timestampMapper.fieldType().hasDocValues());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assumeTrue("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER);
-            assertFalse(timestampMapper.fieldType().isIndexed());
             assertTrue(timestampMapper.fieldType().hasDocValuesSkipper());
         } else {
             // TODO: remove this 'else' branch when removing the `doc_values_skipper` feature flag
             assumeFalse("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER == false);
-            assertTrue(timestampMapper.fieldType().isIndexed());
+            assertTrue(timestampMapper.fieldType().indexType().hasPoints());
             assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
         }
     }
@@ -606,12 +598,11 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assertTrue(timestampMapper.fieldType().hasDocValues());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assumeTrue("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER);
-            assertFalse(timestampMapper.fieldType().isIndexed());
             assertTrue(timestampMapper.fieldType().hasDocValuesSkipper());
         } else {
             // TODO: remove this 'else' branch when removing the `doc_values_skipper` feature flag
             assumeFalse("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER == false);
-            assertTrue(timestampMapper.fieldType().isIndexed());
+            assertTrue(timestampMapper.fieldType().indexType().hasPoints());
             assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
         }
     }
@@ -638,12 +629,11 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assertTrue(timestampMapper.fieldType().hasDocValues());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assumeTrue("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER);
-            assertFalse(timestampMapper.fieldType().isIndexed());
             assertTrue(timestampMapper.fieldType().hasDocValuesSkipper());
         } else {
             // TODO: remove this 'else' branch when removing the `doc_values_skipper` feature flag
             assumeFalse("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER == false);
-            assertTrue(timestampMapper.fieldType().isIndexed());
+            assertTrue(timestampMapper.fieldType().indexType().hasPoints());
             assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
         }
     }
@@ -668,12 +658,11 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assertTrue(timestampMapper.fieldType().hasDocValues());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assumeTrue("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER);
-            assertFalse(timestampMapper.fieldType().isIndexed());
             assertTrue(timestampMapper.fieldType().hasDocValuesSkipper());
         } else {
             // TODO: remove this 'else' branch when removing the `doc_values_skipper` feature flag
             assumeFalse("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER == false);
-            assertTrue(timestampMapper.fieldType().isIndexed());
+            assertTrue(timestampMapper.fieldType().indexType().hasPoints());
             assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
         }
     }
@@ -699,7 +688,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assumeFalse("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER == false);
         assertTrue(timestampMapper.fieldType().hasDocValues());
         assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
-        assertTrue(timestampMapper.fieldType().isIndexed());
+        assertTrue(timestampMapper.fieldType().indexType().hasPoints());
     }
 
     public void testFieldTypeWithDocValuesSkipper_TSDBModeWithoutDefaultMapping() throws IOException {
@@ -724,12 +713,11 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assertTrue(timestampMapper.fieldType().hasDocValues());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assumeTrue("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER);
-            assertFalse(timestampMapper.fieldType().isIndexed());
             assertTrue(timestampMapper.fieldType().hasDocValuesSkipper());
         } else {
             // TODO: remove this 'else' branch when removing the `doc_values_skipper` feature flag
             assumeFalse("doc_values_skipper feature flag enabled", IndexSettings.DOC_VALUES_SKIPPER == false);
-            assertTrue(timestampMapper.fieldType().isIndexed());
+            assertTrue(timestampMapper.fieldType().indexType().hasPoints());
             assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
         }
     }

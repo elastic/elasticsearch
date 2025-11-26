@@ -246,7 +246,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         for (DataType gridType : new DataType[] { DataType.GEOHASH, DataType.GEOTILE, DataType.GEOHEX }) {
             TestCaseSupplier.forUnaryGeoGrid(suppliers, read, gridType, DataType.LONG, v -> v, List.of());
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static String evaluatorName(String next, String inner) {

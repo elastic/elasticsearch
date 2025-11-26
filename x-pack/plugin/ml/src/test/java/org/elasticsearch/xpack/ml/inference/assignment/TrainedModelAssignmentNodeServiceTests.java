@@ -265,7 +265,11 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             UpdateTrainedModelAssignmentRoutingInfoAction.Request.class
         );
         verify(deploymentManager, times(1)).startDeployment(startTaskCapture.capture(), any());
-        assertBusy(() -> verify(trainedModelAssignmentService, times(3)).updateModelAssignmentState(requestCapture.capture(), any()));
+        assertBusy(
+            () -> verify(trainedModelAssignmentService, times(3)).updateModelAssignmentState(requestCapture.capture(), any()),
+            3,
+            TimeUnit.SECONDS
+        );
 
         boolean seenStopping = false;
         for (int i = 0; i < 3; i++) {
@@ -397,6 +401,13 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             return null;
         }).when(trainedModelAssignmentService).updateModelAssignmentState(any(), any());
 
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings({ "unchecked", "rawtypes" })
+            ActionListener<AcknowledgedResponse> listener = (ActionListener) invocationOnMock.getArguments()[1];
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(deploymentManager).stopAfterCompletingPendingWork(any(), any());
+
         var taskParams = newParams(deploymentOne, modelOne);
 
         ClusterChangedEvent event = new ClusterChangedEvent(
@@ -430,7 +441,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         }
 
         assertBusy(() -> {
-            verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(stopParamsCapture.capture());
+            verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(stopParamsCapture.capture(), any());
             assertThat(stopParamsCapture.getValue().getModelId(), equalTo(modelOne));
             assertThat(stopParamsCapture.getValue().getDeploymentId(), equalTo(deploymentOne));
         });
@@ -481,7 +492,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(taskParams);
         trainedModelAssignmentNodeService.clusterChanged(event);
 
-        verify(deploymentManager, never()).stopAfterCompletingPendingWork(any());
+        verify(deploymentManager, never()).stopAfterCompletingPendingWork(any(), any());
         verify(trainedModelAssignmentService, never()).updateModelAssignmentState(
             any(UpdateTrainedModelAssignmentRoutingInfoAction.Request.class),
             any()
@@ -522,7 +533,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
 
         trainedModelAssignmentNodeService.clusterChanged(event);
 
-        verify(deploymentManager, never()).stopAfterCompletingPendingWork(any());
+        verify(deploymentManager, never()).stopAfterCompletingPendingWork(any(), any());
         verify(trainedModelAssignmentService, never()).updateModelAssignmentState(
             any(UpdateTrainedModelAssignmentRoutingInfoAction.Request.class),
             any()
@@ -564,7 +575,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(taskParams);
         trainedModelAssignmentNodeService.clusterChanged(event);
 
-        verify(deploymentManager, never()).stopAfterCompletingPendingWork(any());
+        verify(deploymentManager, never()).stopAfterCompletingPendingWork(any(), any());
         verify(trainedModelAssignmentService, never()).updateModelAssignmentState(
             any(UpdateTrainedModelAssignmentRoutingInfoAction.Request.class),
             any()
@@ -601,7 +612,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(taskParams);
         trainedModelAssignmentNodeService.clusterChanged(event);
 
-        assertBusy(() -> verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(any()));
+        assertBusy(() -> verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(any(), any()));
         // This still shouldn't trigger a cluster state update because the routing entry wasn't in the table so we won't add a new routing
         // entry for stopping
         verify(trainedModelAssignmentService, never()).updateModelAssignmentState(
@@ -765,7 +776,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             ArgumentCaptor<TrainedModelDeploymentTask> stoppedTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
             // deployment-2 was originally started on node NODE_ID but in the latest cluster event it is no longer on that node so we will
             // gracefully stop it
-            verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(stoppedTaskCapture.capture());
+            verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(stoppedTaskCapture.capture(), any());
             assertThat(stoppedTaskCapture.getAllValues().get(0).getDeploymentId(), equalTo(deploymentTwo));
         });
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);

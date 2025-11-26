@@ -26,6 +26,11 @@ public class DotProductSimilarityTests extends AbstractVectorSimilarityFunctionT
         super(testCaseSupplier);
     }
 
+    @Override
+    public String getBaseEvaluatorName() {
+        return DotProduct.class.getSimpleName();
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return similarityParameters(DotProduct.class.getSimpleName(), DotProduct.SIMILARITY_FUNCTION);

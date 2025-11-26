@@ -31,10 +31,12 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 // TODO rename package
@@ -143,10 +145,11 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     @Override
     protected void performAsync(Page inputPage, ActionListener<OngoingJoin> listener) {
-        Block[] inputBlockArray = new Block[matchFields.size()];
         List<MatchConfig> newMatchFields = new ArrayList<>();
-        for (int i = 0; i < matchFields.size(); i++) {
-            MatchConfig matchField = matchFields.get(i);
+        List<MatchConfig> uniqueMatchFields = uniqueMatchFieldsByName(matchFields);
+        Block[] inputBlockArray = new Block[uniqueMatchFields.size()];
+        for (int i = 0; i < uniqueMatchFields.size(); i++) {
+            MatchConfig matchField = uniqueMatchFields.get(i);
             int inputChannel = matchField.channel();
             final Block inputBlock = inputPage.getBlock(inputChannel);
             inputBlockArray[i] = inputBlock;
@@ -174,6 +177,20 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             parentTask,
             listener.map(pages -> new OngoingJoin(new RightChunkedLeftJoin(inputPage, loadFields.size()), pages.iterator()))
         );
+    }
+
+    private List<MatchConfig> uniqueMatchFieldsByName(List<MatchConfig> matchFields) {
+        if (joinOnConditions == null) {
+            return matchFields;
+        }
+        List<MatchConfig> uniqueFields = new ArrayList<>();
+        Set<String> seenFieldNames = new HashSet<>();
+        for (MatchConfig matchField : matchFields) {
+            if (seenFieldNames.add(matchField.fieldName())) {
+                uniqueFields.add(matchField);
+            }
+        }
+        return uniqueFields;
     }
 
     @Override

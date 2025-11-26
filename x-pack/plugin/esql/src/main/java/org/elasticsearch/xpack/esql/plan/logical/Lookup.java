@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -139,7 +140,7 @@ public class Lookup extends UnaryPlan implements SurrogateLogicalPlan, Telemetry
             if (localRelation == null) {
                 throw new IllegalStateException("Cannot determine output of LOOKUP with unresolved table");
             }
-            lazyOutput = Join.computeOutput(child().output(), localRelation.output(), joinConfig());
+            lazyOutput = Expressions.asAttributes(Join.computeOutputExpressions(child().output(), localRelation.output(), joinConfig()));
         }
         return lazyOutput;
     }

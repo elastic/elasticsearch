@@ -39,9 +39,9 @@ public class PresentOverTime extends TimeSeriesAggregateFunction {
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "boolean" },
-        description = "The presence of a field in the output result over time range.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        description = "Calculates the presence of a field in the output result over time range.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        preview = true,
         examples = { @Example(file = "k8s-timeseries", tag = "present_over_time") }
     )
     public PresentOverTime(
@@ -70,11 +70,11 @@ public class PresentOverTime extends TimeSeriesAggregateFunction {
                 "version" }
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public PresentOverTime(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public PresentOverTime(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private PresentOverTime(StreamInput in) throws IOException {
@@ -88,17 +88,17 @@ public class PresentOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public PresentOverTime withFilter(Expression filter) {
-        return new PresentOverTime(source(), field(), filter);
+        return new PresentOverTime(source(), field(), filter, window());
     }
 
     @Override
     protected NodeInfo<PresentOverTime> info() {
-        return NodeInfo.create(this, PresentOverTime::new, field(), filter());
+        return NodeInfo.create(this, PresentOverTime::new, field(), filter(), window());
     }
 
     @Override
     public PresentOverTime replaceChildren(List<Expression> newChildren) {
-        return new PresentOverTime(source(), newChildren.get(0), newChildren.get(1));
+        return new PresentOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
@@ -113,6 +113,6 @@ public class PresentOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public Present perTimeSeriesAggregation() {
-        return new Present(source(), field(), filter());
+        return new Present(source(), field(), filter(), window());
     }
 }

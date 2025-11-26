@@ -38,13 +38,23 @@ public abstract class ConstantFieldType extends MappedFieldType {
 
     @SuppressWarnings("this-escape")
     public ConstantFieldType(String name, Map<String, String> meta) {
-        super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+        super(name, IndexType.NONE, false, meta);
         assert isSearchable();
+    }
+
+    @Override
+    public boolean isSearchable() {
+        return true;
     }
 
     @Override
     public final boolean isAggregatable() {
         return true;
+    }
+
+    @Override
+    public TextSearchInfo getTextSearchInfo() {
+        return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
     }
 
     /**

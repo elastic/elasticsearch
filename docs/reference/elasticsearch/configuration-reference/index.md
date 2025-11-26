@@ -44,6 +44,7 @@ The settings are grouped by feature or purpose, for example:
 - [Networking](/reference/elasticsearch/configuration-reference/networking-settings.md)
 - [Nodes](/reference/elasticsearch/configuration-reference/node-settings.md)
 - [Node query cache](/reference/elasticsearch/configuration-reference/node-query-cache-settings.md)
+- [Remote clusters](/reference/elasticsearch/configuration-reference/remote-clusters.md)
 - [Search](/reference/elasticsearch/configuration-reference/search-settings.md)
 - [Security](/reference/elasticsearch/configuration-reference/security-settings.md)
 - [Shard request cache](/reference/elasticsearch/configuration-reference/shard-request-cache-settings.md)

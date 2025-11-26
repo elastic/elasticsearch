@@ -142,7 +142,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         private static final IgnoredValuesFieldMapperType INSTANCE = new IgnoredValuesFieldMapperType();
 
         private IgnoredValuesFieldMapperType() {
-            super(NAME, false, true, false, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, IndexType.NONE, true, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override
@@ -487,10 +487,13 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     }
 
     public static IgnoredSourceFormat ignoredSourceFormat(IndexVersion indexCreatedVersion) {
-        return indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_FIELDS_PER_ENTRY_WITH_FF)
-            && COALESCE_IGNORED_SOURCE_ENTRIES.isEnabled()
-                ? IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE
-                : IgnoredSourceFormat.LEGACY_SINGLE_IGNORED_SOURCE;
+        IndexVersion switchToNewFormatVersion = COALESCE_IGNORED_SOURCE_ENTRIES.isEnabled()
+            ? IndexVersions.IGNORED_SOURCE_COALESCED_ENTRIES_WITH_FF
+            : IndexVersions.IGNORED_SOURCE_COALESCED_ENTRIES;
+
+        return indexCreatedVersion.onOrAfter(switchToNewFormatVersion)
+            ? IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE
+            : IgnoredSourceFormat.LEGACY_SINGLE_IGNORED_SOURCE;
     }
 
     @Override

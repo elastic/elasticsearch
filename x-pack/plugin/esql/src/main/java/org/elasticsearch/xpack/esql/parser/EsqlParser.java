@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.BitSet;
@@ -100,32 +99,37 @@ public class EsqlParser {
     }
 
     // testing utility
-    public LogicalPlan createStatement(String query, Configuration configuration) {
-        return createStatement(query, new QueryParams(), configuration);
+    public LogicalPlan createStatement(String query) {
+        return createStatement(query, new QueryParams());
     }
 
     // testing utility
-    public LogicalPlan createStatement(String query, QueryParams params, Configuration configuration) {
-        return createStatement(query, params, new PlanTelemetry(new EsqlFunctionRegistry()), configuration);
+    public LogicalPlan createStatement(String query, QueryParams params) {
+        return createStatement(query, params, new PlanTelemetry(new EsqlFunctionRegistry()));
     }
 
-    public LogicalPlan createStatement(String query, QueryParams params, PlanTelemetry metrics, Configuration configuration) {
+    public LogicalPlan createStatement(String query, QueryParams params, PlanTelemetry metrics) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, metrics, EsqlBaseParser::singleStatement, AstBuilder::plan, configuration);
+        return invokeParser(query, params, metrics, EsqlBaseParser::singleStatement, AstBuilder::plan);
     }
 
     // testing utility
-    public EsqlStatement createQuery(String query, QueryParams params, Configuration configuration) {
-        return createQuery(query, params, new PlanTelemetry(new EsqlFunctionRegistry()), configuration);
+    public EsqlStatement createQuery(String query) {
+        return createQuery(query, new QueryParams());
     }
 
-    public EsqlStatement createQuery(String query, QueryParams params, PlanTelemetry metrics, Configuration configuration) {
+    // testing utility
+    public EsqlStatement createQuery(String query, QueryParams params) {
+        return createQuery(query, params, new PlanTelemetry(new EsqlFunctionRegistry()));
+    }
+
+    public EsqlStatement createQuery(String query, QueryParams params, PlanTelemetry metrics) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, metrics, EsqlBaseParser::statements, AstBuilder::statement, configuration);
+        return invokeParser(query, params, metrics, EsqlBaseParser::statements, AstBuilder::statement);
     }
 
     private <T> T invokeParser(
@@ -133,8 +137,7 @@ public class EsqlParser {
         QueryParams params,
         PlanTelemetry metrics,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
-        BiFunction<AstBuilder, ParserRuleContext, T> result,
-        Configuration configuration
+        BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
         if (query.length() > MAX_LENGTH) {
             throw new ParsingException("ESQL statement is too large [{} characters > {}]", query.length(), MAX_LENGTH);

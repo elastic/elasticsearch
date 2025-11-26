@@ -36,13 +36,13 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_IN
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.adjustScale;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCase {
 
     public void testZeroThresholdCollapsesOverlappingBuckets() {
-
         ExponentialHistogram first = createAutoReleasedHistogram(b -> b.zeroBucket(ZeroBucket.create(2.0001, 10)));
 
         ExponentialHistogram second = createAutoReleasedHistogram(
@@ -59,6 +59,7 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
 
         assertThat(mergeResult.zeroBucket().zeroThreshold(), equalTo(4.0));
         assertThat(mergeResult.zeroBucket().count(), equalTo(14L));
+        assertThat(mergeResult.zeroBucket().isIndexBased(), equalTo(true));
 
         // only the (4, 8] bucket should be left
         assertThat(mergeResult.scale(), equalTo(0));
@@ -81,6 +82,7 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
         mergeResult = mergeWithMinimumScale(100, 0, mergeResult, third);
         assertThat(mergeResult.zeroBucket().zeroThreshold(), closeTo(45.0, 0.000001));
         assertThat(mergeResult.zeroBucket().count(), equalTo(1L + 14L + 42L + 7L));
+        assertThat(mergeResult.zeroBucket().isIndexBased(), equalTo(false));
         assertThat(mergeResult.positiveBuckets().iterator().hasNext(), equalTo(false));
         assertThat(mergeResult.negativeBuckets().iterator().hasNext(), equalTo(false));
     }
@@ -103,6 +105,14 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
         assertThat(posBuckets.hasNext(), equalTo(false));
     }
 
+    public void testMergeWithoutUpscaling() {
+        ExponentialHistogram histo = createAutoReleasedHistogram(b -> b.scale(0).setPositiveBucket(2, 42));
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(100, breaker())) {
+            merger.addWithoutUpscaling(histo);
+            assertThat(merger.get(), equalTo(histo));
+        }
+    }
+
     public void testAggregatesCorrectness() {
         double[] firstValues = randomDoubles(100).map(val -> val * 2 - 1).toArray();
         double[] secondValues = randomDoubles(50).map(val -> val * 2 - 1).toArray();
@@ -112,7 +122,7 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
         try (
             // Merge some empty histograms too to test that code path
             ReleasableExponentialHistogram merged = ExponentialHistogram.merge(
-                2,
+                4,
                 breaker(),
                 ExponentialHistogram.empty(),
                 createAutoReleasedHistogram(10, firstValues),
@@ -150,6 +160,15 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
                     assertThat(result.negativeBuckets().iterator().peekIndex(), equalTo(adjustScale(index, 20, 1)));
                 }
             }
+        }
+    }
+
+    public void testMinimumBucketCountBounded() {
+        try {
+            ExponentialHistogram.merge(3, breaker(), ExponentialHistogram.empty(), ExponentialHistogram.empty());
+            fail("Expected exception");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("limit must be at least 4"));
         }
     }
 
@@ -231,7 +250,7 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
     }
 
     private ExponentialHistogram mergeWithMinimumScale(int bucketCount, int scale, ExponentialHistogram... histograms) {
-        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.createForTesting(bucketCount, scale, breaker())) {
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.createWithMaxScale(bucketCount, scale, breaker())) {
             Arrays.stream(histograms).forEach(merger::add);
             ReleasableExponentialHistogram result = merger.getAndClear();
             autoReleaseOnTestEnd(result);

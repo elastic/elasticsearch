@@ -828,12 +828,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         ResponseException error = expectThrows(ResponseException.class, () -> runESQLCommand("fls_user4_1", query));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
         if (useExpressionJoin) {
-            assertThat(
-                error.getMessage(),
-                containsString(
-                    "Join condition must be between one attribute on the left side and one attribute on the right side of the join"
-                )
-            );
+            assertThat(error.getMessage(), containsString("Unknown column [value], did you mean [value_left]?"));
         } else {
             assertThat(error.getMessage(), containsString("Unknown column [value] in right side of join"));
         }
@@ -907,12 +902,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         ResponseException error = expectThrows(ResponseException.class, () -> runESQLCommand("fls_user4_1_alias", query));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
         if (useExpressionJoin) {
-            assertThat(
-                error.getMessage(),
-                containsString(
-                    "Join condition must be between one attribute on the left side and one attribute on the right side of the join"
-                )
-            );
+            assertThat(error.getMessage(), containsString("Unknown column [value], did you mean [value_left]?"));
         } else {
             assertThat(error.getMessage(), containsString("Unknown column [value] in right side of join"));
         }

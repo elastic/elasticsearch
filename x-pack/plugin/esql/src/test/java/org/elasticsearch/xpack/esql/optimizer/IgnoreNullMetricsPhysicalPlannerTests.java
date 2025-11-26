@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.hamcrest.Matchers.is;
 
@@ -22,7 +23,7 @@ import static org.hamcrest.Matchers.is;
  * Tests for the {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics} planner rule, to
  * verify that the filters are being pushed to Lucene.
  */
-public class IgnoreNullMetricsPhysicalPlannerTests extends LocalPhysicalPlanOptimizerTests {
+public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysicalPlanOptimizerTests {
     public IgnoreNullMetricsPhysicalPlannerTests(String name, Configuration config) {
         super(name, config);
     }
@@ -31,7 +32,7 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends LocalPhysicalPlanOpti
      * This tests that we get the same end result plan with an explicit isNotNull and the implicit one added by the rule
      */
     public void testSamePhysicalPlans() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         String testQuery = """
             TS k8s
             | STATS max(rate(network.total_bytes_in)) BY Bucket(@timestamp, 1 hour)
@@ -47,11 +48,11 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends LocalPhysicalPlanOpti
             """;
         PhysicalPlan expectedPlan = plannerOptimizerTimeSeries.plan(controlQuery);
 
-        assertEquals(NodeUtils.diffString(expectedPlan, actualPlan), expectedPlan, actualPlan);
+        assertEqualsIgnoringIds(NodeUtils.diffString(expectedPlan, actualPlan), expectedPlan, actualPlan);
     }
 
     public void testPushdownOfSimpleCounterQuery() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         String query = """
             TS k8s
             | STATS max(rate(network.total_bytes_in)) BY Bucket(@timestamp, 1 hour)
@@ -65,7 +66,7 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends LocalPhysicalPlanOpti
     }
 
     public void testPushdownOfSimpleGagueQuery() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         String query = """
             TS k8s
             | STATS max(max_over_time(network.eth0.tx)) BY Bucket(@timestamp, 1 hour)

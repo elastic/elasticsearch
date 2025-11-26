@@ -66,7 +66,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         LongPredicate acceptedOrds,
         CheckedSupplier<SortedSetDocValues, IOException> valuesSupplier
     ) throws IOException {
-        if (false == valuesSourceConfig.alignesWithSearchIndex()) {
+        if (false == valuesSourceConfig.alignsWithSearchIndex()) {
             return null;
         }
         FilterByFilterAggregator.AdapterBuilder<StringTermsAggregatorFromFilters> filterByFilterBuilder =

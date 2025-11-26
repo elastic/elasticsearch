@@ -9,15 +9,18 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -38,6 +41,9 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     public static final String NAME = "field_caps_request";
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
+    private static final TransportVersion FIELD_CAPS_ADD_CLUSTER_ALIAS = TransportVersion.fromName("field_caps_add_cluster_alias");
+    static final TransportVersion RESOLVED_FIELDS_CAPS = TransportVersion.fromName("resolved_fields_caps");
+
     private String clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
     private String[] indices = Strings.EMPTY_ARRAY;
@@ -47,6 +53,8 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean includeUnmapped = false;
     private boolean includeEmptyFields = true;
+    @Nullable
+    private ResolvedIndexExpressions resolvedIndexExpressions = null;
     /**
      * Controls whether the field caps response should always include the list of indices
      * where a field is defined. This flag is only used locally on the coordinating node,
@@ -54,6 +62,9 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
      * in the response if required.
      */
     private transient boolean includeIndices = false;
+
+    private boolean includeResolvedTo = false;
+    private String projectRouting;
 
     /**
      * Controls whether all local indices should be returned if no remotes matched
@@ -85,11 +96,15 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             includeEmptyFields = in.readBoolean();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_ADD_CLUSTER_ALIAS)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.V_8_19_FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
+        if (in.getTransportVersion().supports(FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
             clusterAlias = in.readOptionalString();
         } else {
             clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        }
+        if (in.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
+            includeResolvedTo = in.readBoolean();
+        } else {
+            includeResolvedTo = false;
         }
     }
 
@@ -140,9 +155,11 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(includeEmptyFields);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_ADD_CLUSTER_ALIAS)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.V_8_19_FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
+        if (out.getTransportVersion().supports(FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
             out.writeOptionalString(clusterAlias);
+        }
+        if (out.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
+            out.writeBoolean(includeResolvedTo);
         }
     }
 
@@ -222,6 +239,11 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         return this;
     }
 
+    public FieldCapabilitiesRequest includeResolvedTo(boolean includeResolvedTo) {
+        this.includeResolvedTo = includeResolvedTo;
+        return this;
+    }
+
     public FieldCapabilitiesRequest returnLocalAll(boolean returnLocalAll) {
         this.returnLocalAll = returnLocalAll;
         return this;
@@ -243,6 +265,31 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     }
 
     @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    @Nullable
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
+    }
+
+    public void projectRouting(String projectRouting) {
+        this.projectRouting = projectRouting;
+    }
+
+    @Override
+    public String getProjectRouting() {
+        return projectRouting;
+    }
+
+    @Override
     public boolean includeDataStreams() {
         return true;
     }
@@ -253,6 +300,10 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
 
     public boolean includeIndices() {
         return includeIndices;
+    }
+
+    public boolean includeResolvedTo() {
+        return includeResolvedTo;
     }
 
     public boolean returnLocalAll() {

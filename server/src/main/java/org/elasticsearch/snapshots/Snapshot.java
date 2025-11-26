@@ -9,7 +9,7 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,6 +23,8 @@ import java.util.Objects;
  * Basic information about a snapshot - a SnapshotId and the repository that the snapshot belongs to.
  */
 public final class Snapshot implements Writeable {
+
+    private static final TransportVersion PROJECT_ID_IN_SNAPSHOT = TransportVersion.fromName("project_id_in_snapshot");
 
     private final ProjectId projectId;
     private final String repository;
@@ -52,7 +54,7 @@ public final class Snapshot implements Writeable {
      * Constructs a snapshot from the stream input.
      */
     public Snapshot(final StreamInput in) throws IOException {
-        if (in.getTransportVersion().before(TransportVersions.PROJECT_ID_IN_SNAPSHOT)) {
+        if (in.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOT) == false) {
             projectId = ProjectId.DEFAULT;
         } else {
             projectId = ProjectId.readFrom(in);
@@ -108,12 +110,12 @@ public final class Snapshot implements Writeable {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.PROJECT_ID_IN_SNAPSHOT)) {
+        if (out.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOT) == false) {
             if (ProjectId.DEFAULT.equals(projectId) == false) {
                 final var message = "Cannot write instance with non-default project id "
                     + projectId
                     + " to version before "
-                    + TransportVersions.PROJECT_ID_IN_SNAPSHOT;
+                    + PROJECT_ID_IN_SNAPSHOT;
                 assert false : message;
                 throw new IllegalArgumentException(message);
             }

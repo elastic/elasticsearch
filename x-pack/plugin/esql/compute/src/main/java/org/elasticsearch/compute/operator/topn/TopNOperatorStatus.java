@@ -69,7 +69,7 @@ public class TopNOperatorStatus implements Operator.Status {
         this.occupiedRows = in.readVInt();
         this.ramBytesUsed = in.readVLong();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             this.pagesReceived = in.readVInt();
             this.pagesEmitted = in.readVInt();
             this.rowsReceived = in.readVLong();
@@ -92,7 +92,7 @@ public class TopNOperatorStatus implements Operator.Status {
         out.writeVInt(occupiedRows);
         out.writeVLong(ramBytesUsed);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeVInt(pagesReceived);
             out.writeVInt(pagesEmitted);
             out.writeVLong(rowsReceived);

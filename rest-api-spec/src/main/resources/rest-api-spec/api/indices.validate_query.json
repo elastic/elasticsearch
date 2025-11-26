@@ -41,18 +41,21 @@
     "params": {
       "explain": {
         "type": "boolean",
+        "default": false,
         "description": "Return detailed information about the error"
       },
       "ignore_unavailable": {
         "type": "boolean",
+        "default": false,
         "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
       },
       "allow_no_indices": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",
@@ -73,15 +76,16 @@
       },
       "analyze_wildcard": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether wildcard and prefix queries should be analyzed (default: false)"
       },
       "default_operator": {
         "type": "enum",
         "options": [
-          "AND",
-          "OR"
+          "and",
+          "or"
         ],
-        "default": "OR",
+        "default": "or",
         "description": "The default operator for query string query (AND or OR)"
       },
       "df": {
@@ -90,19 +94,23 @@
       },
       "lenient": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether format-based query failures (such as providing text to a numeric field) should be ignored"
       },
       "rewrite": {
         "type": "boolean",
+        "default": false,
         "description": "Provide a more detailed explanation showing the actual Lucene query that will be executed."
       },
       "all_shards": {
         "type": "boolean",
+        "default": false,
         "description": "Execute validation on all shards instead of one random shard per index"
       }
     },
     "body": {
-      "description": "The query definition specified with the Query DSL"
+      "description": "The query definition specified with the Query DSL",
+      "required": false
     }
   }
 }

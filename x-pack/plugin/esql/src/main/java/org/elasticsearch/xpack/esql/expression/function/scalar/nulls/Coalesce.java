@@ -58,7 +58,8 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "ip",
             "keyword",
             "long",
-            "version" },
+            "version",
+            "exponential_histogram" },
         description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
         examples = { @Example(file = "null", tag = "coalesce") }
     )
@@ -82,7 +83,8 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "keyword",
                 "long",
                 "text",
-                "version" },
+                "version",
+                "exponential_histogram" },
             description = "Expression to evaluate."
         ) Expression first,
         @Param(
@@ -103,7 +105,8 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "keyword",
                 "long",
                 "text",
-                "version" },
+                "version",
+                "exponential_histogram" },
             description = "Other expression to evaluate.",
             optional = true
         ) List<Expression> rest
@@ -207,6 +210,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             );
             case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, IP, VERSION -> CoalesceBytesRefEvaluator
                 .toEvaluator(toEvaluator, children());
+            case EXPONENTIAL_HISTOGRAM -> CoalesceExponentialHistogramEvaluator.toEvaluator(toEvaluator, children());
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT, HALF_FLOAT, TSID_DATA_TYPE,
                 SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> throw new UnsupportedOperationException(

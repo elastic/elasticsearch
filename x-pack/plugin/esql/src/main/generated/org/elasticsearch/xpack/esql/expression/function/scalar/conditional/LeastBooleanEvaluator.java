@@ -74,16 +74,16 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
       boolean[] valuesValues = new boolean[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
-          if (valuesBlocks[i].isNull(p)) {
-            result.appendNull();
-            continue position;
-          }
-          if (valuesBlocks[i].getValueCount(p) != 1) {
-            if (valuesBlocks[i].getValueCount(p) > 1) {
-              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-            }
-            result.appendNull();
-            continue position;
+          switch (valuesBlocks[i].getValueCount(p)) {
+            case 0:
+                result.appendNull();
+                continue position;
+            case 1:
+                break;
+            default:
+                warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+                result.appendNull();
+                continue position;
           }
         }
         // unpack valuesBlocks into valuesValues

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -111,7 +111,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 p = new LocalRelation(
                     aggregate.source(),
                     List.of(Expressions.attribute(aggregate.aggregates().getFirst())),
-                    LocalSupplier.of(new Block[] { BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1) })
+                    LocalSupplier.of(new Page(BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1)))
                 );
             } else {
                 // Aggs cannot produce pages with 0 columns, so retain one grouping.
@@ -123,7 +123,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         } else {
             // not expecting high groups cardinality, nested loops in lists should be fine, no need for a HashSet
             if (inlineJoin && aggregate.groupings().containsAll(remaining)) {
-                // An INLINEJOIN right-hand side aggregation output had everything pruned, except for (some of the) groupings, which are
+                // An InlineJoin right-hand side aggregation output had everything pruned, except for (some of the) groupings, which are
                 // already part of the IJ output (from the left-hand side): the agg can just be dropped entirely.
                 p = emptyLocalRelation(aggregate);
             } else { // not an INLINEJOIN or there are actually aggregates to compute
@@ -140,7 +140,12 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         used.addAll(ij.references());
         var right = pruneColumns(ij.right(), used, true);
         if (right.output().isEmpty() || isLocalEmptyRelation(right)) {
-            p = ij.left();
+            // InlineJoin updates the order of the output, so even if the computation is dropped, the groups need to be pulled to the end.
+            // So we keep just the left side of the join (i.e. drop the computations), but place a Project on top to keep the right order.
+            List<Attribute> newOutput = new ArrayList<>(ij.output());
+            AttributeSet leftOutputSet = ij.left().outputSet();
+            newOutput.removeIf(attr -> leftOutputSet.contains(attr) == false);
+            p = new Project(ij.source(), ij.left(), newOutput);
             recheck.set(true);
         } else if (right != ij.right()) {
             // if the right side has been updated, replace it
@@ -188,7 +193,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             // it works differently as we extract all fields (other than the join key) that the EsRelation has.
             var remaining = pruneUnusedAndAddReferences(esr.output(), used);
             if (remaining != null) {
-                p = new EsRelation(esr.source(), esr.indexPattern(), esr.indexMode(), esr.indexNameWithModes(), remaining);
+                p = esr.withAttributes(remaining);
             }
         }
 

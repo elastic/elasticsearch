@@ -624,3 +624,43 @@ setup:
 
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "Field [inference_field] does not use a [text_embedding] model" }
+
+---
+"Text expansion query against semantic_text field using a dense vector model returns an failure":
+  - requires:
+      cluster_features: "search.new_semantic_query_interceptors"
+      reason: New semantic query interceptors
+      test_runner_features: [ "allowed_warnings" ]
+
+  - do:
+      indices.create:
+        index: test-semantic-text-index-using-dense-vector
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+  - do:
+      index:
+        index: test-semantic-text-index-using-dense-vector
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+        refresh: true
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-semantic-text-index-using-dense-vector
+        body:
+          query:
+            text_expansion:
+              embedding:
+                model_id: dense-inference-id
+                model_text: "octopus comforter smells"
+      allowed_warnings:
+        - "text_expansion is deprecated. Use sparse_vector instead."
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "expected a result of type [text_expansion_result] received [text_embedding_result]. Is [dense-inference-id] a compatible model?" }

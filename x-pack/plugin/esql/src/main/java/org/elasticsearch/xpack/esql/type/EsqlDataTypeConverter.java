@@ -20,15 +20,18 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -144,6 +147,7 @@ public class EsqlDataTypeConverter {
         typeToConverter.put(DATETIME, ToDatetime::new);
         typeToConverter.put(DATE_NANOS, ToDateNanos::new);
         // ToDegrees, typeless
+        typeToConverter.put(DENSE_VECTOR, ToDenseVector::new);
         typeToConverter.put(DOUBLE, ToDouble::new);
         typeToConverter.put(GEO_POINT, ToGeoPoint::new);
         typeToConverter.put(GEO_SHAPE, ToGeoShape::new);
@@ -159,10 +163,7 @@ public class EsqlDataTypeConverter {
         typeToConverter.put(VERSION, ToVersion::new);
         typeToConverter.put(DATE_PERIOD, ToDatePeriod::new);
         typeToConverter.put(TIME_DURATION, ToTimeDuration::new);
-
-        if (EsqlCapabilities.Cap.TO_DENSE_VECTOR_FUNCTION.isEnabled()) {
-            typeToConverter.put(DENSE_VECTOR, ToDenseVector::new);
-        }
+        typeToConverter.put(DENSE_VECTOR, ToDenseVector::new);
         TYPE_TO_CONVERTER_FUNCTION = Collections.unmodifiableMap(typeToConverter);
     }
 
@@ -178,6 +179,7 @@ public class EsqlDataTypeConverter {
         MINUTE,
         MINUTES,
         MIN,
+        M,
         HOUR,
         HOURS,
         H,
@@ -211,6 +213,7 @@ public class EsqlDataTypeConverter {
         INTERVALS.MINUTE,
         INTERVALS.MINUTES,
         INTERVALS.MIN,
+        INTERVALS.M,
         INTERVALS.HOUR,
         INTERVALS.HOURS,
         INTERVALS.H
@@ -491,7 +494,7 @@ public class EsqlDataTypeConverter {
             return switch (INTERVALS.valueOf(temporalUnit.toUpperCase(Locale.ROOT))) {
                 case MILLISECOND, MILLISECONDS, MS -> Duration.ofMillis(safeToLong(value));
                 case SECOND, SECONDS, SEC, S -> Duration.ofSeconds(safeToLong(value));
-                case MINUTE, MINUTES, MIN -> Duration.ofMinutes(safeToLong(value));
+                case MINUTE, MINUTES, MIN, M -> Duration.ofMinutes(safeToLong(value));
                 case HOUR, HOURS, H -> Duration.ofHours(safeToLong(value));
 
                 case DAY, DAYS, D -> Period.ofDays(safeToInt(safeToLong(value)));
@@ -786,6 +789,20 @@ public class EsqlDataTypeConverter {
         }
     }
 
+    public static String exponentialHistogramToString(ExponentialHistogram histo) {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            ExponentialHistogramXContent.serialize(builder, histo);
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new IllegalStateException("error rendering exponential histogram", e);
+        }
+    }
+
+    public static String exponentialHistogramBlockToString(ExponentialHistogramBlock histoBlock, int index) {
+        ExponentialHistogram histo = histoBlock.getExponentialHistogram(index, new ExponentialHistogramScratch());
+        return exponentialHistogramToString(histo);
+    }
+
     public static String aggregateMetricDoubleLiteralToString(AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral aggMetric) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
@@ -813,22 +830,24 @@ public class EsqlDataTypeConverter {
         Double max = null;
         Double sum = null;
         Integer count = null;
+
+        s = s.replace("\\,", ",");
         String[] values = s.substring(1, s.length() - 1).split(",");
         for (String v : values) {
             var pair = v.split(":");
             String type = pair[0];
             String number = pair[1];
             switch (type) {
-                case "min":
+                case "min", "\"min\"":
                     min = Double.parseDouble(number);
                     break;
-                case "max":
+                case "max", "\"max\"":
                     max = Double.parseDouble(number);
                     break;
-                case "sum":
+                case "sum", "\"sum\"":
                     sum = Double.parseDouble(number);
                     break;
-                case "value_count":
+                case "value_count", "\"value_count\"":
                     count = Integer.parseInt(number);
                     break;
                 default:

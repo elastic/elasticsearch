@@ -27,7 +27,7 @@ import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.elasticsearch.xpack.esql.tools.ProfileParser;
@@ -59,7 +59,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
-import static org.elasticsearch.xpack.esql.planner.PhysicalSettings.LUCENE_TOPN_LIMIT;
+import static org.elasticsearch.xpack.esql.planner.PlannerSettings.LUCENE_TOPN_LIMIT;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.parseProfile;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.readProfileFromResponse;
@@ -616,7 +616,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
                         // If the coordinating node and data node are the same node then we get this
                         either(matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator"))
                             // If the coordinating node and data node are *not* the same node we get this
-                            .or(matchesList().item("ExchangeSourceOperator").item("TopNOperator").item("ExchangeSinkOperator"))
+                            .or(
+                                matchesList().item("ExchangeSourceOperator")
+                                    .item("TopNOperator")
+                                    .item("ProjectOperator")
+                                    .item("ExchangeSinkOperator")
+                            )
                     );
                     case "final" -> assertMap(
                         sig,
@@ -743,7 +748,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 }
                 """)
         );
-        if (EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled()) {
+        if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled()) {
             typesAndValues = new HashMap<>(typesAndValues);
             typesAndValues.put(DataType.AGGREGATE_METRIC_DOUBLE, """
                 {
@@ -761,7 +766,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
         shouldBeSupported.remove(DataType.DOC_DATA_TYPE);
         shouldBeSupported.remove(DataType.TSID_DATA_TYPE);
         shouldBeSupported.remove(DataType.DENSE_VECTOR);
-        if (EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled() == false) {
+        shouldBeSupported.remove(DataType.EXPONENTIAL_HISTOGRAM); // TODO(b/133393): add support when blockloader is implemented
+        if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled() == false) {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }
         for (DataType type : shouldBeSupported) {

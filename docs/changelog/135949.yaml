@@ -1,0 +1,5 @@
+pr: 135949
+summary: Add convenience API key param to remote reindex
+area: Indices APIs
+type: enhancement
+issues: []

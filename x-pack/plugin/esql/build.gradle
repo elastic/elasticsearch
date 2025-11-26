@@ -42,6 +42,7 @@ dependencies {
   implementation project('compute:ann')
   implementation project(':libs:dissect')
   implementation project(':libs:grok')
+  implementation project(':libs:exponential-histogram')
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api project(":libs:h3")
   implementation project('arrow')
@@ -331,6 +332,8 @@ pluginManager.withPlugin('com.diffplug.spotless') {
       // for some reason "${outputPath}/EsqlBaseParser*.java" does not match the same files...
       targetExclude "src/main/java/org/elasticsearch/xpack/esql/parser/EsqlBaseLexer*.java",
         "src/main/java/org/elasticsearch/xpack/esql/parser/EsqlBaseParser*.java",
+        "src/main/java/org/elasticsearch/xpack/esql/parser/PromqlBaseLexer*.java",
+        "src/main/java/org/elasticsearch/xpack/esql/parser/PromqlBaseParser*.java",
         "src/main/generated/**/*.java",
         "src/main/generated-src/generated/**/*.java"
       toggleOffOn('begin generated imports', 'end generated imports')
@@ -344,6 +347,7 @@ tasks.register("cleanGenerated", Delete) {
   }
   delete fileTree(outputPath) {
     include 'EsqlBase*.java'
+    include 'PromqlBase*.java'
   }
 }
 
@@ -383,19 +387,59 @@ tasks.register("regenParser", JavaExec) {
     "${file(grammarPath)}/EsqlBaseParser.g4"
 }
 
+tasks.register("regenPromqlLexer", JavaExec) {
+  dependsOn "cleanGenerated"
+  mainClass = 'org.antlr.v4.Tool'
+  classpath = configurations.regenerate
+  systemProperty 'file.encoding', 'UTF-8'
+  systemProperty 'user.language', 'en'
+  systemProperty 'user.country', 'US'
+  systemProperty 'user.variant', ''
+  args '-Werror',
+    '-package', 'org.elasticsearch.xpack.esql.parser',
+    '-listener',
+    '-visitor',
+    '-lib', "${file(grammarPath)}",
+    '-o', outputPath,
+    "${file(grammarPath)}/PromqlBaseLexer.g4"
+}
+
+tasks.register("regenPromqlParser", JavaExec) {
+  dependsOn "cleanGenerated"
+  dependsOn "regenPromqlLexer"
+  mainClass = 'org.antlr.v4.Tool'
+  classpath = configurations.regenerate
+  systemProperty 'file.encoding', 'UTF-8'
+  systemProperty 'user.language', 'en'
+  systemProperty 'user.country', 'US'
+  systemProperty 'user.variant', ''
+  args '-Werror',
+    '-package', 'org.elasticsearch.xpack.esql.parser',
+    '-listener',
+    '-visitor',
+    '-lib', outputPath,
+    '-lib', "${file(grammarPath)}",
+    '-o', outputPath,
+    "${file(grammarPath)}/PromqlBaseParser.g4"
+}
+
 tasks.register("regen") {
   dependsOn "regenParser"
+  dependsOn "regenPromqlParser"
   doLast {
     // moves token files to grammar directory for use with IDE's
     ant.move(file: "${outputPath}/EsqlBaseLexer.tokens", toDir: grammarPath)
     ant.move(file: "${outputPath}/EsqlBaseParser.tokens", toDir: grammarPath)
+    ant.move(file: "${outputPath}/PromqlBaseLexer.tokens", toDir: grammarPath)
+    ant.move(file: "${outputPath}/PromqlBaseParser.tokens", toDir: grammarPath)
+
     // make the generated classes package private
     ant.replaceregexp(
-      match: 'public ((interface|class) \\QEsqlBase(Parser|Lexer)\\E\\w+)',
+      match: 'public ((interface|class) \\Q(Es|Prom)qlBase(Parser|Lexer)\\E\\w+)',
       replace: '\\1',
       encoding: 'UTF-8'
     ) {
-      fileset(dir: outputPath, includes: 'EsqlBase*.java')
+      fileset(dir: outputPath, includes: '*qlBase*.java')
     }
     // nuke timestamps/filenames in generated files
     ant.replaceregexp(
@@ -403,20 +447,21 @@ tasks.register("regen") {
       replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
       encoding: 'UTF-8'
     ) {
-      fileset(dir: outputPath, includes: 'EsqlBase*.java')
+      fileset(dir: outputPath, includes: '*qlBase*.java')
     }
     // remove tabs in antlr generated files
     ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
-      fileset(dir: outputPath, includes: 'EsqlBase*.java')
+      fileset(dir: outputPath, includes: '*qlBase*.java')
     }
     // suppress this-escape warnings on EsqlBaseLexer
     ant.replaceregexp(
-      match: 'public EsqlBaseLexer',
-      replace: '@SuppressWarnings("this-escape")${line.separator}  public EsqlBaseLexer',
+      match: 'public ((Es|Prom)qlBaseLexer)',
+      replace: '@SuppressWarnings("this-escape")${line.separator}  public \\1',
       encoding: 'UTF-8'
     ) {
-      fileset(dir: outputPath, includes: 'EsqlBaseLexer.java')
+      fileset(dir: outputPath, includes: '*qlBaseLexer.java')
     }
+
     // suppress this-escape warnings on all internal EsqlBaseParser class constructores
     ant.replaceregexp(
       match: '([ ]+)public ([A-Z][a-z]+[a-z,A-Z]+\\()',
@@ -424,11 +469,11 @@ tasks.register("regen") {
       replace: '\\1@SuppressWarnings("this-escape")${line.separator}\\1public \\2',
       encoding: 'UTF-8'
     ) {
-      fileset(dir: outputPath, includes: 'EsqlBaseParser.java')
+      fileset(dir: outputPath, includes: '*qlBaseParser.java')
     }
     // fix line endings
     ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
-      patternset(includes: 'EsqlBase*.java')
+      patternset(includes: '*qlBase*.java')
     }
   }
 }
@@ -467,6 +512,7 @@ tasks.named('stringTemplates').configure {
   var doubleProperties = prop("Double", "Double", "double", "DOUBLE", "Double.BYTES", "DoubleArray")
   var bytesRefProperties = prop("BytesRef", "BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "")
   var booleanProperties = prop("Boolean", "Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray")
+  var expHistoProperties = prop("ExponentialHistogram", "ExponentialHistogram", "ExponentialHistogram", "EXPONENTIAL_HISTOGRAM", "", "")
 
   File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/X-InEvaluator.java.st")
   template {
@@ -530,6 +576,11 @@ tasks.named('stringTemplates').configure {
     it.properties = bytesRefProperties
     it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceBytesRefEvaluator.java"
+  }
+  template {
+    it.properties = expHistoProperties
+    it.inputFile = coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceExponentialHistogramEvaluator.java"
   }
 
   File roundToInput = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/math/X-RoundTo.java.st")

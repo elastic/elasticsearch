@@ -1,6 +1,0 @@
-pr: 132210
-summary: Adding a `merge_type` parameter to the ingest simulate API
-area: Ingest Node
-type: enhancement
-issues:
- - 131608

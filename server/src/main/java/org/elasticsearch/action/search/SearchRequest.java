@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -63,6 +64,10 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
 
     private static final long DEFAULT_ABSOLUTE_START_MILLIS = -1;
 
+    private static final TransportVersion RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE = TransportVersion.fromName(
+        "re_remove_min_compatible_shard_node"
+    );
+
     private final String localClusterAlias;
     private final long absoluteStartMillis;
     private final boolean finalReduce;
@@ -112,6 +117,11 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
      */
     private boolean forceSyntheticSource = false;
 
+    @Nullable
+    private String projectRouting;
+
+    private static final TransportVersion SEARCH_PROJECT_ROUTING = TransportVersion.fromName("search_project_routing");
+
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
@@ -158,6 +168,24 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         return true;
     }
 
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    @Override
+    public String getProjectRouting() {
+        return projectRouting;
+    }
+
+    public void setProjectRouting(@Nullable String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing is already set to [" + this.projectRouting + "]");
+        }
+
+        this.projectRouting = projectRouting;
+    }
+
     /**
      * Creates a new sub-search request starting from the original search request that is provided.
      * For internal use only, allows to fork a search request into multiple search requests that will be executed independently.
@@ -168,6 +196,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
      * @param parentTaskId          the parent taskId of the original search request
      * @param originalSearchRequest the original search request
      * @param indices               the indices to search against
+     * @param indicesOptions        the indicesOptions to search with
      * @param clusterAlias          the alias to prefix index names with in the returned search results
      * @param absoluteStartMillis   the absolute start time to be used on the remote clusters to ensure that the same value is used
      * @param finalReduce           whether the reduction should be final or not
@@ -176,6 +205,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         TaskId parentTaskId,
         SearchRequest originalSearchRequest,
         String[] indices,
+        IndicesOptions indicesOptions,
         String clusterAlias,
         long absoluteStartMillis,
         boolean finalReduce
@@ -189,6 +219,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         }
         final SearchRequest request = new SearchRequest(originalSearchRequest, indices, clusterAlias, absoluteStartMillis, finalReduce);
         request.setParentTask(parentTaskId);
+        request.indicesOptions(indicesOptions);
         return request;
     }
 
@@ -218,6 +249,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         this.waitForCheckpoints = searchRequest.waitForCheckpoints;
         this.waitForCheckpointsTimeout = searchRequest.waitForCheckpointsTimeout;
         this.forceSyntheticSource = searchRequest.forceSyntheticSource;
+        this.projectRouting = searchRequest.projectRouting;
     }
 
     /**
@@ -258,8 +290,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if ((in.getTransportVersion().isPatchFrom(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE_90) == false
-            && in.getTransportVersion().before(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE)) && in.readBoolean()) {
+        if (in.getTransportVersion().supports(RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE) == false && in.readBoolean()) {
             Version.readVersion(in); // and drop on the floor
         }
         waitForCheckpoints = in.readMap(StreamInput::readLongArray);
@@ -268,6 +299,11 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             forceSyntheticSource = in.readBoolean();
         } else {
             forceSyntheticSource = false;
+        }
+        if (in.getTransportVersion().supports(SEARCH_PROJECT_ROUTING)) {
+            this.projectRouting = in.readOptionalString();
+        } else {
+            this.projectRouting = null;
         }
     }
 
@@ -303,8 +339,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-        if ((out.getTransportVersion().isPatchFrom(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE_90) == false
-            && out.getTransportVersion().before(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE))) {
+        if (out.getTransportVersion().supports(RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE) == false) {
             out.writeBoolean(false);
         }
         out.writeMap(waitForCheckpoints, StreamOutput::writeLongArray);
@@ -315,6 +350,9 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             if (forceSyntheticSource) {
                 throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
             }
+        }
+        if (out.getTransportVersion().supports(SEARCH_PROJECT_ROUTING)) {
+            out.writeOptionalString(this.projectRouting);
         }
     }
 
@@ -379,8 +417,8 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     /**
      * Returns the current time in milliseconds from the time epoch, to be used for the execution of this search request. Used to
      * ensure that the same value, determined by the coordinating node, is used on all nodes involved in the execution of the search
-     * request. When created through {@link #subSearchRequest(TaskId, SearchRequest, String[], String, long, boolean)}, this method returns
-     * the provided current time, otherwise it will return {@link System#currentTimeMillis()}.
+     * request. When created through {@link #subSearchRequest(TaskId, SearchRequest, String[], IndicesOptions, String, long, boolean)},
+     * this method returns the provided current time, otherwise it will return {@link System#currentTimeMillis()}.
      */
     long getOrCreateAbsoluteStartMillis() {
         return absoluteStartMillis == DEFAULT_ABSOLUTE_START_MILLIS ? System.currentTimeMillis() : absoluteStartMillis;

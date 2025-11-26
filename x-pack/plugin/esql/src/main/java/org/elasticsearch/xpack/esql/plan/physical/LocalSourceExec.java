@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -64,7 +65,7 @@ public class LocalSourceExec extends LeafExec {
      */
     public static LocalSupplier readLegacyLocalSupplierFrom(PlanStreamInput in) throws IOException {
         Block[] blocks = in.readCachedBlockArray();
-        return blocks.length == 0 ? EmptyLocalSupplier.EMPTY : LocalSupplier.of(blocks);
+        return blocks.length == 0 ? EmptyLocalSupplier.EMPTY : LocalSupplier.of(new Page(blocks));
     }
 
     @Override

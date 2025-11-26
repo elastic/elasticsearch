@@ -21,6 +21,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.replaceStub;
+import static org.elasticsearch.xpack.esql.plan.logical.join.StubRelation.computeOutput;
+
 /**
  * Replace any evaluation from the inlined aggregation side (right side) to the left side (source) to perform the matching.
  * In INLINE STATS m = MIN(x) BY a + b the right side contains STATS m = MIN(X) BY a + b.
@@ -83,8 +86,7 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
         if (groupingAlias.size() > 0) {
             left = new Eval(plan.source(), plan.left(), groupingAlias);
         }
-
         // replace the old stub with the new out to capture the new output
-        return plan.replaceChildren(left, InlineJoin.replaceStub(new StubRelation(right.source(), left.output()), right));
+        return plan.replaceChildren(left, replaceStub(new StubRelation(right.source(), computeOutput(right, left)), right));
     }
 }

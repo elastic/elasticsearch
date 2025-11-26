@@ -31,7 +31,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
-import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.IndexType;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -50,7 +51,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class PatternTextFieldType extends StringFieldType {
+public class PatternTextFieldType extends TextFamilyFieldType {
 
     private static final String STORED_SUFFIX = ".stored";
     private static final String TEMPLATE_SUFFIX = ".template";
@@ -70,15 +71,16 @@ public class PatternTextFieldType extends StringFieldType {
         String name,
         TextSearchInfo tsi,
         Analyzer indexAnalyzer,
-        boolean isSyntheticSource,
         boolean disableTemplating,
-        Map<String, String> meta
+        Map<String, String> meta,
+        boolean isSyntheticSource,
+        boolean isWithinMultiField
     ) {
         // Though this type is based on doc_values, hasDocValues is set to false as the pattern_text type is not aggregatable.
         // This does not stop its child .template type from being aggregatable.
-        super(name, true, false, false, tsi, meta);
+        super(name, IndexType.terms(true, false), false, tsi, meta, isSyntheticSource, isWithinMultiField);
         this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
-        this.textFieldType = new TextFieldMapper.TextFieldType(name, isSyntheticSource);
+        this.textFieldType = new TextFieldMapper.TextFieldType(name, isSyntheticSource, isWithinMultiField);
         this.hasPositions = tsi.hasPositions();
         this.disableTemplating = disableTemplating;
     }
@@ -94,9 +96,10 @@ public class PatternTextFieldType extends StringFieldType {
                 DelimiterAnalyzer.INSTANCE
             ),
             DelimiterAnalyzer.INSTANCE,
-            syntheticSource,
             false,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            syntheticSource,
+            false
         );
     }
 

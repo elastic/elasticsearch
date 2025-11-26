@@ -8,6 +8,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "aggregate_metric_double",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "boolean",
           "optional" : false,
           "description" : "Input value. The input can be a single- or multi-valued column or an expression."
@@ -57,6 +69,18 @@
         {
           "name" : "field",
           "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "dense_vector",
           "optional" : false,
           "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }

@@ -90,5 +90,10 @@ public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertF
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
             return new ToStringFromAggregateMetricDoubleEvaluator(source, field.get(context), context);
         }
+
+        @Override
+        public String toString() {
+            return "ToStringFromAggregateMetricDoubleEvaluator[field=" + field + "]";
+        }
     }
 }

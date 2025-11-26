@@ -12,6 +12,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.lucene.spatial.Extent;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 
@@ -54,14 +55,13 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
 
         protected AbstractShapeGeometryFieldType(
             String name,
-            boolean isSearchable,
+            IndexType indexType,
             boolean isStored,
-            boolean hasDocValues,
             Parser<T> parser,
             Orientation orientation,
             Map<String, String> meta
         ) {
-            super(name, isSearchable, isStored, hasDocValues, parser, null, meta);
+            super(name, indexType, isStored, parser, null, meta);
             this.orientation = orientation;
         }
 

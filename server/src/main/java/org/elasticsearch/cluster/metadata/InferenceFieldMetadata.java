@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -26,9 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.SEMANTIC_TEXT_CHUNKING_CONFIG;
-import static org.elasticsearch.TransportVersions.SEMANTIC_TEXT_CHUNKING_CONFIG_8_19;
-
 /**
  * Contains inference field data for fields.
  * As inference is done in the coordinator node to avoid re-doing it at shard / replica level, the coordinator needs to check for the need
@@ -41,6 +39,8 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     private static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
     private static final String SOURCE_FIELDS_FIELD = "source_fields";
     static final String CHUNKING_SETTINGS_FIELD = "chunking_settings";
+
+    private static final TransportVersion SEMANTIC_TEXT_CHUNKING_CONFIG = TransportVersion.fromName("semantic_text_chunking_config");
 
     private final String name;
     private final String inferenceId;
@@ -75,8 +75,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
             this.searchInferenceId = this.inferenceId;
         }
         this.sourceFields = input.readStringArray();
-        if (input.getTransportVersion().onOrAfter(SEMANTIC_TEXT_CHUNKING_CONFIG)
-            || input.getTransportVersion().isPatchFrom(SEMANTIC_TEXT_CHUNKING_CONFIG_8_19)) {
+        if (input.getTransportVersion().supports(SEMANTIC_TEXT_CHUNKING_CONFIG)) {
             this.chunkingSettings = input.readGenericMap();
         } else {
             this.chunkingSettings = null;
@@ -91,8 +90,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
             out.writeString(searchInferenceId);
         }
         out.writeStringArray(sourceFields);
-        if (out.getTransportVersion().onOrAfter(SEMANTIC_TEXT_CHUNKING_CONFIG)
-            || out.getTransportVersion().isPatchFrom(SEMANTIC_TEXT_CHUNKING_CONFIG_8_19)) {
+        if (out.getTransportVersion().supports(SEMANTIC_TEXT_CHUNKING_CONFIG)) {
             out.writeGenericMap(chunkingSettings);
         }
     }

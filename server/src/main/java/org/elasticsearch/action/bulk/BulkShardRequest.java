@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
@@ -50,21 +51,26 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         }
     }
 
-    public BulkShardRequest(ShardId shardId, int reshardSplitShardCountSummary, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
+    public BulkShardRequest(
+        ShardId shardId,
+        SplitShardCountSummary reshardSplitShardCountSummary,
+        RefreshPolicy refreshPolicy,
+        BulkItemRequest[] items
+    ) {
         this(shardId, reshardSplitShardCountSummary, refreshPolicy, items, false);
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
-        this(shardId, 0, refreshPolicy, items, false);
+        this(shardId, SplitShardCountSummary.UNSET, refreshPolicy, items, false);
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items, boolean isSimulated) {
-        this(shardId, 0, refreshPolicy, items, isSimulated);
+        this(shardId, SplitShardCountSummary.UNSET, refreshPolicy, items, isSimulated);
     }
 
     public BulkShardRequest(
         ShardId shardId,
-        int reshardSplitShardCountSummary,
+        SplitShardCountSummary reshardSplitShardCountSummary,
         RefreshPolicy refreshPolicy,
         BulkItemRequest[] items,
         boolean isSimulated

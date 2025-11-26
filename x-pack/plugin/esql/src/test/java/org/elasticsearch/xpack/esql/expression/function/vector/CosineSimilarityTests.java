@@ -26,6 +26,11 @@ public class CosineSimilarityTests extends AbstractVectorSimilarityFunctionTestC
         super(testCaseSupplier);
     }
 
+    @Override
+    public String getBaseEvaluatorName() {
+        return CosineSimilarity.class.getSimpleName();
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return similarityParameters(CosineSimilarity.class.getSimpleName(), CosineSimilarity.SIMILARITY_FUNCTION);

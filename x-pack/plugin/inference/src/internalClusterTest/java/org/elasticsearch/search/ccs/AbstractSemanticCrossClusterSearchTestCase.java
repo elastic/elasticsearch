@@ -8,6 +8,9 @@
 package org.elasticsearch.search.ccs;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse;
+import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -17,7 +20,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -28,26 +30,16 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
-import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
+import org.elasticsearch.transport.RemoteConnectionInfo;
+import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
-import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
-import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
-import org.elasticsearch.xpack.ml.action.TransportCoordinatedInferenceAction;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -56,11 +48,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.createInferenceEndpoint;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -92,14 +86,16 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         return List.of(LocalStateInferencePlugin.class, TestInferenceServicePlugin.class, FakeMlPlugin.class);
     }
 
-    protected void setupTwoClusters(TestIndexInfo localIndexInfo, TestIndexInfo remoteIndexInfo) throws IOException {
+    protected void setupTwoClusters(TestIndexInfo localIndexInfo, TestIndexInfo remoteIndexInfo) throws Exception {
         setupCluster(LOCAL_CLUSTER, localIndexInfo);
         setupCluster(REMOTE_CLUSTER, remoteIndexInfo);
+        waitUntilRemoteClusterConnected(REMOTE_CLUSTER);
     }
 
     protected void setupCluster(String clusterAlias, TestIndexInfo indexInfo) throws IOException {
         final Client client = client(clusterAlias);
         final String indexName = indexInfo.name();
+        final int dataNodeCount = cluster(clusterAlias).numDataNodes();
 
         for (var entry : indexInfo.inferenceEndpoints().entrySet()) {
             String inferenceId = entry.getKey();
@@ -117,13 +113,13 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
             createInferenceEndpoint(client, minimalServiceSettings.taskType(), inferenceId, serviceSettings);
         }
 
-        Settings indexSettings = indexSettings(randomIntBetween(2, 5), randomIntBetween(0, 1)).build();
+        Settings indexSettings = indexSettings(randomIntBetween(1, dataNodeCount), 0).build();
         assertAcked(client.admin().indices().prepareCreate(indexName).setSettings(indexSettings).setMapping(indexInfo.mappings()));
         assertFalse(
             client.admin()
                 .cluster()
                 .prepareHealth(TEST_REQUEST_TIMEOUT, indexName)
-                .setWaitForYellowStatus()
+                .setWaitForGreenStatus()
                 .setTimeout(TimeValue.timeValueSeconds(10))
                 .get()
                 .isTimedOut()
@@ -140,39 +136,22 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         assertThat(refreshResponse.getStatus(), is(RestStatus.OK));
     }
 
+    protected void waitUntilRemoteClusterConnected(String clusterAlias) throws Exception {
+        RemoteInfoRequest request = new RemoteInfoRequest();
+        assertBusy(() -> {
+            RemoteInfoResponse response = client().execute(TransportRemoteInfoAction.TYPE, request).actionGet(TEST_REQUEST_TIMEOUT);
+            boolean connected = response.getInfos()
+                .stream()
+                .filter(i -> i.getClusterAlias().equals(clusterAlias))
+                .anyMatch(RemoteConnectionInfo::isConnected);
+            assertThat(connected, is(true));
+        }, 30, TimeUnit.SECONDS);
+    }
+
     protected BytesReference openPointInTime(String[] indices, TimeValue keepAlive) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
         final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
         return response.getPointInTimeId();
-    }
-
-    protected static void createInferenceEndpoint(Client client, TaskType taskType, String inferenceId, Map<String, Object> serviceSettings)
-        throws IOException {
-        final String service = switch (taskType) {
-            case TEXT_EMBEDDING -> TestDenseInferenceServiceExtension.TestInferenceService.NAME;
-            case SPARSE_EMBEDDING -> TestSparseInferenceServiceExtension.TestInferenceService.NAME;
-            default -> throw new IllegalArgumentException("Unhandled task type [" + taskType + "]");
-        };
-
-        final BytesReference content;
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            builder.startObject();
-            builder.field("service", service);
-            builder.field("service_settings", serviceSettings);
-            builder.endObject();
-
-            content = BytesReference.bytes(builder);
-        }
-
-        PutInferenceModelAction.Request request = new PutInferenceModelAction.Request(
-            taskType,
-            inferenceId,
-            content,
-            XContentType.JSON,
-            TEST_REQUEST_TIMEOUT
-        );
-        var responseFuture = client.execute(PutInferenceModelAction.INSTANCE, request);
-        assertThat(responseFuture.actionGet(TEST_REQUEST_TIMEOUT).getModel().getInferenceEntityId(), equalTo(inferenceId));
     }
 
     protected void assertSearchResponse(QueryBuilder queryBuilder, List<IndexWithBoost> indices, List<SearchResult> expectedSearchResults)
@@ -286,29 +265,6 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
 
     protected static String[] convertToArray(List<IndexWithBoost> indices) {
         return indices.stream().map(IndexWithBoost::index).toArray(String[]::new);
-    }
-
-    public static class FakeMlPlugin extends Plugin implements ActionPlugin, SearchPlugin {
-        @Override
-        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-            return new MlInferenceNamedXContentProvider().getNamedWriteables();
-        }
-
-        @Override
-        public List<QueryVectorBuilderSpec<?>> getQueryVectorBuilders() {
-            return List.of(
-                new QueryVectorBuilderSpec<>(
-                    TextEmbeddingQueryVectorBuilder.NAME,
-                    TextEmbeddingQueryVectorBuilder::new,
-                    TextEmbeddingQueryVectorBuilder.PARSER
-                )
-            );
-        }
-
-        @Override
-        public Collection<ActionHandler> getActions() {
-            return List.of(new ActionHandler(CoordinatedInferenceAction.INSTANCE, TransportCoordinatedInferenceAction.class));
-        }
     }
 
     protected record TestIndexInfo(

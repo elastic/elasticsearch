@@ -257,4 +257,32 @@ public final class Grok {
         return compiledExpression;
     }
 
+    public static String combinePatterns(List<String> patterns) {
+        return combinePatterns(patterns, null);
+    }
+
+    public static String combinePatterns(List<String> patterns, String traceMatchKey) {
+        String combinedPattern;
+        if (patterns.size() > 1) {
+            combinedPattern = "";
+            for (int i = 0; i < patterns.size(); i++) {
+                String pattern = patterns.get(i);
+                String valueWrap;
+                if (traceMatchKey != null) {
+                    valueWrap = "(?<" + traceMatchKey + "." + i + ">" + pattern + ")";
+                } else {
+                    valueWrap = "(?:" + patterns.get(i) + ")";
+                }
+                if (combinedPattern.isEmpty()) {
+                    combinedPattern = valueWrap;
+                } else {
+                    combinedPattern = combinedPattern + "|" + valueWrap;
+                }
+            }
+        } else {
+            combinedPattern = patterns.getFirst();
+        }
+
+        return combinedPattern;
+    }
 }

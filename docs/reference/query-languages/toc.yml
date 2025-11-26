@@ -22,6 +22,7 @@ toc:
           - file: query-dsl/query-dsl-multi-match-query.md
           - file: query-dsl/query-dsl-query-string-query.md
           - file: query-dsl/query-dsl-simple-query-string-query.md
+          - file: query-dsl/query-dsl-kql-query.md
       - file: query-dsl/geo-queries.md
         children:
           - file: query-dsl/query-dsl-geo-bounding-box-query.md
@@ -86,6 +87,12 @@ toc:
   - file: esql.md
     children:
       - file: esql/esql-getting-started.md
+      - file: esql/esql-use-cases.md
+        children:
+          - title: "ES|QL for search"
+            crosslink: docs-content://solutions/search/esql-for-search.md
+          - title: "ES|QL for cybersecurity"
+            crosslink: docs-content://solutions/security/esql-for-security.md
       - file: esql/esql-rest.md
       - file: esql/esql-syntax-reference.md
         children:
@@ -97,6 +104,7 @@ toc:
                   - file: esql/commands/from.md
                   - file: esql/commands/row.md
                   - file: esql/commands/show.md
+                  - file: esql/commands/ts.md
               - file: esql/commands/processing-commands.md
                 children:
                   - file: esql/commands/change-point.md
@@ -106,6 +114,7 @@ toc:
                   - file: esql/commands/enrich.md
                   - file: esql/commands/eval.md
                   - file: esql/commands/fork.md
+                  - file: esql/commands/fuse.md
                   - file: esql/commands/grok.md
                   - file: esql/commands/inlinestats-by.md
                   - file: esql/commands/keep.md
@@ -121,6 +130,7 @@ toc:
           - file: esql/esql-functions-operators.md
             children:
               - file: esql/functions-operators/aggregation-functions.md
+              - file: esql/functions-operators/time-series-aggregation-functions.md
               - file: esql/functions-operators/grouping-functions.md
               - file: esql/functions-operators/conditional-functions-and-expressions.md
               - file: esql/functions-operators/date-time-functions.md
@@ -129,6 +139,7 @@ toc:
               - file: esql/functions-operators/search-functions.md
               - file: esql/functions-operators/spatial-functions.md
               - file: esql/functions-operators/string-functions.md
+              - file: esql/functions-operators/dense-vector-functions.md
               - file: esql/functions-operators/type-conversion-functions.md
               - file: esql/functions-operators/mv-functions.md
               - file: esql/functions-operators/operators.md
@@ -150,6 +161,8 @@ toc:
       - file: esql/esql-examples.md
         children:
           - file: esql/esql-search-tutorial.md
+          - title: "ES|QL for threat hunting"
+            crosslink: docs-content://solutions/security/esql-for-security/esql-threat-hunting-tutorial.md
       - file: esql/esql-troubleshooting.md
         children:
           - file: esql/esql-query-log.md
@@ -157,6 +170,41 @@ toc:
       - file: esql/limitations.md
   - file: sql.md
     children:
+      - file: sql/sql-getting-started.md
+      - file: sql/sql-concepts.md
+      - file: sql/sql-security.md
+      - file: sql/sql-rest.md
+        children:
+          - file: sql/sql-rest-overview.md
+          - file: sql/sql-rest-format.md
+          - file: sql/sql-pagination.md
+          - file: sql/sql-rest-filtering.md
+          - file: sql/sql-rest-columnar.md
+          - file: sql/sql-rest-params.md
+          - file: sql/sql-runtime-fields.md
+          - file: sql/sql-async.md
+      - file: sql/sql-translate.md
+      - file: sql/sql-cli.md
+      - file: sql/sql-jdbc.md
+        children:
+            - file: sql/sql-jdbc-api-usage.md
+      - file: sql/sql-odbc.md
+        children:
+            - file: sql/sql-odbc-installation.md
+            - file: sql/sql-odbc-setup.md
+      - file: sql/sql-client-apps.md
+        children:
+            - file: sql/sql-client-apps-dbeaver.md
+            - file: sql/sql-client-apps-dbvis.md
+            - file: sql/sql-client-apps-excel.md
+            - file: sql/sql-client-apps-powerbi.md
+            - file: sql/sql-client-apps-ps1.md
+            - file: sql/sql-client-apps-microstrat.md
+            - file: sql/sql-client-apps-qlik.md
+            - file: sql/sql-client-apps-squirrel.md
+            - file: sql/sql-client-apps-workbench.md
+            - file: sql/sql-client-apps-tableau-desktop.md
+            - file: sql/sql-client-apps-tableau-server.md
       - file: sql/sql-spec.md
         children:
           - file: sql/sql-lexical-structure.md

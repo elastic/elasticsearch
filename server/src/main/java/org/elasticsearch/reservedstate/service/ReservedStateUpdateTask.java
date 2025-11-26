@@ -26,9 +26,13 @@ import org.elasticsearch.reservedstate.TransformState;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.SequencedCollection;
+import java.util.SequencedSet;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -49,16 +53,22 @@ public abstract class ReservedStateUpdateTask<T extends ReservedStateHandler<?>>
     private final ReservedStateChunk stateChunk;
     private final ReservedStateVersionCheck versionCheck;
     private final Map<String, T> handlers;
-    private final Collection<String> orderedHandlers;
+    private final SequencedCollection<String> updateSequence;
     private final Consumer<ErrorState> errorReporter;
     private final ActionListener<ActionResponse.Empty> listener;
 
+    /**
+     * @param updateSequence the names of handlers corresponding to configuration sections present in the source,
+     *                       in the order they should be processed according to their dependencies.
+     *                       It equals the result of applying {@link #orderedStateHandlers} to {@code stateChunk.state().keySet()}
+     *                       but the caller will typically also need it for a <i>trial run</i>, so we avoid computing it twice.
+     */
     public ReservedStateUpdateTask(
         String namespace,
         ReservedStateChunk stateChunk,
         ReservedStateVersionCheck versionCheck,
         Map<String, T> handlers,
-        Collection<String> orderedHandlers,
+        SequencedCollection<String> updateSequence,
         Consumer<ErrorState> errorReporter,
         ActionListener<ActionResponse.Empty> listener
     ) {
@@ -66,9 +76,18 @@ public abstract class ReservedStateUpdateTask<T extends ReservedStateHandler<?>>
         this.stateChunk = stateChunk;
         this.versionCheck = versionCheck;
         this.handlers = handlers;
-        this.orderedHandlers = orderedHandlers;
+        this.updateSequence = updateSequence;
         this.errorReporter = errorReporter;
         this.listener = listener;
+
+        // We can't assert the order here, even if we'd like to, because in general,
+        // there is not necessarily one unique correct order.
+        // But we can at least assert that updateSequence has the right elements.
+        assert Set.copyOf(updateSequence).equals(stateChunk.state().keySet())
+            : "updateSequence is supposed to be computed from stateChunk.state().keySet(): "
+                + updateSequence
+                + " vs "
+                + stateChunk.state().keySet();
     }
 
     @Override
@@ -83,6 +102,8 @@ public abstract class ReservedStateUpdateTask<T extends ReservedStateHandler<?>>
     protected abstract Optional<ProjectId> projectId();
 
     protected abstract TransformState transform(T handler, Object state, TransformState transformState) throws Exception;
+
+    protected abstract ClusterState remove(T handler, TransformState prevState) throws Exception;
 
     abstract ClusterState execute(ClusterState currentState);
 
@@ -102,8 +123,8 @@ public abstract class ReservedStateUpdateTask<T extends ReservedStateHandler<?>>
         var reservedMetadataBuilder = new ReservedStateMetadata.Builder(namespace).version(reservedStateVersion.version());
         List<String> errors = new ArrayList<>();
 
-        // Transform the cluster state first
-        for (var handlerName : orderedHandlers) {
+        // First apply the updates to transform the cluster state
+        for (var handlerName : updateSequence) {
             T handler = handlers.get(handlerName);
             try {
                 Set<String> existingKeys = keysForHandler(reservedStateMetadata, handlerName);
@@ -112,6 +133,24 @@ public abstract class ReservedStateUpdateTask<T extends ReservedStateHandler<?>>
                 reservedMetadataBuilder.putHandler(new ReservedStateHandlerMetadata(handlerName, transformState.keys()));
             } catch (Exception e) {
                 errors.add(format("Error processing %s state change: %s", handler.name(), stackTrace(e)));
+            }
+        }
+
+        // Now, any existing handler not listed in updateSequence must have been removed.
+        // We do removals after updates in case one of the updated handlers depends on one of these,
+        // to give that handler a chance to clean up before its dependency vanishes.
+        if (reservedStateMetadata != null) {
+            Set<String> toRemove = new HashSet<>(reservedStateMetadata.handlers().keySet());
+            toRemove.removeAll(updateSequence);
+            SequencedSet<String> removalSequence = orderedStateHandlers(toRemove, handlers).reversed();
+            for (var handlerName : removalSequence) {
+                T handler = handlers.get(handlerName);
+                try {
+                    Set<String> existingKeys = keysForHandler(reservedStateMetadata, handlerName);
+                    state = remove(handler, new TransformState(state, existingKeys));
+                } catch (Exception e) {
+                    errors.add(format("Error processing %s state removal: %s", handler.name(), stackTrace(e)));
+                }
             }
         }
 
@@ -216,6 +255,72 @@ public abstract class ReservedStateUpdateTask<T extends ReservedStateHandler<?>>
             )
         );
         return false;
+    }
+
+    /**
+     * Returns the given {@code handlerNames} in order of their handler dependencies.
+     */
+    static SequencedSet<String> orderedStateHandlers(
+        Collection<String> handlerNames,
+        Map<String, ? extends ReservedStateHandler<?>> handlersByName
+    ) {
+        LinkedHashSet<String> orderedHandlers = new LinkedHashSet<>();
+
+        for (String key : handlerNames) {
+            addStateHandler(handlersByName, key, handlerNames, orderedHandlers, new LinkedHashSet<>());
+        }
+
+        assert Set.copyOf(handlerNames).equals(orderedHandlers);
+        return orderedHandlers;
+    }
+
+    /**
+     * @param inProgress a sequenced set so that "cycle found" error message can list the handlers
+     *                   in an order that demonstrates the cycle
+     */
+    private static void addStateHandler(
+        Map<String, ? extends ReservedStateHandler<?>> handlers,
+        String key,
+        Collection<String> keys,
+        SequencedSet<String> ordered,
+        SequencedSet<String> inProgress
+    ) {
+        if (ordered.contains(key)) {
+            // already added by another dependent handler
+            return;
+        }
+
+        if (false == inProgress.add(key)) {
+            StringBuilder msg = new StringBuilder("Cycle found in settings dependencies: ");
+            inProgress.forEach(s -> {
+                msg.append(s);
+                msg.append(" -> ");
+            });
+            msg.append(key);
+            throw new IllegalStateException(msg.toString());
+        }
+
+        ReservedStateHandler<?> handler = handlers.get(key);
+
+        if (handler == null) {
+            throw new IllegalStateException("Unknown handler type: " + key);
+        }
+
+        for (String dependency : handler.dependencies()) {
+            if (keys.contains(dependency) == false) {
+                throw new IllegalStateException("Missing handler dependency definition: " + key + " -> " + dependency);
+            }
+            addStateHandler(handlers, dependency, keys, ordered, inProgress);
+        }
+
+        for (String dependency : handler.optionalDependencies()) {
+            if (keys.contains(dependency)) {
+                addStateHandler(handlers, dependency, keys, ordered, inProgress);
+            }
+        }
+
+        inProgress.remove(key);
+        ordered.add(key);
     }
 
 }

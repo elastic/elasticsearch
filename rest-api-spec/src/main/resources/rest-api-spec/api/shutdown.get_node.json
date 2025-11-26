@@ -20,8 +20,7 @@
           "path": "/_nodes/shutdown",
           "methods": [
             "GET"
-          ],
-          "parts": {}
+          ]
         },
         {
           "path": "/_nodes/{node_id}/shutdown",
@@ -30,8 +29,8 @@
           ],
           "parts": {
             "node_id": {
-              "type": "string",
-              "description": "Which node for which to retrieve the shutdown status"
+              "type": "list",
+              "description": "Comma-separated list of nodes for which to retrieve the shutdown status"
             }
           }
         }

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,7 +25,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class EnrichExec extends UnaryExec implements EstimatesRowSize {
+public class EnrichExec extends UnaryExec implements EstimatesRowSize, ExecutesOn {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "EnrichExec",
@@ -190,5 +191,14 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), mode, matchType, matchField, policyName, policyMatchField, concreteIndices, enrichFields);
+    }
+
+    @Override
+    public ExecuteLocation executesOn() {
+        return switch (mode) {
+            case REMOTE -> ExecuteLocation.REMOTE;
+            case COORDINATOR -> ExecuteLocation.COORDINATOR;
+            default -> ExecuteLocation.ANY;
+        };
     }
 }

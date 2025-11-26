@@ -38,14 +38,16 @@
       },
       "realtime": {
         "type": "boolean",
+        "default": true,
         "description": "Specify whether to perform the operation in realtime or search mode"
       },
       "refresh": {
         "type": "boolean",
+        "default": false,
         "description": "Refresh the shard containing the document before performing the operation"
       },
       "routing": {
-        "type": "string",
+        "type": "list",
         "description": "Specific routing value"
       },
       "_source": {
@@ -61,7 +63,7 @@
         "description": "A list of fields to extract and return from the _source field"
       },
       "version": {
-        "type": "number",
+        "type": "long",
         "description": "Explicit version number for concurrency control"
       },
       "version_type": {

@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -179,6 +180,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     }).toList();
                     TestCaseSupplier.TypedData nulledData = oc.getData().get(finalNullPosition);
                     return new TestCaseSupplier.TestCase(
+                        oc.getSource(),
+                        oc.getConfiguration(),
                         data,
                         evaluatorToString.evaluatorToString(finalNullPosition, nulledData, oc.evaluatorToString()),
                         expectedType.expectedType(finalNullPosition, nulledData.type(), oc),
@@ -211,6 +214,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 )
                                 .toList();
                             return new TestCaseSupplier.TestCase(
+                                oc.getSource(),
+                                oc.getConfiguration(),
                                 data,
                                 equalTo("LiteralsEvaluator[lit=null]"),
                                 expectedType.expectedType(finalNullPosition, DataType.NULL, oc),
@@ -418,7 +423,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 // We don't test that functions don't take date_period or time_duration. We should.
                 return false;
             }
-            if (DataType.UNDER_CONSTRUCTION.containsKey(t)) {
+            if (DataType.UNDER_CONSTRUCTION.contains(t)) {
                 /*
                  * Types under construction aren't checked because we're actively
                  * adding support for them to functions. That’s *why* they are
@@ -650,12 +655,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Those will show up in the layout in whatever order a depth first traversal finds them.
      */
     protected static void buildLayout(Layout.Builder builder, Expression e) {
+        dedupAndBuildLayout(new HashSet<>(), builder, e);
+    }
+
+    private static void dedupAndBuildLayout(Set<NameId> seen, Layout.Builder builder, Expression e) {
         if (e instanceof FieldAttribute f) {
-            builder.append(f);
+            if (seen.add(f.id())) {
+                builder.append(f);
+            }
             return;
         }
         for (Expression c : e.children()) {
-            buildLayout(builder, c);
+            dedupAndBuildLayout(seen, builder, c);
         }
     }
 
@@ -763,7 +774,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             for (int i = 0; i < args.size() && i < types.size(); i++) {
                 typesFromSignature.get(i).add(types.get(i).dataType().esNameIfPossible());
             }
-            if (DataType.UNDER_CONSTRUCTION.containsKey(entry.returnType()) == false) {
+            if (DataType.UNDER_CONSTRUCTION.contains(entry.returnType()) == false) {
                 returnFromSignature.add(entry.returnType().esNameIfPossible());
             }
         }
@@ -771,11 +782,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (int i = 0; i < args.size(); i++) {
             EsqlFunctionRegistry.ArgSignature arg = args.get(i);
             Set<String> annotationTypes = Arrays.stream(arg.type())
-                .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
+                .filter(t -> DataType.UNDER_CONSTRUCTION.contains(DataType.fromNameOrAlias(t)) == false)
                 .collect(Collectors.toCollection(TreeSet::new));
             Set<String> signatureTypes = typesFromSignature.get(i)
                 .stream()
-                .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
+                .filter(t -> DataType.UNDER_CONSTRUCTION.contains(DataType.fromNameOrAlias(t)) == false)
                 .collect(Collectors.toCollection(TreeSet::new));
             if (signatureTypes.isEmpty()) {
                 log.info("{}: skipping", arg.name());
@@ -796,7 +807,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
 
         Set<String> returnTypes = Arrays.stream(description.returnType())
-            .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
+            .filter(t -> DataType.UNDER_CONSTRUCTION.contains(DataType.fromNameOrAlias(t)) == false)
             .collect(Collectors.toCollection(TreeSet::new));
         assertEquals(returnFromSignature, returnTypes);
     }
@@ -1055,7 +1066,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Should this particular signature be hidden from the docs even though we test it?
      */
     static boolean shouldHideSignature(List<DocsV3Support.Param> argTypes, DataType returnType) {
-        for (DataType dt : DataType.UNDER_CONSTRUCTION.keySet()) {
+        if (returnType == DataType.TSID_DATA_TYPE || argTypes.stream().anyMatch(p -> p.dataType() == DataType.TSID_DATA_TYPE)) {
+            // TSID is special (for internal use) and we don't document it
+            return true;
+        }
+
+        for (DataType dt : DataType.UNDER_CONSTRUCTION) {
             if (returnType == dt || argTypes.stream().anyMatch(p -> p.dataType() == dt)) {
                 return true;
             }

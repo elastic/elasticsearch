@@ -34,6 +34,24 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
      */
     int getInt(int valueIndex);
 
+    /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+     */
+    default boolean hasValue(int position, int value) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        for (int index = startIndex; index < startIndex + count; index++) {
+            if (value == getInt(index)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     IntVector asVector();
 

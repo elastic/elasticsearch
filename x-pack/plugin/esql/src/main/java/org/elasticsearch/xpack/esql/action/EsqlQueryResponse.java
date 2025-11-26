@@ -48,6 +48,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         "esql_documents_found_and_values_loaded"
     );
     private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
+    private static final TransportVersion ESQL_TIMESTAMPS_INFO = TransportVersion.fromName("esql_timestamps_info");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
@@ -63,6 +64,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private final boolean isAsync;
     private final EsqlExecutionInfo executionInfo;
 
+    private final long startTimeMillis;
+    private final long expirationTimeMillis;
+
     public EsqlQueryResponse(
         List<ColumnInfoImpl> columns,
         List<Page> pages,
@@ -73,6 +77,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         @Nullable String asyncExecutionId,
         boolean isRunning,
         boolean isAsync,
+        long startTimeMillis,
+        long expirationTimeMillis,
         EsqlExecutionInfo executionInfo
     ) {
         this.columns = columns;
@@ -84,6 +90,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         this.asyncExecutionId = asyncExecutionId;
         this.isRunning = isRunning;
         this.isAsync = isAsync;
+        this.startTimeMillis = startTimeMillis;
+        this.expirationTimeMillis = expirationTimeMillis;
         this.executionInfo = executionInfo;
     }
 
@@ -95,9 +103,24 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         @Nullable Profile profile,
         boolean columnar,
         boolean isAsync,
+        long startTimeMillis,
+        long expirationTimeMillis,
         EsqlExecutionInfo executionInfo
     ) {
-        this(columns, pages, documentsFound, valuesLoaded, profile, columnar, null, false, isAsync, executionInfo);
+        this(
+            columns,
+            pages,
+            documentsFound,
+            valuesLoaded,
+            profile,
+            columnar,
+            null,
+            false,
+            isAsync,
+            startTimeMillis,
+            expirationTimeMillis,
+            executionInfo
+        );
     }
 
     /**
@@ -121,6 +144,14 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         long valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
         Profile profile = in.readOptionalWriteable(Profile::readFrom);
         boolean columnar = in.readBoolean();
+
+        long startTimeMillis = 0L;
+        long expirationTimeMillis = 0L;
+        if (in.getTransportVersion().supports(ESQL_TIMESTAMPS_INFO)) {
+            startTimeMillis = in.readLong();
+            expirationTimeMillis = in.readLong();
+        }
+
         EsqlExecutionInfo executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
         return new EsqlQueryResponse(
             columns,
@@ -132,6 +163,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             asyncExecutionId,
             isRunning,
             isAsync,
+            startTimeMillis,
+            expirationTimeMillis,
             executionInfo
         );
     }
@@ -149,6 +182,12 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
         out.writeOptionalWriteable(profile);
         out.writeBoolean(columnar);
+
+        if (out.getTransportVersion().supports(ESQL_TIMESTAMPS_INFO)) {
+            out.writeLong(startTimeMillis);
+            out.writeLong(expirationTimeMillis);
+        }
+
         out.writeOptionalWriteable(executionInfo);
     }
 
@@ -237,21 +276,36 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             }));
         }
         if (executionInfo != null && executionInfo.overallTook() != null) {
-            content.add(
-                ChunkedToXContentHelper.chunk(
-                    (builder, p) -> builder //
-                        .field("took", executionInfo.overallTook().millis())
-                        .field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), executionInfo.isPartial())
-                )
-            );
+            content.add(ChunkedToXContentHelper.chunk((builder, p) -> {
+                builder //
+                    .field("took", executionInfo.overallTook().millis())
+                    .field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), executionInfo.isPartial());
+
+                if (startTimeMillis != 0L) {
+                    builder.timestampFieldsFromUnixEpochMillis(
+                        "completion_time_in_millis",
+                        "completion_time",
+                        startTimeMillis + executionInfo.overallTook().millis()
+                    );
+                }
+
+                return builder;
+            }));
         }
-        content.add(
-            ChunkedToXContentHelper.chunk(
-                (builder, p) -> builder //
-                    .field("documents_found", documentsFound)
-                    .field("values_loaded", valuesLoaded)
-            )
-        );
+        content.add(ChunkedToXContentHelper.chunk((builder, p) -> {
+            builder //
+                .field("documents_found", documentsFound)
+                .field("values_loaded", valuesLoaded);
+
+            if (startTimeMillis != 0L) {
+                builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTimeMillis);
+            }
+            if (expirationTimeMillis != 0L) {
+                builder.timestampFieldsFromUnixEpochMillis("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
+            }
+
+            return builder;
+        }));
         if (dropNullColumns) {
             content.add(ResponseXContentUtils.allColumns(columns, "all_columns"));
             content.add(ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns"));

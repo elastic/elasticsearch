@@ -280,7 +280,8 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
                     someJWTRealmConfig.threadContext()
                 ),
                 mock(SSLService.class),
-                () -> {}
+                () -> {},
+                null
             )
         );
         if (emptySubjects) {
@@ -329,7 +330,8 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
                         someJWTRealmConfig.threadContext()
                     ),
                     mock(SSLService.class),
-                    () -> {}
+                    () -> {},
+                    null
                 )
             );
             assertThat(
@@ -361,7 +363,8 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
                         someJWTRealmConfig.threadContext()
                     ),
                     mock(SSLService.class),
-                    () -> {}
+                    () -> {},
+                    null
                 )
             );
             assertThat(
@@ -393,7 +396,8 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
                         someJWTRealmConfig.threadContext()
                     ),
                     mock(SSLService.class),
-                    () -> {}
+                    () -> {},
+                    null
                 )
             );
             assertThat(
@@ -411,7 +415,7 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
 
     protected JwtAuthenticator buildJwtAuthenticator() {
         final RealmConfig realmConfig = buildJWTRealmConfig();
-        final JwtAuthenticator jwtAuthenticator = spy(new JwtAuthenticator(realmConfig, null, () -> {}));
+        final JwtAuthenticator jwtAuthenticator = spy(new JwtAuthenticator(realmConfig, null, () -> {}, null));
         // Short circuit signature validation to be always successful since this test class does not test it
         doAnswer(invocation -> {
             final ActionListener<Void> listener = invocation.getArgument(2);

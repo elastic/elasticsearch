@@ -1,5 +1,0 @@
-pr: 133659
-summary: Fixed GeneralScriptException to return 400 http status code
-area: Infra/Scripting
-type: bug
-issues: []

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
@@ -21,7 +22,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.test.TransportVersionUtils.randomCompatibleVersion;
+import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -173,13 +174,14 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         final boolean ownedByAuthenticatedUser = true;
         InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, ownedByAuthenticatedUser);
         {
+            TransportVersion minimumTransportVersion = TransportVersion.fromId(7_10_00_99);
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setTransportVersion(randomCompatibleVersion(random()));
+            out.setTransportVersion(randomVersionBetween(random(), minimumTransportVersion, TransportVersion.current()));
             invalidateApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setTransportVersion(randomCompatibleVersion(random()));
+            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), minimumTransportVersion, TransportVersion.current()));
             InvalidateApiKeyRequest requestFromInputStream = new InvalidateApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream, equalTo(invalidateApiKeyRequest));

@@ -370,6 +370,33 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     //
     // Tests without STATS at the end - check that node_reduce phase works correctly
     //
+    public void testLengthPushedWithoutTopN() throws IOException {
+        String textValue = "v".repeat(between(0, 256));
+        test(b -> b.startObject("test").field("type", "keyword").endObject(),
+            b -> b.field("test", textValue),
+            """
+                FROM test
+                | EVAL fieldLength = LENGTH(test)
+                | LIMIT 10
+                | KEEP test, fieldLength
+                """,
+            matchesList().item(textValue).item(textValue.length()),
+            matchesList()
+                .item(matchesMap().entry("name", "test").entry("type", any(String.class)))
+                .item(matchesMap().entry("name", "fieldLength").entry("type", any(String.class))),
+            Map.of(
+                "data",
+                List.of(
+                    // Pushed down function
+                    matchesMap().entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1),
+                    // Field
+                    matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1)
+                )
+            ),
+            sig -> {}
+        );
+    }
+
     public void testLengthPushedWithTopN() throws IOException {
         String textValue = "v".repeat(between(0, 256));
         Integer orderingValue = randomInt();
@@ -386,6 +413,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 | KEEP test
                 """,
             matchesList().item(textValue),
+            matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
             Map.of(
                 "data",
                 List.of(
@@ -416,6 +444,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 | KEEP test
                 """,
             matchesList().item(textValue),
+            matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
             Map.of(
                 "data",
                 List.of(
@@ -712,7 +741,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             FROM test
             """ + eval + """
             | STATS test = MV_SORT(VALUES(test))
-            """, expectedValue, expectedLoaders == null ? Map.of() : Map.of("data", List.of(expectedLoaders)), assertDataNodeSig);
+            """, expectedValue, matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
+            Map.of("data", List.of(expectedLoaders)), assertDataNodeSig);
     }
 
     private void test(
@@ -720,6 +750,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         CheckedConsumer<XContentBuilder, IOException> doc,
         String query,
         Matcher<?> expectedValue,
+        Matcher<?> columnMatcher,
         Map<String, List<MapMatcher>> expectedLoadersPerDriver,
         Consumer<List<String>> assertDataNodeSig
     ) throws IOException {
@@ -739,7 +770,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .entry("planning", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
             ),
-            matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
+            columnMatcher,
             matchesList().item(expectedValue)
         );
         @SuppressWarnings("unchecked")

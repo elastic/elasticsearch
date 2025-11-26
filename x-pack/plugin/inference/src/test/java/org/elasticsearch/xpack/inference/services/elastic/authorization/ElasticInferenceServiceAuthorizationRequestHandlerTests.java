@@ -41,7 +41,7 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender.MAX_RETIES;
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bearerToken;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createApplierFactory;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
@@ -266,7 +266,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
 
     private static void assertAuthHeader(List<MockRequest> requests, String secret) {
         assertThat(requests.size(), is(1));
-        assertThat(requests.get(0).getHeader(HttpHeaders.AUTHORIZATION), is(bearerToken(secret)));
+        assertThat(requests.get(0).getHeader(HttpHeaders.AUTHORIZATION), is(apiKey(secret)));
     }
 
     public void testGetAuthorization_OnResponseCalledOnce() throws IOException {

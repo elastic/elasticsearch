@@ -64,8 +64,16 @@ public final class ExponentialHistogramStates {
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-            assert blocks.length >= offset + 1;
-            blocks[offset] = evaluateFinal(driverContext);
+            assert blocks.length >= offset + 2;
+            BlockFactory blockFactory = driverContext.blockFactory();
+            // in case of error, the blocks are closed by the caller
+            if (merger == null) {
+                blocks[offset] = blockFactory.newConstantExponentialHistogramBlock(ExponentialHistogram.empty(), 1);
+                blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(false, 1);
+            } else {
+                blocks[offset] = blockFactory.newConstantExponentialHistogramBlock(merger.get(), 1);
+                blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(true, 1);
+            }
         }
 
         @Override
@@ -127,8 +135,25 @@ public final class ExponentialHistogramStates {
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-            assert blocks.length >= offset + 1 : "blocks=" + blocks.length + ",offset=" + offset;
-            blocks[offset] = evaluateFinal(selected, driverContext);
+            assert blocks.length >= offset + 2 : "blocks=" + blocks.length + ",offset=" + offset;
+            try (
+                var histoBuilder = driverContext.blockFactory().newExponentialHistogramBlockBuilder(selected.getPositionCount());
+                var seenBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount());
+            ) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int groupId = selected.getInt(i);
+                    ExponentialHistogramMerger state = getOrNull(groupId);
+                    if (state != null) {
+                        seenBuilder.appendBoolean(true);
+                        histoBuilder.append(state.get());
+                    } else {
+                        seenBuilder.appendBoolean(false);
+                        histoBuilder.append(ExponentialHistogram.empty());
+                    }
+                }
+                blocks[offset] = histoBuilder.build();
+                blocks[offset + 1] = seenBuilder.build();
+            }
         }
 
         public Block evaluateFinal(IntVector selected, DriverContext driverContext) {

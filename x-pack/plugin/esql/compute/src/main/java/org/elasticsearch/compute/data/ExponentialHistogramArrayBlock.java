@@ -46,8 +46,11 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
     private final DoubleBlock sums;
     /**
      Holds the number of values in each histogram. Note that this is a different concept from getValueCount(position)!
+     At the time of writing, the count will always be an integer.
+     However, as we are planning on eventually supporting extrapolation and rate, the counts will then become fractional.
+     To avoid annoyances with breaking changes later, we store counts as doubles right away.
      */
-    private final LongBlock valueCounts;
+    private final DoubleBlock valueCounts;
     private final DoubleBlock zeroThresholds;
     private final BytesRefBlock encodedHistograms;
 
@@ -55,7 +58,7 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         DoubleBlock minima,
         DoubleBlock maxima,
         DoubleBlock sums,
-        LongBlock valueCounts,
+        DoubleBlock valueCounts,
         DoubleBlock zeroThresholds,
         BytesRefBlock encodedHistograms
     ) {
@@ -85,10 +88,10 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
                     assert b.isNull(i)
                         : "ExponentialHistogramArrayBlock sub-block [" + b + "] should be null at position " + i + ", but was not";
                 } else {
-                    if (b == minima || b == maxima) {
-                        // minima / maxima should be null exactly when value count is 0 or the histogram is null
-                        assert b.isNull(i) == (valueCounts.getLong(valueCounts.getFirstValueIndex(i)) == 0)
-                            : "ExponentialHistogramArrayBlock minima/maxima sub-block [" + b + "] has wrong nullity at position " + i;
+                    if (b == sums || b == minima || b == maxima) {
+                        // sums / minima / maxima should be null exactly when value count is 0 or the histogram is null
+                        assert b.isNull(i) == (valueCounts.getDouble(valueCounts.getFirstValueIndex(i)) == 0)
+                            : "ExponentialHistogramArrayBlock sums/minima/maxima sub-block [" + b + "] has wrong nullity at position " + i;
                     } else {
                         assert b.isNull(i) == false
                             : "ExponentialHistogramArrayBlock sub-block [" + b + "] should be non-null at position " + i + ", but was not";
@@ -105,14 +108,17 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
 
     @Override
     public ExponentialHistogram getExponentialHistogram(int valueIndex, ExponentialHistogramScratch scratch) {
+        assert isNull(valueIndex) == false : "tried to get histogram at null position " + valueIndex;
         BytesRef bytes = encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(valueIndex), scratch.bytesRefScratch);
         double zeroThreshold = zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(valueIndex));
-        long valueCount = valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex));
-        double sum = sums.getDouble(sums.getFirstValueIndex(valueIndex));
+        double valueCount = valueCounts.getDouble(valueCounts.getFirstValueIndex(valueIndex));
+        double sum = valueCount == 0 ? 0.0 : sums.getDouble(sums.getFirstValueIndex(valueIndex));
         double min = valueCount == 0 ? Double.NaN : minima.getDouble(minima.getFirstValueIndex(valueIndex));
         double max = valueCount == 0 ? Double.NaN : maxima.getDouble(maxima.getFirstValueIndex(valueIndex));
         try {
-            scratch.reusedHistogram.reset(zeroThreshold, valueCount, sum, min, max, bytes);
+            // Compressed histograms always have an integral value count, so we can safely round here
+            long roundedValueCount = Math.round(valueCount);
+            scratch.reusedHistogram.reset(zeroThreshold, roundedValueCount, sum, min, max, bytes);
             return scratch.reusedHistogram;
         } catch (IOException e) {
             throw new IllegalStateException("error loading histogram", e);
@@ -138,12 +144,12 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
     public void serializeExponentialHistogram(int valueIndex, SerializedOutput out, BytesRef scratch) {
         // not that this value count is different from getValueCount(position)!
         // this value count represents the number of individual samples the histogram was computed for
-        long valueCount = valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex));
-        out.appendLong(valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex)));
-        out.appendDouble(sums.getDouble(sums.getFirstValueIndex(valueIndex)));
+        double valueCount = valueCounts.getDouble(valueCounts.getFirstValueIndex(valueIndex));
+        out.appendDouble(valueCount);
         out.appendDouble(zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(valueIndex)));
         if (valueCount > 0) {
-            // min / max are only non-null for non-empty histograms
+            // sum / min / max are only non-null for non-empty histograms
+            out.appendDouble(sums.getDouble(sums.getFirstValueIndex(valueIndex)));
             out.appendDouble(minima.getDouble(minima.getFirstValueIndex(valueIndex)));
             out.appendDouble(maxima.getDouble(maxima.getFirstValueIndex(valueIndex)));
         }
@@ -225,7 +231,7 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         DoubleBlock filteredMinima = null;
         DoubleBlock filteredMaxima = null;
         DoubleBlock filteredSums = null;
-        LongBlock filteredValueCounts = null;
+        DoubleBlock filteredValueCounts = null;
         DoubleBlock filteredZeroThresholds = null;
         BytesRefBlock filteredEncodedHistograms = null;
         boolean success = false;
@@ -264,7 +270,7 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         DoubleBlock filteredMinima = null;
         DoubleBlock filteredMaxima = null;
         DoubleBlock filteredSums = null;
-        LongBlock filteredValueCounts = null;
+        DoubleBlock filteredValueCounts = null;
         DoubleBlock filteredZeroThresholds = null;
         BytesRefBlock filteredEncodedHistograms = null;
         boolean success = false;
@@ -320,7 +326,7 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         DoubleBlock copiedMinima = null;
         DoubleBlock copiedMaxima = null;
         DoubleBlock copiedSums = null;
-        LongBlock copiedValueCounts = null;
+        DoubleBlock copiedValueCounts = null;
         DoubleBlock copiedZeroThresholds = null;
         BytesRefBlock copiedEncodedHistograms = null;
         boolean success = false;
@@ -361,7 +367,7 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         DoubleBlock minima = null;
         DoubleBlock maxima = null;
         DoubleBlock sums = null;
-        LongBlock valueCounts = null;
+        DoubleBlock valueCounts = null;
         DoubleBlock zeroThresholds = null;
         BytesRefBlock encodedHistograms = null;
 
@@ -370,7 +376,7 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
             minima = (DoubleBlock) Block.readTypedBlock(in);
             maxima = (DoubleBlock) Block.readTypedBlock(in);
             sums = (DoubleBlock) Block.readTypedBlock(in);
-            valueCounts = (LongBlock) Block.readTypedBlock(in);
+            valueCounts = (DoubleBlock) Block.readTypedBlock(in);
             zeroThresholds = (DoubleBlock) Block.readTypedBlock(in);
             encodedHistograms = (BytesRefBlock) Block.readTypedBlock(in);
             success = true;
@@ -395,7 +401,7 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         DoubleBlock.Builder minimaBuilder,
         DoubleBlock.Builder maximaBuilder,
         DoubleBlock.Builder sumsBuilder,
-        LongBlock.Builder valueCountsBuilder,
+        DoubleBlock.Builder valueCountsBuilder,
         DoubleBlock.Builder zeroThresholdsBuilder,
         BytesRefBlock.Builder encodedHistogramsBuilder,
         int beginInclusive,

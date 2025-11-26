@@ -101,37 +101,55 @@ public final class TDigestBlockBuilder implements TDigestBlock.Builder {
 
     @Override
     public TDigestBlock build() {
-        return null;
+        DoubleBlock minima = null;
+        DoubleBlock maxima = null;
+        DoubleBlock sums = null;
+        LongBlock valueCounts = null;
+        BytesRefBlock encodedDigests = null;
+        boolean success = false;
+        try {
+            minima = minimaBuilder.build();
+            maxima = maximaBuilder.build();
+            sums = sumsBuilder.build();
+            valueCounts = valueCountsBuilder.build();
+            encodedDigests = encodedDigestsBuilder.build();
+            success = true;
+            return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, valueCounts);
+        } finally {
+            if (success == false) {
+                Releasables.close(minima, maxima, sums, valueCounts, encodedDigests);
+            }
+        }
     }
 
     @Override
     public BlockLoader.DoubleBuilder minima() {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public BlockLoader.DoubleBuilder maxima() {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public BlockLoader.DoubleBuilder sums() {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public BlockLoader.LongBuilder valueCounts() {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public BlockLoader.BytesRefBuilder encodedDigests() {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void close() {
-
+        Releasables.close(encodedDigestsBuilder, minimaBuilder, maximaBuilder, sumsBuilder, valueCountsBuilder);
     }
 
     public void append(TDigestHolder val) {

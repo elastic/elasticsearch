@@ -137,6 +137,22 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
         );
     }
 
+    public void testPushdownTopFilterOnNonProjected() throws Exception {
+        testLateMaterializationAfterReduceTopN(
+            "from test | where filtered > 0 | sort sorted desc | limit 3 | stats sum(read)",
+            Set.of("sorted"),
+            Set.of("read")
+        );
+    }
+
+    public void testPushdownTopFilterOnProjected() throws Exception {
+        testLateMaterializationAfterReduceTopN(
+            "from test | sort sorted desc | limit 3 | where filtered > 0 | stats sum(read)",
+            Set.of("sorted"),
+            Set.of("read", "filtered")
+        );
+    }
+
     private void testLateMaterializationAfterReduceTopN(
         String query,
         Set<String> expectedDataLoadedFields,

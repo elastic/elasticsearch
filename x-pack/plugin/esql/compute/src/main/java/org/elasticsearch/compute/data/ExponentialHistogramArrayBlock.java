@@ -108,6 +108,7 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
 
     @Override
     public ExponentialHistogram getExponentialHistogram(int valueIndex, ExponentialHistogramScratch scratch) {
+        assert isNull(valueIndex) == false : "tried to get histogram at null position " + valueIndex;
         BytesRef bytes = encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(valueIndex), scratch.bytesRefScratch);
         double zeroThreshold = zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(valueIndex));
         double valueCount = valueCounts.getDouble(valueCounts.getFirstValueIndex(valueIndex));

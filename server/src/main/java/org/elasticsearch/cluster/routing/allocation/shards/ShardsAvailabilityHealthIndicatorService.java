@@ -66,6 +66,7 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -491,7 +492,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             indicesWithUnavailableShards = new HashSet<>();
             indicesWithAllShardsUnavailable = new HashSet<>();
             searchableSnapshotsState = new SearchableSnapshotsState();
-            diagnosisDefinitions = new LinkedHashMap<>();
+            diagnosisDefinitions = new HashMap<>();
         }
 
         public void increment(
@@ -1175,7 +1176,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
          */
         public List<Diagnosis> getDiagnosis(boolean verbose, int maxAffectedResourcesCount) {
             if (verbose) {
-                Map<Diagnosis.Definition, Set<ProjectIndexName>> diagnosisToAffectedIndices = new LinkedHashMap<>(
+                Map<Diagnosis.Definition, Set<ProjectIndexName>> diagnosisToAffectedIndices = new HashMap<>(
                     primaries.diagnosisDefinitions
                 );
                 replicas.diagnosisDefinitions.forEach((diagnosisDef, indicesWithReplicasUnassigned) -> {

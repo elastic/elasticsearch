@@ -74,6 +74,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -288,7 +289,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(6, answer.size());
+        assertEquals(9, answer.size());
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
@@ -300,6 +301,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .entry("values_loaded", 0)
                 .entry("columns", List.of(colA, colB))
                 .entry("values", List.of(List.of(1, 2)))
+                .entry("completion_time_in_millis", greaterThan(0L))
+                .entry("expiration_time_in_millis", greaterThan(0L))
+                .entry("start_time_in_millis", greaterThan(0L))
         );
     }
 

@@ -419,8 +419,7 @@ public class AuthorizationPollerTests extends ESTestCase {
                         List.of(
                             new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
                                 InternalPreconfiguredEndpoints.DEFAULT_ELSER_2_MODEL_ID,
-                                // EIS does not yet support completions so this model will be ignored
-                                EnumSet.of(TaskType.COMPLETION)
+                                EnumSet.noneOf(TaskType.class)
                             )
                         )
                     )

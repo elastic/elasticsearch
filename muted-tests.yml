@@ -438,6 +438,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:inlinestats.MvMinMvExpand}
   issue: https://github.com/elastic/elasticsearch/issues/137679
+- class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
+  method: testWaitForSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/138669
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=scroll/20_keep_alive/Max keep alive}
+  issue: https://github.com/elastic/elasticsearch/issues/138680
 
 # Examples:
 #

@@ -34,7 +34,11 @@ public enum BytesReferenceTestUtils {
 
             @Override
             public void describeTo(Description description) {
-                appendBytesReferenceDescription(expected, description);
+                if (expected == null) {
+                    description.appendValue(null);
+                } else {
+                    appendBytesReferenceDescription(expected, description);
+                }
             }
 
             private void appendBytesReferenceDescription(BytesReference bytesReference, Description description) {

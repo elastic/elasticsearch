@@ -193,7 +193,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
                 acrossAggregate.source(),
                 valueAttribute.name(),
                 new ToDouble(acrossAggregate.source(), valueAttribute),
-                valueAttribute.id()
+                acrossAggregate.valueId()
             );
             p = new Eval(acrossAggregate.source(), p, List.of(convertedValue));
 
@@ -239,7 +239,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
             List.of(target)
         );
 
-        Alias value = new Alias(acrossAggregate.source(), acrossAggregate.sourceText(), esqlFunction, acrossAggregate.valueId());
+        Alias value = new Alias(acrossAggregate.source(), acrossAggregate.sourceText(), esqlFunction);
         aggs.add(value);
 
         // timestamp/step

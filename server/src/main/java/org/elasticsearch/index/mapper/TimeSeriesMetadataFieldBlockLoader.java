@@ -11,19 +11,21 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
-import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collections;
+import java.util.Set;
 
-public final class TimeSeriesDimensionsFieldBlockLoader implements BlockLoader {
-    private final List<String> fieldNames;
+/**
+ * Load {@code _timeseries} into blocks.
+ */
+public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
-    public TimeSeriesDimensionsFieldBlockLoader(List<String> fieldNames) {
-        this.fieldNames = fieldNames;
+    private final Set<String> includes;
+
+    public TimeSeriesMetadataFieldBlockLoader(Set<String> includes) {
+        this.includes = Collections.unmodifiableSet(includes);
     }
 
     @Override
@@ -38,12 +40,12 @@ public final class TimeSeriesDimensionsFieldBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-        return new TimeSeriesSource(new SourceFilter(fieldNames.toArray(Strings.EMPTY_ARRAY), null));
+        return new Source();
     }
 
     @Override
     public StoredFieldsSpec rowStrideStoredFieldSpec() {
-        return new StoredFieldsSpec(true, false, java.util.Set.of());
+        return StoredFieldsSpec.withSourcePaths(IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE, includes);
     }
 
     @Override
@@ -56,36 +58,16 @@ public final class TimeSeriesDimensionsFieldBlockLoader implements BlockLoader {
         throw new UnsupportedOperationException();
     }
 
-    private static class TimeSeriesSource extends BlockStoredFieldsReader {
-        private final SourceFilter sourceFilter;
-
-        TimeSeriesSource(SourceFilter sourceFilter) {
-            this.sourceFilter = sourceFilter;
-        }
-
+    private static class Source extends BlockStoredFieldsReader {
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            org.elasticsearch.search.lookup.Source source = storedFields.source();
-            if (source == null) {
-                builder.appendNull();
-                return;
-            }
-
-            if (sourceFilter != null) {
-                source = source.filter(sourceFilter);
-            }
-
-            BytesReference sourceRef = source.internalSourceRef();
-            if (sourceRef == null) {
-                builder.appendNull();
-            } else {
-                ((BytesRefBuilder) builder).appendBytesRef(sourceRef.toBytesRef());
-            }
+            // TODO support appending BytesReference
+            ((BytesRefBuilder) builder).appendBytesRef(storedFields.source().internalSourceRef().toBytesRef());
         }
 
         @Override
         public String toString() {
-            return "BlockStoredFieldsReader.TimeSeriesSource";
+            return "BlockStoredFieldsReader.Source";
         }
     }
 }

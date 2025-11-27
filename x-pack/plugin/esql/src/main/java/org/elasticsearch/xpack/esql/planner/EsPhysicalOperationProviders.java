@@ -562,18 +562,21 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 }
 
                 @Override
-                public List<String> dimensionFields() {
-                    MappingLookup mappingLookup = ctx.getMappingLookup();
-                    List<String> dimensionFields = new ArrayList<>();
-                    for (Mapper mapper : mappingLookup.fieldMappers()) {
-                        if (mapper instanceof FieldMapper fieldMapper) {
-                            MappedFieldType fieldType = fieldMapper.fieldType();
-                            if (fieldType.isDimension()) {
-                                dimensionFields.add(fieldType.name());
+                public Set<String> dimensionFields() {
+                    if (ctx.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
+                        MappingLookup mappingLookup = ctx.getMappingLookup();
+                        Set<String> dimensionFields = new HashSet<>();
+                        for (Mapper mapper : mappingLookup.fieldMappers()) {
+                            if (mapper instanceof FieldMapper fieldMapper) {
+                                MappedFieldType fieldType = fieldMapper.fieldType();
+                                if (fieldType.isDimension()) {
+                                    dimensionFields.add(fieldType.name());
+                                }
                             }
                         }
+                        return dimensionFields;
                     }
-                    return dimensionFields;
+                    return null;
                 }
             });
             if (loader == null) {

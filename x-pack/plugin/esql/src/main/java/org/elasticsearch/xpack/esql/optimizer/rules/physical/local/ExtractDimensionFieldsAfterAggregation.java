@@ -8,12 +8,18 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
@@ -30,6 +36,7 @@ import org.elasticsearch.xpack.esql.planner.AggregateMapper;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -86,8 +93,32 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                             throw new IllegalStateException("expected one intermediate attribute for [" + af + "] but got [" + size + "]");
                         }
                         Attribute oldAttr = oldIntermediates.get(intermediateOffset);
-                        aliases.add(new Alias(agg.source(), agg.name(), dimensionField, oldAttr.id()));
-                        dimensionFields.add(dimensionField);
+                        if (dimensionField.name().equals(MetadataAttribute.TIMESERIES)) {
+                            var sourceField = new FieldAttribute(
+                                dimensionField.source(),
+                                null,
+                                dimensionField.qualifier(),
+                                dimensionField.name(),
+                                new FunctionEsField(
+                                    new EsField(
+                                        SourceFieldMapper.NAME,
+                                        DataType.KEYWORD,
+                                        Map.of(),
+                                        false,
+                                        EsField.TimeSeriesFieldType.DIMENSION
+                                    ),
+                                    DataType.KEYWORD,
+                                    new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS)
+                                ),
+                                true  // Mark as synthetic so fieldName() returns _source instead of _timeseries
+                            );
+                            // _timeseries = to_string(_tsid)
+                            // var timeSeries = new ToBase64(dimensionField.source(), tsidField(oldAgg));
+                            aliases.add(new Alias(agg.source(), agg.name(), sourceField, oldAttr.id()));
+                        } else {
+                            aliases.add(new Alias(agg.source(), agg.name(), dimensionField, oldAttr.id()));
+                            dimensionFields.add(dimensionField);
+                        }
                     } else {
                         for (int i = 0; i < size; i++) {
                             newIntermediates.add(oldIntermediates.get(intermediateOffset + i));
@@ -142,5 +173,4 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
     private static int intermediateStateSize(AggregateFunction af) {
         return AggregateMapper.intermediateStateDesc(af, true).size();
     }
-
 }

@@ -718,7 +718,7 @@ public abstract class MappedFieldType {
          * Returns a list of dimension field names from a MappingLookup.
          */
         @Nullable
-        default List<String> dimensionFields() {
+        default Set<String> dimensionFields() {
             return null;
         }
     }

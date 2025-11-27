@@ -17,18 +17,18 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class LastTests extends AbstractFirstLastTestCase {
-    public LastTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class AllLastTests extends AbstractFirstLastTestCase {
+    public AllLastTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameters(false, false);
+        return parameters(false, true);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Last(source, args.get(0), args.get(1));
+        return new AllLast(source, args.get(0), args.get(1));
     }
 }

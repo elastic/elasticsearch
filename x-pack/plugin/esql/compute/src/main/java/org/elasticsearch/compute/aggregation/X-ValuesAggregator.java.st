@@ -32,6 +32,7 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.Ordinator64;
 // end generated imports
 
 /**
@@ -201,6 +202,8 @@ $endif$
         private final BlockFactory blockFactory;
 $if(long||double)$
         private final LongLongHash hashes;
+$elseif(int)$
+        private final Ordinator64 hashes;
 $else$
         private final LongHash hashes;
 $endif$
@@ -210,7 +213,14 @@ $endif$
 
         private NextValues(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
-            this.hashes = new Long$if(long||double)$Long$endif$Hash(1, blockFactory.bigArrays());
+$if(int)$
+            this.hashes = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker(), new Ordinator64.IdSpace());
+
+$elseif(long||double)$
+            this.hashes = new LongLongHash(1, blockFactory.bigArrays());
+$else$
+            this.hashes = new LongHash(1, blockFactory.bigArrays());
+$endif$
         }
 
         void addValue(int groupId, $if(BytesRef)$int$else$$type$$endif$ v) {
@@ -241,8 +251,11 @@ $elseif(double)$
 $elseif(float)$
             long both = hashes.get(ids[index]);
             return Float.intBitsToFloat((int) (both & 0xFFFFFFFFL));
-$elseif(BytesRef||int)$
+$elseif(BytesRef)$
             long both = hashes.get(ids[index]);
+            return (int) (both & 0xFFFFFFFFL);
+$elseif(int)$
+            long both = hashes.key(ids[index]);
             return (int) (both & 0xFFFFFFFFL);
 $endif$
         }
@@ -265,17 +278,43 @@ $endif$
             int selectedCountsLen = selected.max() + 1;
             reserveBytesForIntArray(selectedCountsLen);
             this.selectedCounts = new int[selectedCountsLen];
-            for (int id = 0; id < hashes.size(); id++) {
-$if(long||double)$
-                int group = (int) hashes.getKey1(id);
-$elseif(float||int||BytesRef)$
-                long both = hashes.get(id);
+
+$if(int)$
+            Ordinator64.Itr itr = hashes.iterator();
+            while (itr.next()) {
+                long both = itr.key();
                 int group = (int) (both >>> Float.SIZE);
-$endif$
                 if (group < selectedCounts.length) {
                     selectedCounts[group]--;
                 }
             }
+//            for (int id = 0; id < hashes.size(); id++) {
+//                long both = hashes.get(id);
+//                int group = (int) (both >>> Float.SIZE);
+//                if (group < selectedCounts.length) {
+//                    selectedCounts[group]--;
+//                }
+//            }
+$else$
+            for (int id = 0; id < hashes.size(); id++) {
+            // sanity
+$endif$
+
+// I do not like this templating code of mine
+$if(long||double)$
+                int group = (int) hashes.getKey1(id);
+                if (group < selectedCounts.length) {
+                    selectedCounts[group]--;
+                }
+            }
+$elseif(float||BytesRef)$
+                long both = hashes.get(id);
+                int group = (int) (both >>> Float.SIZE);
+                if (group < selectedCounts.length) {
+                    selectedCounts[group]--;
+                }
+            }
+$endif$
 
             /*
              * Total the selected groups and turn the counts into the start index into a sort-of
@@ -323,17 +362,36 @@ $endif$
              */
             reserveBytesForIntArray(total);
 
+            // more appropriate to call this slots for ordinator64
             this.ids = new int[total];
+
+$if(int)$
+            itr = hashes.iterator();
+            while (itr.next()) {
+                long both = itr.key();
+                int group = (int) (both >>> Float.SIZE);
+                // this uses the slot, which can change upon rehashing - different from ID as per long hash
+                ids[selectedCounts[group]++] = itr.slot();
+            }
+        }
+$else$
             for (int id = 0; id < hashes.size(); id++) {
+$endif$
+
+
 $if(long||double)$
                 int group = (int) hashes.getKey1(id);
-$elseif(float||int||BytesRef)$
-                long both = hashes.get(id);
-                int group = (int) (both >>> Float.SIZE);
-$endif$
                 ids[selectedCounts[group]++] = id;
             }
         }
+$elseif(float||BytesRef)$
+                long both = hashes.get(id);
+                int group = (int) (both >>> Float.SIZE);
+                        ids[selectedCounts[group]++] = id;
+                    }
+                }
+$endif$
+
 
         @Override
         public void close() {

@@ -13,7 +13,9 @@ $endif$
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.$Hash$;
+import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 $if(BytesRef)$
@@ -36,6 +38,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.swisshash.Ordinator64;
 $elseif(long)$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -43,6 +46,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
+import org.elasticsearch.swisshash.Ordinator64;
 $endif$
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
@@ -63,7 +67,13 @@ $endif$
  */
 final class $Type$BlockHash extends BlockHash {
     private final int channel;
+$if(int)$
+    final Ordinator64 hash;
+$elseif(long)$
+    final Ordinator64 hash;
+$else$
     final $Hash$ hash;
+$endif$
 
     /**
      * Have we seen any {@code null} values?
@@ -77,7 +87,13 @@ final class $Type$BlockHash extends BlockHash {
     $Type$BlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
+$if(int)$
+        this.hash = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker(), new Ordinator64.IdSpace());
+$elseif(long)$
+        this.hash = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker(), new Ordinator64.IdSpace());
+$else$
         this.hash = new $Hash$(1, blockFactory.bigArrays());
+$endif$
     }
 
     @Override
@@ -280,17 +296,25 @@ $else$
         if (seenNull) {
             final int size = Math.toIntExact(hash.size() + 1);
             final $type$[] keys = new $type$[size];
-            for (int i = 1; i < size; i++) {
 $if(int)$
-                keys[i] = (int) hash.get(i - 1);
-$elseif(double)$
-                keys[i] = Double.longBitsToDouble(hash.get(i - 1));
+            Ordinator64.Itr itr = hash.iterator();
+            while (itr.next()) {
+                keys[itr.id() + 1] = (int) itr.key();
+            }
 $elseif(long)$
-                keys[i] = hash.get(i - 1);
+            Ordinator64.Itr itr = hash.iterator();
+            while (itr.next()) {
+                keys[itr.id() + 1] = itr.key();
+            }
+$else$
+            for (int i = 1; i < size; i++) {
+$if(double)$
+                keys[i] = Double.longBitsToDouble(hash.get(i - 1));
 $else$
                 syntax error because we didn't cover this case
 $endif$
             }
+$endif$
             BitSet nulls = new BitSet(1);
             nulls.set(0);
             return new $Type$Block[] {
@@ -298,17 +322,25 @@ $endif$
         }
         final int size = Math.toIntExact(hash.size());
         final $type$[] keys = new $type$[size];
-        for (int i = 0; i < size; i++) {
 $if(int)$
-            keys[i] = (int) hash.get(i);
-$elseif(double)$
-            keys[i] = Double.longBitsToDouble(hash.get(i));
+        Ordinator64.Itr itr = hash.iterator();
+        while (itr.next()) {
+            keys[itr.id()] = (int) itr.key();
+        }
 $elseif(long)$
-            keys[i] = hash.get(i);
+        Ordinator64.Itr itr = hash.iterator();
+        while (itr.next()) {
+            keys[itr.id()] = itr.key();
+        }
+$else$
+        for (int i = 0; i < size; i++) {
+$if(double)$
+            keys[i] = Double.longBitsToDouble(hash.get(i));
 $else$
             syntax error because we didn't cover this case
 $endif$
         }
+$endif$
         return new $Type$Block[] { blockFactory.new$Type$ArrayVector(keys, keys.length).asBlock() };
 $endif$
     }

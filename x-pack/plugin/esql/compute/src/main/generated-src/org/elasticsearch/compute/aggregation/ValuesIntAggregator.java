@@ -32,6 +32,7 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.Ordinator64;
 // end generated imports
 
 /**
@@ -125,14 +126,15 @@ class ValuesIntAggregator {
      */
     private static class NextValues implements Releasable {
         private final BlockFactory blockFactory;
-        private final LongHash hashes;
+        private final Ordinator64 hashes;
         private int[] selectedCounts = null;
         private int[] ids = null;
         private long extraMemoryUsed = 0;
 
         private NextValues(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
-            this.hashes = new LongHash(1, blockFactory.bigArrays());
+            this.hashes = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker(), new Ordinator64.IdSpace());
+
         }
 
         void addValue(int groupId, int v) {
@@ -144,7 +146,7 @@ class ValuesIntAggregator {
         }
 
         int getValue(int index) {
-            long both = hashes.get(ids[index]);
+            long both = hashes.key(ids[index]);
             return (int) (both & 0xFFFFFFFFL);
         }
 
@@ -166,14 +168,23 @@ class ValuesIntAggregator {
             int selectedCountsLen = selected.max() + 1;
             reserveBytesForIntArray(selectedCountsLen);
             this.selectedCounts = new int[selectedCountsLen];
-            for (int id = 0; id < hashes.size(); id++) {
-                long both = hashes.get(id);
+
+            Ordinator64.Itr itr = hashes.iterator();
+            while (itr.next()) {
+                long both = itr.key();
                 int group = (int) (both >>> Float.SIZE);
                 if (group < selectedCounts.length) {
                     selectedCounts[group]--;
                 }
             }
-
+            // for (int id = 0; id < hashes.size(); id++) {
+            // long both = hashes.get(id);
+            // int group = (int) (both >>> Float.SIZE);
+            // if (group < selectedCounts.length) {
+            // selectedCounts[group]--;
+            // }
+            // }
+            // I do not like this templating code of mine
             /*
              * Total the selected groups and turn the counts into the start index into a sort-of
              * off-by-one running count. It's really the number of values that have been inserted
@@ -220,11 +231,15 @@ class ValuesIntAggregator {
              */
             reserveBytesForIntArray(total);
 
+            // more appropriate to call this slots for ordinator64
             this.ids = new int[total];
-            for (int id = 0; id < hashes.size(); id++) {
-                long both = hashes.get(id);
+
+            itr = hashes.iterator();
+            while (itr.next()) {
+                long both = itr.key();
                 int group = (int) (both >>> Float.SIZE);
-                ids[selectedCounts[group]++] = id;
+                // this uses the slot, which can change upon rehashing - different from ID as per long hash
+                ids[selectedCounts[group]++] = itr.slot();
             }
         }
 

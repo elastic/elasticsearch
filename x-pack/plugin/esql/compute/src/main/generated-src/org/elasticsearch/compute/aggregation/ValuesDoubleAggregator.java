@@ -32,6 +32,7 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.Ordinator64;
 // end generated imports
 
 /**
@@ -161,13 +162,16 @@ class ValuesDoubleAggregator {
             int selectedCountsLen = selected.max() + 1;
             reserveBytesForIntArray(selectedCountsLen);
             this.selectedCounts = new int[selectedCountsLen];
+
             for (int id = 0; id < hashes.size(); id++) {
+                // sanity
+
+                // I do not like this templating code of mine
                 int group = (int) hashes.getKey1(id);
                 if (group < selectedCounts.length) {
                     selectedCounts[group]--;
                 }
             }
-
             /*
              * Total the selected groups and turn the counts into the start index into a sort-of
              * off-by-one running count. It's really the number of values that have been inserted
@@ -214,8 +218,11 @@ class ValuesDoubleAggregator {
              */
             reserveBytesForIntArray(total);
 
+            // more appropriate to call this slots for ordinator64
             this.ids = new int[total];
+
             for (int id = 0; id < hashes.size(); id++) {
+
                 int group = (int) hashes.getKey1(id);
                 ids[selectedCounts[group]++] = id;
             }

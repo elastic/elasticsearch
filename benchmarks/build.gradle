@@ -50,6 +50,7 @@ dependencies {
   api(project(':x-pack:plugin:mapper-exponential-histogram'))
   implementation project(path: ':libs:native')
   implementation project(path: ':libs:simdvec')
+  implementation project(path: ':libs:swisshash')
   implementation project(path: ':libs:exponential-histogram')
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))
@@ -71,8 +72,8 @@ tasks.named("compileJava").configure {
   // adding an export to allow compilation with gradle. This does not solve a problem in intellij as it does not use compileJava task
   options.compilerArgs.addAll(["--add-exports", "org.elasticsearch.server/org.elasticsearch.plugins.internal=ALL-UNNAMED"])
   // DO NO COMMIT: Uncomment to use the incubating vector API statically in benchmarks
-  // options.compilerArgs << '--add-modules=jdk.incubator.vector'
-  // options.compilerArgs -= '-Werror'
+//   options.compilerArgs << '--add-modules=jdk.incubator.vector'
+//   options.compilerArgs -= '-Werror'
 }
 
 tasks.register('copyExpression', Copy) {

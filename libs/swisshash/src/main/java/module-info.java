@@ -7,10 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-module org.elasticsearch.simdvec {
-    requires org.elasticsearch.nativeaccess;
-    requires org.apache.lucene.core;
-    requires org.elasticsearch.logging;
+module org.elasticsearch.swisshash {
+    requires org.elasticsearch.simdvec;
+    requires hppc;
+    requires org.elasticsearch.base;
+    requires org.elasticsearch.server;
+    requires org.elasticsearch.xcontent;
 
-    exports org.elasticsearch.simdvec to org.elasticsearch.server, org.elasticsearch.compute, org.elasticsearch.swisshash;
+    exports org.elasticsearch.swisshash to org.elasticsearch.compute;
 }

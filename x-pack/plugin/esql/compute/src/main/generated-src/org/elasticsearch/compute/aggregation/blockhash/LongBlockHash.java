@@ -10,7 +10,6 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -23,6 +22,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.swisshash.Ordinator64;
 
 import java.util.BitSet;
 
@@ -32,8 +32,7 @@ import java.util.BitSet;
  */
 final class LongBlockHash extends BlockHash {
     private final int channel;
-    final LongHash hash;
-
+    final Ordinator64 hash;
     /**
      * Have we seen any {@code null} values?
      * <p>
@@ -46,7 +45,7 @@ final class LongBlockHash extends BlockHash {
     LongBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-        this.hash = new LongHash(1, blockFactory.bigArrays());
+        this.hash = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker(), new Ordinator64.IdSpace());
     }
 
     @Override
@@ -140,8 +139,9 @@ final class LongBlockHash extends BlockHash {
         if (seenNull) {
             final int size = Math.toIntExact(hash.size() + 1);
             final long[] keys = new long[size];
-            for (int i = 1; i < size; i++) {
-                keys[i] = hash.get(i - 1);
+            Ordinator64.Itr itr = hash.iterator();
+            while (itr.next()) {
+                keys[itr.id() + 1] = itr.key();
             }
             BitSet nulls = new BitSet(1);
             nulls.set(0);
@@ -150,8 +150,9 @@ final class LongBlockHash extends BlockHash {
         }
         final int size = Math.toIntExact(hash.size());
         final long[] keys = new long[size];
-        for (int i = 0; i < size; i++) {
-            keys[i] = hash.get(i);
+        Ordinator64.Itr itr = hash.iterator();
+        while (itr.next()) {
+            keys[itr.id()] = itr.key();
         }
         return new LongBlock[] { blockFactory.newLongArrayVector(keys, keys.length).asBlock() };
     }

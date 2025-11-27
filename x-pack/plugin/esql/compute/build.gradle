@@ -15,6 +15,7 @@ dependencies {
   compileOnly project(xpackModule('core'))
   compileOnly project(xpackModule('ml'))
   compileOnly project(':libs:simdvec')
+  compileOnly project(':libs:swisshash')
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
   api project(':libs:exponential-histogram')
@@ -93,7 +94,7 @@ def addOccurrence(props, Occurrence) {
 }
 
 tasks.named('stringTemplates').configure {
-  var intProperties = prop("Int", "Int", "int", "Integer", "INT", "Integer.BYTES", "IntArray", "LongHash")
+  var intProperties = prop("Int", "Int", "int", "Integer", "INT", "Integer.BYTES", "IntArray", "Ordinator64")
   var floatProperties = prop("Float", "Float", "float", "Float", "FLOAT", "Float.BYTES", "FloatArray", "LongHash")
   var longProperties = prop("Long", "Long", "long", "Long", "LONG", "Long.BYTES", "LongArray", "LongHash")
   var doubleProperties = prop("Double", "Double", "double", "Double", "DOUBLE", "Double.BYTES", "DoubleArray", "LongHash")
@@ -649,6 +650,8 @@ tasks.named('stringTemplates').configure {
   }
 
   File valuesAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ValuesAggregator.java.st")
+
+// todo address this
   template {
     it.properties = intProperties
     it.inputFile = valuesAggregatorInputFile

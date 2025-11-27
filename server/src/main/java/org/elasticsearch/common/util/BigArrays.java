@@ -595,6 +595,10 @@ public class BigArrays {
         return bytesRefRecycler;
     }
 
+    public PageCacheRecycler recycler() {
+        return recycler;
+    }
+
     /**
      * Allocate a new {@link ByteArray}.
      * @param size          the initial length of the array

@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.compute.aggregation.blockhash;
+package org.elasticsearch.swisshash;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -34,7 +36,7 @@ public abstract class Ordinator {
     protected int capacity;
     protected int mask;
     protected int nextGrowSize;
-    protected int currentSize;
+    protected int size;
     protected int growCount;
 
     protected Ordinator(
@@ -58,8 +60,8 @@ public abstract class Ordinator {
     /**
      * How many entries are in the {@link Ordinator64}.
      */
-    public final int currentSize() {
-        return currentSize;
+    public final int size() {
+        return size;
     }
 
     /**
@@ -274,6 +276,7 @@ public abstract class Ordinator {
         @Override
         public void close() {
             Releasables.close(toClose);
+            toClose.clear();
         }
     }
 
@@ -293,5 +296,9 @@ public abstract class Ordinator {
          * The id the iterator is current pointing to.
          */
         public abstract int id();
+
+        public int slot() {
+            return slot;
+        }
     }
 }

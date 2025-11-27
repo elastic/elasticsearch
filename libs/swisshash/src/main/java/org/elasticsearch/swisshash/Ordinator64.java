@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.compute.aggregation.blockhash;
+package org.elasticsearch.swisshash;
 
 import com.carrotsearch.hppc.BitMixer;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -51,7 +52,6 @@ import java.util.Arrays;
  *     and read all values in the old "big core" into the new one.
  * </p>
  */
-@SuppressWarnings("preview")
 public class Ordinator64 extends Ordinator implements Releasable {
     private static final VectorByteUtils VECTOR_UTILS = ESVectorUtil.getVectorByteUtils();
 
@@ -130,29 +130,29 @@ public class Ordinator64 extends Ordinator implements Releasable {
         }
     }
 
-    /**
-     * Add many {@code key}s at once, putting their {@code id}s into a builder.
-     * If any {@code key} was already present it's previous assigned {@code id}
-     * will be added to the builder. If it wasn't present it'll be assigned a new
-     * {@code id}.
-     * <p>
-     *     This method tends to be faster than {@link #add(long)}.
-     * </p>
-     */
-    public void add(long[] keys, LongBlock.Builder ids, int length) {
-        int i = 0;
-        for (; i < length; i++) {
-            if (bigCore != null) {
-                for (; i < length; i++) {
-                    long k = keys[i];
-                    ids.appendLong(bigCore.add(k, hash(k)));
-                }
-                return;
-            }
-
-            ids.appendLong(add(keys[i]));
-        }
-    }
+    // /**
+    // * Add many {@code key}s at once, putting their {@code id}s into a builder.
+    // * If any {@code key} was already present it's previous assigned {@code id}
+    // * will be added to the builder. If it wasn't present it'll be assigned a new
+    // * {@code id}.
+    // * <p>
+    // * This method tends to be faster than {@link #add(long)}.
+    // * </p>
+    // */
+    // public void add(long[] keys, LongBlock.Builder ids, int length) {
+    // int i = 0;
+    // for (; i < length; i++) {
+    // if (bigCore != null) {
+    // for (; i < length; i++) {
+    // long k = keys[i];
+    // ids.appendLong(bigCore.add(k, hash(k)));
+    // }
+    // return;
+    // }
+    //
+    // ids.appendLong(add(keys[i]));
+    // }
+    // }
 
     /**
      * Add a {@code key}, returning its {@code id}s. If it was already present
@@ -162,7 +162,7 @@ public class Ordinator64 extends Ordinator implements Releasable {
     public int add(long key) {
         int hash = hash(key);
         if (smallCore != null) {
-            if (currentSize < nextGrowSize) {
+            if (size < nextGrowSize) {
                 return smallCore.add(key, hash);
             }
             smallCore.transitionToBigCore();
@@ -273,7 +273,7 @@ public class Ordinator64 extends Ordinator implements Releasable {
                         return slotId;
                     }
                 } else {
-                    currentSize++;
+                    size++;
                     longHandle.set(keyPage, keyOffset, key);
                     int id = idSpace.next();
                     intHandle.set(idPage, idOffset, id);
@@ -299,7 +299,7 @@ public class Ordinator64 extends Ordinator implements Releasable {
 
         @Override
         protected Status status() {
-            return new SmallCoreStatus(growCount, capacity, currentSize, nextGrowSize);
+            return new SmallCoreStatus(growCount, capacity, size, nextGrowSize);
         }
 
         @Override
@@ -487,9 +487,9 @@ public class Ordinator64 extends Ordinator implements Releasable {
                 return found;
             }
 
-            currentSize++;
-            if (currentSize >= nextGrowSize) {
-                assert currentSize == nextGrowSize;
+            size++;
+            if (size >= nextGrowSize) {
+                assert size == nextGrowSize;
                 grow();
             }
 
@@ -532,7 +532,7 @@ public class Ordinator64 extends Ordinator implements Releasable {
 
         @Override
         protected Status status() {
-            return new BigCoreStatus(growCount, capacity, currentSize, nextGrowSize, insertProbes, keyPages.length, idPages.length);
+            return new BigCoreStatus(growCount, capacity, size, nextGrowSize, insertProbes, keyPages.length, idPages.length);
         }
 
         @Override
@@ -606,6 +606,20 @@ public class Ordinator64 extends Ordinator implements Releasable {
             int idOffset = idOffset(slot);
             return (int) intHandle.get(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK);
         }
+    }
+
+    public long key(int slot) {
+        if (this.bigCore == null) {
+            return this.smallCore.key(slot);
+        }
+        return bigCore.key(slot);
+    }
+
+    int id(int slot) {
+        if (this.bigCore == null) {
+            return this.smallCore.id(slot);
+        }
+        return bigCore.id(slot);
     }
 
     int keyOffset(int slot) {

@@ -6,11 +6,17 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+apply plugin: 'elasticsearch.build'
 
-module org.elasticsearch.simdvec {
-    requires org.elasticsearch.nativeaccess;
-    requires org.apache.lucene.core;
-    requires org.elasticsearch.logging;
+dependencies {
+  implementation project(':server')
+  implementation 'com.carrotsearch:hppc:0.8.1'
+  implementation project(':libs:x-content')
+  implementation project(':libs:simdvec')
 
-    exports org.elasticsearch.simdvec to org.elasticsearch.server, org.elasticsearch.compute, org.elasticsearch.swisshash;
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'swisshash'
+  }
 }
+
+

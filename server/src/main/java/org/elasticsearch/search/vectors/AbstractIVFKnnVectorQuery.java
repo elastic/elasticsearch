@@ -55,16 +55,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final int numCands;
     protected final Query filter;
     protected int vectorOpsCount;
-    protected final float dynamicPostFilterThreshold;
+    protected final float postFilteringThreshold;
 
-    protected AbstractIVFKnnVectorQuery(
-        String field,
-        float visitRatio,
-        int k,
-        int numCands,
-        Query filter,
-        float dynamicPostFilterThreshold
-    ) {
+    protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, float postFilteringThreshold) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
@@ -79,7 +72,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.k = k;
         this.filter = filter;
         this.numCands = numCands;
-        this.dynamicPostFilterThreshold = dynamicPostFilterThreshold;
+        this.postFilteringThreshold = postFilteringThreshold;
     }
 
     @Override
@@ -150,7 +143,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     if (supplier != null) {
                         var acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(supplier, liveDocs, leafReader.maxDoc());
                         var filterCost = acceptDocs.approximateCost();
-                        if (((float) filterCost / floatVectorValues.size()) >= dynamicPostFilterThreshold) {
+                        if (((float) filterCost / floatVectorValues.size()) >= postFilteringThreshold) {
                             leafSearchMetas.add(
                                 new VectorLeafSearchFilterMeta(
                                     leafReaderContext,
@@ -175,7 +168,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         int vectorsToCollect = Math.round(2f * k);
         if (leafSearchMetas.stream().anyMatch(leaf -> leaf.postFilter != null)) {
             // when there is a post filter we need to collect more vectors to account for filtering after collection
-            vectorsToCollect += Math.round(5f * (1f - dynamicPostFilterThreshold) * vectorsToCollect);
+            vectorsToCollect += Math.round(5f * (1f - postFilteringThreshold) * vectorsToCollect);
         }
         IVFCollectorManager knnCollectorManager = getKnnCollectorManager(vectorsToCollect, indexSearcher);
 

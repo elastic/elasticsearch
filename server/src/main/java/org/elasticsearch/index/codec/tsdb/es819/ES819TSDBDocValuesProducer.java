@@ -71,9 +71,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     private final int maxDoc;
     final int version;
     private final boolean merging;
-    private int numericBlockShift;
-    private int numericBlockSize;
-    private int numericBlockMask;
+    private final int numericBlockShift;
+    private final int numericBlockSize;
+    private final int numericBlockMask;
 
     ES819TSDBDocValuesProducer(
         SegmentReadState state,
@@ -92,12 +92,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         this.maxDoc = state.segmentInfo.maxDoc();
         this.primarySortFieldNumber = primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
         this.merging = false;
-        this.numericBlockShift = numericBlockShift;
-        this.numericBlockSize = 1 << numericBlockShift;
-        this.numericBlockMask = numericBlockSize - 1;
 
         // read in the entries from the metadata file.
         int version = -1;
+        int blockShift = numericBlockShift;
         String metaName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
 
         try (ChecksumIndexInput in = state.directory.openChecksumInput(metaName)) {
@@ -113,17 +111,20 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     state.segmentSuffix
                 );
                 if (version >= ES819TSDBDocValuesFormat.VERSION_NUMERIC_LARGE_BLOCKS) {
-                    this.numericBlockShift = in.readByte();
-                    this.numericBlockSize = 1 << this.numericBlockShift;
-                    this.numericBlockMask = this.numericBlockSize - 1;
+                    blockShift = in.readByte();
                 }
-                readFields(in, state.fieldInfos, version);
+                readFields(in, state.fieldInfos, version, blockShift);
             } catch (Throwable exception) {
                 priorE = exception;
             } finally {
                 CodecUtil.checkFooter(in, priorE);
             }
         }
+
+        this.numericBlockShift = blockShift;
+        this.numericBlockSize = 1 << blockShift;
+        this.numericBlockMask = numericBlockSize - 1;
+
         String dataName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, dataExtension);
         this.data = state.directory.openInput(dataName, state.context);
         boolean success = false;
@@ -1535,7 +1536,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         return -1;
     }
 
-    private void readFields(IndexInput meta, FieldInfos infos, int version) throws IOException {
+    private void readFields(IndexInput meta, FieldInfos infos, int version, int numericBlockShift) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             FieldInfo info = infos.fieldInfo(fieldNumber);
             if (info == null) {
@@ -1546,24 +1547,24 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 skippers.put(info.number, readDocValueSkipperMeta(meta));
             }
             if (type == ES819TSDBDocValuesFormat.NUMERIC) {
-                numerics.put(info.number, readNumeric(meta));
+                numerics.put(info.number, readNumeric(meta, numericBlockShift));
             } else if (type == ES819TSDBDocValuesFormat.BINARY) {
                 binaries.put(info.number, readBinary(meta, version));
             } else if (type == ES819TSDBDocValuesFormat.SORTED) {
-                sorted.put(info.number, readSorted(meta));
+                sorted.put(info.number, readSorted(meta, numericBlockShift));
             } else if (type == ES819TSDBDocValuesFormat.SORTED_SET) {
-                sortedSets.put(info.number, readSortedSet(meta));
+                sortedSets.put(info.number, readSortedSet(meta, numericBlockShift));
             } else if (type == ES819TSDBDocValuesFormat.SORTED_NUMERIC) {
-                sortedNumerics.put(info.number, readSortedNumeric(meta));
+                sortedNumerics.put(info.number, readSortedNumeric(meta, numericBlockShift));
             } else {
                 throw new CorruptIndexException("invalid type: " + type, meta);
             }
         }
     }
 
-    private NumericEntry readNumeric(IndexInput meta) throws IOException {
+    private static NumericEntry readNumeric(IndexInput meta, int numericBlockShift) throws IOException {
         NumericEntry entry = new NumericEntry();
-        readNumeric(meta, entry);
+        readNumeric(meta, entry, numericBlockShift);
         return entry;
     }
 
@@ -1578,7 +1579,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         return new DocValuesSkipperEntry(offset, length, minValue, maxValue, docCount, maxDocID);
     }
 
-    private void readNumeric(IndexInput meta, NumericEntry entry) throws IOException {
+    private static void readNumeric(IndexInput meta, NumericEntry entry, int numericBlockShift) throws IOException {
         entry.numValues = meta.readLong();
         // Change compared to ES87TSDBDocValuesProducer:
         entry.numDocsWithField = meta.readInt();
@@ -1656,14 +1657,15 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         return entry;
     }
 
-    private SortedNumericEntry readSortedNumeric(IndexInput meta) throws IOException {
+    private static SortedNumericEntry readSortedNumeric(IndexInput meta, int numericBlockShift) throws IOException {
         SortedNumericEntry entry = new SortedNumericEntry();
-        readSortedNumeric(meta, entry);
+        readSortedNumeric(meta, entry, numericBlockShift);
         return entry;
     }
 
-    private SortedNumericEntry readSortedNumeric(IndexInput meta, SortedNumericEntry entry) throws IOException {
-        readNumeric(meta, entry);
+    private static SortedNumericEntry readSortedNumeric(IndexInput meta, SortedNumericEntry entry, int numericBlockShift)
+        throws IOException {
+        readNumeric(meta, entry, numericBlockShift);
         // We don't read numDocsWithField here any more.
         if (entry.numDocsWithField != entry.numValues) {
             entry.addressesOffset = meta.readLong();
@@ -1674,21 +1676,21 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         return entry;
     }
 
-    private SortedEntry readSorted(IndexInput meta) throws IOException {
+    private static SortedEntry readSorted(IndexInput meta, int numericBlockShift) throws IOException {
         SortedEntry entry = new SortedEntry();
         entry.ordsEntry = new NumericEntry();
-        readNumeric(meta, entry.ordsEntry);
+        readNumeric(meta, entry.ordsEntry, numericBlockShift);
         entry.termsDictEntry = new TermsDictEntry();
         readTermDict(meta, entry.termsDictEntry);
         return entry;
     }
 
-    private SortedSetEntry readSortedSet(IndexInput meta) throws IOException {
+    private static SortedSetEntry readSortedSet(IndexInput meta, int numericBlockShift) throws IOException {
         SortedSetEntry entry = new SortedSetEntry();
         byte multiValued = meta.readByte();
         switch (multiValued) {
             case 0: // singlevalued
-                entry.singleValueEntry = readSorted(meta);
+                entry.singleValueEntry = readSorted(meta, numericBlockShift);
                 return entry;
             case 1: // multivalued
                 break;
@@ -1696,7 +1698,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 throw new CorruptIndexException("Invalid multiValued flag: " + multiValued, meta);
         }
         entry.ordsEntry = new SortedNumericEntry();
-        readSortedNumeric(meta, entry.ordsEntry);
+        readSortedNumeric(meta, entry.ordsEntry, numericBlockShift);
         entry.termsDictEntry = new TermsDictEntry();
         readTermDict(meta, entry.termsDictEntry);
         return entry;

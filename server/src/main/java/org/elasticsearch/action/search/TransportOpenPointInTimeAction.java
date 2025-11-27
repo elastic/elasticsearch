@@ -28,7 +28,6 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -89,7 +88,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     private final SearchService searchService;
     private final ClusterService clusterService;
     private final SearchResponseMetrics searchResponseMetrics;
-    private final Client client;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final TimeValue forceConnectTimeoutSecs;
 
@@ -102,8 +100,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         SearchTransportService searchTransportService,
         NamedWriteableRegistry namedWriteableRegistry,
         ClusterService clusterService,
-        SearchResponseMetrics searchResponseMetrics,
-        Client client
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(TYPE.name(), transportService, actionFilters, OpenPointInTimeRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -113,7 +110,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.clusterService = clusterService;
         this.searchResponseMetrics = searchResponseMetrics;
-        this.client = client;
         this.crossProjectModeDecider = new CrossProjectModeDecider(clusterService.getSettings());
         this.forceConnectTimeoutSecs = clusterService.getSettings()
             .getAsTime("search.ccs.force_connect_timeout", TimeValue.timeValueSeconds(3L));

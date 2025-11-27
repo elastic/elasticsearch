@@ -439,6 +439,9 @@ tests:
 - class: org.elasticsearch.xpack.unsignedlong.UnsignedLongSyntheticSourceNativeArrayIntegrationTests
   method: testSynthesizeArrayRandom
   issue: https://github.com/elastic/elasticsearch/issues/138684
+- class: org.elasticsearch.index.mapper.HalfFloatSyntheticSourceNativeArrayIntegrationTests
+  method: testSynthesizeArrayRandom
+  issue: https://github.com/elastic/elasticsearch/issues/138730
 
 # Examples:
 #

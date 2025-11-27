@@ -68,7 +68,7 @@ public class PresentOverTime extends TimeSeriesAggregateFunction {
                 "text",
                 "unsigned_long",
                 "version",
-                "exponential_histogram"}
+                "exponential_histogram" }
         ) Expression field
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW);

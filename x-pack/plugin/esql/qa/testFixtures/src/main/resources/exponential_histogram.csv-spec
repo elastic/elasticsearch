@@ -402,7 +402,6 @@ instance-2       | null       | null       | 6.469E-4      | null       | null  
 ;
 
 
-
 timeseriesAllMathOverTimeAggsGrouped
 required_capability: exponential_histogram_pre_tech_preview_v5
 required_capability: ts_command_v0
@@ -446,4 +445,32 @@ TS exp_histo_sample
 
 min:double | max:double | p75:double | sum:double  | avg:double
 6.77E-4    | 12.721009  | 0.2640373  | 1536.648714 | 0.1859162
+;
+
+
+timeseriesPresentAbsentOverTime
+required_capability: exponential_histogram_pre_tech_preview_v5
+required_capability: ts_command_v0
+
+TS exp_histo_sample 
+ | WHERE TRANGE(to_datetime("2025-09-25T00:30:00Z"), to_datetime("2025-09-25T00:33:00Z"))
+ | EVAL responseTime = CASE(@timestamp < "2025-09-25T00:32:00.000Z", NULL, responseTime)
+ | STATS 
+        present = MAX(present_over_time(responseTime)),
+        absent = MAX(absent_over_time(responseTime))
+        BY instance, time = TBUCKET(1m)
+ | KEEP instance, time, present,  absent
+ | SORT instance, time
+;
+
+instance:keyword | time:datetime            | present:boolean | absent:boolean
+instance-0       | 2025-09-25T00:31:00.000Z | false           | true
+instance-0       | 2025-09-25T00:32:00.000Z | true            | false
+instance-0       | 2025-09-25T00:33:00.000Z | true            | false
+instance-1       | 2025-09-25T00:31:00.000Z | false           | true
+instance-1       | 2025-09-25T00:32:00.000Z | true            | false
+instance-1       | 2025-09-25T00:33:00.000Z | true            | false
+instance-2       | 2025-09-25T00:31:00.000Z | false           | true
+instance-2       | 2025-09-25T00:32:00.000Z | true            | false
+instance-2       | 2025-09-25T00:33:00.000Z | true            | false
 ;

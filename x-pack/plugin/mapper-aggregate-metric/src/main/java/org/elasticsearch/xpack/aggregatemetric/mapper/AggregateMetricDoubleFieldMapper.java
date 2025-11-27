@@ -20,7 +20,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -233,9 +232,6 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         ScriptCompiler.NONE,
                         indexSettings
                     ).allowMultipleValues(false).ignoreMalformed(false).coerce(false);
-                    if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
-                        builder.index(false);
-                    }
                 } else {
                     builder = new NumberFieldMapper.Builder(
                         fieldName,
@@ -243,9 +239,6 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         ScriptCompiler.NONE,
                         indexSettings
                     ).allowMultipleValues(false).ignoreMalformed(false).coerce(true);
-                    if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
-                        builder.index(false);
-                    }
                 }
                 NumberFieldMapper fieldMapper = builder.build(context);
                 metricMappers.put(m, fieldMapper);

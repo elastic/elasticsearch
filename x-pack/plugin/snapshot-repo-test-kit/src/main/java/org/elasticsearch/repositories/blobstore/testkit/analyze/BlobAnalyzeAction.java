@@ -30,6 +30,8 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -171,7 +173,19 @@ import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositor
  * On success, details of how long everything took are returned. On failure, cancels the remote read tasks to try and avoid consuming
  * unnecessary resources.
  */
-class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request, BlobAnalyzeAction.Response> {
+public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request, BlobAnalyzeAction.Response> {
+
+    /**
+     * Turns off copy-during-write as a test: minio implements this with a long wait
+     * and a client timeout. See: #135565
+     */
+    public static final Setting<Boolean> ENABLE_COPY_DURING_WRITE_CONTENTION = Setting.boolSetting(
+        "repositories.blobstore.testkit.analyze.copy_during_write_contention",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    private volatile boolean enableEarlyCopy = true;
 
     private static final Logger logger = LogManager.getLogger(BlobAnalyzeAction.class);
 
@@ -180,10 +194,13 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
     private final RepositoriesService repositoriesService;
     private final TransportService transportService;
 
-    BlobAnalyzeAction(TransportService transportService, ActionFilters actionFilters, RepositoriesService repositoriesService) {
+    BlobAnalyzeAction(TransportService transportService, ClusterSettings clusterSettings, ActionFilters actionFilters, RepositoriesService repositoriesService) {
         super(NAME, transportService, actionFilters, Request::new, transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT));
         this.repositoriesService = repositoriesService;
         this.transportService = transportService;
+        clusterSettings.initializeAndWatch(ENABLE_COPY_DURING_WRITE_CONTENTION, value -> {
+            this.enableEarlyCopy = value;
+        });
     }
 
     @Override
@@ -202,7 +219,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         logger.trace("handling [{}]", request);
 
         assert task instanceof CancellableTask;
-        new BlobAnalysis(transportService, (CancellableTask) task, request, blobStoreRepository, blobContainer, listener).run();
+        new BlobAnalysis(transportService, (CancellableTask) task, request, blobStoreRepository, blobContainer, listener, enableEarlyCopy).run();
     }
 
     /**
@@ -228,6 +245,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         // If a copy is requested, do exactly one so that the number of blobs created is controlled by RepositoryAnalyzeAction.
         // Doing the copy in step 1 exercises copy before read completes. Step 2 exercises copy after read completes or the happy path.
         private final boolean doEarlyCopy;
+        private final boolean enableEarlyCopy;
         private final List<DiscoveryNode> earlyReadNodes;
         private final List<DiscoveryNode> readNodes;
         private final GroupedActionListener<NodeResponse> readNodesListener;
@@ -241,7 +259,8 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             Request request,
             BlobStoreRepository repository,
             BlobContainer blobContainer,
-            ActionListener<Response> listener
+            ActionListener<Response> listener,
+            boolean enableEarlyCopy
         ) {
             this.transportService = transportService;
             this.task = task;
@@ -250,6 +269,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             this.blobContainer = blobContainer;
             this.listener = listener;
             this.random = new Random(this.request.seed);
+            this.enableEarlyCopy = enableEarlyCopy;
 
             checksumWholeBlob = random.nextBoolean();
             if (checksumWholeBlob) {
@@ -403,7 +423,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
 
         private void onLastReadForInitialWrite() {
             var readBlobName = request.blobName;
-            if (request.copyBlobName != null && doEarlyCopy) {
+            if (request.copyBlobName != null && doEarlyCopy && enableEarlyCopy) {
                 try {
                     blobContainer.copyBlob(
                         OperationPurpose.REPOSITORY_ANALYSIS,

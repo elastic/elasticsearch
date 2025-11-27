@@ -624,11 +624,12 @@ public final class CsvTestUtils {
             if (value == null) {
                 return null;
             }
-            if (Number.class.isAssignableFrom(clazz) && value.startsWith("<") && value.endsWith(">") && value.contains(";")) {
-                // Numbers of the form "<lower;upper>" are parsed to a Range.
-                int separator = value.indexOf(';');
-                Object lowerBound = converter.apply(value.substring(1, separator).trim());
-                Object upperBound = converter.apply(value.substring(separator + 1, value.length() - 1).trim());
+            if (Number.class.isAssignableFrom(clazz) && value.contains("..")) {
+                // Numbers of the form "lower..upper" are parsed to a Range, indicating that
+                // the expected value is within that range.
+                int separator = value.indexOf("..");
+                Object lowerBound = converter.apply(value.substring(0, separator).trim());
+                Object upperBound = converter.apply(value.substring(separator + 2).trim());
                 return new Range(lowerBound, upperBound);
             } else {
                 return converter.apply(value);

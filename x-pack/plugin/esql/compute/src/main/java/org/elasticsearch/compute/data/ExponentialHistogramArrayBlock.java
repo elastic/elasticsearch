@@ -518,12 +518,5 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         return encodedHistograms.hashCode();
     }
 
-    record EncodedHistogramData(
-        double count,
-        double sum,
-        double min,
-        double max,
-        double zeroThreshold,
-        BytesRef encodedHistogram
-    ) {}
+    record EncodedHistogramData(double count, double sum, double min, double max, double zeroThreshold, BytesRef encodedHistogram) {}
 }

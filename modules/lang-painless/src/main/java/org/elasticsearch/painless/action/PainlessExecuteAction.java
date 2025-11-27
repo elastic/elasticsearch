@@ -353,7 +353,7 @@ public class PainlessExecuteAction {
         private final Script script;
         private final ScriptContext<?> context;
         private final ContextSetup contextSetup;
-        private transient volatile IndicesOptions indicesOptions;
+        private transient IndicesOptions indicesOptions;
 
         static Request parse(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);

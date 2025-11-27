@@ -103,10 +103,7 @@ class FieldValueFetcher {
                     } else {
                         fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                     }
-                    final String fieldName = context.isMultiField(field)
-                        ? fieldType.name().substring(0, fieldType.name().lastIndexOf('.'))
-                        : fieldType.name();
-                    fetchers.add(new FieldValueFetcher(fieldName, fieldType, fieldData, samplingMethod));
+                    fetchers.add(new FieldValueFetcher(fieldType.name(), fieldType, fieldData, samplingMethod));
                 }
             }
         }

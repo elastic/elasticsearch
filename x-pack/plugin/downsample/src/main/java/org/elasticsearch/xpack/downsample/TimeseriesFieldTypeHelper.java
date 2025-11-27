@@ -52,7 +52,7 @@ class TimeseriesFieldTypeHelper {
         return Boolean.TRUE.equals(fieldMapping.get(TIME_SERIES_DIMENSION_PARAM)) && isPassthroughField(fieldMapping) == false;
     }
 
-    public static boolean isPassthroughField(final Map<String, ?> fieldMapping) {
+    public boolean isPassthroughField(final Map<String, ?> fieldMapping) {
         return PassThroughObjectMapper.CONTENT_TYPE.equals(fieldMapping.get(ContextMapping.FIELD_TYPE));
     }
 

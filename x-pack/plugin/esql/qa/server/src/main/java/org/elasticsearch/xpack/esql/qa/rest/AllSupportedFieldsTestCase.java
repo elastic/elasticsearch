@@ -500,9 +500,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         );
         String query = "ROW x = 1 | LIMIT 1";
         var responseAndCoordinatorVersion = runQuery(query);
-        var coordinatorVersion = responseAndCoordinatorVersion.v2();
 
-        assertMinimumVersion(coordinatorVersion, responseAndCoordinatorVersion);
+        assertMinimumVersion(minVersion(true), responseAndCoordinatorVersion, false);
     }
 
     @SuppressWarnings("unchecked")
@@ -636,14 +635,23 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertMinimumVersion(minVersion(), responseAndCoordinatorVersion);
     }
 
+    protected void assertMinimumVersion(
+        TransportVersion expectedMinimumVersion,
+        Tuple<Map<String, Object>, TransportVersion> responseAndCoordinatorVersion
+    ) {
+        assertMinimumVersion(expectedMinimumVersion, responseAndCoordinatorVersion, true);
+    }
+
     /**
-     * @param expectedMinimumVersion the minimum version of all clusters that participate in the query, or the version of the coordinator
-     *                               if the query runs only on the coordinator
+     * @param expectedMinimumVersion the minimum version of all clusters that participate in the query
+     * @param performsAnyFieldCapsRequest {@code true} for queries that have any {@code FROM, ENRICH} or {@code LOOKUP JOIN} commands.
+     *                                    Simple {@code ROW} queries are executed only on the coordinator and don't perform field caps requests.
      */
     @SuppressWarnings("unchecked")
     protected void assertMinimumVersion(
         TransportVersion expectedMinimumVersion,
-        Tuple<Map<String, Object>, TransportVersion> responseAndCoordinatorVersion
+        Tuple<Map<String, Object>, TransportVersion> responseAndCoordinatorVersion,
+        boolean performsAnyFieldCapsRequest
     ) {
         var responseMap = responseAndCoordinatorVersion.v1();
         var coordinatorVersion = responseAndCoordinatorVersion.v2();
@@ -653,9 +661,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             Integer minimumVersion = (Integer) profile.get("minimumTransportVersion");
             assertNotNull(minimumVersion);
             int minimumVersionInt = minimumVersion;
-            if (expectedMinimumVersion.supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV)) {
-                // All nodes are new enough that their field caps responses should contain the minimum transport version
-                // of matching clusters.
+            if (expectedMinimumVersion.supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV) || (performsAnyFieldCapsRequest == false)) {
                 assertEquals(expectedMinimumVersion.id(), minimumVersionInt);
             } else {
                 // One node is old enough that it doesn't provide version information in the field caps response. We must assume

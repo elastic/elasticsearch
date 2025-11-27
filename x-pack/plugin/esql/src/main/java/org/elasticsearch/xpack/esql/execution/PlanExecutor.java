@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.execution;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -68,6 +69,7 @@ public class PlanExecutor {
     public void esql(
         EsqlQueryRequest request,
         String sessionId,
+        TransportVersion localClusterMinimumVersion,
         AnalyzerSettings analyzerSettings,
         EnrichPolicyResolver enrichPolicyResolver,
         EsqlExecutionInfo executionInfo,
@@ -79,6 +81,7 @@ public class PlanExecutor {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
         final var session = new EsqlSession(
             sessionId,
+            localClusterMinimumVersion,
             analyzerSettings,
             indexResolver,
             enrichPolicyResolver,

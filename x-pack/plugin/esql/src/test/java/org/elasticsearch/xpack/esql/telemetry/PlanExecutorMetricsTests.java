@@ -170,6 +170,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         planExecutor.esql(
             request,
             randomAlphaOfLength(10),
+            TransportVersion.current(),
             queryClusterSettings(),
             enrichResolver,
             new EsqlExecutionInfo(randomBoolean()),
@@ -200,6 +201,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         planExecutor.esql(
             request,
             randomAlphaOfLength(10),
+            TransportVersion.current(),
             queryClusterSettings(),
             enrichResolver,
             new EsqlExecutionInfo(randomBoolean()),

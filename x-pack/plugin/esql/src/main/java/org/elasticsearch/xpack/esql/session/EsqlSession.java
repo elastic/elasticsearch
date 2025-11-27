@@ -120,7 +120,8 @@ public class EsqlSession {
     private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");
 
     private final String sessionId;
-    private final AnalyzerSettings clusterSettings;
+    private final TransportVersion localClusterMinimumVersion;
+    private final AnalyzerSettings analyzerSettings;
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
 
@@ -145,7 +146,8 @@ public class EsqlSession {
 
     public EsqlSession(
         String sessionId,
-        AnalyzerSettings clusterSettings,
+        TransportVersion localClusterMinimumVersion,
+        AnalyzerSettings analyzerSettings,
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         PreAnalyzer preAnalyzer,
@@ -157,7 +159,8 @@ public class EsqlSession {
         TransportActionServices services
     ) {
         this.sessionId = sessionId;
-        this.clusterSettings = clusterSettings;
+        this.localClusterMinimumVersion = localClusterMinimumVersion;
+        this.analyzerSettings = analyzerSettings;
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.preAnalyzer = preAnalyzer;
@@ -201,15 +204,15 @@ public class EsqlSession {
             null,
             clusterName,
             request.pragmas(),
-            clusterSettings.resultTruncationMaxSize(),
-            clusterSettings.resultTruncationDefaultSize(),
+            analyzerSettings.resultTruncationMaxSize(),
+            analyzerSettings.resultTruncationDefaultSize(),
             request.query(),
             request.profile(),
             request.tables(),
             System.nanoTime(),
             request.allowPartialResults(),
-            clusterSettings.timeseriesResultTruncationMaxSize(),
-            clusterSettings.timeseriesResultTruncationDefaultSize()
+            analyzerSettings.timeseriesResultTruncationMaxSize(),
+            analyzerSettings.timeseriesResultTruncationDefaultSize()
         );
         FoldContext foldContext = configuration.newFoldContext();
 
@@ -529,7 +532,11 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
 
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
-        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false);
+        // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in
+        // case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with an older
+        // node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may cause bugs.
+        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false)
+            .withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
 
         resolveIndicesAndAnalyze(
@@ -570,10 +577,8 @@ public class EsqlSession {
                     preAnalysis.enriches(),
                     executionInfo,
                     r.minimumTransportVersion(),
-                    l.map(
-                        versionedResolution -> r.withEnrichResolution(versionedResolution.inner())
-                            .withMinimumTransportVersion(versionedResolution.minimumVersion())
-                    )
+                    // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
+                    l.map(r::withEnrichResolution)
                 );
             })
             .<PreAnalysisResult>andThen((l, r) -> {
@@ -625,7 +630,9 @@ public class EsqlSession {
             // resolution's minimum version, as the coordinator's just going to make another field caps request for the lookup resolution
             // that comes with the minimum version in the response.
             result.minimumTransportVersion(),
-            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
+            // No need to update the minimum transport version in the PreAnalysisResult,
+            // it should already have been determined during the main index resolution.
+            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution.inner()))
         );
     }
 
@@ -650,9 +657,8 @@ public class EsqlSession {
         PreAnalysisResult result,
         String index,
         EsqlExecutionInfo executionInfo,
-        Versioned<IndexResolution> versionedLookupIndexResolution
+        IndexResolution lookupIndexResolution
     ) {
-        IndexResolution lookupIndexResolution = versionedLookupIndexResolution.inner();
         EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, lookupIndexResolution.failures());
         if (lookupIndexResolution.isValid() == false) {
             // If the index resolution is invalid, don't bother with the rest of the analysis
@@ -683,8 +689,7 @@ public class EsqlSession {
                 );
             }
 
-            return result.addLookupIndexResolution(index, lookupIndexResolution)
-                .withMinimumTransportVersion(versionedLookupIndexResolution.minimumVersion());
+            return result.addLookupIndexResolution(index, lookupIndexResolution);
         }
 
         if (lookupIndexResolution.get().indexNameWithModes().isEmpty() && lookupIndexResolution.resolvedIndices().isEmpty() == false) {
@@ -871,7 +876,15 @@ public class EsqlSession {
                 indexMode == IndexMode.TIME_SERIES,
                 preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                 preAnalysis.useDenseVectorWhenNotSupported(),
-                null,
+                // TODO: in case of subqueries, the different main index resolutions don't know about each other's minimum version.
+                // This is bad because `FROM (FROM remote1:*) (FROM remote2:*)` can have different minimum versions
+                // while resolving each subquery's main index pattern; we'll determine the correct overall minimum transport version
+                // in the end because we keep updating the PreAnalysisResult after each resolution, but the EsIndex objects may be
+                // inconsistent with this version (by e.g. containing data types that aren't supported on the overall minimum version).
+                // Passing `result.minimumTransportVersion()` here instead of `localClusterMinimumVersion` doesn't fix this problem,
+                // as the main index pattern from a subquery that we resolve first may have a higher min version than an index pattern
+                // that we resolve later.
+                localClusterMinimumVersion,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                     l.onResponse(

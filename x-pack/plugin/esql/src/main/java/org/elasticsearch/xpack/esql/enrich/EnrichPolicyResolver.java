@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -50,7 +49,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
-import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -129,10 +127,10 @@ public class EnrichPolicyResolver {
         List<Enrich> enriches,
         EsqlExecutionInfo executionInfo,
         TransportVersion minimumVersion,
-        ActionListener<Versioned<EnrichResolution>> listener
+        ActionListener<EnrichResolution> listener
     ) {
         if (enriches.isEmpty()) {
-            listener.onResponse(new Versioned<>(new EnrichResolution(), minimumVersion));
+            listener.onResponse(new EnrichResolution());
             return;
         }
 
@@ -150,10 +148,10 @@ public class EnrichPolicyResolver {
         Collection<UnresolvedPolicy> unresolvedPolicies,
         EsqlExecutionInfo executionInfo,
         TransportVersion minimumVersion,
-        ActionListener<Versioned<EnrichResolution>> listener
+        ActionListener<EnrichResolution> listener
     ) {
         if (unresolvedPolicies.isEmpty()) {
-            listener.onResponse(new Versioned<>(new EnrichResolution(), minimumVersion));
+            listener.onResponse(new EnrichResolution());
             return;
         }
 
@@ -179,14 +177,6 @@ public class EnrichPolicyResolver {
                 }
             }
 
-            // Propagate the minimum version observed during policy resolution back to the planning pipeline.
-            // This is only really required for `ROW | ENRICH` queries, where the main index resolution doesn't
-            // provide the minimum version of the local cluster.
-            TransportVersion updatedMinimumVersion = minimumVersion;
-            for (LookupResponse response : lookupResponsesToProcess.values()) {
-                updatedMinimumVersion = TransportVersion.min(updatedMinimumVersion, response.minimumVersion);
-            }
-
             for (UnresolvedPolicy unresolved : unresolvedPolicies) {
                 Tuple<ResolvedEnrichPolicy, String> resolved = mergeLookupResults(
                     unresolved,
@@ -201,7 +191,7 @@ public class EnrichPolicyResolver {
                     enrichResolution.addError(unresolved.name, unresolved.mode, resolved.v2());
                 }
             }
-            return new Versioned<>(enrichResolution, updatedMinimumVersion);
+            return enrichResolution;
         }));
     }
 
@@ -434,15 +424,12 @@ public class EnrichPolicyResolver {
     private static class LookupResponse extends TransportResponse {
         final Map<String, ResolvedEnrichPolicy> policies;
         final Map<String, String> failures;
-        // The minimum transport version observed when running field caps requests to resolve the policies
-        final TransportVersion minimumVersion;
         // does not need to be Writable since this indicates a failure to contact a remote cluster, so only set on querying cluster
         final transient Exception connectionError;
 
-        LookupResponse(Map<String, ResolvedEnrichPolicy> policies, Map<String, String> failures, TransportVersion minimumVersion) {
+        LookupResponse(Map<String, ResolvedEnrichPolicy> policies, Map<String, String> failures) {
             this.policies = policies;
             this.failures = failures;
-            this.minimumVersion = minimumVersion;
             this.connectionError = null;
         }
 
@@ -454,7 +441,6 @@ public class EnrichPolicyResolver {
         LookupResponse(Exception connectionError) {
             this.policies = Collections.emptyMap();
             this.failures = Collections.emptyMap();
-            this.minimumVersion = TransportVersion.current();
             this.connectionError = connectionError;
         }
 
@@ -462,19 +448,6 @@ public class EnrichPolicyResolver {
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             this.policies = planIn.readMap(StreamInput::readString, ResolvedEnrichPolicy::new);
             this.failures = planIn.readMap(StreamInput::readString, StreamInput::readString);
-            if (in.getTransportVersion().supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)) {
-                this.minimumVersion = TransportVersion.readVersion(in);
-            } else {
-                // A pre-9.2.1 node resolved the enrich policy for us, but doesn't say which version its cluster is on.
-                // We can safely assume this node's current version, even though that's technically wrong.
-                // Assuming a version that's too old can disable aggregate_metric_double and dense_vector
-                // data types in the query, that'd be very bad.
-                // But assuming these types are supported is fine because in 9.2.0,
-                // they're not supported in enrich policies, anyway, due to bugs.
-                // https://github.com/elastic/elasticsearch/issues/127350
-                // https://github.com/elastic/elasticsearch/issues/137699
-                this.minimumVersion = TransportVersion.current();
-            }
             this.connectionError = null;
         }
 
@@ -483,9 +456,6 @@ public class EnrichPolicyResolver {
             PlanStreamOutput pso = new PlanStreamOutput(out, null);
             pso.writeMap(policies, StreamOutput::writeWriteable);
             pso.writeMap(failures, StreamOutput::writeString);
-            if (out.getTransportVersion().supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)) {
-                TransportVersion.writeVersion(minimumVersion, out);
-            }
         }
     }
 
@@ -495,17 +465,12 @@ public class EnrichPolicyResolver {
             final Map<String, EnrichPolicy> availablePolicies = availablePolicies();
             final Map<String, String> failures = ConcurrentCollections.newConcurrentMap();
             final Map<String, ResolvedEnrichPolicy> resolvedPolices = ConcurrentCollections.newConcurrentMap();
-            // We use the coordinator's minimum version as base line.
-            final Holder<TransportVersion> minimumVersion = new Holder<>(request.minimumVersion);
             ThreadContext threadContext = threadPool.getThreadContext();
             ActionListener<LookupResponse> listener = ContextPreservingActionListener.wrapPreservingContext(
                 new ChannelActionListener<>(channel),
                 threadContext
             );
-            try (var refs = new RefCountingListener(listener.map(unused -> {
-                TransportVersion finalMinimumVersion = minimumVersion.get();
-                return new LookupResponse(resolvedPolices, failures, finalMinimumVersion);
-            }))) {
+            try (var refs = new RefCountingListener(listener.map(unused -> { return new LookupResponse(resolvedPolices, failures); }))) {
                 for (String policyName : request.policyNames) {
                     EnrichPolicy p = availablePolicies.get(policyName);
                     if (p == null) {
@@ -535,11 +500,6 @@ public class EnrichPolicyResolver {
                                         esIndex.mapping()
                                     );
                                     resolvedPolices.put(policyName, resolved);
-                                    synchronized (minimumVersion) {
-                                        minimumVersion.set(
-                                            TransportVersion.min(minimumVersion.get(), versionedIndexResult.minimumVersion())
-                                        );
-                                    }
                                 } else {
                                     failures.put(policyName, indexResult.toString());
                                 }

@@ -442,8 +442,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 | KEEP test, fieldLength
                 """,
             matchesList().item(textValue).item(textValue.length()),
-            matchesList()
-                .item(matchesMap().entry("name", "test").entry("type", any(String.class)))
+            matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class)))
                 .item(matchesMap().entry("name", "fieldLength").entry("type", any(String.class))),
             Map.of(
                 "data",

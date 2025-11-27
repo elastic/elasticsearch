@@ -188,7 +188,6 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessI
             BalancedShardsAllocator.ModelNode node,
             BalancedShardsAllocator.ProjectIndex index
         ) {
-            balancer.getAllocation().setDebugMode(RoutingAllocation.DebugMode.ON);
             // Deliberately heavily favour node 1 to receive shards
             return lightWeightedNodes.contains(node.getNodeId()) ? LIGHT_WEIGHT : HEAVY_WEIGHT;
         }

@@ -579,15 +579,16 @@ public class DynamicTemplate implements ToXContentObject {
     }
 
     private static String processString(String s, String name, String dynamicType, Map<String, String> params) {
-        if (s.contains("{") == false) {
-            return s;
+        if (s.contains("{{")) {
+            s = s.replace("{{name}}", name).replace("{{dynamic_type}}", dynamicType).replace("{{dynamicType}}", dynamicType);
         }
-        s = s.replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
+        if (s.contains("{")) {
+            s = s.replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
+        }
 
         if (s.contains("{{") == false) {
             return s;
         }
-        s = s.replace("{{name}}", name).replace("{{dynamic_type}}", dynamicType).replace("{{dynamicType}}", dynamicType);
 
         // Handle {{param}} replacements
         Matcher matcher = DYNAMIC_TEMPLATE_PARAM.matcher(s);

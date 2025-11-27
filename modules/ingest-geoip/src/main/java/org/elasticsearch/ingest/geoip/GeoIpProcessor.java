@@ -119,7 +119,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             if (ip instanceof String ipString) {
                 Map<String, Object> data = ipDataLookup.getData(ipDatabase, ipString);
                 if (data.isEmpty() == false) {
-                    document.setFieldValue(targetField, data);
+                    writeGeoIpData(document, targetField, data);
                 }
             } else if (ip instanceof List<?> ipList) {
                 boolean match = false;
@@ -134,7 +134,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                         continue;
                     }
                     if (firstOnly) {
-                        document.setFieldValue(targetField, data);
+                        writeGeoIpData(document, targetField, data);
                         return document;
                     }
                     match = true;
@@ -170,6 +170,50 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     Set<Property> getProperties() {
         return ipDataLookup.getProperties();
+    }
+
+    /**
+     * Writes GeoIP data to the document. In flexible field access mode, writes individual dotted fields
+     * (e.g., "my.field.city", "my.field.country") instead of a single nested object. Composite properties
+     * like "location" (containing lat/lon) are kept as objects since they represent a single logical field.
+     *
+     * @param document the ingest document
+     * @param targetField the base target field path
+     * @param data the GeoIP data to write
+     */
+    private void writeGeoIpData(IngestDocument document, String targetField, Map<String, Object> data) {
+        if (document.getCurrentAccessPattern().isPresent()
+            && document.getCurrentAccessPattern().get() == org.elasticsearch.ingest.IngestPipelineFieldAccessPattern.FLEXIBLE) {
+            // In flexible mode, write each property as a separate dotted field
+            for (Map.Entry<String, Object> entry : data.entrySet()) {
+                String key = entry.getKey();
+                Object value = entry.getValue();
+
+                // Keep composite objects (like location with lat/lon) as objects
+                // since they represent a single logical field (geopoint)
+                if (isCompositeProperty(key, value)) {
+                    document.setFieldValue(targetField + "." + key, value);
+                } else {
+                    document.setFieldValue(targetField + "." + key, value);
+                }
+            }
+        } else {
+            // In classic mode, write as a single nested object
+            document.setFieldValue(targetField, data);
+        }
+    }
+
+    /**
+     * Determines if a property should be kept as a composite object rather than being flattened.
+     * Currently, this includes the "location" property which contains lat/lon coordinates.
+     *
+     * @param key the property key
+     * @param value the property value
+     * @return true if the property is composite and should remain as an object
+     */
+    private static boolean isCompositeProperty(String key, Object value) {
+        // The "location" property contains lat/lon and represents a geopoint, so keep it as an object
+        return "location".equals(key) && value instanceof Map;
     }
 
     /**

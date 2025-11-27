@@ -1,17 +1,14 @@
 // Tests focused on query approximation.
 //
-// The data set "many_numbers" contains 10,000 rows with a multi-valued field
-// "value" containing 550 integers each. Aggregated all over rows, there are
-// 1x1, 2x2, ..., 999x999 and 1000x1000. It's not one number per row, because
-// that's too slow to ingest.
+// The data set "many_numbers" contains 20,010 rows with a multi-valued field
+// "value" containing 100 integers each. Aggregated all over rows, there are
+// 1x1, 2x2, ..., 1999x1999 and 2000x2000, and no row contains the same number
+// twice. This adds up to over 2 million numbers, so that query approximation
+// kicks in. It's not one number per row, because that's slow to ingest. 
 //
 // Note: this tests only basic behavior, because of limitations of the CSV tests.
 // Most tests assert that the count, average and sum of some values are within a
 // range. All ranges are very loose, so that the tests should practically never fail.
-// The range checks are done in ES|QL, resulting in one boolean value (is_expected),
-// because the CSV tests don't support such assertions.
-
-// TODO: add matcher like "BETWEEN(1000,2000)" to make tests stronger.
 
 approximate stats on large data
 required_capability: approximate
@@ -20,14 +17,10 @@ approximate: true
 FROM many_numbers
     | MV_EXPAND value
     | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
-    | EVAL is_expected = count >= 450000 AND count <= 550000 AND
-                         avg >= 600 AND avg <= 750 AND
-                         sum >= 300000000 AND sum <= 380000000
-    | KEEP is_expected
 ;
 
-is_expected:boolean
-true
+count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(count):long     | RELIABLE(count):boolean | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | RELIABLE(sum):boolean
+1300000..2700000 | 1315..1350 | 1700000000..3600000000 | [1300000..2700000,1300000..2700000] | true                    | [1315..1350,1315..1350]         | true                  | [1700000000..3600000000,1700000000..3600000000] | true
 ;
 
 
@@ -52,16 +45,12 @@ approximate: true
 
 FROM many_numbers
     | MV_EXPAND value
-    | WHERE value >= 500
+    | WHERE value >= 1000
     | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
-    | EVAL is_expected = count >= 300000 AND count <= 450000 AND
-                         avg >= 700 AND avg <= 850 AND
-                         sum >= 270000000 AND sum <= 310000000
-    | KEEP is_expected
 ;
 
-is_expected:boolean
-true
+count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(count):long     | RELIABLE(count):boolean | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | RELIABLE(sum):boolean
+1000000..2000000 | 1545..1565 | 1500000000..3000000000 | [1000000..2000000,1000000..2000000] | true                    | [1545..1565,1545..1565]         | true                  | [1500000000..3000000000,1500000000..3000000000] | true
 ;
 
 
@@ -71,17 +60,13 @@ approximate: true
 
 FROM many_numbers
     | MV_EXPAND value
-    | STATS count=COUNT() WHERE value >= 500,
-            avg=AVG(value) WHERE value >= 500,
-            sum=SUM(value) WHERE value >= 500
-    | EVAL is_expected = count >= 300000 AND count <= 450000 AND
-                         avg >= 700 AND avg <= 850 AND
-                         sum >= 270000000 AND sum <= 310000000
-    | KEEP is_expected
+    | STATS count=COUNT()  WHERE value >= 1000,
+            avg=AVG(value) WHERE value >= 1000,
+            sum=SUM(value) WHERE value >= 1000
 ;
 
-is_expected:boolean
-true
+count:long       | avg:double  | sum:long              | CONFIDENCE_INTERVAL(count):long     | RELIABLE(count):boolean | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | RELIABLE(sum):boolean
+1000000..2000000 | 1545..1565 | 1500000000..3000000000 | [1000000..2000000,1000000..2000000] | true                    | [1545..1565,1545..1565]         | true                  | [1500000000..3000000000,1500000000..3000000000] | true
 ;
 
 
@@ -91,20 +76,16 @@ approximate: true
 
 FROM many_numbers
     | MV_EXPAND value
-    | SAMPLE 0.5
+    | SAMPLE 0.8
     | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
-    | EVAL is_expected = count >= 200000 AND count <= 300000 AND
-                         avg >= 600 AND avg <= 750 AND
-                         sum >= 140000000 AND sum <= 200000000
-    | KEEP is_expected
 ;
 
-is_expected:boolean
-true
+count:long       | avg:double  | sum:long             | CONFIDENCE_INTERVAL(count):long     | RELIABLE(count):boolean | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(sum):long                 | RELIABLE(sum):boolean
+1000000..2000000 | 1315..1350 | 130000000..2900000000 | [1000000..2000000,1000000..2000000] | true                    | [1315..1350,1315..1350]         | true                  | [130000000..2900000000,130000000..2900000000] | true
 ;
 
 
-with commands inbetween
+with commands before stats
 required_capability: approximate
 approximate: true
 
@@ -121,18 +102,14 @@ FROM many_numbers
     | EVAL value5 = TO_INTEGER(value5)
     | KEEP value3, value5
     | STATS count=COUNT(), avg=AVG(value5), sum=SUM(value5)
-    | EVAL is_expected = count >= 450000 AND count <= 550000 AND
-                         avg >= 1200 AND avg <= 1500 AND
-                         sum >= 600000000 AND sum <= 760000000
-    | KEEP is_expected
 ;
 
-is_expected:boolean
-true
+count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(count):long     | RELIABLE(count):boolean | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | RELIABLE(sum):boolean
+1300000..2700000 | 2630..2700 | 3400000000..7200000000 | [1300000..2700000,1300000..2700000] | true                    | [2630..2700,2630..2700]         | true                  | [3400000000..7200000000,3400000000..7200000000] | true
 ;
 
 
-with commands after
+with commands after stats
 required_capability: approximate
 approximate: true
 
@@ -143,14 +120,63 @@ FROM many_numbers
     | LIMIT 10
     | MV_EXPAND avg
     | SORT count ASC
-    | EVAL is_expected = count >= 450000 AND count <= 550000 AND
-                         avg2 >= 1200 AND avg2 <= 1500 AND
-                         sum >= 300000000 AND sum <= 380000000
-    | KEEP is_expected
+    | KEEP avg, avg2
 ;
 
-is_expected:boolean
-true
+avg:double | avg2:double | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(avg2):double | RELIABLE(avg2):boolean
+1315..1350 | 2630..2700  | [1315..1350,1315..1350]         | true                  | [2630..2700,2630..2700]          | true
+;
+
+
+with dependent variables that have confidence interval
+required_capability: approximate
+approximate: true
+
+FROM many_numbers
+    | MV_EXPAND value
+    | STATS avg=AVG(value)
+    | EVAL x = 2*avg*avg + sin(avg), y = 1
+    | KEEP x, y
+    | EVAL plus_one = y + x + 1
+    | RENAME plus1 = plus_one
+    | DROP x 
+;
+
+y:integer | plus1:double     | CONFIDENCE_INTERVAL(plus1):double   | RELIABLE(plus1):boolean
+1         | 3400000..3700000 | [3400000..3700000,3400000..3700000] | true
+;
+
+
+with dependent string variable
+required_capability: approximate
+approximate: true
+
+FROM many_numbers
+    | MV_EXPAND value
+    | STATS avg=AVG(value)
+    | EVAL str=TO_STRING(avg)
+    | EVAL from_str = str::DOUBLE
+    | KEEP from_str
+;
+
+from_str:double
+1315..1350
+;
+
+
+with dependent multivalued variable
+required_capability: approximate
+approximate: true
+
+FROM many_numbers
+    | MV_EXPAND value
+    | STATS avg=AVG(value)
+    | EVAL mv=MV_APPEND(1.0,avg)
+    | DROP avg
+;
+
+mv:double
+[1,1315..1350]
 ;
 
 
@@ -162,17 +188,16 @@ FROM many_numbers
     | MV_EXPAND value
     | STATS count=COUNT() BY value
     | SORT value DESC
+    | KEEP value, count
     | LIMIT 5
-    | EVAL is_expected = count >= 100 AND count <= 2000
-    | KEEP value, is_expected
 ;
 
-value:integer | is_expected:boolean
-1000        | true
-999         | true
-998         | true
-997         | true
-996         | true
+value:integer | count:long | CONFIDENCE_INTERVAL(count):long | RELIABLE(count):boolean
+2000          | 1000..3000 | [1000..3000,1000..3000]         | true
+1999          | 1000..3000 | [1000..3000,1000..3000]         | true
+1998          | 1000..3000 | [1000..3000,1000..3000]         | true
+1997          | 1000..3000 | [1000..3000,1000..3000]         | true
+1996          | 1000..3000 | [1000..3000,1000..3000]         | true
 ;
 
 

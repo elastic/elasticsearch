@@ -60,6 +60,7 @@ public class Configuration implements Writeable {
 
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
+    private final String projectRouting;
 
     public Configuration(
         ZoneId zi,
@@ -75,7 +76,8 @@ public class Configuration implements Writeable {
         long queryStartTimeNanos,
         boolean allowPartialResults,
         int resultTruncationMaxSizeTimeseries,
-        int resultTruncationDefaultSizeTimeseries
+        int resultTruncationDefaultSizeTimeseries,
+        String projectRouting
     ) {
         this.zoneId = zi.normalized();
         this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
@@ -93,6 +95,7 @@ public class Configuration implements Writeable {
         assert tables != null;
         this.queryStartTimeNanos = queryStartTimeNanos;
         this.allowPartialResults = allowPartialResults;
+        this.projectRouting = projectRouting;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -120,6 +123,9 @@ public class Configuration implements Writeable {
             this.resultTruncationMaxSizeTimeseries = this.resultTruncationMaxSizeRegular;
             this.resultTruncationDefaultSizeTimeseries = this.resultTruncationDefaultSizeRegular;
         }
+
+        // not needed on the data nodes for now
+        this.projectRouting = null;
     }
 
     @Override
@@ -233,7 +239,8 @@ public class Configuration implements Writeable {
             queryStartTimeNanos,
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
-            resultTruncationDefaultSizeTimeseries
+            resultTruncationDefaultSizeTimeseries,
+            projectRouting
         );
     }
 
@@ -250,6 +257,10 @@ public class Configuration implements Writeable {
      */
     public boolean allowPartialResults() {
         return allowPartialResults;
+    }
+
+    public String projectRouting() {
+        return projectRouting;
     }
 
     private static void writeQuery(StreamOutput out, String query) throws IOException {

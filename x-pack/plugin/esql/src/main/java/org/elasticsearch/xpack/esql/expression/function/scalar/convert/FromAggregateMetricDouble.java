@@ -212,7 +212,7 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
                 case COUNT -> BlockLoaderFunctionConfig.Function.AMD_COUNT;
                 case null -> throw new IllegalArgumentException("Received invalid subfield index [" + subfield + "].");
             };
-            return new PushedBlockLoaderExpression(f, new BlockLoaderFunctionConfig.AggregateMetricDoubleFunctionConfig(functionConfig));
+            return new PushedBlockLoaderExpression(f, new BlockLoaderFunctionConfig.JustFunction(functionConfig));
         }
         return null;
     }

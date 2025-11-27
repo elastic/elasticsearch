@@ -44,20 +44,6 @@ public interface BlockLoaderFunctionConfig {
         }
     }
 
-    class AggregateMetricDoubleFunctionConfig implements BlockLoaderFunctionConfig {
-
-        private final Function function;
-
-        public AggregateMetricDoubleFunctionConfig(Function function) {
-            this.function = function;
-        }
-
-        @Override
-        public Function function() {
-            return function;
-        }
-    }
-
     enum Function {
         AMD_COUNT,
         AMD_MAX,

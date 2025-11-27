@@ -1293,7 +1293,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var fieldAttr = as(alias.child(), FieldAttribute.class);
         assertThat(fieldAttr.fieldName().string(), equalTo("network.eth0.tx"));
         var field = as(fieldAttr.field(), FunctionEsField.class);
-        var blockLoaderFunctionConfig = as(field.functionConfig(), BlockLoaderFunctionConfig.AggregateMetricDoubleFunctionConfig.class);
+        var blockLoaderFunctionConfig = as(field.functionConfig(), BlockLoaderFunctionConfig.JustFunction.class);
         assertThat(blockLoaderFunctionConfig.function(), equalTo(BlockLoaderFunctionConfig.Function.AMD_MIN));
 
         // EsRelation[k8s-downsampled][@timestamp{f}#6, client.ip{f}#10, cluster{f}#7, eve..]
@@ -1342,14 +1342,14 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var fieldAttr1 = as(alias2_1.child(), FieldAttribute.class);
         assertThat(fieldAttr1.fieldName().string(), equalTo("network.eth0.tx"));
         var field1 = as(fieldAttr1.field(), FunctionEsField.class);
-        var blockLoaderFunctionConfig1 = as(field1.functionConfig(), BlockLoaderFunctionConfig.AggregateMetricDoubleFunctionConfig.class);
+        var blockLoaderFunctionConfig1 = as(field1.functionConfig(), BlockLoaderFunctionConfig.JustFunction.class);
         assertThat(blockLoaderFunctionConfig1.function(), equalTo(BlockLoaderFunctionConfig.Function.AMD_SUM));
 
         var alias2_2 = as(eval2.fields().get(1), Alias.class);
         var fieldAttr2 = as(alias2_2.child(), FieldAttribute.class);
         assertThat(fieldAttr2.fieldName().string(), equalTo("network.eth0.tx"));
         var field2 = as(fieldAttr2.field(), FunctionEsField.class);
-        var blockLoaderFunctionConfig2 = as(field2.functionConfig(), BlockLoaderFunctionConfig.AggregateMetricDoubleFunctionConfig.class);
+        var blockLoaderFunctionConfig2 = as(field2.functionConfig(), BlockLoaderFunctionConfig.JustFunction.class);
         assertThat(blockLoaderFunctionConfig2.function(), equalTo(BlockLoaderFunctionConfig.Function.AMD_COUNT));
 
         // EsRelation[k8s-downsampled][@timestamp{f}#9, client.ip{f}#13, cluster{f}#10, ev..]
@@ -1418,18 +1418,9 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var maxField = as(maxfieldAttr.field(), FunctionEsField.class);
         var countField = as(countfieldAttr.field(), FunctionEsField.class);
         var sumField = as(sumfieldAttr.field(), FunctionEsField.class);
-        var maxBlockLoaderFunctionConfig = as(
-            maxField.functionConfig(),
-            BlockLoaderFunctionConfig.AggregateMetricDoubleFunctionConfig.class
-        );
-        var countBlockLoaderFunctionConfig = as(
-            countField.functionConfig(),
-            BlockLoaderFunctionConfig.AggregateMetricDoubleFunctionConfig.class
-        );
-        var sumBlockLoaderFunctionConfig = as(
-            sumField.functionConfig(),
-            BlockLoaderFunctionConfig.AggregateMetricDoubleFunctionConfig.class
-        );
+        var maxBlockLoaderFunctionConfig = as(maxField.functionConfig(), BlockLoaderFunctionConfig.JustFunction.class);
+        var countBlockLoaderFunctionConfig = as(countField.functionConfig(), BlockLoaderFunctionConfig.JustFunction.class);
+        var sumBlockLoaderFunctionConfig = as(sumField.functionConfig(), BlockLoaderFunctionConfig.JustFunction.class);
         assertThat(maxBlockLoaderFunctionConfig.function(), equalTo(BlockLoaderFunctionConfig.Function.AMD_MAX));
         assertThat(countBlockLoaderFunctionConfig.function(), equalTo(BlockLoaderFunctionConfig.Function.AMD_COUNT));
         assertThat(sumBlockLoaderFunctionConfig.function(), equalTo(BlockLoaderFunctionConfig.Function.AMD_SUM));
@@ -1477,7 +1468,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var fieldAttr = as(alias.child(), FieldAttribute.class);
         assertThat(fieldAttr.fieldName().string(), equalTo("network.eth0.tx"));
         var field = as(fieldAttr.field(), FunctionEsField.class);
-        var blockLoaderFunctionConfig = as(field.functionConfig(), BlockLoaderFunctionConfig.AggregateMetricDoubleFunctionConfig.class);
+        var blockLoaderFunctionConfig = as(field.functionConfig(), BlockLoaderFunctionConfig.JustFunction.class);
         assertThat(blockLoaderFunctionConfig.function(), equalTo(BlockLoaderFunctionConfig.Function.AMD_MAX));
 
         // TODO: modify this comment when unmuting test

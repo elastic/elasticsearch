@@ -2925,6 +2925,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    /**
+     * Run the given tasks in parallel. One of the tasks will be run on the calling thread, and each of the others will run on its own
+     * fresh thread.
+     */
+    public static void runInParallel(Runnable... tasks) {
+        runInParallel(tasks.length, i -> tasks[i].run());
+    }
+
     public static void ensureAllContextsReleased(SearchService searchService) {
         try {
             assertBusy(() -> {

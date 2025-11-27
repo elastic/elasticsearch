@@ -82,14 +82,16 @@ public class CrossProjectIndexResolutionValidator {
         ResolvedIndexExpressions localResolvedExpressions,
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions
     ) {
-        Map<String, ElasticsearchException> authorizationExceptions = new HashMap<>();
-        Map<String, List<String>> unauthorizedIndices = new HashMap<>();
-        ElasticsearchException notFoundException = null;
-
         if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {
             logger.debug("Skipping index existence check in lenient mode");
             return null;
         }
+
+        Map<String, ElasticsearchException> remoteAuthorizationExceptions = null;
+        Map<String, List<String>> remoteUnauthorizedIndices = null;
+        ElasticsearchException localAuthorizationException = null;
+        List<String> localUnauthorizedIndices = null;
+        ElasticsearchException notFoundException = null;
 
         final boolean hasProjectRouting = Strings.isEmpty(projectRouting) == false;
         logger.debug(
@@ -110,23 +112,16 @@ public class CrossProjectIndexResolutionValidator {
             Set<String> remoteExpressions = localResolvedIndices.remoteExpressions();
             ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
             ResolvedIndexExpression.LocalIndexResolutionResult result = localExpressions.localIndexResolutionResult();
+            ElasticsearchException localException = checkResolutionFailure(localExpressions, result, originalExpression, indicesOptions);
+
             if (isQualifiedExpression) {
-                ElasticsearchException localException = checkResolutionFailure(
-                    localExpressions,
-                    result,
-                    originalExpression,
-                    indicesOptions
-                );
                 if (localException != null) {
                     if (localException instanceof ElasticsearchSecurityException) {
-                        authorizationExceptions.putIfAbsent("_local", localException);
-                        unauthorizedIndices.compute("_local", (k, v) -> {
-                            if (v == null) {
-                                v = new ArrayList<>();
-                            }
-                            v.add(originalExpression);
-                            return v;
-                        });
+                        if (localAuthorizationException == null) {
+                            localAuthorizationException = localException;
+                            localUnauthorizedIndices = new ArrayList<>();
+                        }
+                        localUnauthorizedIndices.add(originalExpression);
                     } else {
                         notFoundException = localException;
                     }
@@ -146,8 +141,12 @@ public class CrossProjectIndexResolutionValidator {
                     );
                     if (remoteException != null) {
                         if (remoteException instanceof ElasticsearchSecurityException) {
-                            authorizationExceptions.putIfAbsent(projectAlias, remoteException);
-                            unauthorizedIndices.compute(projectAlias, (k, v) -> {
+                            if (remoteAuthorizationExceptions == null) {
+                                remoteAuthorizationExceptions = new HashMap<>();
+                                remoteUnauthorizedIndices = new HashMap<>();
+                            }
+                            remoteAuthorizationExceptions.putIfAbsent(projectAlias, remoteException);
+                            remoteUnauthorizedIndices.compute(projectAlias, (k, v) -> {
                                 if (v == null) {
                                     v = new ArrayList<>();
                                 }
@@ -160,12 +159,6 @@ public class CrossProjectIndexResolutionValidator {
                     }
                 }
             } else {
-                ElasticsearchException localException = checkResolutionFailure(
-                    localExpressions,
-                    result,
-                    originalExpression,
-                    indicesOptions
-                );
                 if (localException == null) {
                     // found locally, continue to next expression
                     continue;
@@ -192,8 +185,12 @@ public class CrossProjectIndexResolutionValidator {
                     }
                     if (isUnauthorized == false && remoteException instanceof ElasticsearchSecurityException) {
                         isUnauthorized = true;
-                        authorizationExceptions.putIfAbsent(projectAlias, remoteException);
-                        unauthorizedIndices.compute(projectAlias, (k, v) -> {
+                        if (remoteAuthorizationExceptions == null) {
+                            remoteAuthorizationExceptions = new HashMap<>();
+                            remoteUnauthorizedIndices = new HashMap<>();
+                        }
+                        remoteAuthorizationExceptions.putIfAbsent(projectAlias, remoteException);
+                        remoteUnauthorizedIndices.compute(projectAlias, (k, v) -> {
                             if (v == null) {
                                 v = new ArrayList<>();
                             }
@@ -206,38 +203,27 @@ public class CrossProjectIndexResolutionValidator {
                     continue;
                 }
                 if (isUnauthorized) {
-                    authorizationExceptions.putIfAbsent("_local", localException);
-                    unauthorizedIndices.compute("_local", (k, v) -> {
-                        if (v == null) {
-                            v = new ArrayList<>();
-                        }
-                        v.add(originalExpression);
-                        return v;
-                    });
+                    if (localAuthorizationException == null) {
+                        localAuthorizationException = localException;
+                        localUnauthorizedIndices = new ArrayList<>();
+                    }
+                    localUnauthorizedIndices.add(originalExpression);
                     continue;
                 }
                 notFoundException = new IndexNotFoundException(originalExpression);
             }
         }
 
-        if (authorizationExceptions.isEmpty()) {
+        if (localAuthorizationException == null && remoteAuthorizationExceptions == null) {
             return notFoundException;
         } else {
-            var firstException = authorizationExceptions.get("_local");
-            var indices = unauthorizedIndices.get("_local");
-            firstException = firstException != null
-                ? new ElasticsearchSecurityException(
-                    Strings.replace(firstException.getMessage(), "-*", Strings.collectionToCommaDelimitedString(indices))
-                )
+            var firstException = localAuthorizationException != null
+                ? formatAuthorizationException(localAuthorizationException, localUnauthorizedIndices)
                 : null;
 
-            for (var e : authorizationExceptions.entrySet()) {
-                if (Objects.equals(e.getKey(), "_local") == false) {
-                    var exception = e.getValue();
-                    var remoteIndices = unauthorizedIndices.get(e.getKey());
-                    exception = new ElasticsearchSecurityException(
-                        Strings.replace(exception.getMessage(), "-*", Strings.collectionToCommaDelimitedString(remoteIndices))
-                    );
+            if (remoteAuthorizationExceptions != null) {
+                for (var e : remoteAuthorizationExceptions.entrySet()) {
+                    var exception = formatAuthorizationException(e.getValue(), remoteUnauthorizedIndices.get(e.getKey()));
                     if (firstException == null) {
                         firstException = exception;
                     } else {
@@ -248,6 +234,15 @@ public class CrossProjectIndexResolutionValidator {
 
             return firstException;
         }
+    }
+
+    private static ElasticsearchSecurityException formatAuthorizationException(
+        ElasticsearchException exceptionWithPlaceholder,
+        List<String> unauthorizedIndices
+    ) {
+        return new ElasticsearchSecurityException(
+            Strings.replace(exceptionWithPlaceholder.getMessage(), "-*", Strings.collectionToCommaDelimitedString(unauthorizedIndices))
+        );
     }
 
     public static IndicesOptions indicesOptionsForCrossProjectFanout(IndicesOptions indicesOptions) {

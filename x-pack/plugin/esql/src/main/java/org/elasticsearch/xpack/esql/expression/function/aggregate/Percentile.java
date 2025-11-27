@@ -170,7 +170,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         var field = field();
 
         if (field.dataType() == DataType.EXPONENTIAL_HISTOGRAM) {
-            return new HistogramPercentile(source(), new HistogramMerge(source(), field, filter()), percentile());
+            return new HistogramPercentile(source(), new HistogramMerge(source(), field, filter(), window()), percentile());
         }
         if (field.foldable()) {
             return new MvPercentile(source(), new ToDouble(source(), field), percentile());

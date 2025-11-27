@@ -36,6 +36,7 @@ import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgrade
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
@@ -115,7 +116,7 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
             assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
 
             // then continued - verify that the created data stream using the created template
-            LogsdbIndexingRollingUpgradeIT.assertDataStream(dataStreamName, templateId);
+            assertDataStream(dataStreamName, templateId);
 
             // when/then - run some queries and verify results
             ensureGreen(dataStreamName);
@@ -184,7 +185,7 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
         assertOK(client().performRequest(putIndexTemplateRequest));
     }
 
-    private void bulkIndex(String dataStreamName, int numRequest, int numDocs) throws Exception {
+    static String bulkIndex(String dataStreamName, int numRequest, int numDocs) throws Exception {
         String firstIndex = null;
         Instant startTime = Instant.now().minusSeconds(60 * 60);
 
@@ -202,9 +203,10 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
                 firstIndex = (String) ((Map<?, ?>) ((Map<?, ?>) ((List<?>) responseBody.get("items")).get(0)).get("create")).get("_index");
             }
         }
+        return firstIndex;
     }
 
-    private String bulkIndexRequestBody(String dataStreamName, int numDocs, Instant startTime) {
+    static String bulkIndexRequestBody(String dataStreamName, int numDocs, Instant startTime) {
         StringBuilder requestBody = new StringBuilder();
 
         for (int j = 0; j < numDocs; j++) {
@@ -245,7 +247,7 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
         return String.join(" ", alphas);
     }
 
-    private void recordSmallestMessage(final String dataStreamName, final String message) {
+    private static void recordSmallestMessage(final String dataStreamName, final String message) {
         if (smallestMessageMap.containsKey(dataStreamName) == false || message.compareTo(smallestMessageMap.get(dataStreamName)) < 0) {
             smallestMessageMap.put(dataStreamName, message);
         }
@@ -339,6 +341,16 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
                 true
             );
         }
+    }
+
+    static void assertDataStream(String dataStreamName, String templateId) throws IOException {
+        var getDataStreamsRequest = new Request("GET", "/_data_stream/" + dataStreamName);
+        var getDataStreamResponse = client().performRequest(getDataStreamsRequest);
+        assertOK(getDataStreamResponse);
+        var dataStreams = entityAsMap(getDataStreamResponse);
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo(dataStreamName));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(1));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.template"), equalTo(templateId));
     }
 
     static String formatInstant(Instant instant) {

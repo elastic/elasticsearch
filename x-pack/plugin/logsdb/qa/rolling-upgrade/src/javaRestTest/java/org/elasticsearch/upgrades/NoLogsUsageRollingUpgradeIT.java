@@ -11,11 +11,10 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import java.time.Instant;
 import java.util.Map;
 
+import static org.elasticsearch.upgrades.AbstractStringTypeRollingUpgradeIT.bulkIndex;
 import static org.elasticsearch.upgrades.LogsUsageRollingUpgradeIT.getClusterSettings;
-import static org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT.bulkIndex;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -30,10 +29,10 @@ public class NoLogsUsageRollingUpgradeIT extends AbstractRollingUpgradeWithSecur
         String dataStreamName = "logs-mysql-error";
         if (isOldCluster()) {
             dataStreamName = dataStreamName.replace("logs-", "log-");
-            bulkIndex(dataStreamName, 4, 256, Instant.now());
+            bulkIndex(dataStreamName, 4, 256);
             ensureGreen(dataStreamName);
         } else if (isUpgradedCluster()) {
-            String newIndex = bulkIndex(dataStreamName, 4, 256, Instant.now());
+            String newIndex = bulkIndex(dataStreamName, 4, 256);
             ensureGreen(dataStreamName);
             Map<?, ?> indexResponse = (Map<?, ?>) getIndexSettings(newIndex, true).get(newIndex);
             Map<?, ?> settings = (Map<?, ?>) indexResponse.get("settings");

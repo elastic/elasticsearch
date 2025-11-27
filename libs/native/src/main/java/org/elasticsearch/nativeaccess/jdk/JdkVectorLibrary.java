@@ -98,7 +98,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     );
                     dot7uBulkWithOffsets$mh = downcallHandle(
                         "vec_dot7u_bulk_offsets",
-                        FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS),
+                        FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT, JAVA_FLOAT, ADDRESS),
                         LinkerHelperUtil.critical()
                     );
                     sqr7u$mh = downcallHandle(
@@ -329,16 +329,21 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 mt = MethodType.methodType(void.class, MemorySegment.class, MemorySegment.class, int.class, int.class, MemorySegment.class);
                 DOT_HANDLE_7U_BULK = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7uBulk", mt);
 
-                mt = MethodType.methodType(
-                    void.class,
-                    MemorySegment.class,
-                    MemorySegment.class,
-                    int.class,
-                    MemorySegment.class,
-                    int.class,
-                    MemorySegment.class
+                DOT_HANDLE_7U_BULK_WITH_OFFSETS = lookup.findStatic(
+                    JdkVectorSimilarityFunctions.class,
+                    "dotProduct7uBulkWithOffsets",
+                    MethodType.methodType(
+                        void.class,
+                        MemorySegment.class,
+                        MemorySegment.class,
+                        int.class,
+                        int.class,
+                        MemorySegment.class,
+                        int.class,
+                        float.class,
+                        MemorySegment.class
+                    )
                 );
-                DOT_HANDLE_7U_BULK_WITH_OFFSETS = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7uBulkWithOffsets", mt);
 
                 mt = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);
                 COS_HANDLE_FLOAT32 = lookup.findStatic(JdkVectorSimilarityFunctions.class, "cosineF32", mt);

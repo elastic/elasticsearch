@@ -100,12 +100,12 @@ EXPORT int32_t vec_dot7u(const int8_t* a, const int8_t* b, const int32_t dims) {
     return res;
 }
 
-static inline f32_t adjust(f32_t raw_score, f32_t score_correction, f32_t f32_t first_offset, f32_t second_offset) {
+static inline f32_t adjust(f32_t raw_score, f32_t score_correction, f32_t first_offset, f32_t second_offset) {
     auto adjusted_score = raw_score * score_correction + first_offset + second_offset;
-    return std::max((1.0f + adjusted_score) / 2.0f, 0.0f);
+    return fmaxf((1.0f + adjusted_score) / 2.0f, 0.0f);
 }
 
-static inline int_bits_to_float(const int32_t v) {
+static inline f32_t int_bits_to_float(const int32_t v) {
     union {
       int i;
       float f;
@@ -114,7 +114,7 @@ static inline int_bits_to_float(const int32_t v) {
     return (f32_t)u.f;
 }
 
-template <int32_t(*mapper)(const int32_t, const int32_t*)>
+template <int64_t(*mapper)(const int32_t, const int32_t*)>
 static inline void dot7u_inner_bulk(
     const int8_t* a,
     const int8_t* b,
@@ -206,11 +206,11 @@ static inline void dot7u_inner_bulk(
     }
 }
 
-static inline int identity(const int32_t i, const int32_t* offsets) {
+static inline int64_t identity(const int32_t i, const int32_t* offsets) {
    return i;
 }
 
-static inline int index(const int32_t i, const int32_t* offsets) {
+static inline int64_t index(const int32_t i, const int32_t* offsets) {
    return offsets[i];
 }
 

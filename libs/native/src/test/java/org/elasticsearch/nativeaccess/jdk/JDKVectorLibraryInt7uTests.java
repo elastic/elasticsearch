@@ -16,6 +16,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
@@ -123,6 +124,60 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         final int dims = size;
         final int numVecs = randomIntBetween(2, 101);
         var offsets = new int[numVecs];
+        var vectors = new byte[numVecs][dims];
+        var vectorsSegment = arena.allocate((long) dims * numVecs);
+        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
+        for (int i = 0; i < numVecs; i++) {
+            offsets[i] = randomInt(numVecs - 1);
+            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
+            randomBytesBetween(vectors[i], MIN_INT7_VALUE, MAX_INT7_VALUE);
+            MemorySegment.copy(vectors[i], 0, vectorsSegment, ValueLayout.JAVA_BYTE, (long) i * dims, dims);
+        }
+        int queryOrd = randomInt(numVecs - 1);
+        float[] expectedScores = new float[numVecs];
+        dotProductBulkWithOffsetsScalar(vectors[queryOrd], vectors, offsets, expectedScores);
+
+        var nativeQuerySeg = vectorsSegment.asSlice((long) queryOrd * dims, dims);
+        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
+
+        dotProduct7uBulkWithOffsets(vectorsSegment, nativeQuerySeg, dims, dims, offsetsSegment, numVecs, 1.0f, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg);
+    }
+
+    public void testInt7uBulkWithOffsetsAndPitch() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int dims = size;
+        final int numVecs = randomIntBetween(2, 101);
+        var offsets = new int[numVecs];
+        var vectors = new byte[numVecs][dims];
+
+        // Mimics extra data at the end
+        var pitch = dims * Byte.BYTES + Float.BYTES;
+        var vectorsSegment = arena.allocate((long) numVecs * pitch);
+        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
+        for (int i = 0; i < numVecs; i++) {
+            offsets[i] = randomInt(numVecs - 1);
+            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
+            randomBytesBetween(vectors[i], MIN_INT7_VALUE, MAX_INT7_VALUE);
+            MemorySegment.copy(vectors[i], 0, vectorsSegment, ValueLayout.JAVA_BYTE, (long) i * pitch, dims);
+        }
+        int queryOrd = randomInt(numVecs - 1);
+        float[] expectedScores = new float[numVecs];
+        dotProductBulkWithOffsetsScalar(vectors[queryOrd], vectors, offsets, expectedScores);
+
+        var nativeQuerySeg = vectorsSegment.asSlice((long) queryOrd * pitch, pitch);
+        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
+
+        dotProduct7uBulkWithOffsets(vectorsSegment, nativeQuerySeg, dims, pitch, offsetsSegment, numVecs, 1.0f, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg);
+    }
+
+    public void testInt7uBulkWithOffsetsHeapSegments() {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("Requires support for heap MemorySegments", supportsHeapSegments());
+        final int dims = size;
+        final int numVecs = randomIntBetween(2, 101);
+        var offsets = new int[numVecs];
         var values = new byte[numVecs][dims];
         var segment = arena.allocate((long) dims * numVecs);
         for (int i = 0; i < numVecs; i++) {
@@ -135,26 +190,19 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         dotProductBulkWithOffsetsScalar(values[queryOrd], values, offsets, expectedScores);
 
         var nativeQuerySeg = segment.asSlice((long) queryOrd * dims, dims);
-        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
-        var offsetsSeg = arena.allocate((long) numVecs * Integer.BYTES);
-        // TODO: test pitch
-        dotProduct7uBulkWithOffsets(segment, nativeQuerySeg, dims, dims, offsetsSeg, numVecs, 1.0f, bulkScoresSeg);
-        assertScoresEquals(expectedScores, bulkScoresSeg);
 
-        if (supportsHeapSegments()) {
-            float[] bulkScores = new float[numVecs];
-            dotProduct7uBulkWithOffsets(
-                segment,
-                nativeQuerySeg,
-                dims,
-                dims,
-                MemorySegment.ofArray(offsets),
-                numVecs,
-                1.0f,
-                MemorySegment.ofArray(bulkScores)
-            );
-            assertArrayEquals(expectedScores, bulkScores, 0f);
-        }
+        float[] bulkScores = new float[numVecs];
+        dotProduct7uBulkWithOffsets(
+            segment,
+            nativeQuerySeg,
+            dims,
+            dims,
+            MemorySegment.ofArray(offsets),
+            numVecs,
+            1.0f,
+            MemorySegment.ofArray(bulkScores)
+        );
+        assertArrayEquals(expectedScores, bulkScores, 0f);
     }
 
     public void testIllegalDims() {

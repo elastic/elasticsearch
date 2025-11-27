@@ -73,13 +73,13 @@ public class Similarities {
         MemorySegment b,
         int length,
         int pitch,
-        int count,
         MemorySegment offsets,
+        int count,
         float scoreCorrection,
         MemorySegment scores
     ) {
         try {
-            DOT_HANDLE_7U_BULK_WITH_OFFSETS.invokeExact(a, b, length, pitch, count, offsets, scoreCorrection, scores);
+            DOT_HANDLE_7U_BULK_WITH_OFFSETS.invokeExact(a, b, length, pitch, offsets, count, scoreCorrection, scores);
         } catch (Throwable e) {
             if (e instanceof Error err) {
                 throw err;

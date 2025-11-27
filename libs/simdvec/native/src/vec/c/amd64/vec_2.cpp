@@ -123,7 +123,7 @@ EXPORT int32_t vec_dot7u_2(const int8_t* a, const int8_t* b, const int32_t dims)
     return res;
 }
 
-template <int32_t(*mapper)(int32_t, const int32_t*)>
+template <int64_t(*mapper)(int32_t, const int32_t*)>
 static inline void dot7u_inner_bulk(
     const int8_t* a,
     const int8_t* b,
@@ -134,13 +134,12 @@ static inline void dot7u_inner_bulk(
     const f32_t score_correction, // TODO
     f32_t* results
 ) {
-    int32_t res = 0;
     if (dims > STRIDE_BYTES_LEN) {
         const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
         for (int32_t c = 0; c < count; c++) {
-            const int8_t* a0 = a + mapper(c, offsets) * pitch;
+            const int8_t* a0 = a + (mapper(c, offsets) * pitch);
             int i = limit;
-            res = dot7u_inner_avx512(a, b, i);
+            int32_t res = dot7u_inner_avx512(a0, b, i);
             for (; i < dims; i++) {
                 res += a0[i] * b[i];
             }
@@ -148,8 +147,8 @@ static inline void dot7u_inner_bulk(
         }
     } else {
         for (int32_t c = 0; c < count; c++) {
-            const int8_t* a0 = a + mapper(c, offsets) * pitch;
-            res = 0;
+            const int8_t* a0 = a + (mapper(c, offsets) * pitch);
+            int32_t res = 0;
             for (int32_t i = 0; i < dims; i++) {
                 res += a0[i] * b[i];
             }
@@ -158,20 +157,20 @@ static inline void dot7u_inner_bulk(
     }
 }
 
-static inline int identity(const int32_t i, const int32_t* offsets) {
+static inline int64_t identity(const int32_t i, const int32_t* offsets) {
    return i;
 }
 
-static inline int index(const int32_t i, const int32_t* offsets) {
+static inline int64_t index(const int32_t i, const int32_t* offsets) {
    return offsets[i];
 }
 
-EXPORT void vec_dot7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+EXPORT void vec_dot7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     dot7u_inner_bulk<identity>(a, b, dims, dims, NULL, count, 1.0f, results);
 }
 
 
-EXPORT void vec_dot7u_bulk_offsets(
+EXPORT void vec_dot7u_bulk_offsets_2(
     const int8_t* a,
     const int8_t* b,
     const int32_t dims,

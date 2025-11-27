@@ -68,22 +68,22 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         } else {
             final int vectorLength = dims;
             final int vectorPitch = vectorLength + Float.BYTES;
-
             if (SUPPORTS_HEAP_SEGMENTS) {
+                var ordinalsSeg = MemorySegment.ofArray(ordinals);
+                var scoresSeg = MemorySegment.ofArray(scores);
                 bulkScoreFromSegment(
                     segment,
                     vectorLength,
                     vectorPitch,
                     firstOrd,
-                    MemorySegment.ofArray(ordinals),
-                    MemorySegment.ofArray(scores),
+                    ordinalsSeg,
+                    scoresSeg,
                     numNodes
                 );
             } else {
                 try (var arena = Arena.ofConfined()) {
                     var ordinalsMemorySegment = arena.allocate((long) numNodes * Integer.BYTES, 32);
                     var scoresMemorySegment = arena.allocate((long) numNodes * Float.BYTES, 32);
-
                     MemorySegment.copy(ordinals, 0, ordinalsMemorySegment, ValueLayout.JAVA_INT, 0, numNodes);
 
                     bulkScoreFromSegment(
@@ -100,6 +100,16 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
                 }
             }
 
+             long firstByteOffset = (long) firstOrd * vectorPitch;
+             var aOffset = Float.intBitsToFloat(input.readInt(firstByteOffset + vectorLength));
+             for (int i = 0; i < numNodes; ++i) {
+                 var dotProduct = scores[i];
+                 var secondOrd = ordinals[i];
+                 long secondByteOffset = (long) secondOrd * vectorPitch;
+                 var bOffset = Float.intBitsToFloat(input.readInt(secondByteOffset + vectorLength));
+                 float adjustedDistance = dotProduct * scoreCorrectionConstant + aOffset + bOffset;
+                 scores[i] = Math.max((1 + adjustedDistance) / 2, 0f);
+             }
         }
     }
 
@@ -251,21 +261,30 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             int numNodes
         ) {
             long firstByteOffset = (long) firstOrd * vectorPitch;
-            var a = vectors.asSlice(firstByteOffset, vectorPitch);
-            Similarities.dotProduct7uBulkWithOffsets(vectors, a, dims, vectorPitch, numNodes, ordinals, scoreCorrectionConstant, scores);
+            var firstVector = vectors.asSlice(firstByteOffset, vectorPitch);
+            Similarities.dotProduct7uBulkWithOffsets(
+                vectors,
+                firstVector,
+                dims,
+                vectorPitch,
+                ordinals,
+                numNodes,
+                scoreCorrectionConstant,
+                scores
+            );
 
             // Java-side adjustment
-            var aOffset = Float.intBitsToFloat(vectors.asSlice(firstByteOffset + vectorLength, Float.BYTES).get(ValueLayout.JAVA_INT, 0));
-            for (int i = 0; i < numNodes; ++i) {
-                var dotProduct = scores.get(ValueLayout.JAVA_FLOAT, i);
-                var secondOrd = ordinals.get(ValueLayout.JAVA_INT, i);
-                long secondByteOffset = (long) secondOrd * vectorPitch;
-                var bOffset = Float.intBitsToFloat(
-                    vectors.asSlice(secondByteOffset + vectorLength, Float.BYTES).get(ValueLayout.JAVA_INT, 0)
-                );
-                float adjustedDistance = dotProduct * scoreCorrectionConstant + aOffset + bOffset;
-                scores.set(ValueLayout.JAVA_FLOAT, i, Math.max((1 + adjustedDistance) / 2, 0f));
-            }
+//            var aOffset = Float.intBitsToFloat(vectors.asSlice(firstByteOffset + vectorLength, Float.BYTES).get(ValueLayout.JAVA_INT, 0));
+//            for (int i = 0; i < numNodes; ++i) {
+//                var dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+//                var secondOrd = ordinals.getAtIndex(ValueLayout.JAVA_INT, i);
+//                long secondByteOffset = (long) secondOrd * vectorPitch;
+//                var bOffset = Float.intBitsToFloat(
+//                    vectors.asSlice(secondByteOffset + vectorLength, Float.BYTES).getAtIndex(ValueLayout.JAVA_INT, 0)
+//                );
+//                float adjustedDistance = dotProduct * scoreCorrectionConstant + aOffset + bOffset;
+//                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, Math.max((1 + adjustedDistance) / 2, 0f));
+//            }
         }
 
         @Override

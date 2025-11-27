@@ -25,6 +25,10 @@ import org.apache.lucene.search.KnnCollector;
  */
 public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCollector {
 
+    private static final double DEFAULT_DISCOVERY_RATE_SMOOTHING = 0.1;
+    private static final double DEFAULT_THRESHOLD_LOOSENESS = 1.0;
+    private static final double DEFAULT_PATIENCE_SCALING = 10.0;
+
     private final double discoveryRateSmoothing;
     private final double thresholdLooseness;
     private final double patienceScaling;
@@ -57,11 +61,8 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
         this.patienceScaling = patienceScaling;
     }
 
-    /**
-     * Convenient default constructor with recommended parameters.
-     */
     public AdaptiveHnswQueueSaturationCollector(KnnCollector delegate) {
-        this(delegate, 0.1, 1.0, 10.0);
+        this(delegate, DEFAULT_DISCOVERY_RATE_SMOOTHING, DEFAULT_THRESHOLD_LOOSENESS, DEFAULT_PATIENCE_SCALING);
     }
 
     @Override

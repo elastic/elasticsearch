@@ -5,8 +5,14 @@
 `boost`
 :   (float) Floating point number used to decrease or increase the relevance scores of the query.Defaults to 1.0.
 
+`k`
+:   (integer) The number of nearest neighbors to return from each shard. Elasticsearch collects k results from each shard, then merges them to find the global top results. This value must be less than or equal to num_candidates. This value is automatically set with any LIMIT applied to the function.
+
+`visit_percentage`
+:   (float) The percentage of vectors to explore per shard while doing knn search with bbq_disk. Must be between 0 and 100. 0 will default to using num_candidates for calculating the percent visited. Increasing visit_percentage tends to improve the accuracy of the final results. If visit_percentage is set for bbq_disk, num_candidates is ignored. Defaults to ~1% per shard for every 1 million vectors
+
 `min_candidates`
-:   (integer) The minimum number of nearest neighbor candidates to consider per shard while doing knn search.  KNN may use a higher number of candidates in case the query can't use a approximate results. Cannot exceed 10,000. Increasing min_candidates tends to improve the accuracy of the final results. Defaults to 1.5 * LIMIT used for the query.
+:   (integer) The minimum number of nearest neighbor candidates to consider per shard while doing knn search.  KNN may use a higher number of candidates in case the query can't use a approximate results. Cannot exceed 10,000. Increasing min_candidates tends to improve the accuracy of the final results. Defaults to 1.5 * k (or LIMIT) used for the query.
 
 `rescore_oversample`
 :   (double) Applies the specified oversampling for rescoring quantized vectors. See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.

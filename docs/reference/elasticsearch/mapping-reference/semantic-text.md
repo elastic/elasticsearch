@@ -47,14 +47,3 @@ The [How-to guides](./how-to-semantic-text.md) page contains procedure descripti
 - [Cross-cluster search](./how-to-semantic-text.md#cross-cluster-search): Learn how to perform cross-cluster searches on `semantic_text` fields.
 
 - [Using `copy_to` and multi-fields](./how-to-semantic-text.md#use-copy-to-with-semantic-text): Learn how to combine multiple fields into a single `semantic_text` field using `copy_to` or multi-field mappings.
-
-
-
-
-
-
-
-
-
-
-

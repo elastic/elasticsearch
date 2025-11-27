@@ -33,7 +33,12 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.health.node.HealthInfo.SIMPLE_HEATH_INFO_ADDITION;
 
 /**
  * This action allows a node to send their health info to the selected health node.
@@ -55,19 +60,22 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         private final RepositoriesHealthInfo repositoriesHealthInfo;
         @Nullable
         private final FileSettingsService.FileSettingsHealthInfo fileSettingsHealthInfo;
+        @Nullable
+        private final Map<String, SimpleHealthInfo> simpleHealthInfoByTrackerName;
 
         public Request(
             String nodeId,
             DiskHealthInfo diskHealthInfo,
             DataStreamLifecycleHealthInfo dslHealthInfo,
             RepositoriesHealthInfo repositoriesHealthInfo,
-            @Nullable FileSettingsService.FileSettingsHealthInfo fileSettingsHealthInfo
+            @Nullable FileSettingsService.FileSettingsHealthInfo fileSettingsHealthInfo, @Nullable Map<String, SimpleHealthInfo> simpleHealthInfoByTrackerName
         ) {
             this.nodeId = nodeId;
             this.diskHealthInfo = diskHealthInfo;
             this.dslHealthInfo = dslHealthInfo;
             this.repositoriesHealthInfo = repositoriesHealthInfo;
             this.fileSettingsHealthInfo = fileSettingsHealthInfo;
+            this.simpleHealthInfoByTrackerName = simpleHealthInfoByTrackerName;
         }
 
         public Request(String nodeId, DataStreamLifecycleHealthInfo dslHealthInfo) {
@@ -76,6 +84,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             this.repositoriesHealthInfo = null;
             this.dslHealthInfo = dslHealthInfo;
             this.fileSettingsHealthInfo = null;
+            this.simpleHealthInfoByTrackerName = null;
         }
 
         public Request(String nodeId, FileSettingsService.FileSettingsHealthInfo info) {
@@ -84,6 +93,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             this.repositoriesHealthInfo = null;
             this.dslHealthInfo = null;
             this.fileSettingsHealthInfo = info;
+            this.simpleHealthInfoByTrackerName = null;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -98,6 +108,9 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 this.fileSettingsHealthInfo = in.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)
                     ? in.readOptionalWriteable(FileSettingsService.FileSettingsHealthInfo::new)
                     : null;
+                this.simpleHealthInfoByTrackerName = in.getTransportVersion().supports(SIMPLE_HEATH_INFO_ADDITION)
+                    ? in.readOptionalImmutableMap(StreamInput::readString, SimpleHealthInfo::new)
+                    : null;
             } else {
                 // BWC for pre-8.12 the disk health info was mandatory. Evolving this request has proven tricky however we've made use of
                 // waiting for all nodes to be on the {@link TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS} transport version
@@ -107,6 +120,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 this.dslHealthInfo = null;
                 this.repositoriesHealthInfo = null;
                 this.fileSettingsHealthInfo = null;
+                this.simpleHealthInfoByTrackerName = null;
             }
         }
 
@@ -124,6 +138,11 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
 
         public RepositoriesHealthInfo getRepositoriesHealthInfo() {
             return repositoriesHealthInfo;
+        }
+
+        @Nullable
+        public Map<String, SimpleHealthInfo> getSimpleHealthInfoByTrackerName() {
+            return simpleHealthInfoByTrackerName;
         }
 
         @Nullable
@@ -149,6 +168,13 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 if (out.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)) {
                     out.writeOptionalWriteable(fileSettingsHealthInfo);
                 }
+                if (out.getTransportVersion().supports(SIMPLE_HEATH_INFO_ADDITION)) {
+                    out.writeOptionalMap(
+                        simpleHealthInfoByTrackerName,
+                        StreamOutput::writeString,
+                        (streamOutput, simpleHealthInfo) -> simpleHealthInfo.writeTo(streamOutput)
+                    );
+                }
             } else {
                 // BWC for pre-8.12 the disk health info was mandatory. Evolving this request has proven tricky however we've made use of
                 // waiting for all nodes to be on the {@link TransportVersions.V_8_12_0} transport version
@@ -162,11 +188,18 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         public String getDescription() {
             return String.format(
                 Locale.ROOT,
-                "Update health info cache for node [%s] with disk health info [%s], DSL health info [%s], repositories health info [%s].",
+                "Update health info cache for node [%s] with disk health info [%s], DSL health info [%s], repositories health info [%s]" +
+                    "and the following simple health infos: %s.",
                 nodeId,
                 diskHealthInfo,
                 dslHealthInfo,
-                repositoriesHealthInfo
+                repositoriesHealthInfo,
+                simpleHealthInfoByTrackerName != null
+                    ? simpleHealthInfoByTrackerName.entrySet()
+                    .stream()
+                    .map(entry -> "Indicator: " + entry.getKey() + ": \n" + entry.getValue())
+                    .collect(Collectors.joining("\n"))
+                    : null
             );
         }
 
@@ -182,12 +215,13 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             return Objects.equals(nodeId, request.nodeId)
                 && Objects.equals(diskHealthInfo, request.diskHealthInfo)
                 && Objects.equals(dslHealthInfo, request.dslHealthInfo)
-                && Objects.equals(repositoriesHealthInfo, request.repositoriesHealthInfo);
+                && Objects.equals(repositoriesHealthInfo, request.repositoriesHealthInfo)
+                && Objects.equals(simpleHealthInfoByTrackerName, request.simpleHealthInfoByTrackerName);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(nodeId, diskHealthInfo, dslHealthInfo, repositoriesHealthInfo);
+            return Objects.hash(nodeId, diskHealthInfo, dslHealthInfo, repositoriesHealthInfo, simpleHealthInfoByTrackerName);
         }
 
         public static class Builder {
@@ -195,6 +229,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             private DiskHealthInfo diskHealthInfo;
             private RepositoriesHealthInfo repositoriesHealthInfo;
             private DataStreamLifecycleHealthInfo dslHealthInfo;
+            private ConcurrentHashMap<String, SimpleHealthInfo> simpleHealthInfoByTrackerName = new ConcurrentHashMap<>();
 
             public Builder nodeId(String nodeId) {
                 this.nodeId = nodeId;
@@ -216,8 +251,20 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 return this;
             }
 
+            public Builder simpleHealthInfoByTrackerName(String trackerName, SimpleHealthInfo simpleHealthInfo) {
+                this.simpleHealthInfoByTrackerName.put(trackerName, simpleHealthInfo);
+                return this;
+            }
+
             public Request build() {
-                return new Request(nodeId, diskHealthInfo, dslHealthInfo, repositoriesHealthInfo, null);
+                return new Request(
+                    nodeId,
+                    diskHealthInfo,
+                    dslHealthInfo,
+                    repositoriesHealthInfo,
+                    null,
+                    simpleHealthInfoByTrackerName.isEmpty() ? null : simpleHealthInfoByTrackerName
+                );
             }
         }
     }
@@ -271,7 +318,8 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 request.getDiskHealthInfo(),
                 request.getDslHealthInfo(),
                 request.getRepositoriesHealthInfo(),
-                request.getFileSettingsHealthInfo()
+                request.getFileSettingsHealthInfo(),
+                request.getSimpleHealthInfoByTrackerName()
             );
             listener.onResponse(AcknowledgedResponse.of(true));
         }

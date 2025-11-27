@@ -251,7 +251,6 @@ public class WatcherService {
         }));
     }
 
-
     private void clearUnhealthyIfSet() {
 
     }

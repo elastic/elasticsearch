@@ -98,6 +98,8 @@ import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.health.HealthService;
+import org.elasticsearch.health.SimpleHealthTrackerRegistry;
+import org.elasticsearch.health.TestIndicator;
 import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.DiskHealthIndicatorService;
 import org.elasticsearch.health.node.HealthInfoCache;
@@ -107,6 +109,7 @@ import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.health.node.tracker.DiskHealthTracker;
 import org.elasticsearch.health.node.tracker.HealthTracker;
 import org.elasticsearch.health.node.tracker.RepositoriesHealthTracker;
+import org.elasticsearch.health.node.tracker.TestTracker;
 import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexMode;
@@ -1477,6 +1480,11 @@ class NodeConstruction {
             masterHistoryService
         );
 
+        SimpleHealthTrackerRegistry simpleHealthTrackerRegistry = new SimpleHealthTrackerRegistry();
+
+        // TODO: Modify to generate the indicators dynamically based on registered trackers
+        simpleHealthTrackerRegistry.register(new TestTracker(), new TestIndicator());
+
         var serverHealthIndicatorServices = Stream.of(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
             new RepositoryIntegrityHealthIndicatorService(clusterService),
@@ -1484,6 +1492,9 @@ class NodeConstruction {
             new ShardsCapacityHealthIndicatorService(clusterService),
             new FileSettingsHealthIndicatorService()
         );
+
+        serverHealthIndicatorServices = simpleHealthTrackerRegistry.mergeHealthIndicatorServices(serverHealthIndicatorServices);
+
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream());
 
@@ -1504,6 +1515,9 @@ class NodeConstruction {
             new DiskHealthTracker(nodeService, clusterService),
             new RepositoriesHealthTracker(repositoriesService)
         );
+
+        healthTrackers = simpleHealthTrackerRegistry.addTrackers(healthTrackers);
+
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, threadPool, client, healthTrackers);
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
 

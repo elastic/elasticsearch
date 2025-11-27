@@ -19,7 +19,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -108,18 +110,19 @@ public class HealthInfoCache implements ClusterStateListener {
      * @return A HealthInfo object wrapping all health data in the cache
      */
     public HealthInfo getHealthInfo() {
-        Map<String, SimpleNodeHealthInfo> perTrackerSimpleHealthInfo = new HashMap<>();
+        Map<String, List<SimpleNodeHealthInfo>> perTrackerSimpleHealthInfo = new HashMap<>();
         simpleHealthInfoReportsByNodeAndTrackerName.forEach((nodeId, trackerMap) -> {
             trackerMap.forEach((trackerName, simpleHealthInfo) -> {
-                perTrackerSimpleHealthInfo.put(
-                    trackerName,
-                    new SimpleNodeHealthInfo(
-                        nodeId,
-                        simpleHealthInfo.healthStatus(),
-                        simpleHealthInfo.symptom(),
-                        simpleHealthInfo.details()
-                    )
-                );
+                perTrackerSimpleHealthInfo
+                    .computeIfAbsent(trackerName, key -> new ArrayList<>())
+                    .add(
+                        new SimpleNodeHealthInfo(
+                            nodeId,
+                            simpleHealthInfo.healthStatus(),
+                            simpleHealthInfo.symptom(),
+                            simpleHealthInfo.details()
+                        )
+                    );
             });
         });
 

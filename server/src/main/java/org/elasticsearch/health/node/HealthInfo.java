@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
@@ -37,13 +38,13 @@ public record HealthInfo(
     @Nullable DataStreamLifecycleHealthInfo dslHealthInfo,
     Map<String, RepositoriesHealthInfo> repositoriesInfoByNode,
     FileSettingsHealthInfo fileSettingsHealthInfo,
-    Map<String, SimpleNodeHealthInfo> simpleNodeHealthInfoByMonitor
+    Map<String, List<SimpleNodeHealthInfo>> simpleNodeHealthInfoByMonitor
 ) implements Writeable {
 
     public static final HealthInfo EMPTY_HEALTH_INFO = new HealthInfo(Map.of(), NO_DSL_ERRORS, Map.of(), INDETERMINATE, Map.of());
 
     private static final TransportVersion FILE_SETTINGS_HEALTH_INFO = TransportVersion.fromName("file_settings_health_info");
-    private static final TransportVersion SIMPLE_HEATH_INFO_ADDITION = TransportVersion.fromName("simple_health_info_addition");
+    static final TransportVersion SIMPLE_HEATH_INFO_ADDITION = TransportVersion.fromName("simple_health_info_addition");
 
     public HealthInfo {
         requireNonNull(fileSettingsHealthInfo);
@@ -58,10 +59,11 @@ public record HealthInfo(
             input.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? input.readMap(RepositoriesHealthInfo::new) : Map.of(),
             input.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)
                 ? input.readOptionalWriteable(FileSettingsHealthInfo::new)
-                : INDETERMINATE
+                : INDETERMINATE,
             input.getTransportVersion().supports(SIMPLE_HEATH_INFO_ADDITION)
-                ? input.readMap(SimpleNodeHealthInfo::new)
-                : Map.of();
+                ? input.readMap(in -> in.readCollectionAsList(SimpleNodeHealthInfo::new))
+                : Map.of()
+            );
     }
 
     @Override
@@ -77,7 +79,9 @@ public record HealthInfo(
             output.writeOptionalWriteable(fileSettingsHealthInfo);
         }
         if (output.getTransportVersion().supports(SIMPLE_HEATH_INFO_ADDITION)) {
-            output.writeMap(simpleNodeHealthInfoByMonitor, StreamOutput::writeWriteable);
+            output.writeMap(simpleNodeHealthInfoByMonitor, (out, list) -> {
+                out.writeCollection(list, StreamOutput::writeWriteable);
+            });
         }
     }
 }

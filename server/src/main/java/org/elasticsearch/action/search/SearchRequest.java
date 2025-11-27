@@ -102,6 +102,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     private boolean ccsMinimizeRoundtrips;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+    public static final IndicesOptions DEFAULT_CPS_INDICES_OPTIONS = IndicesOptions.cpsStrictExpandOpenAndForbidClosedIgnoreThrottled();
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
@@ -380,8 +381,12 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
                     validationException
                 );
             }
-            if (indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false) {
+            if (indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false
+                && indicesOptions().equals(DEFAULT_CPS_INDICES_OPTIONS) == false) {
                 validationException = addValidationError("[indicesOptions] cannot be used with point in time", validationException);
+            }
+            if (getProjectRouting() != null) {
+                validationException = addValidationError("[projectRouting] cannot be used with point in time", validationException);
             }
             if (routing() != null) {
                 validationException = addValidationError("[routing] cannot be used with point in time", validationException);

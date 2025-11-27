@@ -8,14 +8,9 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
-import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.index.mapper.BlockLoader;
-
-import java.io.IOException;
 
 public final class ExponentialHistogramBlockBuilder implements ExponentialHistogramBlock.Builder {
 
@@ -95,45 +90,25 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
     }
 
     public ExponentialHistogramBlockBuilder append(ExponentialHistogram histogram) {
-        assert histogram != null;
-        // TODO: fix performance and correctness before using in production code
-        // The current implementation encodes the histogram into the format we use for storage on disk
-        // This format is optimized for minimal memory usage at the cost of encoding speed
-        // In addition, it only support storing the zero threshold as a double value, which is lossy when merging histograms
-        // We should add a dedicated encoding when building a block from computed histograms which do not originate from doc values
-        // That encoding should be optimized for speed and support storing the zero threshold as (scale, index) pair
-        ZeroBucket zeroBucket = histogram.zeroBucket();
-
-        BytesStreamOutput encodedBytes = new BytesStreamOutput();
-        try {
-            CompressedExponentialHistogram.writeHistogramBytes(
-                encodedBytes,
-                histogram.scale(),
-                histogram.negativeBuckets().iterator(),
-                histogram.positiveBuckets().iterator()
-            );
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to encode histogram", e);
-        }
-        if (Double.isNaN(histogram.min())) {
+        ExponentialHistogramArrayBlock.EncodedHistogramData data = ExponentialHistogramArrayBlock.encode(histogram);
+        valueCountsBuilder.appendDouble(data.count());
+        if (Double.isNaN(data.min())) {
             minimaBuilder.appendNull();
         } else {
-            minimaBuilder.appendDouble(histogram.min());
+            minimaBuilder.appendDouble(data.min());
         }
-        if (Double.isNaN(histogram.max())) {
+        if (Double.isNaN(data.max())) {
             maximaBuilder.appendNull();
         } else {
-            maximaBuilder.appendDouble(histogram.max());
+            maximaBuilder.appendDouble(data.max());
         }
-        if (histogram.valueCount() == 0) {
-            assert histogram.sum() == 0.0 : "Empty histogram should have sum 0.0 but was " + histogram.sum();
+        if (Double.isNaN(data.sum())) {
             sumsBuilder.appendNull();
         } else {
-            sumsBuilder.appendDouble(histogram.sum());
+            sumsBuilder.appendDouble(data.sum());
         }
-        valueCountsBuilder.appendDouble(histogram.valueCount());
-        zeroThresholdsBuilder.appendDouble(zeroBucket.zeroThreshold());
-        encodedHistogramsBuilder.appendBytesRef(encodedBytes.bytes().toBytesRef());
+        zeroThresholdsBuilder.appendDouble(data.zeroThreshold());
+        encodedHistogramsBuilder.appendBytesRef(data.encodedHistogram());
         return this;
     }
 

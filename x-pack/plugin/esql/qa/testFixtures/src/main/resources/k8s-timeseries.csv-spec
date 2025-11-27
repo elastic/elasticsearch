@@ -788,7 +788,7 @@ max_deriv:double | max_rate:double | time_bucket:datetime     | cluster:keyword
 
 bare_count_over_time_outputs_dimensions
 required_capability: ts_command_v0
-required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
   
 TS k8s
 | STATS count = count_over_time(network.cost)
@@ -810,7 +810,7 @@ count:long | _timeseries:keyword
 
 bare_count_over_time_with_tbucket_outputs_dimensions
 required_capability: ts_command_v0  
-required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
 
 TS k8s
 | STATS count = count_over_time(network.cost) BY tbucket = TBUCKET(1 hour)
@@ -832,7 +832,7 @@ count:long | _timeseries:keyword                                                
 
 bare_avg_over_time_outputs_dimensions
 required_capability: ts_command_v0  
-required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
 
 TS k8s
 | STATS avg = avg_over_time(network.cost)
@@ -854,7 +854,7 @@ avg:double         | _timeseries:keyword
 
 bare_avg_over_time_with_tbucket_outputs_dimensions
 required_capability: ts_command_v0  
-required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
 
 TS k8s
 | STATS avg = avg_over_time(network.cost) BY tbucket = TBUCKET(1 hour)
@@ -876,7 +876,7 @@ avg:double         | _timeseries:keyword                                        
 
 bare_sum_over_time_outputs_dimensions
 required_capability: ts_command_v0  
-required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
 
 TS k8s
 | STATS sum = sum_over_time(network.cost)
@@ -898,7 +898,7 @@ sum:double | _timeseries:keyword
 
 bare_sum_over_time_with_tbucket_outputs_dimensions
 required_capability: ts_command_v0  
-required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
 
 TS k8s
 | STATS sum = sum_over_time(network.cost) BY tbucket = TBUCKET(1 hour)
@@ -920,7 +920,7 @@ sum:double | _timeseries:keyword                                                
 
 bare_rate_outputs_dimensions
 required_capability: ts_command_v0  
-required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
 
 TS k8s
 | STATS rate = rate(network.total_bytes_in)
@@ -942,7 +942,7 @@ rate:double        | _timeseries:keyword
 
 bare_rate_with_tbucket_outputs_dimensions
 required_capability: ts_command_v0  
-required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
 
 TS k8s
 | STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour)
@@ -964,7 +964,7 @@ rate:double        | _timeseries:keyword                                        
 
 wrapped_rate
 required_capability: ts_command_v0
-required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
 
 TS k8s
 | STATS max_rate = MAX(rate(network.total_bytes_in))

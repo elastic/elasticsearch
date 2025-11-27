@@ -40,7 +40,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-        return new Source();
+        return new TimeSeries();
     }
 
     @Override
@@ -58,7 +58,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         throw new UnsupportedOperationException();
     }
 
-    private static class Source extends BlockStoredFieldsReader {
+    private static class TimeSeries extends BlockStoredFieldsReader {
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             // TODO support appending BytesReference
@@ -67,7 +67,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
         @Override
         public String toString() {
-            return "BlockStoredFieldsReader.Source";
+            return "BlockStoredFieldsReader.TimeSeries";
         }
     }
 }

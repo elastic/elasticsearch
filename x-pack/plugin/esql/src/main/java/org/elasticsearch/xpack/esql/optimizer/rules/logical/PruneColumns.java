@@ -223,11 +223,11 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             }
         }
 
-        var pruneForkAttrs = forkOutputChanged ? builder.build().stream().toList() : fork.output();
+        var prunedForkAttrs = forkOutputChanged ? builder.build().stream().toList() : fork.output();
         // now that we have the pruned fork output attributes, we can proceed to apply pruning all children plan
         var usedFork = AttributeSet.forkBuilder();
-        usedFork.addAll(pruneForkAttrs);
-        var forkOutputNames = pruneForkAttrs.stream().map(NamedExpression::name).collect(Collectors.toSet());
+        usedFork.addAll(prunedForkAttrs);
+        var forkOutputNames = prunedForkAttrs.stream().map(NamedExpression::name).collect(Collectors.toSet());
         boolean childrenChanged = false;
         List<LogicalPlan> newChildren = new ArrayList<>();
         for (var child : fork.children()) {
@@ -239,9 +239,9 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             }
         }
         if (childrenChanged) {
-            return new Fork(fork.source(), newChildren, pruneForkAttrs);
+            return new Fork(fork.source(), newChildren, prunedForkAttrs);
         } else if (forkOutputChanged) {
-            return new Fork(fork.source(), fork.children(), pruneForkAttrs);
+            return new Fork(fork.source(), fork.children(), prunedForkAttrs);
         }
         return fork;
     }

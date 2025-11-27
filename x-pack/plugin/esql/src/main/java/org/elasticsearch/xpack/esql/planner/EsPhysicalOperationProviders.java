@@ -16,6 +16,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -563,6 +564,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
                 @Override
                 public Set<String> dimensionFields() {
+                    IndexMetadata indexMetadata = ctx.getIndexSettings().getIndexMetadata();
+                    List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
+                    if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
+                        return new HashSet<>(dimensionFieldsFromSettings);
+                    }
+
                     if (ctx.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
                         MappingLookup mappingLookup = ctx.getMappingLookup();
                         Set<String> dimensionFields = new HashSet<>();

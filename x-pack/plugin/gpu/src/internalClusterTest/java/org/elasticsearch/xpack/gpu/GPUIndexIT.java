@@ -35,9 +35,16 @@ import static org.hamcrest.Matchers.containsString;
 @LuceneTestCase.SuppressCodecs("*") // use our custom codec
 public class GPUIndexIT extends ESIntegTestCase {
 
+    public static class TestGPUPlugin extends GPUPlugin {
+        @Override
+        protected boolean isGpuIndexingFeatureAllowed() {
+            return true;
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(GPUPlugin.class);
+        return List.of(TestGPUPlugin.class);
     }
 
     @BeforeClass

@@ -372,7 +372,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     //
     public void testLengthPushedWithoutTopN() throws IOException {
         String textValue = "v".repeat(between(0, 256));
-        test(b -> b.startObject("test").field("type", "keyword").endObject(),
+        test(
+            b -> b.startObject("test").field("type", "keyword").endObject(),
             b -> b.field("test", textValue),
             """
                 FROM test
@@ -381,8 +382,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 | KEEP test, fieldLength
                 """,
             matchesList().item(textValue).item(textValue.length()),
-            matchesList()
-                .item(matchesMap().entry("name", "test").entry("type", any(String.class)))
+            matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class)))
                 .item(matchesMap().entry("name", "fieldLength").entry("type", any(String.class))),
             Map.of(
                 "data",
@@ -401,9 +401,9 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         String textValue = "v".repeat(between(0, 256));
         Integer orderingValue = randomInt();
         test(b -> {
-                b.startObject("test").field("type", "keyword").endObject();
-                b.startObject("ordering").field("type", "integer").endObject();
-            },
+            b.startObject("test").field("type", "keyword").endObject();
+            b.startObject("ordering").field("type", "integer").endObject();
+        },
             b -> b.field("test", textValue).field("ordering", orderingValue),
             """
                 FROM test
@@ -416,9 +416,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
             Map.of(
                 "data",
-                List.of(
-                    matchesMap().entry("ordering:column_at_a_time:IntsFromDocValues.Singleton", 1)
-                ),
+                List.of(matchesMap().entry("ordering:column_at_a_time:IntsFromDocValues.Singleton", 1)),
                 "node_reduce",
                 List.of(
                     // Pushed down function
@@ -434,7 +432,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     public void testLengthPushedWithTopNAsOrder() throws IOException {
         String textValue = "v".repeat(between(0, 256));
         Integer orderingValue = randomInt();
-        test(b ->  b.startObject("test").field("type", "keyword").endObject(),
+        test(
+            b -> b.startObject("test").field("type", "keyword").endObject(),
             b -> b.field("test", textValue).field("ordering", orderingValue),
             """
                 FROM test
@@ -737,12 +736,19 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         Consumer<List<String>> assertDataNodeSig
     ) throws IOException {
 
-        test(mapping, doc, """
-            FROM test
-            """ + eval + """
-            | STATS test = MV_SORT(VALUES(test))
-            """, expectedValue, matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
-            Map.of("data", List.of(expectedLoaders)), assertDataNodeSig);
+        test(
+            mapping,
+            doc,
+            """
+                FROM test
+                """ + eval + """
+                | STATS test = MV_SORT(VALUES(test))
+                """,
+            expectedValue,
+            matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
+            Map.of("data", List.of(expectedLoaders)),
+            assertDataNodeSig
+        );
     }
 
     private void test(

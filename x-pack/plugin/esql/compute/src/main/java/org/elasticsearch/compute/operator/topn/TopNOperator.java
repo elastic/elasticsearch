@@ -84,10 +84,10 @@ public class TopNOperator implements Operator, Accountable {
         RefCounted shardRefCounter;
 
         Row(CircuitBreaker breaker, List<SortOrder> sortOrders, int preAllocatedKeysSize, int preAllocatedValueSize) {
+            breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
             this.breaker = breaker;
             boolean success = false;
             try {
-                breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
                 keys = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedKeysSize);
                 values = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedValueSize);
                 bytesOrder = new BytesOrder(sortOrders, breaker, "topn");
@@ -117,11 +117,11 @@ public class TopNOperator implements Operator, Accountable {
             shardRefCounter = null;
         }
 
-        void setShardRefCountersAndShard(RefCounted shardRefCounter) {
+        void setShardRefCounted(RefCounted shardRefCounted) {
             if (this.shardRefCounter != null) {
                 this.shardRefCounter.decRef();
             }
-            this.shardRefCounter = shardRefCounter;
+            this.shardRefCounter = shardRefCounted;
             this.shardRefCounter.mustIncRef();
         }
     }
@@ -213,7 +213,7 @@ public class TopNOperator implements Operator, Accountable {
             for (ValueExtractor e : valueExtractors) {
                 var refCounted = e.getRefCountedForShard(position);
                 if (refCounted != null) {
-                    destination.setShardRefCountersAndShard(refCounted);
+                    destination.setShardRefCounted(refCounted);
                 }
                 e.writeValue(destination.values, position);
             }
@@ -482,6 +482,7 @@ public class TopNOperator implements Operator, Accountable {
                             encoders.get(b).toUnsortable(),
                             channelInKey(sortOrders, b),
                             size
+
                         );
                     }
                     p = 0;
@@ -505,7 +506,6 @@ public class TopNOperator implements Operator, Accountable {
 
                     BytesRef values = row.values.bytesRefView();
                     for (ResultBuilder builder : builders) {
-                        builder.setNextRefCounted(row.shardRefCounter);
                         builder.decodeValue(values);
                     }
                     if (values.length != 0) {
@@ -684,8 +684,12 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public void close() {
-            Releasables.close(Releasables.wrap(this), () -> breaker.addWithoutBreaking(-Queue.sizeOf(topCount)));
-
+            Releasables.close(
+                // Release all entries in the topn
+                Releasables.wrap(this),
+                // Release the array itself
+                () -> breaker.addWithoutBreaking(-Queue.sizeOf(topCount))
+            );
         }
 
         public static long sizeOf(int topCount) {

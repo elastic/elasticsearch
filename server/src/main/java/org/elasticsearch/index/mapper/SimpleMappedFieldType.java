@@ -22,8 +22,8 @@ import java.util.Map;
  */
 public abstract class SimpleMappedFieldType extends MappedFieldType {
 
-    protected SimpleMappedFieldType(String name, boolean isIndexed, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
-        super(name, isIndexed, isStored, hasDocValues, meta);
+    protected SimpleMappedFieldType(String name, IndexType indexType, boolean isStored, Map<String, String> meta) {
+        super(name, indexType, isStored, meta);
     }
 
     @Override

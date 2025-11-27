@@ -37,15 +37,16 @@
       },
       "analyze_wildcard": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether wildcard and prefix queries should be analyzed (default: false)"
       },
       "default_operator": {
         "type": "enum",
         "options": [
-          "AND",
-          "OR"
+          "and",
+          "or"
         ],
-        "default": "OR",
+        "default": "or",
         "description": "The default operator for query string query (AND or OR)"
       },
       "df": {
@@ -53,15 +54,18 @@
         "description": "The field to use as default where no field prefix is given in the query string"
       },
       "from": {
-        "type": "number",
+        "type": "long",
+        "default": 0,
         "description": "Starting offset (default: 0)"
       },
       "ignore_unavailable": {
         "type": "boolean",
+        "default": false,
         "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
       },
       "allow_no_indices": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
       },
       "conflicts": {
@@ -74,7 +78,7 @@
         "description": "What to do when the update by query hits version conflicts?"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",
@@ -87,6 +91,7 @@
       },
       "lenient": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether format-based query failures (such as providing text to a numeric field) should be ignored"
       },
       "pipeline": {
@@ -107,6 +112,7 @@
       },
       "scroll": {
         "type": "time",
+        "default": "5m",
         "description": "Specify how long a consistent view of the index should be maintained for scrolled search"
       },
       "search_type": {
@@ -122,7 +128,7 @@
         "description": "Explicit timeout for each search request. Defaults to no timeout."
       },
       "max_docs": {
-        "type": "number",
+        "type": "long",
         "description": "Maximum number of documents to process (default: all documents)"
       },
       "sort": {
@@ -130,7 +136,7 @@
         "description": "A comma-separated list of <field>:<direction> pairs"
       },
       "terminate_after": {
-        "type": "number",
+        "type": "long",
         "description": "The maximum number of documents to collect for each shard, upon reaching which the query execution will terminate early."
       },
       "stats": {
@@ -151,6 +157,7 @@
       },
       "refresh": {
         "type": "boolean",
+        "default": false,
         "description": "Should the affected indexes be refreshed?"
       },
       "timeout": {
@@ -160,11 +167,12 @@
       },
       "wait_for_active_shards": {
         "type": "string",
+        "default": "1",
         "description": "Sets the number of shard copies that must be active before proceeding with the update by query operation. Defaults to 1, meaning the primary shard only. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)"
       },
       "scroll_size": {
-        "type": "number",
-        "default": 100,
+        "type": "long",
+        "default": 1000,
         "description": "Size on the scroll request powering the update by query"
       },
       "wait_for_completion": {
@@ -174,7 +182,7 @@
       },
       "requests_per_second": {
         "type": "number",
-        "default": 0,
+        "default": -1,
         "description": "The throttle to set on this request in sub-requests per second. -1 means no throttle."
       },
       "slices": {
@@ -184,7 +192,8 @@
       }
     },
     "body": {
-      "description": "The search definition using the Query DSL"
+      "description": "The search definition using the Query DSL",
+      "required": false
     }
   }
 }

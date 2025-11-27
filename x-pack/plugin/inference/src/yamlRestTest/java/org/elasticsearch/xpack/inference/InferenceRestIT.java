@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.RetryRule;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -35,7 +34,6 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.enabled", "false")
         .setting("xpack.security.http.ssl.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .feature(FeatureFlag.ELASTIC_RERANKER_CHUNKING)
         .plugin("inference-service-test")
         .distribution(DistributionType.DEFAULT)
         .build();

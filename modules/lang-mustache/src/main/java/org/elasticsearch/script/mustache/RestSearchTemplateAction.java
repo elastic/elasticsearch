@@ -19,6 +19,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -38,13 +39,11 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
     private final Predicate<NodeFeature> clusterSupportsFeature;
-    private final Settings settings;
-    private final boolean inCpsContext;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     public RestSearchTemplateAction(Predicate<NodeFeature> clusterSupportsFeature, Settings settings) {
         this.clusterSupportsFeature = clusterSupportsFeature;
-        this.settings = settings;
-        this.inCpsContext = settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false);
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -64,7 +63,8 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (inCpsContext) {
+        boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        if (crossProjectEnabled) {
             // accept but drop project_routing param until fully supported
             request.param("project_routing");
         }
@@ -77,8 +77,8 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             null,
             clusterSupportsFeature,
             size -> searchRequest.source().size(size),
-            // This endpoint is CPS-enabled so propagate the right value.
-            Optional.of(inCpsContext)
+            null,
+            Optional.of(crossProjectEnabled)
         );
 
         // Creates the search template request

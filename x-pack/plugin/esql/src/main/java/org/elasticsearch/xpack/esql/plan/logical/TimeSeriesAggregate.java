@@ -14,11 +14,14 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -119,6 +122,7 @@ public class TimeSeriesAggregate extends Aggregate {
     @Override
     public void postAnalysisVerification(Failures failures) {
         super.postAnalysisVerification(failures);
+        // We forbid grouping by a metric field itself. Metric fields are allowed only inside aggregate functions.
         groupings().forEach(g -> g.forEachDown(e -> {
             if (e instanceof FieldAttribute fieldAttr && fieldAttr.isMetric()) {
                 failures.add(
@@ -189,6 +193,17 @@ public class TimeSeriesAggregate extends Aggregate {
                     )
                 );
             }
+            // reject `TS metrics | MV_EXPAND ... | STATS ...`
+            if (p instanceof MvExpand mvExpand) {
+                failures.add(
+                    fail(
+                        mvExpand,
+                        "mv_expand [{}] in the time-series before the first aggregation [{}] is not allowed",
+                        mvExpand.sourceText(),
+                        this.sourceText()
+                    )
+                );
+            }
         });
     }
 
@@ -201,55 +216,52 @@ public class TimeSeriesAggregate extends Aggregate {
                     failures.add(
                         fail(count, "count_star [{}] can't be used with TS command; use count on a field instead", outer.sourceText())
                     );
+                    // reject COUNT(keyword), but allow COUNT(numeric)
+                } else if (outer instanceof TimeSeriesAggregateFunction == false && outer.field() instanceof AggregateFunction == false) {
+                    Expression field = outer.field();
+                    var lastOverTime = new LastOverTime(
+                        source(),
+                        field,
+                        AggregateFunction.NO_WINDOW,
+                        new Literal(source(), null, DataType.DATETIME)
+                    );
+                    if (lastOverTime.typeResolved() != Expression.TypeResolution.TYPE_RESOLVED) {
+                        failures.add(
+                            fail(
+                                this,
+                                "implicit time-series aggregation function [{}] generated from [{}] doesn't support type [{}], "
+                                    + "only numeric types are supported; use the FROM command instead of the TS command",
+                                outer.sourceText().replace(field.sourceText(), "last_over_time(" + field.sourceText() + ")"),
+                                outer.sourceText(),
+                                field.dataType().typeName()
+                            )
+                        );
+                    }
                 }
-                if (outer instanceof TimeSeriesAggregateFunction ts) {
-                    outer.field()
+                outer.field().forEachDown(AggregateFunction.class, nested -> {
+                    if (nested instanceof TimeSeriesAggregateFunction == false) {
+                        fail(
+                            this,
+                            "cannot use aggregate function [{}] inside aggregation function [{}];"
+                                + "only time-series aggregation function can be used inside another aggregation function",
+                            nested.sourceText(),
+                            outer.sourceText()
+                        );
+                    }
+                    nested.field()
                         .forEachDown(
                             AggregateFunction.class,
-                            nested -> failures.add(
+                            nested2 -> failures.add(
                                 fail(
                                     this,
-                                    "cannot use aggregate function [{}] inside time-series aggregation function [{}]",
+                                    "cannot use aggregate function [{}] inside over-time aggregation function [{}]",
                                     nested.sourceText(),
-                                    outer.sourceText()
+                                    nested2.sourceText()
                                 )
                             )
                         );
-                    // reject `TS metrics | STATS rate(requests)`
-                    // TODO: support this
-                    failures.add(
-                        fail(
-                            ts,
-                            "time-series aggregate function [{}] can only be used with the TS command "
-                                + "and inside another aggregate function",
-                            ts.sourceText()
-                        )
-                    );
-                } else {
-                    outer.field().forEachDown(AggregateFunction.class, nested -> {
-                        if (nested instanceof TimeSeriesAggregateFunction == false) {
-                            fail(
-                                this,
-                                "cannot use aggregate function [{}] inside aggregation function [{}];"
-                                    + "only time-series aggregation function can be used inside another aggregation function",
-                                nested.sourceText(),
-                                outer.sourceText()
-                            );
-                        }
-                        nested.field()
-                            .forEachDown(
-                                AggregateFunction.class,
-                                nested2 -> failures.add(
-                                    fail(
-                                        this,
-                                        "cannot use aggregate function [{}] inside over-time aggregation function [{}]",
-                                        nested.sourceText(),
-                                        nested2.sourceText()
-                                    )
-                                )
-                            );
-                    });
-                }
+                });
+                // }
             }
         }
     }

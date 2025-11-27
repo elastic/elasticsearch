@@ -25,7 +25,19 @@ supports the following time series aggregation functions:
 :::{include} ../_snippets/functions/layout/count_distinct_over_time.md
 :::
 
+:::{include} ../_snippets/functions/layout/delta.md
+:::
+
 :::{include} ../_snippets/functions/layout/first_over_time.md
+:::
+
+:::{include} ../_snippets/functions/layout/idelta.md
+:::
+
+:::{include} ../_snippets/functions/layout/increase.md
+:::
+
+:::{include} ../_snippets/functions/layout/irate.md
 :::
 
 :::{include} ../_snippets/functions/layout/last_over_time.md
@@ -43,5 +55,14 @@ supports the following time series aggregation functions:
 :::{include} ../_snippets/functions/layout/rate.md
 :::
 
+:::{include} ../_snippets/functions/layout/stddev_over_time.md
+:::
+
+:::{include} ../_snippets/functions/layout/variance_over_time.md
+:::
+
 :::{include} ../_snippets/functions/layout/sum_over_time.md
+:::
+
+:::{include} ../_snippets/functions/layout/deriv.md
 :::

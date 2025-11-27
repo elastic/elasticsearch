@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-meta-field.html
 ---
@@ -39,4 +42,4 @@ PUT my-index-000001/_mapping
   }
 }
 ```
-
+% TEST[continued]

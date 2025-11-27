@@ -1,5 +1,0 @@
-pr: 134349
-summary: Add `LoadedSecureSettings` for keeping temporary secure settings loaded
-area: Security
-type: enhancement
-issues: []

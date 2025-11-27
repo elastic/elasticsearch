@@ -49,6 +49,7 @@ PUT _connector/my-gmail-connector
   "service_type": "gmail"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -176,6 +177,7 @@ Download the sample configuration file. You can either download it manually or r
 ```sh
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -266,6 +268,7 @@ For example:
   ]
 }
 ```
+% NOTCONSOLE
 
 
 ### Document level security [es-connectors-gmail-client-document-level-security]
@@ -298,4 +301,4 @@ See [Security](/reference/search-connectors/es-connectors-security.md).
 
 This connector is built in Python with the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [source code for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/gmail.py) (branch *main*, compatible with Elastic *9.0*).
+View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/gmail) (branch *main*, compatible with Elastic *9.0*).

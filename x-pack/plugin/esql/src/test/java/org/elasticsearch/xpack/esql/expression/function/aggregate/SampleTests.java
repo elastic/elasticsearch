@@ -68,7 +68,7 @@ public class SampleTests extends AbstractAggregationTestCase {
                 .map(fieldCaseSupplier -> makeSupplier(fieldCaseSupplier, limitCaseSupplier))
                 .collect(Collectors.toCollection(() -> suppliers));
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override

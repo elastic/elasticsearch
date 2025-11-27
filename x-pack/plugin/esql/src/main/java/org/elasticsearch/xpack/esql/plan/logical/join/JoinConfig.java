@@ -20,6 +20,19 @@ import java.io.IOException;
 import java.util.List;
 
 /**
+ * Configuration of a join operation.
+ * We support equi-joins on a list of fields, as well as expression based joins.
+ * For list of fields based joins, the left and right lists must be of the same size and match positionally.
+ * For expression based joins, the join conditions are expressed as a boolean expression.
+ * The join on condition is stored in the {@code joinOnConditions} field.
+ * We support one or more binary expressions (e.g. {@code ==, <, >, <=, >=, !=}) combined with {@code AND}.
+ * One side of each binary expression must be an attribute from the left side of the join
+ * and the other side an attribute from the side of the join child.
+ * Those are populated in the {@code leftFields} and {@code rightFields} lists respectively.
+ * Notice however that {@code leftFields} and {@code rightFields} might have different size if a field is reused
+ * (e.g. {@code left_a == right_b AND left_a = right_c}).
+ * In addition, you can AND an optional Lucene pushable expression containing references to the right side of the join only.
+ * This expression can contain OR and NOT nodes, as those operators are Lucene pushable.
  * @param type        type of join
  * @param leftFields  fields from the left child to join on
  * @param rightFields fields from the right child to join on

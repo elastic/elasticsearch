@@ -62,7 +62,7 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
         Map<String, String> meta,
         boolean isParsedFromSource
     ) {
-        super(name, false, false, false, meta);
+        super(name, IndexType.NONE, false, meta);
         this.factory = factory;
         this.script = Objects.requireNonNull(script);
         this.isResultDeterministic = isResultDeterministic;

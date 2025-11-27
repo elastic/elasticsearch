@@ -227,7 +227,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             }
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             includeSourceOnError = in.readBoolean();
         } // else default value is true
 
@@ -817,7 +817,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                 out.writeBoolean(false); // obsolete originatesFromUpdateByDoc
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeBoolean(includeSourceOnError);
         }
         if (out.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
@@ -926,6 +926,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public int route(IndexRouting indexRouting) {
         return indexRouting.indexShard(this);
+    }
+
+    @Override
+    public int rerouteAtSourceDuringResharding(IndexRouting indexRouting) {
+        return indexRouting.rerouteToTarget(this);
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

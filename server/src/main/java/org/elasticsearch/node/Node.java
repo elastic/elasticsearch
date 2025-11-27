@@ -59,6 +59,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.injection.guice.Injector;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -277,9 +278,6 @@ public class Node implements Closeable {
         logger.info("starting ...");
         pluginLifecycleComponents.forEach(LifecycleComponent::start);
 
-        if (ReadinessService.enabled(environment)) {
-            injector.getInstance(ReadinessService.class).start();
-        }
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
@@ -288,6 +286,10 @@ public class Node implements Closeable {
         injector.getInstance(RepositoriesService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(FsHealthService.class).start();
+        injector.getInstance(NodeMetrics.class).start();
+        injector.getInstance(IndicesMetrics.class).start();
+        injector.getInstance(HealthPeriodicLogger.class).start();
+        injector.getInstance(SamplingService.class).start();
         nodeService.getMonitorService().start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
@@ -407,7 +409,12 @@ public class Node implements Closeable {
             }
         }
 
+        // ------- DO NOT ADD NEW START CALLS BELOW HERE -------
+
         injector.getInstance(HttpServerTransport.class).start();
+        if (ReadinessService.enabled(environment)) {
+            injector.getInstance(ReadinessService.class).start();
+        }
 
         if (WRITE_PORTS_FILE_SETTING.get(settings())) {
             TransportService transport = injector.getInstance(TransportService.class);
@@ -424,11 +431,6 @@ public class Node implements Closeable {
                 writePortsFile("remote_cluster", transport.boundRemoteAccessAddress());
             }
         }
-
-        injector.getInstance(NodeMetrics.class).start();
-        injector.getInstance(IndicesMetrics.class).start();
-        injector.getInstance(HealthPeriodicLogger.class).start();
-
         logger.info("started {}", transportService.getLocalNode());
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);
@@ -454,6 +456,7 @@ public class Node implements Closeable {
         }
         // We stop the health periodic logger first since certain checks won't be possible anyway
         stopIfStarted(HealthPeriodicLogger.class);
+        stopIfStarted(SamplingService.class);
         stopIfStarted(FileSettingsService.class);
         injector.getInstance(ResourceWatcherService.class).close();
         stopIfStarted(HttpServerTransport.class);
@@ -551,6 +554,7 @@ public class Node implements Closeable {
         }
         toClose.add(injector.getInstance(FileSettingsService.class));
         toClose.add(injector.getInstance(HealthPeriodicLogger.class));
+        toClose.add(injector.getInstance(SamplingService.class));
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));

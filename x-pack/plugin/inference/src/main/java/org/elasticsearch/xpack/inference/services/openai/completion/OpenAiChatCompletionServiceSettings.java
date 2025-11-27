@@ -118,12 +118,7 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
         this.uri = createOptionalUri(in.readOptionalString());
         this.organizationId = in.readOptionalString();
         this.maxInputTokens = in.readOptionalVInt();
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        this.rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Override
@@ -196,10 +191,7 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
         out.writeOptionalString(uri != null ? uri.toString() : null);
         out.writeOptionalString(organizationId);
         out.writeOptionalVInt(maxInputTokens);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
     }
 
     @Override

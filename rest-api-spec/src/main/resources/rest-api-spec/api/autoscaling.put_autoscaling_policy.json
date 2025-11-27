@@ -38,6 +38,7 @@
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Timeout for acknowledgement of update from all nodes in cluster"
       }
     },

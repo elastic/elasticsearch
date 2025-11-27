@@ -91,6 +91,10 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
         }
     }
 
+    public QueryBuilder[] getQueryBuilders() {
+        return queryBuilders;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;

@@ -10,7 +10,7 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -744,6 +744,9 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
     }
 
     static class Request extends LegacyActionRequest {
+
+        private static final TransportVersion REPO_ANALYSIS_COPY_BLOB = TransportVersion.fromName("repo_analysis_copy_blob");
+
         private final String repositoryName;
         private final String blobPath;
         private final String blobName;
@@ -803,7 +806,7 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
             readEarly = in.readBoolean();
             writeAndOverwrite = in.readBoolean();
             abortWrite = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.REPO_ANALYSIS_COPY_BLOB)) {
+            if (in.getTransportVersion().supports(REPO_ANALYSIS_COPY_BLOB)) {
                 copyBlobName = in.readOptionalString();
             } else {
                 copyBlobName = null;
@@ -824,7 +827,7 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
             out.writeBoolean(readEarly);
             out.writeBoolean(writeAndOverwrite);
             out.writeBoolean(abortWrite);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.REPO_ANALYSIS_COPY_BLOB)) {
+            if (out.getTransportVersion().supports(REPO_ANALYSIS_COPY_BLOB)) {
                 out.writeOptionalString(copyBlobName);
             } else if (copyBlobName != null) {
                 assert false : out.getTransportVersion();

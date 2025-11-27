@@ -70,6 +70,7 @@ PUT test_index
   }
 }
 ```
+% NOTCONSOLE
 
 We put the following document into the index:
 
@@ -79,6 +80,7 @@ PUT test_index/_doc/doc1
   "content" : "For you I'm only a fox like a hundred thousand other foxes. But if you tame me, we'll need each other. You'll be the only boy in the world for me. I'll be the only fox in the world for you."
 }
 ```
+% NOTCONSOLE
 
 And we ran the following query with a highlight request:
 
@@ -97,6 +99,7 @@ GET test_index/_search
   }
 }
 ```
+% NOTCONSOLE
 
 After `doc1` is found as a hit for this query, this hit will be passed to the unified highlighter for highlighting the field `content` of the document. Since the field `content` was not indexed either with offsets or term vectors, its raw field value will be analyzed, and in-memory index will be built from the terms that match the query:
 

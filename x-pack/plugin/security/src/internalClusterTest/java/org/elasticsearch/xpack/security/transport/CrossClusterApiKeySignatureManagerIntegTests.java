@@ -13,6 +13,8 @@ import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.test.SecurityIntegTestCase;
 
+import java.security.GeneralSecurityException;
+
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.DIAGNOSE_TRUST_EXCEPTIONS;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_CERTIFICATE_AUTHORITIES;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_CERT_PATH;
@@ -28,7 +30,7 @@ public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegT
     private static final String DYNAMIC_TEST_CLUSTER_ALIAS = "dynamic_test_cluster";
     private static final String STATIC_TEST_CLUSTER_ALIAS = "static_test_cluster";
 
-    public void testSignWithPemKeyConfig() {
+    public void testSignWithPemKeyConfig() throws GeneralSecurityException {
         final CrossClusterApiKeySignatureManager manager = getCrossClusterApiKeySignatureManagerInstance();
         final String[] testHeaders = randomArray(5, String[]::new, () -> randomAlphanumericOfLength(randomInt(20)));
 
@@ -43,15 +45,13 @@ public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegT
         var verifier = manager.verifier();
 
         assertThat(signature.algorithm(), equalToIgnoringCase(keyConfig.getKeys().getFirst().v2().getSigAlgName()));
-        assertEquals(signature.certificates()[0], keyConfig.getKeys().getFirst().v2());
+        assertEquals(signature.leafCertificate(), keyConfig.getKeys().getFirst().v2());
         assertTrue(verifier.verify(signature, testHeaders));
     }
 
     public void testSignUnknownClusterAlias() {
         final CrossClusterApiKeySignatureManager manager = getCrossClusterApiKeySignatureManagerInstance();
-        final String[] testHeaders = randomArray(5, String[]::new, () -> randomAlphanumericOfLength(randomInt(20)));
-        X509CertificateSignature signature = manager.signerForClusterAlias("unknowncluster").sign(testHeaders);
-        assertNull(signature);
+        assertNull(manager.signerForClusterAlias("unknowncluster"));
     }
 
     public void testSeveralKeyStoreAliases() {
@@ -72,8 +72,7 @@ public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegT
 
             {
                 var signer = manager.signerForClusterAlias(DYNAMIC_TEST_CLUSTER_ALIAS);
-                X509CertificateSignature signature = signer.sign("test", "test");
-                assertNull(signature);
+                assertNull(signer);
             }
 
             // Add an alias from the keystore

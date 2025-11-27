@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.script.ScoreScriptUtils;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -21,8 +20,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.junit.BeforeClass;
+import org.hamcrest.Matcher;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -44,11 +45,6 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
 
     public DecayTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
-    }
-
-    @BeforeClass
-    public static void checkCapability() {
-        assumeTrue("Decay function tests require the DECAY_FUNCTION capability", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
     }
 
     @ParametersFactory
@@ -666,7 +662,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 startsWith("DecayIntEvaluator["),
                 DataType.DOUBLE,
-                closeTo(scoreScriptNumericResult, Math.ulp(scoreScriptNumericResult))
+                decayValueMatcher(scoreScriptNumericResult)
             );
         }));
     }
@@ -740,7 +736,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 startsWith("DecayLongEvaluator["),
                 DataType.DOUBLE,
-                equalTo(scoreScriptNumericResult)
+                decayValueMatcher(scoreScriptNumericResult)
             );
         }));
     }
@@ -810,7 +806,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 startsWith("DecayDoubleEvaluator["),
                 DataType.DOUBLE,
-                closeTo(scoreScriptNumericResult, Math.ulp(scoreScriptNumericResult))
+                decayValueMatcher(scoreScriptNumericResult)
             );
         }));
     }
@@ -908,7 +904,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 startsWith("DecayGeoPointEvaluator["),
                 DataType.DOUBLE,
-                closeTo(scoreScriptNumericResult, Math.ulp(scoreScriptNumericResult))
+                decayValueMatcher(scoreScriptNumericResult)
             );
         }));
     }
@@ -1087,7 +1083,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 startsWith("DecayDatetimeEvaluator["),
                 DataType.DOUBLE,
-                closeTo(scoreScriptNumericResult, Math.ulp(scoreScriptNumericResult))
+                decayValueMatcher(scoreScriptNumericResult)
             );
         }));
     }
@@ -1174,7 +1170,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                     ),
                     startsWith("DecayDateNanosEvaluator["),
                     DataType.DOUBLE,
-                    closeTo(scoreScriptNumericResult, 1e-10)
+                    decayValueMatcher(scoreScriptNumericResult)
                 );
             })
         );
@@ -1228,5 +1224,13 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         }
 
         return new MapExpression(Source.EMPTY, keyValuePairs);
+    }
+
+    private static Matcher<Double> decayValueMatcher(Double value) {
+        if (value == Double.POSITIVE_INFINITY || value == Double.NEGATIVE_INFINITY) {
+            return equalTo(value);
+        }
+
+        return closeTo(BigDecimal.valueOf(value).setScale(4, RoundingMode.CEILING).doubleValue(), 0.001);
     }
 }

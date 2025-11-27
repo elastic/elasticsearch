@@ -34,6 +34,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -224,7 +225,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             Map<String, String> meta,
             @Nullable SparseVectorIndexOptions indexOptions
         ) {
-            super(name, true, isStored, false, meta);
+            super(name, IndexType.vectors(), isStored, meta);
             this.indexVersionCreated = indexVersionCreated;
             this.indexOptions = indexOptions;
         }

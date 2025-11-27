@@ -206,8 +206,7 @@ class SecurityCheckClassVisitor extends ClassVisitor {
 
                 if (SECURITY_MANAGER_INTERNAL_NAME.equals(owner)) {
                     EnumSet<ExternalAccess> externalAccesses = ExternalAccess.fromPermissions(
-                        moduleExports.contains(getPackageName(className)),
-                        (classAccess & ACC_PUBLIC) != 0,
+                        moduleExports.contains(getPackageName(className)) && (classAccess & ACC_PUBLIC) != 0,
                         (methodAccess & ACC_PUBLIC) != 0,
                         (methodAccess & ACC_PROTECTED) != 0
                     );

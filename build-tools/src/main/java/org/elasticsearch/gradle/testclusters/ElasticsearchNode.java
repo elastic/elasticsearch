@@ -1407,7 +1407,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Limit the number of allocated processors for all nodes in the cluster by default.
         // This is to ensure that the tests run consistently across different environments.
         String processorCount = shouldConfigureTestClustersWithOneProcessor() ? "1" : "2";
-        if (getVersion().onOrAfter("7.6.0")) {
+        if (getVersion().onOrAfter("7.4.0")) {
             baseConfig.put("node.processors", processorCount);
         } else {
             baseConfig.put("processors", processorCount);

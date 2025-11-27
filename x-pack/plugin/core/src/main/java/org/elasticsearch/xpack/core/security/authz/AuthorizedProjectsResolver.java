@@ -12,7 +12,7 @@ import org.elasticsearch.search.crossproject.TargetProjects;
 
 /**
  * A resolver of authorized projects for the current user. This includes the origin project and all linked projects the user has access to.
- * If we are not in a cross-project search context, the supplier returns {@link TargetProjects#NOT_CROSS_PROJECT}.
+ * If we are not in a cross-project search context, the supplier returns {@link TargetProjects#LOCAL_ONLY_FOR_CPS_DISABLED}.
  */
 public interface AuthorizedProjectsResolver {
     void resolveAuthorizedProjects(ActionListener<TargetProjects> listener);
@@ -20,7 +20,7 @@ public interface AuthorizedProjectsResolver {
     class Default implements AuthorizedProjectsResolver {
         @Override
         public void resolveAuthorizedProjects(ActionListener<TargetProjects> listener) {
-            listener.onResponse(TargetProjects.NOT_CROSS_PROJECT);
+            listener.onResponse(TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED);
         }
     }
 }

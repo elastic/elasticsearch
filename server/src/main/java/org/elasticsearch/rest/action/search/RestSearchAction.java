@@ -30,6 +30,7 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -68,18 +69,12 @@ public class RestSearchAction extends BaseRestHandler {
 
     private final SearchUsageHolder searchUsageHolder;
     private final Predicate<NodeFeature> clusterSupportsFeature;
-    private final Settings settings;
-    private final boolean inCpsContext;
-
-    public RestSearchAction(SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature) {
-        this(searchUsageHolder, clusterSupportsFeature, null);
-    }
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     public RestSearchAction(SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature, Settings settings) {
         this.searchUsageHolder = searchUsageHolder;
         this.clusterSupportsFeature = clusterSupportsFeature;
-        this.settings = settings;
-        this.inCpsContext = settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false);
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -112,9 +107,9 @@ public class RestSearchAction extends BaseRestHandler {
         // this might be set by old clients
         request.param("min_compatible_shard_node");
 
-        if (inCpsContext) {
-            // accept but drop project_routing param until fully supported
-            request.param("project_routing");
+        final boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        if (crossProjectEnabled) {
+            searchRequest.setProjectRouting(request.param("project_routing"));
         }
 
         /*
@@ -138,8 +133,7 @@ public class RestSearchAction extends BaseRestHandler {
                 clusterSupportsFeature,
                 setSize,
                 searchUsageHolder,
-                // This endpoint is CPS-enabled so propagate the right value.
-                Optional.of(inCpsContext)
+                Optional.of(crossProjectEnabled)
             )
         );
 
@@ -151,30 +145,43 @@ public class RestSearchAction extends BaseRestHandler {
 
     /**
      * Parses the rest request on top of the SearchRequest, preserving values that are not overridden by the rest request.
-     *
+     * The endpoint calling this method is treated as if it does not support Cross Project Search (CPS). In case it supports
+     * CPS, it should call in the other appropriate overload and pass in the CPS state explicitly either via Optional.of(true)
+     * or Optional.of(false).
      * @param searchRequest the search request that will hold what gets parsed
      * @param request the rest request to read from
      * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
      *        parameter
      * @param clusterSupportsFeature used to check if certain features are available in this cluster
      * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
-     * @param inCpsContext specifies if we're in CPS context.
-     *                     <br>
-     *                     true - the endpoint that's invoking this method is CPS-enabled and in a CPS/Serverless context.
-     *                     <br>
-     *                     false - the endpoint that's invoking this method is CPS-enabled but not in a CPS/Serverless context.
-     *                     <br>
-     *                     Optional.empty - the endpoint is not CPS-enabled irrespective of the environment.
      */
     public static void parseSearchRequest(
         SearchRequest searchRequest,
         RestRequest request,
         XContentParser requestContentParser,
         Predicate<NodeFeature> clusterSupportsFeature,
-        IntConsumer setSize,
-        Optional<Boolean> inCpsContext
+        IntConsumer setSize
     ) throws IOException {
-        parseSearchRequest(searchRequest, request, requestContentParser, clusterSupportsFeature, setSize, null, inCpsContext);
+        parseSearchRequest(searchRequest, request, requestContentParser, clusterSupportsFeature, setSize, null);
+    }
+
+    public static void parseSearchRequest(
+        SearchRequest searchRequest,
+        RestRequest request,
+        @Nullable XContentParser requestContentParser,
+        Predicate<NodeFeature> clusterSupportsFeature,
+        IntConsumer setSize,
+        @Nullable SearchUsageHolder searchUsageHolder
+    ) throws IOException {
+        parseSearchRequest(
+            searchRequest,
+            request,
+            requestContentParser,
+            clusterSupportsFeature,
+            setSize,
+            searchUsageHolder,
+            Optional.empty()
+        );
     }
 
     /**
@@ -187,13 +194,10 @@ public class RestSearchAction extends BaseRestHandler {
      * @param clusterSupportsFeature used to check if certain features are available in this cluster
      * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
      * @param searchUsageHolder the holder of search usage stats
-     * @param inCpsContext specifies if we're in CPS context.
-     *                     <br>
-     *                     true - the endpoint that's invoking this method is CPS-enabled and in a CPS/Serverless context.
-     *                     <br>
-     *                     false - the endpoint that's invoking this method is CPS-enabled but not in a CPS/Serverless context.
-     *                     <br>
-     *                     Optional.empty - the endpoint is not CPS-enabled irrespective of the environment.
+     * @param crossProjectEnabled Specifies the state of Cross Project Search (CPS) for the endpoint that's calling this method.
+     *                            Optional.of(true)  - signifies that the endpoint supports CPS,
+     *                            Optional.of(false) - signifies that the endpoint supports CPS but CPS is disabled, and,
+     *                            Optional.empty()   - signifies that the endpoint does not support CPS.
      */
     public static void parseSearchRequest(
         SearchRequest searchRequest,
@@ -202,17 +206,24 @@ public class RestSearchAction extends BaseRestHandler {
         Predicate<NodeFeature> clusterSupportsFeature,
         IntConsumer setSize,
         @Nullable SearchUsageHolder searchUsageHolder,
-        Optional<Boolean> inCpsContext
+        Optional<Boolean> crossProjectEnabled
     ) throws IOException {
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
+        /*
+         * We pass this object to the request body parser so that we can extract info such as project_routing.
+         * We only do it if in a Cross Project Environment, though, because outside it, such details are not
+         * expected and valid.
+         */
+        SearchRequest searchRequestForParsing = crossProjectEnabled.orElse(false) ? searchRequest : null;
         if (requestContentParser != null) {
             if (searchUsageHolder == null) {
-                searchRequest.source().parseXContent(requestContentParser, true, clusterSupportsFeature);
+                searchRequest.source().parseXContent(searchRequestForParsing, requestContentParser, true, clusterSupportsFeature);
             } else {
-                searchRequest.source().parseXContent(requestContentParser, true, searchUsageHolder, clusterSupportsFeature);
+                searchRequest.source()
+                    .parseXContent(searchRequestForParsing, requestContentParser, true, searchUsageHolder, clusterSupportsFeature);
             }
         }
 
@@ -250,24 +261,22 @@ public class RestSearchAction extends BaseRestHandler {
         }
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
-        searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
+        IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, searchRequest.indicesOptions());
+        if (crossProjectEnabled.orElse(false) && searchRequest.allowsCrossProject() && searchRequest.pointInTimeBuilder() == null) {
+            indicesOptions = IndicesOptions.builder(indicesOptions)
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
+        }
+        searchRequest.indicesOptions(indicesOptions);
 
         validateSearchRequest(request, searchRequest);
 
         if (searchRequest.pointInTimeBuilder() != null) {
             preparePointInTime(searchRequest, request);
         } else {
-            if (inCpsContext.orElse(false)) {
-                // We're in CPS environment. MRT should not be settable by the user.
-                if (request.hasParam("ccs_minimize_roundtrips")) {
-                    throw new IllegalArgumentException("Setting ccs_minimize_roundtrips is not supported in cross-project search context");
-                }
-            } else {
-                // Either we're in non-CPS environment or the endpoint isn't CPS enabled, so parse what's in the request.
-                searchRequest.setCcsMinimizeRoundtrips(
-                    request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
-                );
-            }
+            searchRequest.setCcsMinimizeRoundtrips(
+                SearchParamsParser.parseCcsMinimizeRoundtrips(crossProjectEnabled, request, searchRequest.isCcsMinimizeRoundtrips())
+            );
         }
         if (request.paramAsBoolean("force_synthetic_source", false)) {
             searchRequest.setForceSyntheticSource(true);

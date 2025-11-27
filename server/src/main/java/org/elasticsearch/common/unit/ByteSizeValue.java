@@ -25,8 +25,6 @@ import java.math.RoundingMode;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
-import static org.elasticsearch.TransportVersions.REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
 import static org.elasticsearch.common.unit.ByteSizeUnit.BYTES;
 import static org.elasticsearch.common.unit.ByteSizeUnit.GB;
 import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
@@ -135,8 +133,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     }
 
     private static boolean alwaysUseBytes(TransportVersion tv) {
-        return tv.supports(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES)
-            || tv.between(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1, REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1);
+        return tv.supports(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES);
     }
 
     ByteSizeValue(long sizeInBytes, ByteSizeUnit desiredUnit) {

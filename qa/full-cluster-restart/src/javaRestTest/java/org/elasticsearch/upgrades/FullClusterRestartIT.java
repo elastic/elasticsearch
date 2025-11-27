@@ -118,7 +118,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             .apply(() -> clusterConfig)
             .feature(FeatureFlag.TIME_SERIES_MODE);
 
-        if (oldVersion.before(Version.fromString("8.18.0"))) {
+        if (oldVersion.before(Version.fromString("8.18.0")) || isOldClusterDetachedVersion()) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
         }

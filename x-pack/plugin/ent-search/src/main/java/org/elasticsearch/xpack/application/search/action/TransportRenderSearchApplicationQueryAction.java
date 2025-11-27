@@ -74,7 +74,7 @@ public class TransportRenderSearchApplicationQueryAction extends HandledTranspor
         systemIndexService.getSearchApplication(request.name(), listener.delegateFailureAndWrap((delegate, searchApplication) -> {
             final Map<String, Object> renderedMetadata = templateService.renderTemplate(searchApplication, request.queryParams());
             final SearchSourceBuilder sourceBuilder = templateService.renderQuery(searchApplication, renderedMetadata);
-            delegate.onResponse(new RenderSearchApplicationQueryAction.Response(request.name(), sourceBuilder));
+            delegate.onResponse(new RenderSearchApplicationQueryAction.Response(sourceBuilder));
         }));
     }
 }

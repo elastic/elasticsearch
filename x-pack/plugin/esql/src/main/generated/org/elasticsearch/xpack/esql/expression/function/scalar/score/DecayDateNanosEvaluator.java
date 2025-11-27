@@ -79,16 +79,16 @@ public final class DecayDateNanosEvaluator implements EvalOperator.ExpressionEva
   public DoubleBlock eval(int positionCount, LongBlock valueBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valueBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (valueBlock.getValueCount(p) != 1) {
-          if (valueBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (valueBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         long value = valueBlock.getLong(valueBlock.getFirstValueIndex(p));
         try {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
@@ -35,63 +36,27 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
 
     public abstract void collect(SortedNumericDoubleValues docValues, IntArrayList buffer) throws IOException;
 
-    /**
-     * {@link MetricFieldProducer} implementation for a counter metric field
-     */
-    static final class CounterMetricFieldProducer extends MetricFieldProducer {
-
-        static final double NO_VALUE = Double.MIN_VALUE;
-
-        double lastValue = NO_VALUE;
-
-        CounterMetricFieldProducer(String name) {
-            super(name);
-        }
-
-        @Override
-        public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
-            if (isEmpty() == false) {
-                return;
-            }
-
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId)) {
-                    isEmpty = false;
-                    lastValue = docValues.nextValue();
-                    return;
-                }
-            }
-        }
-
-        @Override
-        public void reset() {
-            isEmpty = true;
-            lastValue = NO_VALUE;
-        }
-
-        @Override
-        public void write(XContentBuilder builder) throws IOException {
-            if (isEmpty() == false) {
-                builder.field(name(), lastValue);
-            }
-        }
+    public static AbstractDownsampleFieldProducer createFieldProducerForGauge(String name, DownsampleConfig.SamplingMethod samplingMethod) {
+        return switch (samplingMethod) {
+            case AGGREGATE -> new AggregateGaugeMetricFieldProducer(name);
+            case LAST_VALUE -> LastValueFieldProducer.createForMetric(name);
+        };
     }
 
     static final double MAX_NO_VALUE = -Double.MAX_VALUE;
     static final double MIN_NO_VALUE = Double.MAX_VALUE;
 
     /**
-     * {@link MetricFieldProducer} implementation for a gauge metric field
+     * {@link MetricFieldProducer} implementation for creating an aggregate gauge metric field
      */
-    static final class GaugeMetricFieldProducer extends MetricFieldProducer {
+    static final class AggregateGaugeMetricFieldProducer extends MetricFieldProducer {
 
         double max = MAX_NO_VALUE;
         double min = MIN_NO_VALUE;
         final CompensatedSum sum = new CompensatedSum();
         long count;
 
-        GaugeMetricFieldProducer(String name) {
+        AggregateGaugeMetricFieldProducer(String name) {
             super(name);
         }
 
@@ -137,7 +102,7 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
     }
 
     // For downsampling downsampled indices:
-    static final class AggregatedGaugeMetricFieldProducer extends MetricFieldProducer {
+    static final class AggregateSubMetricFieldProducer extends MetricFieldProducer {
 
         final AggregateMetricDoubleFieldMapper.Metric metric;
 
@@ -146,7 +111,7 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
         final CompensatedSum sum = new CompensatedSum();
         long count;
 
-        AggregatedGaugeMetricFieldProducer(String name, AggregateMetricDoubleFieldMapper.Metric metric) {
+        AggregateSubMetricFieldProducer(String name, AggregateMetricDoubleFieldMapper.Metric metric) {
             super(name);
             this.metric = metric;
         }

@@ -42,7 +42,8 @@
       }
     },
     "body": {
-      "description": "The search definition"
+      "description": "The search definition",
+      "required": true
     }
   }
 }

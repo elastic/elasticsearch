@@ -1,5 +1,0 @@
-pr: 132011
-summary: Restrict Indexing To Child Streams When Streams Is Enabled
-area: Data streams
-type: enhancement
-issues: []

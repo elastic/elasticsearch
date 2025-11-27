@@ -247,7 +247,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 approxFilterQuery,
                 expectedStrategy
             );
-            case FLOAT -> new ESKnnFloatVectorQuery(
+            case FLOAT, BFLOAT16 -> new ESKnnFloatVectorQuery(
                 VECTOR_FIELD,
                 queryBuilder.queryVector().asFloatVector(),
                 k,
@@ -268,7 +268,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                     yield new DenseVectorQuery.Bytes(queryBuilder.queryVector().asByteVector(), VECTOR_FIELD);
                 }
             }
-            case FLOAT -> {
+            case FLOAT, BFLOAT16 -> {
                 if (filterQuery != null) {
                     yield new BooleanQuery.Builder().add(
                         new DenseVectorQuery.Floats(queryBuilder.queryVector().asFloatVector(), VECTOR_FIELD),
@@ -413,6 +413,26 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         assertThat(rewrittenQuery, instanceOf(MatchNoneQueryBuilder.class));
     }
 
+    public void testBWCVersionSerializationFilters() throws IOException {
+        KnnVectorQueryBuilder query = createTestQueryBuilder();
+        VectorData vectorData = VectorData.fromFloats(query.queryVector().asFloatVector());
+        KnnVectorQueryBuilder queryNoFilters = new KnnVectorQueryBuilder(
+            query.getFieldName(),
+            vectorData,
+            null,
+            query.numCands(),
+            null,
+            null,
+            null
+        ).queryName(query.queryName()).boost(query.boost());
+        TransportVersion beforeFilterVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersions.V_8_0_0,
+            TransportVersions.V_8_1_0
+        );
+        assertBWCSerialization(query, queryNoFilters, beforeFilterVersion);
+    }
+
     public void testBWCVersionSerializationSimilarity() throws IOException {
         KnnVectorQueryBuilder query = createTestQueryBuilder();
         VectorData vectorData = VectorData.fromFloats(query.queryVector().asFloatVector());
@@ -454,7 +474,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.V_8_8_1,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.KNN_QUERY_RESCORE_OVERSAMPLE)
+            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_18_0)
         );
         VectorData vectorData = version.onOrAfter(TransportVersions.V_8_14_0)
             ? query.queryVector()

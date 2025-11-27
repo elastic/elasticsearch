@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.Describable;
@@ -19,6 +20,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
@@ -44,6 +47,8 @@ import java.util.stream.Collectors;
  */
 
 public class Driver implements Releasable, Describable {
+    private static final Logger LOGGER = LogManager.getLogger(Driver.class);
+
     public static final TimeValue DEFAULT_TIME_BEFORE_YIELDING = TimeValue.timeValueMinutes(5);
     public static final int DEFAULT_MAX_ITERATIONS = 10_000;
     /**
@@ -187,6 +192,12 @@ public class Driver implements Releasable, Describable {
             } catch (DriverEarlyTerminationException unused) {
                 closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()));
                 assert isFinished() : "not finished after early termination";
+            } catch (TaskCancelledException e) {
+                LOGGER.debug("Cancelling running driver [{}]", shortDescription, e);
+                throw e;
+            } catch (RuntimeException e) {
+                LOGGER.error(Strings.format("Error running driver [%s]", shortDescription), e);
+                throw e;
             } finally {
                 assert driverContext.assertEndRunLoop();
             }

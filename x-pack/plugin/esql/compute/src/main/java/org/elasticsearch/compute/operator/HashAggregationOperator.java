@@ -83,7 +83,7 @@ public class HashAggregationOperator implements Operator {
     private boolean finished;
     private Page output;
 
-    private final BlockHash blockHash;
+    final BlockHash blockHash;
 
     protected final List<GroupingAggregator> aggregators;
 
@@ -237,10 +237,10 @@ public class HashAggregationOperator implements Operator {
             blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
             System.arraycopy(keys, 0, blocks, 0, keys.length);
             int offset = keys.length;
-            var evaluationContext = evaluationContext(keys);
+            var evaluationContext = evaluationContext(blockHash, keys);
             for (int i = 0; i < aggregators.size(); i++) {
                 var aggregator = aggregators.get(i);
-                aggregator.evaluate(blocks, offset, selected, evaluationContext);
+                evaluateAggregator(aggregator, blocks, offset, selected, evaluationContext);
                 offset += aggBlockCounts[i];
             }
             output = new Page(blocks);
@@ -257,7 +257,17 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    protected GroupingAggregatorEvaluationContext evaluationContext(Block[] keys) {
+    protected void evaluateAggregator(
+        GroupingAggregator aggregator,
+        Block[] blocks,
+        int offset,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext evaluationContext
+    ) {
+        aggregator.evaluate(blocks, offset, selected, evaluationContext);
+    }
+
+    protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash, Block[] keys) {
         return new GroupingAggregatorEvaluationContext(driverContext);
     }
 
@@ -356,7 +366,7 @@ public class HashAggregationOperator implements Operator {
             aggregationNanos = in.readVLong();
             pagesProcessed = in.readVInt();
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                 rowsReceived = in.readVLong();
                 rowsEmitted = in.readVLong();
             } else {
@@ -376,7 +386,7 @@ public class HashAggregationOperator implements Operator {
             out.writeVLong(aggregationNanos);
             out.writeVInt(pagesProcessed);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                 out.writeVLong(rowsReceived);
                 out.writeVLong(rowsEmitted);
             }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -35,7 +34,7 @@ import static org.hamcrest.Matchers.is;
 public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTests {
 
     private LogicalPlan plan(String query, Analyzer analyzer) {
-        var analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
+        var analyzed = analyzer.analyze(parser.createStatement(query));
         return logicalOptimizer.optimize(analyzed);
     }
 
@@ -229,14 +228,15 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
         err = error("""
             FROM test
-            | COMPLETION language_code = "some prompt" WITH { "inference_id" : "completion-inference-id" }
+            | COMPLETION language_code = CONCAT("some prompt: ", first_name) WITH { "inference_id" : "completion-inference-id" }
             | ENRICH _remote:languages ON language_code
             """, analyzer);
         assertThat(
             err,
             containsString(
                 "ENRICH with remote policy can't be executed after "
-                    + "[COMPLETION language_code = \"some prompt\" WITH { \"inference_id\" : \"completion-inference-id\" }]@2:3"
+                    + "[COMPLETION language_code = CONCAT(\"some prompt: \", first_name) "
+                    + "WITH { \"inference_id\" : \"completion-inference-id\" }]@2:3"
             )
         );
 

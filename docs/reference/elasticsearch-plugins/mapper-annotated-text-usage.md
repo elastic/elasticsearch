@@ -31,6 +31,7 @@ GET my-index-000001/_analyze
   "text":"Investors in [Apple](Apple+Inc.) rejoiced."
 }
 ```
+% NOTCONSOLE
 
 Response:
 
@@ -75,6 +76,7 @@ Response:
   ]
 }
 ```
+% NOTCONSOLE
 
 1. Note the whole annotation token `Apple Inc.` is placed, unchanged as a single token in the token stream and at the same position (position 2) as the text token (`apple`) it annotates.
 
@@ -159,6 +161,7 @@ PUT idx/_doc/1
   ]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -170,6 +173,7 @@ Will become:
   ]
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 ::::{note}
 Reordering text fields can have an effect on [phrase](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) and [span](/reference/query-languages/query-dsl/span-queries.md) queries. See the discussion about [`position_increment_gap`](/reference/elasticsearch/mapping-reference/position-increment-gap.md) for more detail. You can avoid this by making sure the `slop` parameter on the phrase queries is lower than the `position_increment_gap`. This is the default.
@@ -207,6 +211,7 @@ PUT idx/_doc/1
   ]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -219,5 +224,5 @@ Will become:
   ]
 }
 ```
-
+% TEST[s/^/{"_source":/ s/\n$/}/]
 

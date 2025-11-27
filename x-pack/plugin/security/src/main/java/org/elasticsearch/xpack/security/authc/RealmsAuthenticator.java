@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.security.metric.SecurityMetrics;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,7 +47,6 @@ public class RealmsAuthenticator implements Authenticator {
 
     public static final String ATTRIBUTE_REALM_NAME = "es.security.realm_name";
     public static final String ATTRIBUTE_REALM_TYPE = "es.security.realm_type";
-    public static final String ATTRIBUTE_REALM_AUTHC_FAILURE_REASON = "es.security.realm_authc_failure_reason";
 
     private static final Logger logger = LogManager.getLogger(RealmsAuthenticator.class);
 
@@ -71,7 +69,7 @@ public class RealmsAuthenticator implements Authenticator {
         this.authenticationMetrics = new SecurityMetrics<>(
             SecurityMetricType.AUTHC_REALMS,
             meterRegistry,
-            this::buildMetricAttributes,
+            realm -> Map.ofEntries(Map.entry(ATTRIBUTE_REALM_NAME, realm.name()), Map.entry(ATTRIBUTE_REALM_TYPE, realm.type())),
             nanoTimeSupplier
         );
     }
@@ -417,15 +415,5 @@ public class RealmsAuthenticator implements Authenticator {
             // singleton instance used solely for control flow, so a stack trace is meaningless
             return this;
         }
-    }
-
-    private Map<String, Object> buildMetricAttributes(Realm realm, String failureReason) {
-        final Map<String, Object> attributes = new HashMap<>(failureReason != null ? 3 : 2);
-        attributes.put(ATTRIBUTE_REALM_NAME, realm.name());
-        attributes.put(ATTRIBUTE_REALM_TYPE, realm.type());
-        if (failureReason != null) {
-            attributes.put(ATTRIBUTE_REALM_AUTHC_FAILURE_REASON, failureReason);
-        }
-        return attributes;
     }
 }

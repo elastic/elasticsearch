@@ -44,7 +44,7 @@ public class DefaultSettingsProvider implements SettingsProvider {
 
         // Limit the number of allocated processors for all nodes in the cluster by default.
         // This is to ensure that the tests run consistently across different environments.
-        if (nodeSpec.getVersion().onOrAfter("7.6.0")) {
+        if (nodeSpec.getVersion().onOrAfter("7.4.0")) {
             settings.put("node.processors", "2");
         } else {
             settings.put("processors", "2");

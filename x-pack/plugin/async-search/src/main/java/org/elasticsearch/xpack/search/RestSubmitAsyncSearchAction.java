@@ -16,6 +16,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
@@ -39,12 +40,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
 
     private final SearchUsageHolder searchUsageHolder;
     private final Predicate<NodeFeature> clusterSupportsFeature;
-    private final Settings settings;
-    private final boolean inCpsContext;
-
-    public RestSubmitAsyncSearchAction(SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature) {
-        this(searchUsageHolder, clusterSupportsFeature, null);
-    }
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     public RestSubmitAsyncSearchAction(
         SearchUsageHolder searchUsageHolder,
@@ -53,8 +49,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     ) {
         this.searchUsageHolder = searchUsageHolder;
         this.clusterSupportsFeature = clusterSupportsFeature;
-        this.settings = settings;
-        this.inCpsContext = settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false);
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -74,10 +69,10 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         }
         SubmitAsyncSearchRequest submit = new SubmitAsyncSearchRequest();
 
-        if (inCpsContext) {
-            // accept but drop project_routing param until fully supported
-            request.param("project_routing");
+        boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        if (crossProjectEnabled) {
             submit.getSearchRequest().setCcsMinimizeRoundtrips(true);
+            submit.getSearchRequest().setProjectRouting(request.param("project_routing"));
         }
 
         IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);
@@ -93,8 +88,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
                 clusterSupportsFeature,
                 setSize,
                 searchUsageHolder,
-                // This endpoint is CPS-enabled so propagate the right value.
-                Optional.of(inCpsContext)
+                Optional.of(crossProjectEnabled)
             )
         );
 

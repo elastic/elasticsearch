@@ -1,0 +1,6 @@
+pr: 136541
+summary: Multiple patterns for grok command
+area: ES|QL
+type: enhancement
+issues:
+ - 132486

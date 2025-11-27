@@ -30,9 +30,11 @@ public final class RuleUtils {
     private RuleUtils() {}
 
     /**
-     * Returns a tuple of two lists:
-     * 1. A list of aliases to null literals for those data types in the {@param outputAttributes} that {@param shouldBeReplaced}.
-     * 2. A list of named expressions where attributes that match the predicate are replaced with their corresponding null alias.
+     * @return a tuple of two lists:
+     * <ol>
+     * <li>A list of aliases to null literals for those data types in the {@code outputAttributes} that {@code shouldBeReplaced}.</li>
+     * <li>A list of named expressions where attributes that match the predicate are replaced with their corresponding null alias.</li>
+     * </ol>
      *
      * @param outputAttributes The original output attributes.
      * @param shouldBeReplaced A predicate to determine which attributes should be replaced with null aliases.

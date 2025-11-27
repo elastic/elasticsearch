@@ -12,6 +12,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Objects;
 
+/**
+ * A fully resolved attribute - we know its type. For example, if it references data directly from Lucene, this will be a
+ * {@link FieldAttribute}. If it references the results of another calculation it will be {@link ReferenceAttribute}s.
+ */
 public abstract class TypedAttribute extends Attribute {
 
     private final DataType dataType;
@@ -46,14 +50,13 @@ public abstract class TypedAttribute extends Attribute {
     }
 
     @Override
-    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), dataType);
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(ignoreIds), dataType);
     }
 
     @Override
-    protected boolean innerEquals(Object o) {
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (TypedAttribute) o;
-        return super.innerEquals(other) && dataType == other.dataType;
+        return super.innerEquals(other, ignoreIds) && dataType == other.dataType;
     }
 }

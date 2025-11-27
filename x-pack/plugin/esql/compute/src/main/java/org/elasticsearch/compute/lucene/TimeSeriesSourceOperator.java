@@ -22,10 +22,12 @@ import java.util.function.Function;
  * such as slice index and future max timestamp, to allow downstream operators to optimize processing.
  */
 public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
+    private static final int MAX_TARGET_PAGE_SIZE = 2048;
+    private static final int CHUNK_SIZE = 128;
 
     public static final class Factory extends LuceneSourceOperator.Factory {
         public Factory(
-            List<? extends ShardContext> contexts,
+            IndexedByShardId<? extends ShardContext> contexts,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             int taskConcurrency,
             int maxPageSize,
@@ -45,7 +47,7 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new TimeSeriesSourceOperator(contexts, driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter);
+            return new TimeSeriesSourceOperator(refCounteds, driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter);
         }
 
         @Override
@@ -55,7 +57,7 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
     }
 
     public TimeSeriesSourceOperator(
-        List<? extends RefCounted> shardContextCounters,
+        IndexedByShardId<? extends RefCounted> shardContextCounters,
         BlockFactory blockFactory,
         int maxPageSize,
         LuceneSliceQueue sliceQueue,
@@ -75,5 +77,18 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
     protected void buildMetadataBlocks(Block[] blocks, int offset, int currentPagePos) {
         blocks[offset] = blockFactory.newConstantIntVector(currentSlice.slicePosition(), currentPagePos).asBlock();
         blocks[offset + 1] = blockFactory.newConstantLongVector(Long.MAX_VALUE, currentPagePos).asBlock();
+    }
+
+    /**
+     * For time-series queries, try to use a page size that is a multiple of CHUNK_SIZE (see NUMERIC_BLOCK_SIZE in the tsdb codec)
+     * to enable bulk loading of numeric or tsid fields. Avoid pages that are too large, as this can disable bulk loading if there are
+     * holes in the doc IDs and disable constant block optimizations. Therefore, we cap the page size at 2048, which balances the
+     * overhead per page with the benefits of bulk loading and constant blocks.
+     */
+    public static int pageSize(long estimateRowSizeInBytes, long maxPageSizeInBytes) {
+        long chunkSizeInBytes = CHUNK_SIZE * estimateRowSizeInBytes;
+        long numChunks = Math.ceilDiv(maxPageSizeInBytes, chunkSizeInBytes);
+        long pageSize = Math.clamp(numChunks * CHUNK_SIZE, CHUNK_SIZE, MAX_TARGET_PAGE_SIZE);
+        return Math.toIntExact(pageSize);
     }
 }

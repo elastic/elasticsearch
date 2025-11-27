@@ -1,0 +1,5 @@
+pr: 137434
+summary: Require basic licence for the Elastic Inference Service
+area: Machine Learning
+type: enhancement
+issues: []

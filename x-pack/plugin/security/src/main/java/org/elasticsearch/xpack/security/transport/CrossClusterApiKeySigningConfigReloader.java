@@ -266,7 +266,6 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
 
         Settings secureSettingsSource = updateSecureSettings ? newSettings : currentSettings;
         Settings settingsSource = updateSecureSettings ? currentSettings : newSettings;
-
         SecureSettings secureSettings = Settings.builder().put(secureSettingsSource, true).getSecureSettings();
 
         var builder = Settings.builder().put(settingsSource, false);

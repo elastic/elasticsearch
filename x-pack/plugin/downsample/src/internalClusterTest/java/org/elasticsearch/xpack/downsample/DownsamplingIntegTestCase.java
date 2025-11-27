@@ -44,6 +44,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
@@ -88,7 +89,8 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
             LocalStateCompositeXPackPlugin.class,
             Downsample.class,
             AggregateMetricMapperPlugin.class,
-            EsqlPlugin.class
+            EsqlPlugin.class,
+            AnalyticsPlugin.class
         );
     }
 
@@ -293,7 +295,13 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
                 TimeSeriesParams.MetricType metricType = metricFields.get(field);
                 switch (metricType) {
                     case COUNTER -> assertThat(fieldMapping.get("type"), equalTo("double"));
-                    case GAUGE -> assertThat(fieldMapping.get("type"), equalTo("aggregate_metric_double"));
+                    case GAUGE -> {
+                        if (config.getSamplingMethod() == DownsampleConfig.SamplingMethod.LAST_VALUE) {
+                            assertThat(fieldMapping.get("type"), equalTo("double"));
+                        } else {
+                            assertThat(fieldMapping.get("type"), equalTo("aggregate_metric_double"));
+                        }
+                    }
                     default -> fail("Unsupported field type");
                 }
                 assertThat(fieldMapping.get("time_series_metric"), equalTo(metricType.toString()));
@@ -327,5 +335,13 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
 
     private static boolean hasTimeSeriesDimensionTrue(Map<String, ?> fieldMapping) {
         return Boolean.TRUE.equals(fieldMapping.get(TIME_SERIES_DIMENSION_PARAM));
+    }
+
+    public static DownsampleConfig.SamplingMethod randomSamplingMethod() {
+        if (between(0, DownsampleConfig.SamplingMethod.values().length) == 0) {
+            return null;
+        } else {
+            return randomFrom(DownsampleConfig.SamplingMethod.values());
+        }
     }
 }

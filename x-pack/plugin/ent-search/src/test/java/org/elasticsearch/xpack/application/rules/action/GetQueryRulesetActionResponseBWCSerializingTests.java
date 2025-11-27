@@ -39,7 +39,7 @@ public class GetQueryRulesetActionResponseBWCSerializingTests extends AbstractBW
 
     @Override
     protected GetQueryRulesetAction.Response mutateInstance(GetQueryRulesetAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new GetQueryRulesetAction.Response(randomValueOtherThan(instance.queryRuleset(), () -> randomQueryRuleset()));
     }
 
     @Override

@@ -287,3 +287,106 @@ c: long     |   scalerank: long
 10             | 3              
 15             | 2              
 ;
+
+kqlWithOptions
+required_capability: kql_function
+required_capability: kql_function_options
+
+
+FROM employees 
+| WHERE KQL("first_name: Mary", {"case_insensitive": false})
+| KEEP emp_no, first_name, last_name
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10011          | Mary               | Sluis
+;
+
+kqlWithCaseInsensitiveOption
+required_capability: kql_function
+required_capability: kql_function_options
+
+FROM employees 
+| WHERE KQL("first_name: mary", {"case_insensitive": true})
+| KEEP emp_no, first_name, last_name
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10011          | Mary               | Sluis
+;
+
+kqlWithTimeZoneOption
+required_capability: kql_function
+required_capability: kql_function_options
+
+FROM logs
+| WHERE KQL("@timestamp > \"2023-10-23T09:56:00\" AND @timestamp < \"2023-10-23T09:57:00\"", {"time_zone": "America/New_York"})
+| KEEP @timestamp, message
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | message:text
+2023-10-23T13:56:01.543Z | No response
+2023-10-23T13:56:01.544Z | Running cats (cycle 2)
+;
+
+kqlWithDefaultFieldOption
+required_capability: kql_function
+required_capability: kql_function_options
+
+FROM employees
+| WHERE KQL("Support Engineer", {"default_field": "job_positions"})
+| KEEP emp_no, first_name, last_name, job_positions
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword | job_positions:keyword
+10004          | Chirstian          | Koblick           | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
+10015          | Guoxiang           | Nooteboom         | [Head Human Resources, Junior Developer, Principal Support Engineer, Support Engineer]
+10021          | Ramzi              | Erde              | Support Engineer
+;
+
+kqlWithBoostOption
+required_capability: kql_function
+required_capability: kql_function_options
+
+FROM employees METADATA _score
+| WHERE KQL("job_positions: Support Engineer", {"boost": 2.5})
+| KEEP emp_no, first_name, last_name, job_positions
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword | job_positions:keyword                                                                 
+10004          | Chirstian          | Koblick           | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]                
+10015          | Guoxiang           | Nooteboom         | [Head Human Resources, Junior Developer, Principal Support Engineer, Support Engineer]
+10021          | Ramzi              | Erde              | Support Engineer                                                                      
+;
+
+kqlWithMultipleOptions
+required_capability: kql_function
+required_capability: kql_function_options
+// tag::kql-with-options[]
+FROM employees
+| WHERE KQL("mary", {"case_insensitive": true, "default_field": "first_name", "boost": 1.5})
+// end::kql-with-options[]
+| KEEP emp_no, first_name, last_name
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10011          | Mary               | Sluis
+;
+
+kqlWithWildcardDefaultField
+required_capability: kql_function
+required_capability: kql_function_options
+
+FROM employees
+| WHERE KQL("Mary", {"default_field": "*_name"})
+| KEEP emp_no, first_name, last_name
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10011          | Mary               | Sluis
+;

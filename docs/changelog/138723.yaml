@@ -1,0 +1,14 @@
+pr: 138723
+summary: Remove DOC_VALUES_SKIPPER feature flag
+area: Mapping
+type: feature
+issues: []
+highlight:
+  title: Remove DOC_VALUES_SKIPPER feature flag
+  body: |-
+    Removing this flag will enable skippers automatically on keyword, ip,
+    boolean,     date and numeric fields that have index=false and
+    doc_values=true.  In addition,  some fields in time_series and logsdb
+    modes will default to using doc values  skippers in place of points or
+    terms indexes.
+  notable: true

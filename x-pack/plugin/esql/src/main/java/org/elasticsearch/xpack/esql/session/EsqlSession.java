@@ -836,7 +836,6 @@ public class EsqlSession {
                     e.getValue(),
                     null, // TODO wire project routing from configuration
                     preAnalysis,
-                    configuration,
                     executionInfo,
                     r,
                     requestFilter,
@@ -884,7 +883,6 @@ public class EsqlSession {
         IndexMode indexMode,
         String projectRouting,
         PreAnalyzer.PreAnalysis preAnalysis,
-        Configuration configuration,
         EsqlExecutionInfo executionInfo,
         PreAnalysisResult result,
         QueryBuilder requestFilter,

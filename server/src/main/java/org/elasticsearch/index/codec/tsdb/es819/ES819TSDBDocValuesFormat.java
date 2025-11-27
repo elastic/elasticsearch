@@ -231,6 +231,6 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
 
     @Override
     public DocValuesProducer fieldsProducer(SegmentReadState state) throws IOException {
-        return new ES819TSDBDocValuesProducer(state, numericBlockShift, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+        return new ES819TSDBDocValuesProducer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
     }
 }

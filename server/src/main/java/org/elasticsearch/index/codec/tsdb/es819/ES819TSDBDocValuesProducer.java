@@ -75,14 +75,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     private final int numericBlockSize;
     private final int numericBlockMask;
 
-    ES819TSDBDocValuesProducer(
-        SegmentReadState state,
-        int numericBlockShift,
-        String dataCodec,
-        String dataExtension,
-        String metaCodec,
-        String metaExtension
-    ) throws IOException {
+    ES819TSDBDocValuesProducer(SegmentReadState state, String dataCodec, String dataExtension, String metaCodec, String metaExtension)
+        throws IOException {
         this.numerics = new IntObjectHashMap<>();
         this.binaries = new IntObjectHashMap<>();
         this.sorted = new IntObjectHashMap<>();
@@ -95,7 +89,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         // read in the entries from the metadata file.
         int version = -1;
-        int blockShift = numericBlockShift;
+        int blockShift = ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
         String metaName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
 
         try (ChecksumIndexInput in = state.directory.openChecksumInput(metaName)) {

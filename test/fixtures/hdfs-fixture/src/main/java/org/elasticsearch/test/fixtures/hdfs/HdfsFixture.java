@@ -196,6 +196,7 @@ public class HdfsFixture extends ExternalResource {
             } catch (IOException e) {
                 // Log the exception
                 System.out.println("Attempt " + attempt + " failed with error: " + e.getMessage());
+                e.printStackTrace();
                 // If the maximum number of attempts is reached, rethrow the exception
                 FileUtils.deleteDirectory(baseDir.toFile());
                 if (attempt == maxAttempts) {

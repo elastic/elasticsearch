@@ -202,7 +202,8 @@ public class EsqlSession {
             System.nanoTime(),
             request.allowPartialResults(),
             clusterSettings.timeseriesResultTruncationMaxSize(),
-            clusterSettings.timeseriesResultTruncationDefaultSize()
+            clusterSettings.timeseriesResultTruncationDefaultSize(),
+            projectRouting(request, statement)
         );
         FoldContext foldContext = configuration.newFoldContext();
 
@@ -256,6 +257,18 @@ public class EsqlSession {
                 }
             }
         );
+    }
+
+    private String projectRouting(EsqlQueryRequest request, EsqlStatement statement) {
+        String projectRouting = statement.setting(QuerySettings.PROJECT_ROUTING);
+        if (projectRouting == null) {
+            projectRouting = request.projectRouting();
+        }
+
+        if (projectRouting != null && crossProjectModeDecider.crossProjectEnabled() == false) {
+            throw new VerificationException("[project_routing] is only allowed when cross-project search is enabled");
+        }
+        return projectRouting;
     }
 
     /**
@@ -834,7 +847,7 @@ public class EsqlSession {
                 (e, r, l) -> preAnalyzeFlatMainIndices(
                     e.getKey(),
                     e.getValue(),
-                    null, // TODO wire project routing from configuration
+                    configuration.projectRouting(),
                     preAnalysis,
                     executionInfo,
                     r,

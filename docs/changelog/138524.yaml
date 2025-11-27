@@ -1,0 +1,16 @@
+pr: 138524
+summary: Remove feature flag to enable binary doc value compression
+area: Mapping
+type: feature
+issues: []
+highlight:
+  title: Remove feature flag to enable binary doc value compression
+  body: |-
+    Add compression for binary doc values using Zstd and blocks with a variable number of values.
+
+    Block-wise LZ4 compression was previously added to Lucene in LUCENE-9211 and removed in LUCENE-9378 due to query performance issues. This approach stored a constant number of values per block (specifically 32 values). This made it easy to map a given value index (e.g., docId) to the block containing it by doing blockId = docId / 32.
+    Unfortunately, if values are very large, we must still have exactly 32 values per block, and (de)compressing a block could cause very high memory usage. As a result, we had to keep the number of values small, meaning that in the average case, a block was much smaller than ideal.
+    To overcome the issues of blocks with a constant number of values, this PR adds block-wise compression with a variable number of values per block. It stores a minimum of 1 document per block and stops adding values when the size of a block exceeds a threshold or the number of values exceeds a threshold.
+    Like the previous version, it stores an array of addresses for the start of each block. Additionally, it stores a parallel array with the docId at the start of each block. When looking up a given docId, if it is not in the current block, we binary search the array of docId starts to find the blockId containing the value. We then look up the address of the block. After this, decompression works very similarly to the code from LUCENE-9211; the main difference being that Zstd(1) is used instead of LZ4.
+
+  notable: true

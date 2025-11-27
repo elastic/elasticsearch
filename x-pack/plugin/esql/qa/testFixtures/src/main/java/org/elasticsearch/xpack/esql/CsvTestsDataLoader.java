@@ -172,7 +172,11 @@ public class CsvTestsDataLoader {
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
     private static final TestDataset COLORS = new TestDataset("colors");
     private static final TestDataset COLORS_CMYK_LOOKUP = new TestDataset("colors_cmyk").withSetting("lookup-settings.json");
-    private static final TestDataset EXP_HISTO_SAMPLE = new TestDataset("exp_histo_sample");
+    private static final TestDataset EXP_HISTO_SAMPLE = new TestDataset(
+        "exp_histo_sample",
+        "exp_histo_sample-mappings.json",
+        "exp_histo_sample.csv"
+    ).withSetting("exp_histo_sample-settings.json");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),

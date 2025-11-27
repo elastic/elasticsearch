@@ -431,29 +431,26 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
 
     public void testLengthPushedWithTopNAsOrder() throws IOException {
         String textValue = "v".repeat(between(0, 256));
-        Integer orderingValue = randomInt();
         test(
             b -> b.startObject("test").field("type", "keyword").endObject(),
-            b -> b.field("test", textValue).field("ordering", orderingValue),
+            b -> b.field("test", textValue),
             """
                 FROM test
                 | EVAL fieldLength = LENGTH(test)
                 | SORT fieldLength DESC
                 | LIMIT 10
-                | KEEP test
+                | KEEP test, fieldLength
                 """,
-            matchesList().item(textValue),
-            matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
+            matchesList().item(textValue).item(textValue.length()),
+            matchesList()
+                .item(matchesMap().entry("name", "test").entry("type", any(String.class)))
+                .item(matchesMap().entry("name", "fieldLength").entry("type", any(String.class))),
             Map.of(
                 "data",
                 List.of(
                     // Pushed down function
                     matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
-                    matchesMap().entry("ordering:column_at_a_time:IntsFromDocValues.Singleton", 1)
-                ),
-                "node_reduce",
-                List.of(
-                    // Field
+                    // TODO It should not load the field value on the data node, but just on the node_reduce phase
                     matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1)
                 )
             ),

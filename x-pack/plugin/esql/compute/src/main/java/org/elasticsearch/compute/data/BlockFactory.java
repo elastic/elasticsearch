@@ -497,7 +497,7 @@ public class BlockFactory {
     }
 
     public final ExponentialHistogramBlock newConstantExponentialHistogramBlock(ExponentialHistogram value, int positionCount) {
-        return ExponentialHistogramBlockBuilder.createConstant(value, positionCount, this);
+        return ExponentialHistogramArrayBlock.createConstant(value, positionCount, this);
     }
 
     public BlockLoader.Block newExponentialHistogramBlockFromDocValues(

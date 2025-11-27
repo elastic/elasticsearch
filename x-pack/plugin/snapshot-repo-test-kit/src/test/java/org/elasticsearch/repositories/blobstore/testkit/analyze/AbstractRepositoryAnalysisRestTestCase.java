@@ -29,7 +29,7 @@ public abstract class AbstractRepositoryAnalysisRestTestCase extends ESRestTestC
         logger.info("creating repository [{}] of type [{}]", repository, repositoryType);
         registerRepository(repository, repositoryType, true, repositorySettings);
 
-        final TimeValue timeout = TimeValue.timeValueSeconds(5 * 60);
+        final TimeValue timeout = TimeValue.timeValueSeconds(120);
         final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + "/_analyze");
         request.addParameter("blob_count", "10");
         request.addParameter("concurrency", "4");

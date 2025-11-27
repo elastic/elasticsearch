@@ -82,6 +82,13 @@ public final class CsvTestUtils {
     public static final String COMMA_ESCAPING_REGEX = "(?<!\\" + ESCAPE_CHAR + "),";
     public static final String ESCAPED_COMMA_SEQUENCE = ESCAPE_CHAR + ",";
 
+    public record Range(Object lowerBound, Object upperBound) {
+        @SuppressWarnings("unchecked")
+        <T extends Comparable<T>> boolean includes(Object value) {
+            return ((T) value).compareTo((T) lowerBound) >= 0 && ((T) value).compareTo((T) upperBound) <= 0;
+        }
+    }
+
     private CsvTestUtils() {}
 
     public static boolean isEnabled(String testName, String instructions, Version version) {
@@ -617,7 +624,16 @@ public final class CsvTestUtils {
             if (value == null) {
                 return null;
             }
-            return converter.apply(value);
+            if (Number.class.isAssignableFrom(clazz) && value.contains("..")) {
+                // Numbers of the form "lower..upper" are parsed to a Range, indicating that
+                // the expected value is within that range.
+                int separator = value.indexOf("..");
+                Object lowerBound = converter.apply(value.substring(0, separator).trim());
+                Object upperBound = converter.apply(value.substring(separator + 2).trim());
+                return new Range(lowerBound, upperBound);
+            } else {
+                return converter.apply(value);
+            }
         }
 
         Class<?> clazz() {

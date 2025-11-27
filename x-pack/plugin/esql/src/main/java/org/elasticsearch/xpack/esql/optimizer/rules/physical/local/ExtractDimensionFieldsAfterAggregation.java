@@ -110,10 +110,8 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                                     DataType.KEYWORD,
                                     new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS)
                                 ),
-                                true  // Mark as synthetic so fieldName() returns _source instead of _timeseries
+                                true
                             );
-                            // _timeseries = to_string(_tsid)
-                            // var timeSeries = new ToBase64(dimensionField.source(), tsidField(oldAgg));
                             aliases.add(new Alias(agg.source(), agg.name(), sourceField, oldAttr.id()));
                         } else {
                             aliases.add(new Alias(agg.source(), agg.name(), dimensionField, oldAttr.id()));

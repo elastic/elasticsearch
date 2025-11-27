@@ -818,7 +818,7 @@ public class VerifierMetricsTests extends ESTestCase {
     public void testPromql() {
         assumeTrue("PromQL required", EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V2.isEnabled());
         Counters c = esql("""
-            PROMQL "metrics" step 5m (sum(salary))""");
+            PROMQL metrics step 5m (sum(salary))""");
         assertEquals(0, dissect(c));
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));

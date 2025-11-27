@@ -1386,8 +1386,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private String parseParamName(EsqlBaseParser.PromqlParamContentContext ctx) {
-        if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
-            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
+        if (ctx.UNQUOTED_SOURCE() != null) {
+            return ctx.UNQUOTED_SOURCE().getText();
         } else if (ctx.QUOTED_IDENTIFIER() != null) {
             return AbstractBuilder.unquote(ctx.QUOTED_IDENTIFIER().getText());
         } else {
@@ -1396,8 +1396,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private String parseParamValue(EsqlBaseParser.PromqlParamContentContext ctx) {
-        if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
-            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
+        if (ctx.UNQUOTED_SOURCE() != null) {
+            return ctx.UNQUOTED_SOURCE().getText();
         } else if (ctx.QUOTED_STRING() != null) {
             return AbstractBuilder.unquote(ctx.QUOTED_STRING().getText());
         } else if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {

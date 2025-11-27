@@ -182,28 +182,27 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
             List<NamedExpression> aggs = new ArrayList<>();
             List<Expression> groupings = new ArrayList<>(acrossAggregate.groupings().size());
             Alias stepBucket = createStepBucketAlias(promqlCommand, acrossAggregate);
-            Attribute valueAttribute = initAggregatesAndGroupings(acrossAggregate, target, aggs, groupings, stepBucket.toAttribute());
+            initAggregatesAndGroupings(acrossAggregate, target, aggs, groupings, stepBucket.toAttribute());
 
             LogicalPlan p = childResult.plan;
             p = new Eval(stepBucket.source(), p, List.of(stepBucket));
-            p = new TimeSeriesAggregate(acrossAggregate.source(), p, groupings, aggs, null);
-
+            TimeSeriesAggregate tsAggregate = new TimeSeriesAggregate(acrossAggregate.source(), p, groupings, aggs, null);
+            p = tsAggregate;
             // ToDouble conversion of the metric using an eval to ensure a consistent output type
             Alias convertedValue = new Alias(
                 acrossAggregate.source(),
-                valueAttribute.name(),
-                new ToDouble(acrossAggregate.source(), valueAttribute),
+                acrossAggregate.sourceText(),
+                new ToDouble(acrossAggregate.source(), p.output().getFirst().toAttribute()),
                 acrossAggregate.valueId()
             );
             p = new Eval(acrossAggregate.source(), p, List.of(convertedValue));
-
             // Project to maintain the correct output order, as declared in AcrossSeriesAggregate#output:
             // [value, step, ...groupings]
             List<NamedExpression> projections = new ArrayList<>();
-            projections.add(convertedValue.toAttribute());  // converted value first
-            projections.add(stepBucket.toAttribute());      // step second
-            for (NamedExpression grouping : acrossAggregate.groupings()) {
-                projections.add(grouping.toAttribute());    // then groupings
+            projections.add(convertedValue.toAttribute());
+            List<Attribute> output = tsAggregate.output();
+            for (int i = 1; i < output.size(); i++) {
+                projections.add(output.get(i));
             }
             p = new Project(acrossAggregate.source(), p, projections);
 
@@ -215,17 +214,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
         return result;
     }
 
-    /**
-     * Initializes the aggregates and groupings for an AcrossSeriesAggregate.
-     *
-     * @param acrossAggregate the AcrossSeriesAggregate node
-     * @param target the target expression to aggregate
-     * @param aggs the list to populate with aggregate expressions
-     * @param groupings the list to populate with grouping expressions
-     * @param stepBucket the step bucket attribute
-     * @return the attribute representing the main aggregate value (e.g., avg(metric))
-     */
-    private static Attribute initAggregatesAndGroupings(
+    private static void initAggregatesAndGroupings(
         AcrossSeriesAggregate acrossAggregate,
         Expression target,
         List<NamedExpression> aggs,
@@ -251,8 +240,6 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
             aggs.add(grouping);
             groupings.add(grouping.toAttribute());
         }
-
-        return value.toAttribute();
     }
 
     private static Alias createStepBucketAlias(PromqlCommand promqlCommand, AcrossSeriesAggregate acrossAggregate) {

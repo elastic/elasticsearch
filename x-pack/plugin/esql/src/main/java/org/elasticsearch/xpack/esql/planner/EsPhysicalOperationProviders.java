@@ -564,13 +564,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
                 @Override
                 public Set<String> dimensionFields() {
-                    IndexMetadata indexMetadata = ctx.getIndexSettings().getIndexMetadata();
-                    List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
-                    if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
-                        return new HashSet<>(dimensionFieldsFromSettings);
-                    }
-
                     if (ctx.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
+                        IndexMetadata indexMetadata = ctx.getIndexSettings().getIndexMetadata();
+                        List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
+                        if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
+                            return new HashSet<>(dimensionFieldsFromSettings);
+                        }
+
                         MappingLookup mappingLookup = ctx.getMappingLookup();
                         Set<String> dimensionFields = new HashSet<>();
                         for (Mapper mapper : mappingLookup.fieldMappers()) {

@@ -202,6 +202,7 @@ public class HdfsFixture extends ExternalResource {
                     FileUtils.deleteDirectory(baseDir.toFile());
                 } catch (IOException cleanupException) {
                     // Log but don't fail on cleanup errors
+                    cleanupException.printStackTrace();
                     System.out.println("Failed to cleanup baseDir after attempt " + attempt + ": " + cleanupException.getMessage());
                 }
                 // If the maximum number of attempts is reached, rethrow the exception

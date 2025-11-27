@@ -54,8 +54,9 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
             assertMigratedDocInSecurityIndex(mixed1TestRole, "meta", "test");
             assertMigratedDocInSecurityIndex(mixed2TestRole, "meta", "test");
             assertMigratedDocInSecurityIndex(upgradedTestRole, "meta", "test");
-            // queries all roles by metadata
-            assertAllRoles(client(), "mixed1-test-role", "mixed2-test-role", "old-test-role", "upgraded-test-role");
+            // query all roles by metadata - use assertBusy to handle the case where the node handling the query is not yet aware of the
+            // successful migration
+            assertBusy(() -> assertAllRoles(client(), "mixed1-test-role", "mixed2-test-role", "old-test-role", "upgraded-test-role"));
         }
     }
 

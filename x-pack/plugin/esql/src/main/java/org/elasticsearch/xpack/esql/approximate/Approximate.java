@@ -651,6 +651,9 @@ public class Approximate {
 
         logger.debug("generating approximate plan (p={})", sampleProbability);
         Holder<Boolean> encounteredStats = new Holder<>(false);
+        // The keys are the IDs of the fields that have buckets. Confidence interval are computed
+        // for these fields at the end of the computation. They map to the list of buckets for
+        // that field.
         Map<NameId, List<Alias>> fieldBuckets = new HashMap<>();
 
         LogicalPlan approximatePlan = logicalPlan.transformUp(plan -> {
@@ -759,7 +762,8 @@ public class Approximate {
             } else if (encounteredStats.get()) {
                 // After the STATS function, any processing of fields that have buckets, should
                 // also process the buckets, so that confidence intervals for the dependent fields
-                // can be computed.
+                // can be computed. Luckily, there are not many commands that produce numeric
+                // fields that depend on other numeric fields, that can have a confidence interval.
                 switch (plan) {
                     case Eval eval:
                         // For EVAL, if any of the evaluated expressions depends on a field with buckets,
@@ -794,7 +798,7 @@ public class Approximate {
                         break;
 
                     case Project project:
-                        // For PROJECT, if it renames a fields with buckets, add the renamed field
+                        // For PROJECT, if it renames a field with buckets, add the renamed field
                         // to the map of fields with buckets.
                         for (NamedExpression projection : project.projections()) {
                             if (projection instanceof Alias alias
@@ -803,7 +807,33 @@ public class Approximate {
                                 fieldBuckets.put(alias.id(), fieldBuckets.get(named.id()));
                             }
                         }
+
+                        // When PROJECT keeps a field with buckets, also keep the buckets.
+                        List<NamedExpression> projections = null;
+                        for (NamedExpression projection : project.projections()) {
+                            if (fieldBuckets.containsKey(projection.id())) {
+                                if (projections == null) {
+                                    projections = new ArrayList<>(project.projections());
+                                }
+                                for (Alias bucket : fieldBuckets.get(projection.id())) {
+                                    projections.add(bucket.toAttribute());
+                                }
+                            }
+                        }
+                        if (projections != null) {
+                            plan = project.withProjections(projections);
+                        }
                         break;
+
+                    case MvExpand mvExpand:
+                        // Fields with buckets are always single-valued, so expanding them doesn't
+                        // do anything and the buckets of the expanded field are the same as those
+                        // of the target field.
+                        if (fieldBuckets.containsKey(mvExpand.target().id())) {
+                            fieldBuckets.put(mvExpand.expanded().id(), fieldBuckets.get(mvExpand.target().id()));
+                        }
+                        break;
+
                     default:
                 }
             }

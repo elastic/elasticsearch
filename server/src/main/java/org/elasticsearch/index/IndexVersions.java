@@ -137,6 +137,7 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_TO_LUCENE_9_12_2 = def(8_534_0_00, Version.LUCENE_9_12_2);
     public static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X = def(8_535_0_00, Version.LUCENE_9_12_2);
     public static final IndexVersion MATCH_ONLY_TEXT_STORED_AS_BYTES_BACKPORT_8_X = def(8_536_0_00, Version.LUCENE_9_12_2);
+    public static final IndexVersion SECURITY_MIGRATIONS_METADATA_FLATTENED_UPDATE = def(8_537_0_00, Version.LUCENE_9_12_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

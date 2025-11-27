@@ -298,7 +298,7 @@ public class LogsdbIndexingRollingUpgradeIT extends ESRestTestCase {
         final List<?> dataStreams = (List<?>) entityAsMap(client.performRequest(request)).get("data_streams");
         final Map<?, ?> dataStream = (Map<?, ?>) dataStreams.getFirst();
         final List<?> backingIndices = (List<?>) dataStream.get("indices");
-        return (String) ((Map<?, ?>)backingIndices.get(backingIndex)).get("index_name");
+        return (String) ((Map<?, ?>) backingIndices.get(backingIndex)).get("index_name");
     }
 
 }

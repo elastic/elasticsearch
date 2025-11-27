@@ -165,14 +165,17 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         String[] indices = request.indices();
         IndicesOptions originalIndicesOptions = request.indicesOptions();
         // in CPS before executing the open pit request we need to get index resolution and possibly throw based on merged project view
-        // rules. This should happen only if either ignore_unavailable or allow_no_indices is set to false (strict) if instead both are true
-        // we can continue with the "normal" pit execution.
+        // rules. This should happen only if either ignore_unavailable or allow_no_indices is set to false (strict).
+        // If instead both are true we can continue with the "normal" pit execution.
         if (originalIndicesOptions.ignoreUnavailable() && originalIndicesOptions.allowNoIndices()) {
             // lenient indicesOptions thus execute standard pit
             executeOpenPit(task, request, listener);
             return;
         }
+
+        // ResolvedIndexExpression for the origin cluster (only) as determined by the Security Action Filter
         final ResolvedIndexExpressions localResolvedIndexExpressions = request.getResolvedIndexExpressions();
+
         RemoteClusterService remoteClusterService = searchTransportService.getRemoteClusterService();
         final Map<String, OriginalIndices> indicesPerCluster = remoteClusterService.groupIndices(
             indicesOptionsForCrossProjectFanout(originalIndicesOptions),
@@ -254,7 +257,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         for (Map.Entry<String, OriginalIndices> remoteClusterIndices : indicesPerCluster.entrySet()) {
             String clusterAlias = remoteClusterIndices.getKey();
             OriginalIndices originalIndices = remoteClusterIndices.getValue();
-            IndicesOptions relaxedFanoutIdxOptions = originalIndices.indicesOptions(); // form indicesOptionsForCrossProjectFanout
+            IndicesOptions relaxedFanoutIdxOptions = originalIndices.indicesOptions(); // from indicesOptionsForCrossProjectFanout
             ResolveIndexAction.Request remoteRequest = new ResolveIndexAction.Request(originalIndices.indices(), relaxedFanoutIdxOptions);
 
             SubscribableListener<Transport.Connection> connectionListener = new SubscribableListener<>();

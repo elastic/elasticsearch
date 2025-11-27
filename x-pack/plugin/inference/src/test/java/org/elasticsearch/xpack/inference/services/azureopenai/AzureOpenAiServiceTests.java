@@ -13,6 +13,7 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,14 +31,18 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -58,11 +63,15 @@ import java.net.URISyntaxException;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
@@ -75,6 +84,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettingsTests.getAzureOpenAiSecretSettingsMap;
+import static org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModelTests.createChatCompletionModel;
 import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettingsTests.getPersistentAzureOpenAiServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettingsTests.getRequestAzureOpenAiServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettingsTests.getAzureOpenAiRequestTaskSettingsMap;
@@ -84,6 +94,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -93,6 +104,9 @@ import static org.mockito.Mockito.when;
 
 public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String CONTENT_VALUE = "hello";
+    private static final String ROLE_VALUE = "user";
+
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -1037,6 +1051,189 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(requestMap.get("input"), Matchers.is(List.of("a", "bb")));
             assertThat(requestMap.get("user"), Matchers.is("user"));
             assertThat(requestMap.get("input_type"), Matchers.is("internal_ingest"));
+        }
+    }
+
+    public void testUnifiedCompletionInfer() throws Exception {
+        // The escapes are because the streaming response must be on a single line
+        String responseJson = """
+            data: {\
+                "id": "chatcmpl-8425dd3d-78f3-4143-93cb-dd576ab8ae26",\
+                "object": "chat.completion.chunk",\
+                "created": 1750158492,\
+                "model": "microsoft/phi-3-mini-128k-instruct",\
+                "choices": [{\
+                        "index": 0,\
+                        "delta": {\
+                            "content": "Deep"\
+                        },\
+                        "finish_reason": null,\
+                        "logprobs": null\
+                    }\
+                ]\
+            }
+
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var model = createChatCompletionModel("resource", "deployment", "apiversion", "user", "apikey", null, "inferenceEntityId");
+            model.setUri(new URI(getUrl(webServer)));
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.unifiedCompletionInfer(
+                model,
+                UnifiedCompletionRequest.of(
+                    List.of(
+                        new UnifiedCompletionRequest.Message(
+                            new UnifiedCompletionRequest.ContentString(CONTENT_VALUE),
+                            ROLE_VALUE,
+                            null,
+                            null
+                        )
+                    )
+                ),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent(XContentHelper.stripWhitespace("""
+                {
+                    "id": "chatcmpl-8425dd3d-78f3-4143-93cb-dd576ab8ae26",
+                    "choices": [{
+                            "delta": {
+                                "content": "Deep"
+                            },
+                            "index": 0
+                        }
+                    ],
+                    "model": "microsoft/phi-3-mini-128k-instruct",
+                    "object": "chat.completion.chunk"
+                }
+                """));
+        }
+    }
+
+    public void testUnifiedCompletionNonStreamingNotFoundError() throws Exception {
+        String response = """
+            {
+                "error": {
+                    "code": "DeploymentNotFound",
+                    "message": "The API deployment for this resource does not exist. \
+            If you created the deployment within the last 5 minutes, please wait a moment and try again."
+                }
+            }
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(404).setBody(response));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var model = createChatCompletionModel("resource", "deployment", "apiversion", "user", "apikey", null, "inferenceEntityId");
+            model.setUri(new URI(getUrl(webServer)));
+            var latch = new CountDownLatch(1);
+            service.unifiedCompletionInfer(
+                model,
+                UnifiedCompletionRequest.of(
+                    List.of(
+                        new UnifiedCompletionRequest.Message(
+                            new UnifiedCompletionRequest.ContentString(CONTENT_VALUE),
+                            ROLE_VALUE,
+                            null,
+                            null
+                        )
+                    )
+                ),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
+                    try (var builder = XContentFactory.jsonBuilder()) {
+                        var t = unwrapCause(e);
+                        assertThat(t, isA(UnifiedChatCompletionException.class));
+                        ((UnifiedChatCompletionException) t).toXContentChunked(EMPTY_PARAMS).forEachRemaining(xContent -> {
+                            try {
+                                xContent.toXContent(builder, EMPTY_PARAMS);
+                            } catch (IOException ex) {
+                                throw new RuntimeException(ex);
+                            }
+                        });
+                        var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, builder.contentType());
+                        assertThat(json, Matchers.is(String.format(Locale.ROOT, XContentHelper.stripWhitespace("""
+                            {
+                              "error" : {
+                                "code" : "not_found",
+                                "message" : "Resource not found at [%s] for request from inference entity id [inferenceEntityId] status \
+                            [404]. Error message: [{\\n    \\"error\\": {\\n        \\"code\\": \\"DeploymentNotFound\\",\\n        \
+                            \\"message\\": \\"The API deployment for this resource does not exist. If you created the deployment within \
+                            the last 5 minutes, please wait a moment and try again.\\"\\n    }\\n}\\n]",
+                                "type" : "azure_openai_error"
+                              }
+                            }"""), getUrl(webServer))));
+                    } catch (IOException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }), latch::countDown)
+            );
+            assertThat(latch.await(30, TimeUnit.SECONDS), Matchers.is(true));
+        }
+    }
+
+    public void testMidStreamUnifiedCompletionError() throws Exception {
+        String responseJson = """
+            data: {"error": {"message": "midstream error"}}
+
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+        testStreamError(XContentHelper.stripWhitespace("""
+            {
+                  "error": {
+                      "message": "Received an error response for request from inference entity id [inferenceEntityId].\
+             Error message: [{\\"error\\": {\\"message\\": \\"midstream error\\"}}]",
+                      "type": "azure_openai_error"
+                  }
+              }
+            """));
+    }
+
+    private void testStreamError(String expectedResponse) throws Exception {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var model = createChatCompletionModel("resource", "deployment", "apiversion", "user", "apikey", null, "inferenceEntityId");
+            model.setUri(new URI(getUrl(webServer)));
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.unifiedCompletionInfer(
+                model,
+                UnifiedCompletionRequest.of(
+                    List.of(
+                        new UnifiedCompletionRequest.Message(
+                            new UnifiedCompletionRequest.ContentString(CONTENT_VALUE),
+                            ROLE_VALUE,
+                            null,
+                            null
+                        )
+                    )
+                ),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+
+            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoEvents().hasErrorMatching(e -> {
+                e = unwrapCause(e);
+                assertThat(e, isA(UnifiedChatCompletionException.class));
+                try (var builder = XContentFactory.jsonBuilder()) {
+                    ((UnifiedChatCompletionException) e).toXContentChunked(EMPTY_PARAMS).forEachRemaining(xContent -> {
+                        try {
+                            xContent.toXContent(builder, EMPTY_PARAMS);
+                        } catch (IOException ex) {
+                            throw new RuntimeException(ex);
+                        }
+                    });
+                    var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, builder.contentType());
+
+                    assertThat(json, Matchers.is(expectedResponse));
+                }
+            });
         }
     }
 

@@ -176,7 +176,13 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
             {"query":{"bool":{"must":[{"exists":{"field":"metadata.meta"}}]}},"sort":["name"]}""";
         Request request = new Request(randomFrom("POST", "GET"), "/_security/_query/role");
         request.setJsonEntity(metadataQuery);
-        Response response = client.performRequest(request);
+        Response response = null;
+        try {
+            response = client.performRequest(request);
+        } catch (ResponseException e) {
+            fail(e);
+        }
+        assertNotNull(response);
         assertOK(response);
         Map<String, Object> responseMap = responseAsMap(response);
         assertThat(responseMap.get("total"), is(roleNames.length));

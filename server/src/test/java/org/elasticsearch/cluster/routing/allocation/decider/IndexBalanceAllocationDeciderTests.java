@@ -82,9 +82,9 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         final Map<DiscoveryNode, List<ShardRouting>> nodeToShardRoutings = new HashMap<>();
 
         Settings.Builder builder = Settings.builder()
+            .put(settings)
             .put("stateless.enabled", "true")
             .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), "true");
-        builder.put(settings);
 
         numberOfPrimaryShards = randomIntBetween(2, 10) * 2;
         replicationFactor = 2;

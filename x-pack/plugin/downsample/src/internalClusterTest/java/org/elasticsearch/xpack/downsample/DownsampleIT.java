@@ -132,6 +132,10 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         downsampleWithSamplingMethod(DownsampleConfig.SamplingMethod.LAST_VALUE);
     }
 
+    public void testAggregateMethod() throws Exception {
+        downsampleWithSamplingMethod(DownsampleConfig.SamplingMethod.AGGREGATE);
+    }
+
     private void downsampleWithSamplingMethod(DownsampleConfig.SamplingMethod method) throws Exception {
         String dataStreamName = "metrics-foo";
         String mapping = """

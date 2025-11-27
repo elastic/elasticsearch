@@ -455,7 +455,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         CheckedConsumer<XContentBuilder, IOException> build,
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
-        Map<String, Map<String, String>> dynamicTemplatesParams
+        Map<String, Map<String, String>> dynamicTemplateParams
     ) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
@@ -466,7 +466,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             XContentType.JSON,
             routing,
             dynamicTemplates,
-            dynamicTemplatesParams,
+            dynamicTemplateParams,
             true,
             XContentMeteringParserDecorator.NOOP,
             null

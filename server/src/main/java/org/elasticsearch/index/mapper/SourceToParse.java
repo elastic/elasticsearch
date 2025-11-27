@@ -33,7 +33,7 @@ public class SourceToParse {
 
     private final Map<String, String> dynamicTemplates;
 
-    private final Map<String, Map<String, String>> dynamicTemplatesParams;
+    private final Map<String, Map<String, String>> dynamicTemplateParams;
 
     private final boolean includeSourceOnError;
 
@@ -45,7 +45,7 @@ public class SourceToParse {
         XContentType xContentType,
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
-        Map<String, Map<String, String>> dynamicTemplatesParams,
+        Map<String, Map<String, String>> dynamicTemplateParams,
         boolean includeSourceOnError,
         XContentMeteringParserDecorator meteringParserDecorator,
         @Nullable BytesRef tsid
@@ -57,7 +57,7 @@ public class SourceToParse {
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
-        this.dynamicTemplatesParams = dynamicTemplatesParams;
+        this.dynamicTemplateParams = dynamicTemplateParams;
         this.includeSourceOnError = includeSourceOnError;
         this.meteringParserDecorator = meteringParserDecorator;
         this.tsid = tsid;
@@ -112,8 +112,8 @@ public class SourceToParse {
         return dynamicTemplates;
     }
 
-    public Map<String, Map<String, String>> dynamicTemplatesParams() {
-        return dynamicTemplatesParams;
+    public Map<String, Map<String, String>> dynamicTemplateParams() {
+        return dynamicTemplateParams;
     }
 
     public XContentType getXContentType() {

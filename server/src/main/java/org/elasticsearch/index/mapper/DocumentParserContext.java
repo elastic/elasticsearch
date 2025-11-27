@@ -941,7 +941,7 @@ public abstract class DocumentParserContext {
      */
     public final Map<String, String> getDynamicTemplateParams(String fieldName) {
         final String pathAsString = path().pathAsText(fieldName);
-        return sourceToParse.dynamicTemplatesParams().getOrDefault(pathAsString, Map.of());
+        return sourceToParse.dynamicTemplateParams().getOrDefault(pathAsString, Map.of());
     }
 
     // XContentParser that wraps an existing parser positioned on a value,

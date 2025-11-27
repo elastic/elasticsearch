@@ -109,8 +109,8 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
-            Map<String, Map<String, String>> dynamicTemplatesParams = new HashMap<>();
-            BytesRef tsid = documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, dynamicTemplatesParams);
+            Map<String, Map<String, String>> dynamicTemplateParams = new HashMap<>();
+            BytesRef tsid = documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, dynamicTemplateParams);
             ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
             assertThat(doc.<Number>evaluate("@timestamp").longValue(), equalTo(TimeUnit.NANOSECONDS.toMillis(timestamp)));
@@ -147,8 +147,8 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             expectedTsidBuilder.addStringDimension("unit", "{test}");
             assertThat(tsid, equalTo(expectedTsidBuilder.buildTsid()));
 
-            assertThat(dynamicTemplatesParams, hasEntry("metrics.system.cpu.usage", Map.of("unit", "{test}")));
-            assertThat(dynamicTemplatesParams, hasEntry("metrics.system.network.packets", Map.of("unit", "{test}")));
+            assertThat(dynamicTemplateParams, hasEntry("metrics.system.cpu.usage", Map.of("unit", "{test}")));
+            assertThat(dynamicTemplateParams, hasEntry("metrics.system.network.packets", Map.of("unit", "{test}")));
         });
     }
 

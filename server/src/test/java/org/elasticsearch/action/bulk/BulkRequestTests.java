@@ -389,14 +389,14 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(((IndexRequest) bulkRequest.requests.get(4)).getDynamicTemplates(), equalTo(Map.of()));
     }
 
-    public void testDynamicTemplatesParams() throws Exception {
+    public void testDynamicTemplateParams() throws Exception {
         BytesArray data = new BytesArray("""
-            { "index":{"_index":"test","dynamic_templates_params":{"field1":{"param1": "value1", "param2":"value2"}}}}
+            { "index":{"_index":"test","dynamic_template_params":{"field1":{"param1": "value1", "param2":"value2"}}}}
             { "field1" : "value1" }
             { "delete" : { "_index" : "test", "_id" : "2" } }
-            { "create" : {"_index":"test","dynamic_templates_params":{"field1":{"param1": "value1"}}}}
+            { "create" : {"_index":"test","dynamic_template_params":{"field1":{"param1": "value1"}}}}
             { "field1" : "value3" }
-            { "create" : {"dynamic_templates_params":{"field1":{"param1": "value1"},"field2":{"param2": "value2"}}}}
+            { "create" : {"dynamic_template_params":{"field1":{"param1": "value1"},"field2":{"param2": "value2"}}}}
             { "field1" : "value3" }
             { "index" : {"dynamic_templates":{}}}
             { "field1" : "value3" }
@@ -404,18 +404,18 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest().add(data, null, XContentType.JSON);
         assertThat(bulkRequest.requests, hasSize(5));
         assertThat(
-            ((IndexRequest) bulkRequest.requests.get(0)).getDynamicTemplatesParams(),
+            ((IndexRequest) bulkRequest.requests.get(0)).getDynamicTemplateParams(),
             equalTo(Map.of("field1", Map.of("param1", "value1", "param2", "value2")))
         );
         assertThat(
-            ((IndexRequest) bulkRequest.requests.get(2)).getDynamicTemplatesParams(),
+            ((IndexRequest) bulkRequest.requests.get(2)).getDynamicTemplateParams(),
             equalTo(Map.of("field1", Map.of("param1", "value1")))
         );
         assertThat(
-            ((IndexRequest) bulkRequest.requests.get(3)).getDynamicTemplatesParams(),
+            ((IndexRequest) bulkRequest.requests.get(3)).getDynamicTemplateParams(),
             equalTo(Map.of("field1", Map.of("param1", "value1"), "field2", Map.of("param2", "value2")))
         );
-        assertThat(((IndexRequest) bulkRequest.requests.get(4)).getDynamicTemplatesParams(), equalTo(Map.of()));
+        assertThat(((IndexRequest) bulkRequest.requests.get(4)).getDynamicTemplateParams(), equalTo(Map.of()));
     }
 
     public void testInvalidDynamicTemplates() {

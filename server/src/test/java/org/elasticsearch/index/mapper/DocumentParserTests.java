@@ -1169,7 +1169,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat(fields.get(0).fieldType(), sameInstance(GeoPointFieldMapper.LatLonPointWithDocValues.TYPE));
     }
 
-    public void testWithDynamicTemplatesParams() throws Exception {
+    public void testWithDynamicTemplateParams() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startArray("dynamic_templates");
             {

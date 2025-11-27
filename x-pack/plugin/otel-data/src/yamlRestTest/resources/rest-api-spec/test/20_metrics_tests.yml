@@ -383,7 +383,7 @@ unit metadata:
         index: metrics-generic.otel-default
         refresh: true
         body:
-          - {"create": {"dynamic_templates":{"metrics.foo.bar":"gauge_double"},"dynamic_templates_params":{"metrics.foo.bar":{"unit": "{percent}"}}}}
+          - {"create": {"dynamic_templates":{"metrics.foo.bar":"gauge_double"},"dynamic_template_params":{"metrics.foo.bar":{"unit": "{percent}"}}}}
           - "@timestamp": 2024-07-18T14:00:00Z
             scope:
               name: foo

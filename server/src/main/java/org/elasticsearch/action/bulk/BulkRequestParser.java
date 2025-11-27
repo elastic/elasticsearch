@@ -68,7 +68,7 @@ public final class BulkRequestParser {
     private static final ParseField REQUIRE_DATA_STREAM = new ParseField(DocWriteRequest.REQUIRE_DATA_STREAM);
     private static final ParseField LIST_EXECUTED_PIPELINES = new ParseField(DocWriteRequest.LIST_EXECUTED_PIPELINES);
     private static final ParseField DYNAMIC_TEMPLATES = new ParseField("dynamic_templates");
-    private static final ParseField DYNAMIC_TEMPLATES_PARAMS = new ParseField("dynamic_templates_params");
+    private static final ParseField DYNAMIC_TEMPLATE_PARAMS = new ParseField("dynamic_template_params");
 
     // TODO: Remove this parameter once the BulkMonitoring endpoint has been removed
     // for CompatibleApi V7 this means to deprecate on type, for V8+ it means to throw an error
@@ -429,7 +429,7 @@ public final class BulkRequestParser {
                             && DYNAMIC_TEMPLATES.match(currentFieldName, parser.getDeprecationHandler())) {
                                 dynamicTemplates = parser.mapStrings();
                             } else if (token == XContentParser.Token.START_OBJECT
-                                && DYNAMIC_TEMPLATES_PARAMS.match(currentFieldName, parser.getDeprecationHandler())) {
+                                && DYNAMIC_TEMPLATE_PARAMS.match(currentFieldName, parser.getDeprecationHandler())) {
                                     dynamicTemplatesParms = parser.map(HashMap::new, XContentParser::mapStrings);
                                 } else if (token == XContentParser.Token.START_OBJECT
                                     && SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -469,7 +469,7 @@ public final class BulkRequestParser {
                     }
                     if (dynamicTemplatesParms.isEmpty() == false) {
                         throw new IllegalArgumentException(
-                            "Update request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES_PARAMS.getPreferredName()
+                            "Update request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATE_PARAMS.getPreferredName()
                         );
                     }
                     currentRequest = new DeleteRequest(index).id(id)
@@ -490,7 +490,7 @@ public final class BulkRequestParser {
                             .setIfSeqNo(ifSeqNo)
                             .setIfPrimaryTerm(ifPrimaryTerm)
                             .setDynamicTemplates(dynamicTemplates)
-                            .setDynamicTemplatesParams(dynamicTemplatesParms)
+                            .setDynamicTemplateParams(dynamicTemplatesParms)
                             .setRequireAlias(requireAlias)
                             .setRequireDataStream(requireDataStream)
                             .setListExecutedPipelines(currentListExecutedPipelines)
@@ -521,7 +521,7 @@ public final class BulkRequestParser {
                         }
                         if (dynamicTemplatesParms.isEmpty() == false) {
                             throw new IllegalArgumentException(
-                                "Update request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES_PARAMS.getPreferredName()
+                                "Update request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATE_PARAMS.getPreferredName()
                             );
                         }
                         UpdateRequest updateRequest = new UpdateRequest().index(index)

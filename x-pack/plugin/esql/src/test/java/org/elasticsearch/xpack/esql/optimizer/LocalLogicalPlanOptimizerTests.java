@@ -1272,10 +1272,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testAggregateMetricDouble() {
-        assumeTrue(
-            "requires fusing from_aggregate_metric_double",
-            EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_FUSE_SUB_BLOCKS.isEnabled()
-        );
+        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = "FROM k8s-downsampled | STATS m = min(network.eth0.tx)";
 
         LogicalPlan plan = localPlan(plan(query, tsAnalyzer), new EsqlTestUtils.TestSearchStats());
@@ -1302,10 +1299,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testAggregateMetricDoubleWithAvgAndOtherFunctions() {
-        assumeTrue(
-            "requires fusing from_aggregate_metric_double",
-            EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_FUSE_SUB_BLOCKS.isEnabled()
-        );
+        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             from k8s-downsampled
             | STATS s = sum(network.eth0.tx), a = avg(network.eth0.tx)
@@ -1359,10 +1353,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testAggregateMetricDoubleTSCommand() {
-        assumeTrue(
-            "requires fusing from_aggregate_metric_double",
-            EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_FUSE_SUB_BLOCKS.isEnabled()
-        );
+        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             TS k8s-downsampled |
             STATS m = max(max_over_time(network.eth0.tx)),
@@ -1434,10 +1425,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     public void testAggregateMetricDoubleInlineStats() {
         // TODO: modify below when we handle fusing and StubRelations properly
-        assumeTrue(
-            "requires fusing from_aggregate_metric_double",
-            EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_FUSE_SUB_BLOCKS.isEnabled()
-        );
+        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM k8s-downsampled
             | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod

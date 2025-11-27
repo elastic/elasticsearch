@@ -58,7 +58,9 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -1007,6 +1009,16 @@ public abstract class Engine implements Closeable {
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
     public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+        ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
+        return acquireSearcherSupplier(wrapper, scope, referenceManager::acquire, referenceManager::release);
+    }
+
+    public SearcherSupplier acquireSearcherSupplier(
+        Function<Searcher, Searcher> wrapper,
+        SearcherScope scope,
+        CheckedSupplier<ElasticsearchDirectoryReader, IOException> directorySupplier,
+        CheckedConsumer<ElasticsearchDirectoryReader, IOException> releaseAction
+    ) throws EngineException {
         /* Acquire order here is store -> manager since we need
          * to make sure that the store is not closed before
          * the searcher is acquired. */
@@ -1015,8 +1027,8 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
-            ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
-            ElasticsearchDirectoryReader acquire = referenceManager.acquire();
+            ElasticsearchDirectoryReader acquire = directorySupplier.get();
+
             DirectoryReader wrappedDirectoryReader = wrapDirectoryReader(acquire);
             SearcherSupplier reader = new SearcherSupplier(wrapper) {
                 @Override
@@ -1036,7 +1048,7 @@ public abstract class Engine implements Closeable {
                 @Override
                 protected void doClose() {
                     try {
-                        referenceManager.release(acquire);
+                        releaseAction.accept(acquire);
                     } catch (IOException e) {
                         throw new UncheckedIOException("failed to close", e);
                     } catch (AlreadyClosedException e) {

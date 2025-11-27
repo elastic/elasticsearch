@@ -115,7 +115,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             source(b -> b.startObject("field").field("min", -10.1).field("max", 50.0).field("value_count", 14).endObject())
         );
-        
+
         IndexableField f = doc.rootDoc().getField("field.min");
         assertThat(f, instanceOf(SortedNumericDocValuesField.class));
         SortedNumericDocValuesField sdv = (SortedNumericDocValuesField) f;
@@ -660,10 +660,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
             assertIndexType(ft, IndexType.points(true, true));
         }
         {
-            MapperService mapperService = createMapperService(
-                IndexVersions.AGG_METRIC_DOUBLE_SKIPPERS,
-                fieldMapping(this::minimalMapping)
-            );
+            MapperService mapperService = createMapperService(IndexVersions.AGG_METRIC_DOUBLE_SKIPPERS, fieldMapping(this::minimalMapping));
             MappedFieldType ft = mapperService.fieldType("field");
             assertIndexType(ft, IndexType.skippers());
         }

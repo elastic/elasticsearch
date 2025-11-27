@@ -18,11 +18,9 @@
 package co.elastic.elasticsearch.stateless.commits;
 
 import org.apache.lucene.index.IndexCommit;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Assertions;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -40,9 +38,7 @@ public class ShardLocalCommitsRefs {
     private final Map<Long, Integer> acquiredGenerations;
     // Index commits internally acquired by the commits listener. We want to track them separately to be able to disregard them
     // when checking for externally acquired index commits that haven't been released during testing
-    private final Set<Long> acquiredCommitGenerationsForCommitsListener = Assertions.ENABLED
-        ? ConcurrentCollections.newConcurrentSet()
-        : null;
+    private final Map<Long, Integer> acquiredCommitGenerationsForCommitsListener = Assertions.ENABLED ? new ConcurrentHashMap<>() : null;
 
     public ShardLocalCommitsRefs() {
         this.acquiredGenerations = new ConcurrentHashMap<>();
@@ -53,13 +49,15 @@ public class ShardLocalCommitsRefs {
     }
 
     SoftDeleteIndexCommit incRef(IndexCommit indexCommit, boolean acquiredForCommitListener) {
-        assert acquiredForCommitListener == false || acquiredCommitGenerationsForCommitsListener.add(indexCommit.getGeneration());
-        incRefGeneration(indexCommit.getGeneration());
+        if (Assertions.ENABLED && acquiredForCommitListener) {
+            incRefGeneration(acquiredCommitGenerationsForCommitsListener, indexCommit.getGeneration());
+        }
+        incRefGeneration(acquiredGenerations, indexCommit.getGeneration());
         return SoftDeleteIndexCommit.wrap(indexCommit, acquiredForCommitListener);
     }
 
-    void incRefGeneration(long generation) {
-        acquiredGenerations.merge(generation, 1, Integer::sum);
+    void incRefGeneration(Map<Long, Integer> counters, long generation) {
+        counters.merge(generation, 1, Integer::sum);
     }
 
     /**
@@ -70,14 +68,15 @@ public class ShardLocalCommitsRefs {
      */
     boolean decRef(IndexCommit indexCommit) {
         assert indexCommit instanceof SoftDeleteIndexCommit;
-        assert ((SoftDeleteIndexCommit) indexCommit).isAcquiredForCommitListener() == false
-            || acquiredCommitGenerationsForCommitsListener.remove(indexCommit.getGeneration());
-        return decRefGeneration(indexCommit.getGeneration());
+        if (Assertions.ENABLED && ((SoftDeleteIndexCommit) indexCommit).isAcquiredForCommitListener()) {
+            decRefGeneration(acquiredCommitGenerationsForCommitsListener, indexCommit.getGeneration());
+        }
+        return decRefGeneration(acquiredGenerations, indexCommit.getGeneration());
     }
 
-    private boolean decRefGeneration(long generation) {
-        assert acquiredGenerations.containsKey(generation) : generation;
-        var refCount = acquiredGenerations.compute(generation, (ignored, value) -> {
+    private boolean decRefGeneration(Map<Long, Integer> counters, long generation) {
+        assert counters.containsKey(generation) : generation;
+        var refCount = counters.compute(generation, (ignored, value) -> {
             assert value != null : "already fully released";
             if (value == 1) {
                 return null;
@@ -91,7 +90,8 @@ public class ShardLocalCommitsRefs {
     boolean hasAcquiredIndexCommitsForTesting() {
         // We explicitly check only external commits and disregard internal commits acquired by the commits listener
         for (var e : acquiredGenerations.entrySet()) {
-            if (acquiredCommitGenerationsForCommitsListener.contains(e.getKey()) == false || e.getValue() > 1) {
+            var commitListenerCount = acquiredCommitGenerationsForCommitsListener.get(e.getKey());
+            if (commitListenerCount == null || e.getValue() > commitListenerCount) {
                 return true;
             }
         }

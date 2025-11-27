@@ -99,7 +99,6 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.SimpleHealthTrackerRegistry;
-import org.elasticsearch.health.TestIndicator;
 import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.DiskHealthIndicatorService;
 import org.elasticsearch.health.node.HealthInfoCache;
@@ -1483,7 +1482,7 @@ class NodeConstruction {
         SimpleHealthTrackerRegistry simpleHealthTrackerRegistry = new SimpleHealthTrackerRegistry();
 
         // TODO: Modify to generate the indicators dynamically based on registered trackers
-        simpleHealthTrackerRegistry.register(new TestTracker(), new TestIndicator());
+        simpleHealthTrackerRegistry.register(new TestTracker());
 
         var serverHealthIndicatorServices = Stream.of(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),

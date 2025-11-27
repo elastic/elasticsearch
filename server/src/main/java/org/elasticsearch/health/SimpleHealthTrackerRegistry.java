@@ -10,6 +10,7 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.health.node.tracker.HealthTracker;
+import org.elasticsearch.health.node.tracker.SimpleHealthTracker;
 
 import java.util.HashSet;
 import java.util.List;
@@ -18,12 +19,14 @@ import java.util.stream.Stream;
 
 public class SimpleHealthTrackerRegistry {
 
-    private final Set<HealthTracker<?>> trackers = new HashSet<>();
+    private final Set<SimpleHealthTracker> trackers = new HashSet<>();
     private final Set<HealthIndicatorService> healthIndicatorServices = new HashSet<>();
 
-    public void register(HealthTracker<?> testTracker, HealthIndicatorService testIndicator) {
-        trackers.add(testTracker);
-        healthIndicatorServices.add(testIndicator);
+    public void register(SimpleHealthTracker tracker) {
+        trackers.add(tracker);
+        healthIndicatorServices.add(
+            new SimpleHealthIndicator(tracker.trackerName(), tracker.greenSymptom(), tracker.yellowSymptom(), tracker.redSymptom())
+        );
     }
 
     public List<HealthTracker<?>> addTrackers(List<HealthTracker<?>> trackerList) {

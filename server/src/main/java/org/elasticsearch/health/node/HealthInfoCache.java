@@ -112,18 +112,20 @@ public class HealthInfoCache implements ClusterStateListener {
     public HealthInfo getHealthInfo() {
         Map<String, List<SimpleNodeHealthInfo>> perTrackerSimpleHealthInfo = new HashMap<>();
         simpleHealthInfoReportsByNodeAndTrackerName.forEach((nodeId, trackerMap) -> {
-            trackerMap.forEach((trackerName, simpleHealthInfo) -> {
-                perTrackerSimpleHealthInfo
-                    .computeIfAbsent(trackerName, key -> new ArrayList<>())
-                    .add(
-                        new SimpleNodeHealthInfo(
-                            nodeId,
-                            simpleHealthInfo.healthStatus(),
-                            simpleHealthInfo.symptom(),
-                            simpleHealthInfo.details()
-                        )
-                    );
-            });
+            if (trackerMap.isEmpty() == false) {
+                trackerMap.forEach((trackerName, simpleHealthInfo) -> {
+                    perTrackerSimpleHealthInfo
+                        .computeIfAbsent(trackerName, key -> new ArrayList<>())
+                        .add(
+                            new SimpleNodeHealthInfo(
+                                nodeId,
+                                simpleHealthInfo.healthStatus(),
+                                simpleHealthInfo.symptom(),
+                                simpleHealthInfo.details()
+                            )
+                        );
+                });
+            }
         });
 
         // A shallow copy is enough because the inner data is immutable.

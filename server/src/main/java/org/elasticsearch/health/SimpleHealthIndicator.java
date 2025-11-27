@@ -13,50 +13,67 @@ import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.node.SimpleNodeHealthInfo;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class TestIndicator implements HealthIndicatorService {
+public class SimpleHealthIndicator implements HealthIndicatorService {
+
+    private final String name;
+    private final String greenSymptom;
+    private final String yellowSymptom;
+    private final String redSymptom;
+
+    public SimpleHealthIndicator(String name, String greenSymptom, String yellowSymptom, String redSymptom) {
+        this.name = name;
+        this.greenSymptom = greenSymptom;
+        this.yellowSymptom = yellowSymptom;
+        this.redSymptom = redSymptom;
+    }
+
     @Override
     public String name() {
-        return "test-tracker";
+        return name;
     }
 
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
-        List<SimpleNodeHealthInfo> simpleNodeHealthInfo = healthInfo.simpleNodeHealthInfoByMonitor().get("test-tracker");
+        List<SimpleNodeHealthInfo> simpleNodeHealthInfo = healthInfo.simpleNodeHealthInfoByMonitor().get(name);
 
-        if (simpleNodeHealthInfo.isEmpty()) {
+        if (simpleNodeHealthInfo == null || simpleNodeHealthInfo.isEmpty()) {
             return createIndicator(HealthStatus.UNKNOWN, "No data reported", null, Collections.emptyList(), Collections.emptyList());
         }
 
-        Map<String, Object> detailsByNode = simpleNodeHealthInfo.stream()
-            .filter(shi -> shi.healthStatus().indicatesHealthProblem())
-            .collect(java.util.stream.Collectors.toMap(SimpleNodeHealthInfo::node, SimpleNodeHealthInfo::details));
+        Map<String, Object> detailsByNode = new HashMap<>();
+        for (SimpleNodeHealthInfo nodeHealthInfo : simpleNodeHealthInfo) {
+            if (nodeHealthInfo.details() != null && nodeHealthInfo.details().isEmpty() == false) {
+                detailsByNode.put(nodeHealthInfo.node(), nodeHealthInfo.details());
+            }
+        }
 
-        String nodeList = detailsByNode.keySet().stream().collect(Collectors.joining(", "));
+        String nodeList = simpleNodeHealthInfo.stream().map(SimpleNodeHealthInfo::node).collect(Collectors.joining(", "));
 
         HealthStatus overallStatus = HealthStatus.merge(simpleNodeHealthInfo.stream().map(SimpleNodeHealthInfo::healthStatus));
 
         return switch (overallStatus) {
             case GREEN -> createIndicator(
                 HealthStatus.GREEN,
-                "All nodes are reporting healthy",
+                greenSymptom,
                 null,
                 Collections.emptyList(),
                 Collections.emptyList()
             );
             case YELLOW -> createIndicator(
                 HealthStatus.YELLOW,
-                "Some nodes are experiencing issues: " + nodeList,
+                yellowSymptom + " on the following nodes: " + nodeList,
                 new SimpleHealthIndicatorDetails(detailsByNode),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
             case RED -> createIndicator(
                 HealthStatus.RED,
-                "Some nodes are experiencing critical issues: " + nodeList,
+                redSymptom + " on the following nodes: " + nodeList,
                 new SimpleHealthIndicatorDetails(detailsByNode),
                 Collections.emptyList(),
                 Collections.emptyList()

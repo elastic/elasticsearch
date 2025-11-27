@@ -11,23 +11,32 @@ package org.elasticsearch.health.node.tracker;
 
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.node.SimpleHealthInfo;
-import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 
-import java.util.Map;
+import java.util.Collections;
 
-public class TestTracker extends HealthTracker<SimpleHealthInfo> {
+public class TestTracker extends SimpleHealthTracker{
     @Override
-    protected SimpleHealthInfo determineCurrentHealth() {
-        SimpleHealthInfo simpleHealthInfo = new SimpleHealthInfo(
-            HealthStatus.YELLOW,
-            "test symptom",
-            Map.of("ID Number", String.valueOf(Math.random()))
-        );
-        return simpleHealthInfo;
+    public String trackerName() {
+        return "test-tracker-abs";
     }
 
     @Override
-    protected void addToRequestBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, SimpleHealthInfo healthInfo) {
-        builder.simpleHealthInfoByTrackerName("test-tracker", healthInfo);
+    public String greenSymptom() {
+        return "All is well";
+    }
+
+    @Override
+    public String yellowSymptom() {
+        return "Bit bugged";
+    }
+
+    @Override
+    public String redSymptom() {
+        return "very bugged";
+    }
+
+    @Override
+    protected SimpleHealthInfo determineCurrentHealth() {
+        return new SimpleHealthInfo(HealthStatus.YELLOW, "test details from abs", Collections.emptyMap());
     }
 }

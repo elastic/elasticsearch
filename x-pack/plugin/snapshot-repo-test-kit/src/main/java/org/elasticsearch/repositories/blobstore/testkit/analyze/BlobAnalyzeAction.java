@@ -194,13 +194,16 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
     private final RepositoriesService repositoriesService;
     private final TransportService transportService;
 
-    BlobAnalyzeAction(TransportService transportService, ClusterSettings clusterSettings, ActionFilters actionFilters, RepositoriesService repositoriesService) {
+    BlobAnalyzeAction(
+        TransportService transportService,
+        ClusterSettings clusterSettings,
+        ActionFilters actionFilters,
+        RepositoriesService repositoriesService
+    ) {
         super(NAME, transportService, actionFilters, Request::new, transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT));
         this.repositoriesService = repositoriesService;
         this.transportService = transportService;
-        clusterSettings.initializeAndWatch(ENABLE_COPY_DURING_WRITE_CONTENTION, value -> {
-            this.enableEarlyCopy = value;
-        });
+        clusterSettings.initializeAndWatch(ENABLE_COPY_DURING_WRITE_CONTENTION, value -> { this.enableEarlyCopy = value; });
     }
 
     @Override
@@ -219,7 +222,8 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
         logger.trace("handling [{}]", request);
 
         assert task instanceof CancellableTask;
-        new BlobAnalysis(transportService, (CancellableTask) task, request, blobStoreRepository, blobContainer, listener, enableEarlyCopy).run();
+        new BlobAnalysis(transportService, (CancellableTask) task, request, blobStoreRepository, blobContainer, listener, enableEarlyCopy)
+            .run();
     }
 
     /**

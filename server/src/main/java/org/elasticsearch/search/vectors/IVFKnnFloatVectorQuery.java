@@ -46,20 +46,6 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         this.query = query;
     }
 
-    /**
-     * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
-     * @param field the field to search
-     * @param query the query vector
-     * @param k the number of nearest neighbors to return
-     * @param numCands the number of nearest neighbors to gather per shard
-     * @param filter the filter to apply to the results
-     * @param visitRatio the ratio of vectors to score for the IVF search strategy
-     */
-    public IVFKnnFloatVectorQuery(String field, float[] query, int k, int numCands, Query filter, float visitRatio) {
-        super(field, visitRatio, k, numCands, filter, .9f);
-        this.query = query;
-    }
-
     public float[] getQuery() {
         return query;
     }

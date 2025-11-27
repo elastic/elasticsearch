@@ -67,6 +67,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (numCands < k) {
             throw new IllegalArgumentException("numCands must be at least k, got: " + numCands);
         }
+        if (postFilteringThreshold < 0.0f || postFilteringThreshold > 1.0f) {
+            throw new IllegalArgumentException("postFilteringThreshold must be between 0.0 and 1.0, got: " + postFilteringThreshold);
+        }
         this.field = field;
         this.providedVisitRatio = visitRatio;
         this.k = k;
@@ -209,11 +212,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         );
         IntHashSet dedup = new IntHashSet(results.scoreDocs.length * 4 / 3);
         List<ScoreDoc> deduplicatedScoreDocs = new ArrayList<>(results.scoreDocs.length);
+        var iterator = leafSearchFilterMeta.postFilter != null ? leafSearchFilterMeta.postFilter.iterator() : null;
         for (ScoreDoc scoreDoc : results.scoreDocs) {
             if (dedup.add(scoreDoc.doc)) {
                 scoreDoc.doc += leafSearchFilterMeta.context.docBase;
-                if (leafSearchFilterMeta.postFilter == null
-                    || leafSearchFilterMeta.postFilter.iterator().advance(scoreDoc.doc) == scoreDoc.doc) {
+                if (iterator == null || iterator.advance(scoreDoc.doc) == scoreDoc.doc) {
                     deduplicatedScoreDocs.add(scoreDoc);
                 }
             }

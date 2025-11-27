@@ -54,7 +54,8 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
                 TestCaseSupplier.dateFormatCases(),
                 TestCaseSupplier.dateCases(Instant.parse("1900-01-01T00:00:00.00Z"), Instant.parse("9999-12-31T00:00:00.00Z")),
                 matchesPattern(
-                    "DateFormatMillisEvaluator\\[val=Attribute\\[channel=1], formatter=Attribute\\[(channel=0|\\w+)], zoneId=Z, locale=en_US]"
+                    "DateFormatMillisEvaluator\\[val=Attribute\\[channel=1], "
+                        + "formatter=Attribute\\[(channel=0|\\w+)], zoneId=Z, locale=en_US]"
                 ),
                 (lhs, rhs) -> List.of(),
                 false

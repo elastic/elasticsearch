@@ -79,6 +79,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static fixture.gcs.TestUtils.createServiceAccount;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.io.Streams.readFully;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
@@ -582,7 +583,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         final OptionalBytesReference updateResult = safeAwait(
             l -> container.compareAndExchangeRegister(randomPurpose(), key, new BytesArray(data), new BytesArray(updatedData), l)
         );
-        assertEquals(new BytesArray(data), updateResult.bytesReference());
+        assertThat(updateResult.bytesReference(), equalBytes(new BytesArray(data)));
 
         assertEquals(0, requestHandlers.size());
         container.delete(randomPurpose());
@@ -601,7 +602,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         container.writeBlob(randomPurpose(), key, new BytesArray(initialValue), true);
 
         BytesReference reference = readFully(container.readBlob(randomPurpose(), key));
-        assertEquals(new BytesArray(initialValue), reference);
+        assertThat(reference, equalBytes(new BytesArray(initialValue)));
 
         try (InputStream inputStream = container.readBlob(randomPurpose(), key)) {
             // Trigger the first chunk to load

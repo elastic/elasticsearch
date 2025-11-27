@@ -1618,8 +1618,7 @@ public class IngestServiceTests extends ESTestCase {
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
             XContentType.JSON
         );
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
         ClusterState previousClusterState = clusterState;
         clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));

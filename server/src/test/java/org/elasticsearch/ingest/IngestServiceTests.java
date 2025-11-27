@@ -1674,7 +1674,7 @@ public class IngestServiceTests extends ESTestCase {
 
         IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> processor));
         PutPipelineRequest putRequest = new PutPipelineRequest(
-            "_id1",
+            pipelineId,
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
             XContentType.JSON
         );

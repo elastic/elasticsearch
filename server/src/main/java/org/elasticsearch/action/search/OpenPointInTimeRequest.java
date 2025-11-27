@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,6 +49,8 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
     private QueryBuilder indexFilter;
 
     private boolean allowPartialSearchResults = false;
+
+    private boolean crossProjectEnabled = false;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = SearchRequest.DEFAULT_INDICES_OPTIONS;
     public static final IndicesOptions DEFAULT_CPS_INDICES_OPTIONS = SearchRequest.DEFAULT_CPS_INDICES_OPTIONS;
@@ -103,6 +106,13 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
         }
         if (keepAlive == null) {
             validationException = addValidationError("[keep_alive] is not specified", validationException);
+        }
+        if (projectRouting != null && crossProjectEnabled == false) {
+            validationException = ValidateActions.addValidationError(
+                "project_routing specified in non-CPS environment",
+                validationException
+            );
+
         }
         return validationException;
     }
@@ -230,6 +240,11 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
 
     public OpenPointInTimeRequest allowPartialSearchResults(boolean allowPartialSearchResults) {
         this.allowPartialSearchResults = allowPartialSearchResults;
+        return this;
+    }
+
+    public OpenPointInTimeRequest crossProjectEnabled(boolean crossProjectEnabled) {
+        this.crossProjectEnabled = crossProjectEnabled;
         return this;
     }
 

@@ -64,12 +64,12 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -89,7 +89,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -105,6 +104,88 @@ import static org.mockito.Mockito.mock;
 public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     private static final int LOOKUP_SIZE = 1000;
     private static final int LESS_THAN_VALUE = 40;
+
+    // Precreate all attributes statically to ensure NameId matching
+    private static final FieldAttribute MATCH0_LEFT_ATTR = new FieldAttribute(
+        Source.EMPTY,
+        null,
+        null,
+        "match0_left",
+        new EsField("match0_left", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+    );
+    private static final FieldAttribute MATCH1_LEFT_ATTR = new FieldAttribute(
+        Source.EMPTY,
+        null,
+        null,
+        "match1_left",
+        new EsField("match1_left", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+    );
+    private static final FieldAttribute MATCH0_RIGHT_ATTR = new FieldAttribute(
+        Source.EMPTY,
+        null,
+        null,
+        "match0_right",
+        new EsField("match0_right", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+    );
+    private static final FieldAttribute MATCH1_RIGHT_ATTR = new FieldAttribute(
+        Source.EMPTY,
+        null,
+        null,
+        "match1_right",
+        new EsField("match1_right", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+    );
+    private static final FieldAttribute MATCH0_ATTR = new FieldAttribute(
+        Source.EMPTY,
+        null,
+        null,
+        "match0",
+        new EsField("match0", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+    );
+    private static final FieldAttribute MATCH1_ATTR = new FieldAttribute(
+        Source.EMPTY,
+        null,
+        null,
+        "match1",
+        new EsField("match1", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+    );
+    private static final FieldAttribute LINT_ATTR = new FieldAttribute(
+        Source.EMPTY,
+        null,
+        null,
+        "lint",
+        new EsField("lint", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+    );
+    private static final FieldAttribute LKWD_ATTR = new FieldAttribute(
+        Source.EMPTY,
+        null,
+        null,
+        "lkwd",
+        new EsField("lkwd", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+    );
+
+    // Index all attributes by name for easy lookup - built dynamically from attribute names
+    private static final Map<String, FieldAttribute> ATTRIBUTES_BY_NAME = Map.ofEntries(
+        Map.entry(MATCH0_LEFT_ATTR.name(), MATCH0_LEFT_ATTR),
+        Map.entry(MATCH1_LEFT_ATTR.name(), MATCH1_LEFT_ATTR),
+        Map.entry(MATCH0_RIGHT_ATTR.name(), MATCH0_RIGHT_ATTR),
+        Map.entry(MATCH1_RIGHT_ATTR.name(), MATCH1_RIGHT_ATTR),
+        Map.entry(MATCH0_ATTR.name(), MATCH0_ATTR),
+        Map.entry(MATCH1_ATTR.name(), MATCH1_ATTR),
+        Map.entry(LINT_ATTR.name(), LINT_ATTR),
+        Map.entry(LKWD_ATTR.name(), LKWD_ATTR)
+    );
+
+    /**
+     * Gets a FieldAttribute by name. Throws IllegalArgumentException if not found.
+     */
+    private static FieldAttribute getAttribute(String name) {
+        FieldAttribute attr = ATTRIBUTES_BY_NAME.get(name);
+        if (attr == null) {
+            throw new IllegalArgumentException("Attribute not found: " + name);
+        }
+        return attr;
+    }
+
     private final ThreadPool threadPool = threadPool();
     private final Directory lookupIndexDirectory = newDirectory();
     private final List<Releasable> releasables = new ArrayList<>();
@@ -238,41 +319,56 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         int maxOutstandingRequests = 1;
         DataType inputDataType = DataType.LONG;
         String lookupIndex = "idx";
-        List<NamedExpression> loadFields = List.of(
-            new ReferenceAttribute(Source.EMPTY, "lkwd", DataType.KEYWORD),
-            new ReferenceAttribute(Source.EMPTY, "lint", DataType.INTEGER)
-        );
 
         List<MatchConfig> matchFields = new ArrayList<>();
         String suffix = (operation == null) ? "" : ("_left");
         for (int i = 0; i < numberOfJoinColumns; i++) {
             String matchField = "match" + i + suffix;
-            matchFields.add(new MatchConfig(matchField, i, inputDataType));
+            matchFields.add(new MatchConfig(getAttribute(matchField), i, inputDataType));
         }
+
+        // Build right-side attributes for EsRelation using precreated static attributes
+        List<Attribute> rightSideAttributes = new ArrayList<>();
+        if (operation == null) {
+            // Field-based join: use match0, match1
+            rightSideAttributes.add(MATCH0_ATTR);
+            if (numberOfJoinColumns >= 2) {
+                rightSideAttributes.add(MATCH1_ATTR);
+            }
+        } else {
+            // Expression-based join: use match0_right, match1_right
+            rightSideAttributes.add(MATCH0_RIGHT_ATTR);
+            if (numberOfJoinColumns >= 2) {
+                rightSideAttributes.add(MATCH1_RIGHT_ATTR);
+            }
+        }
+        rightSideAttributes.add(LINT_ATTR);
+
+        // Build loadFields - only include fields that should be in the final output
+        // Right-side match fields are extracted separately by collectAdditionalRightFieldsForFilters
+        // for filter evaluation, but they shouldn't be in the final output
+        List<NamedExpression> loadFields = new ArrayList<>();
+        loadFields.add(LKWD_ATTR);
+        loadFields.add(LINT_ATTR);
+
         Expression joinOnExpression = null;
-        FragmentExec rightPlanWithOptionalPreJoinFilter = buildLessThanFilter(LESS_THAN_VALUE);
+        // Pass all right-side attributes to buildLessThanFilter so the EsRelation has all of them
+        // This ensures NameId matching when we collect right-side field NameIds
+        FragmentExec rightPlanWithOptionalPreJoinFilter = buildLessThanFilter(LESS_THAN_VALUE, LINT_ATTR, rightSideAttributes);
         if (operation != null) {
             List<Expression> conditions = new ArrayList<>();
             for (int i = 0; i < numberOfJoinColumns; i++) {
-                String matchFieldLeft = "match" + i + "_left";
-                String matchFieldRight = "match" + i + "_right";
-                FieldAttribute left = new FieldAttribute(
-                    Source.EMPTY,
-                    matchFieldLeft,
-                    new EsField(matchFieldLeft, inputDataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
-                );
-                FieldAttribute right = new FieldAttribute(
-                    Source.EMPTY,
-                    matchFieldRight,
-                    new EsField(matchFieldRight.replace("left", "right"), inputDataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
-                );
+                // Use precreated static attributes directly
+                FieldAttribute left = (i == 0) ? MATCH0_LEFT_ATTR : MATCH1_LEFT_ATTR;
+                FieldAttribute right = (i == 0) ? MATCH0_RIGHT_ATTR : MATCH1_RIGHT_ATTR;
                 conditions.add(operation.buildNewInstance(Source.EMPTY, left, right));
             }
             if (applyRightFilterAsJoinOnFilter) {
                 if (rightPlanWithOptionalPreJoinFilter instanceof FragmentExec fragmentExec
                     && fragmentExec.fragment() instanceof Filter filterPlan) {
                     conditions.add(filterPlan.condition());
-                    rightPlanWithOptionalPreJoinFilter = null;
+                    EsRelation esRelation = (EsRelation) filterPlan.child();
+                    rightPlanWithOptionalPreJoinFilter = new FragmentExec(esRelation);
                 }
             }
             joinOnExpression = Predicates.combineAnd(conditions);
@@ -293,14 +389,9 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         );
     }
 
-    private FragmentExec buildLessThanFilter(int value) {
-        FieldAttribute filterAttribute = new FieldAttribute(
-            Source.EMPTY,
-            "lint",
-            new EsField("lint", DataType.INTEGER, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
-        );
-        Expression lessThan = new LessThan(Source.EMPTY, filterAttribute, new Literal(Source.EMPTY, value, DataType.INTEGER));
-        EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), Map.of(), Map.of(), List.of());
+    private FragmentExec buildLessThanFilter(int value, FieldAttribute lintAttribute, List<Attribute> rightSideAttributes) {
+        EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), Map.of(), Map.of(), rightSideAttributes);
+        Expression lessThan = new LessThan(Source.EMPTY, lintAttribute, new Literal(Source.EMPTY, value, DataType.INTEGER));
         Filter filter = new Filter(Source.EMPTY, esRelation, lessThan);
         return new FragmentExec(filter);
     }
@@ -326,15 +417,23 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     protected Matcher<String> expectedToStringOfSimple() {
         StringBuilder sb = new StringBuilder();
         String suffix = (operation == null) ? "" : ("_left");
-        sb.append("LookupOperator\\[index=idx load_fields=\\[lkwd\\{r}#\\d+, lint\\{r}#\\d+] ");
+        // load_fields now use FieldAttributes (showing {f}) instead of ReferenceAttributes (showing {r})
+        sb.append("LookupOperator\\[index=idx load_fields=\\[lkwd\\{f}#\\d+, lint\\{f}#\\d+] ");
         for (int i = 0; i < numberOfJoinColumns; i++) {
-            // match_field=match<i>_left (index first, then suffix)
-            sb.append("input_type=LONG match_field=match").append(i).append(suffix).append(" inputChannel=").append(i).append(" ");
+            // match_field includes the full attribute representation (e.g., match0_left{f}#\d+)
+            sb.append("input_type=LONG match_field=match")
+                .append(i)
+                .append(suffix)
+                .append("\\{f}#\\d+ inputChannel=")
+                .append(i)
+                .append(" ");
         }
 
         if (applyRightFilterAsJoinOnFilter && operation != null) {
-            // When applyRightFilterAsJoinOnFilter is true, right_pre_join_plan should be null
-            sb.append("right_pre_join_plan=null");
+            // When applyRightFilterAsJoinOnFilter is true, we keep the EsRelation structure but remove the filter
+            // The FragmentExec wraps just the EsRelation (no Filter)
+            sb.append("right_pre_join_plan=FragmentExec\\[filter=null, estimatedRowSize=\\d+, reducer=\\[\\], fragment=\\[<>\\n")
+                .append("EsRelation\\[test]\\[LOOKUP]\\[.*]<>\\]\\]");
         } else {
             // Accept either the legacy physical plan rendering (FilterExec/EsQueryExec) or the new FragmentExec rendering
             sb.append("right_pre_join_plan=(?:");
@@ -351,7 +450,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
                 .append("Filter\\[lint\\{f}#\\d+ < ")
                 .append(LESS_THAN_VALUE)
                 .append("\\[INTEGER]]\\n")
-                .append("\\\\_EsRelation\\[test]\\[LOOKUP]\\[\\]<>\\]\\]");
+                .append("\\\\_EsRelation\\[test]\\[LOOKUP]\\[.*]<>\\]\\]");
             sb.append(")");
         }
 

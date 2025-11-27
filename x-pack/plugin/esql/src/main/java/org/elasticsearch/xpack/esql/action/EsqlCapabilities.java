@@ -1456,6 +1456,11 @@ public class EsqlCapabilities {
          * Bugfix for lookup join with Full Text Function
          */
         LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION_BUGFIX,
+
+        /**
+         * Lookup join with General Expression
+         */
+        LOOKUP_JOIN_WITH_GENERAL_EXPRESSION,
         /**
          * FORK with remote indices
          */

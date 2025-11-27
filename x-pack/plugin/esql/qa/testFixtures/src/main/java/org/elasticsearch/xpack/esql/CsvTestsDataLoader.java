@@ -451,7 +451,7 @@ public class CsvTestsDataLoader {
         );
     }
 
-    private static void loadDataSetIntoEs(
+    public static void loadDataSetIntoEs(
         RestClient client,
         boolean supportsIndexModeLookup,
         boolean supportsSourceFieldMapping,
@@ -702,7 +702,7 @@ public class CsvTestsDataLoader {
      *   - multi-values are comma separated
      *   - commas inside multivalue fields can be escaped with \ (backslash) character
      */
-    private static void loadCsvData(RestClient client, String indexName, URL resource, boolean allowSubFields, Logger logger)
+    public static void loadCsvData(RestClient client, String indexName, URL resource, boolean allowSubFields, Logger logger)
         throws IOException {
 
         ArrayList<String> failures = new ArrayList<>();
@@ -1035,7 +1035,7 @@ public class CsvTestsDataLoader {
 
     public record EnrichConfig(String policyName, String policyFileName) {}
 
-    private interface IndexCreator {
+    public interface IndexCreator {
         void createIndex(RestClient client, String indexName, String mapping, Settings indexSettings) throws IOException;
     }
 }

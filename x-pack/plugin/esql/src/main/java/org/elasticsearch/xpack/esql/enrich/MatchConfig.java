@@ -10,11 +10,19 @@ package org.elasticsearch.xpack.esql.enrich;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_GENERAL_EXPRESSION;
 
 /**
  * Configuration for a field used in the join condition of a LOOKUP JOIN or ENRICH operation.
@@ -35,32 +43,53 @@ import java.util.Objects;
  * page sent to the lookup node.
  */
 public final class MatchConfig implements Writeable {
-    private final String fieldName;
+    private final NamedExpression fieldName;
     private final int channel;
     private final DataType type;
 
-    public MatchConfig(String fieldName, int channel, DataType type) {
+    public MatchConfig(NamedExpression fieldName, int channel, DataType type) {
         this.fieldName = fieldName;
         this.channel = channel;
         this.type = type;
     }
 
-    public MatchConfig(String fieldName, Layout.ChannelAndType input) {
+    public MatchConfig(NamedExpression fieldName, Layout.ChannelAndType input) {
         this(fieldName, input.channel(), input.type());
     }
 
     public MatchConfig(StreamInput in) throws IOException {
-        this(in.readString(), in.readInt(), DataType.readFrom(in));
+        PlanStreamInput planIn = (PlanStreamInput) in;
+        if (in.getTransportVersion().onOrAfter(ESQL_LOOKUP_JOIN_GENERAL_EXPRESSION)) {
+            this.fieldName = planIn.readNamedWriteable(NamedExpression.class);
+            this.channel = in.readInt();
+            this.type = DataType.readFrom(in);
+        } else {
+            // Old format: fieldName (string), channel (int), type (DataType)
+            String fieldNameString = in.readString();
+            this.channel = in.readInt();
+            this.type = DataType.readFrom(in);
+            this.fieldName = new FieldAttribute(
+                Source.EMPTY,
+                null,
+                null,
+                fieldNameString,
+                new EsField(fieldNameString, this.type, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            );
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
+        if (out.getTransportVersion().onOrAfter(ESQL_LOOKUP_JOIN_GENERAL_EXPRESSION)) {
+            out.writeNamedWriteable(fieldName);
+        } else {
+            out.writeString(fieldName.name());
+        }
         out.writeInt(channel);
         type.writeTo(out);
     }
 
-    public String fieldName() {
+    public NamedExpression fieldName() {
         return fieldName;
     }
 

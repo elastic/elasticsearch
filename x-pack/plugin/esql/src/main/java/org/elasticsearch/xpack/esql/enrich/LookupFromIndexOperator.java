@@ -184,7 +184,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             return matchFields;
         }
         List<MatchConfig> uniqueFields = new ArrayList<>();
-        Set<String> seenFieldNames = new HashSet<>();
+        Set<NamedExpression> seenFieldNames = new HashSet<>();
         for (MatchConfig matchField : matchFields) {
             if (seenFieldNames.add(matchField.fieldName())) {
                 uniqueFields.add(matchField);

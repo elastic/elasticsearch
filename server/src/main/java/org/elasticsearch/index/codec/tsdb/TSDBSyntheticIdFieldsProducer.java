@@ -290,14 +290,9 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
         private int findStartDocIDForTsIdOrd(int tsIdOrd) throws IOException {
             var skipper = docValuesProducer.getSkipper(tsIdFieldInfo);
             assert skipper != null;
-
-            if (skipper.minValue() >= tsIdOrd) {
-                skipper.advance(0);
-                return skipper.minDocID(0);
-            } else if (tsIdOrd > skipper.maxValue()) {
+            if (skipper.minValue() > tsIdOrd || tsIdOrd > skipper.maxValue()) {
                 return DocIdSetIterator.NO_MORE_DOCS;
             }
-
             skipper.advance(tsIdOrd, Long.MAX_VALUE);
             return skipper.minDocID(0);
         }

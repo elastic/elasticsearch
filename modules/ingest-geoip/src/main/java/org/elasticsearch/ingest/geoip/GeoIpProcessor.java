@@ -189,31 +189,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 String key = entry.getKey();
                 Object value = entry.getValue();
 
-                // Keep composite objects (like location with lat/lon) as objects
-                // since they represent a single logical field (geopoint)
-                if (isCompositeProperty(key, value)) {
-                    document.setFieldValue(targetField + "." + key, value);
-                } else {
-                    document.setFieldValue(targetField + "." + key, value);
-                }
+                document.setFieldValue(targetField + "." + key, value);
             }
         } else {
             // In classic mode, write as a single nested object
             document.setFieldValue(targetField, data);
         }
-    }
-
-    /**
-     * Determines if a property should be kept as a composite object rather than being flattened.
-     * Currently, this includes the "location" property which contains lat/lon coordinates.
-     *
-     * @param key the property key
-     * @param value the property value
-     * @return true if the property is composite and should remain as an object
-     */
-    private static boolean isCompositeProperty(String key, Object value) {
-        // The "location" property contains lat/lon and represents a geopoint, so keep it as an object
-        return "location".equals(key) && value instanceof Map;
     }
 
     /**

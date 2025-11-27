@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.querydsl.query.KqlQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -189,6 +190,10 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
     }
 
     private Map<String, Object> kqlQueryOptions() throws InvalidArgumentException {
+        if (options() == null && configuration.zoneId().equals(ZoneOffset.UTC)) {
+            return null;
+        }
+
         Map<String, Object> kqlOptions = new HashMap<>();
         if (options() != null) {
             Options.populateMap((MapExpression) options(), kqlOptions, source(), SECOND, ALLOWED_OPTIONS);

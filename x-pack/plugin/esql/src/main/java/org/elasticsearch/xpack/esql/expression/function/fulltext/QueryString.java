@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -334,6 +335,10 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
     }
 
     private Map<String, Object> queryStringOptions() throws InvalidArgumentException {
+        if (options() == null && configuration.zoneId().equals(ZoneOffset.UTC)) {
+            return null;
+        }
+
         Map<String, Object> queryStringOptions = new HashMap<>();
         if (options() != null) {
             Options.populateMap((MapExpression) options(), queryStringOptions, source(), SECOND, ALLOWED_OPTIONS);

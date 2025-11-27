@@ -17,8 +17,10 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessFileDeletionIT.TestStateless;
@@ -59,6 +61,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -94,6 +97,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestProcessor;
@@ -102,6 +106,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -134,10 +139,12 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -191,13 +198,60 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(Stateless.class);
-        plugins.add(TestStateless.class);
+        plugins.add(TestStatelessCatchFlushUpload.class);
         plugins.add(DataStreamsPlugin.class);
         plugins.add(CustomIngestTestPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
         plugins.add(MapperExtrasPlugin.class);
         plugins.add(StatelessMockRepositoryPlugin.class);
         return plugins;
+    }
+
+    public static class TestStatelessCatchFlushUpload extends TestStateless {
+        public final AtomicReference<Semaphore> uploadRequestedSemaphoreReference = new AtomicReference<>();
+        public final AtomicReference<Semaphore> uploadContinueSemaphoreReference = new AtomicReference<>();
+
+        public TestStatelessCatchFlushUpload(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        protected StatelessCommitService createStatelessCommitService(
+            Settings settings,
+            ObjectStoreService objectStoreService,
+            ClusterService clusterService,
+            IndicesService indicesService,
+            Client client,
+            StatelessCommitCleaner commitCleaner,
+            StatelessSharedBlobCacheService cacheService,
+            SharedBlobCacheWarmingService cacheWarmingService,
+            TelemetryProvider telemetryProvider
+        ) {
+            return new StatelessCommitService(
+                settings,
+                objectStoreService,
+                clusterService,
+                indicesService,
+                client,
+                commitCleaner,
+                cacheService,
+                cacheWarmingService,
+                telemetryProvider
+            ) {
+                @Override
+                public void ensureMaxGenerationToUploadForFlush(ShardId shardId, long generation) {
+                    Semaphore uploadRequestedSemaphore = uploadRequestedSemaphoreReference.get();
+                    if (uploadRequestedSemaphore != null) {
+                        uploadRequestedSemaphore.release();
+                    }
+                    Semaphore uploadContinueSemaphore = uploadContinueSemaphoreReference.get();
+                    if (uploadContinueSemaphore != null) {
+                        safeAcquire(uploadContinueSemaphore);
+                    }
+                    super.ensureMaxGenerationToUploadForFlush(shardId, generation);
+                }
+            };
+        }
     }
 
     @Override
@@ -2701,6 +2755,121 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
 
     public void testStressWithRelocationOrObjectStoreFailures() throws Exception {
         doTestStress(true, true);
+    }
+
+    public void testMultipleCommitListenersDuringRelocation() throws Exception {
+        // We test a possible scenario where both HollowEngine and IndexEngine acquire the same index commit reference.
+        // This could happen in the following scenario:
+        // - We relocate a regular shard from A to B.
+        // - We hollow the shard on A.
+        // - Concurrently, getVbccChunk is called, which increments the ref count on the hollow VBCC before the upload is finished.
+        // - Relocation fails during primary context handoff. The shard remains hollow on A.
+        // - New indexing comes in, triggering unhollowing. IndexEngine is created on A, which also acquires the same commit.
+        startMasterOnlyNode();
+
+        var indexNodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO)
+            // Set a large max size and amount to control the uploads manually in the test
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+            .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
+            .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueDays(1L))
+            .build();
+        String indexNodeA = startIndexNode(indexNodeSettings);
+        ensureStableCluster(2);
+
+        // Create a shard, index some docs, flush the non-hollow commit
+        var indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettings(1, 0)
+                // disable automating refreshes to let us catch the VBCC upload
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1L))
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .build()
+        );
+        ensureGreen(indexName);
+        var index = resolveIndex(indexName);
+        int docs0 = randomIntBetween(16, 128);
+        indexDocs(indexName, docs0);
+        flush(indexName);
+
+        var indexShard = findIndexShard(index, 0);
+        indexShard.withEngine(e -> {
+            assertThat(e, instanceOf(IndexEngine.class));
+            assertFalse(((IndexEngine) e).isLastCommitHollow());
+            return null;
+        });
+        var shardId = indexShard.shardId();
+        var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        var commitServiceA = internalCluster().getInstance(StatelessCommitService.class, indexNodeA);
+        assertBusy(() -> assertThat(hollowShardsService.isHollowableIndexShard(indexShard), equalTo(true)));
+        assertBusy(() -> assertNull(commitServiceA.getCurrentVirtualBcc(shardId)));
+
+        final var testStatelessPlugin = findPlugin(indexNodeA, TestStatelessCatchFlushUpload.class);
+        Semaphore uploadRequestedSemaphore = new Semaphore(0);
+        testStatelessPlugin.uploadRequestedSemaphoreReference.set(uploadRequestedSemaphore);
+        Semaphore uploadContinueSemaphore = new Semaphore(0);
+        testStatelessPlugin.uploadContinueSemaphoreReference.set(uploadContinueSemaphore);
+
+        // Initiate hollowing of the shard by relocating it to another node.
+        // But the relocation will fail during primary context handoff. However, we still expect to have a hollow index engine.
+        String indexNodeB = startIndexNode(indexNodeSettings);
+        ensureStableCluster(3);
+        var relocationFailed = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNodeB)
+            .addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+                logger.info("--> Failing primary context handoff action on node {}", indexNodeB);
+                relocationFailed.countDown();
+                channel.sendResponse(
+                    new ElasticsearchException("Unable to perform " + PRIMARY_CONTEXT_HANDOFF_ACTION_NAME + " on node " + indexNodeB)
+                );
+            });
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+
+        // Ignore the first pre-flush flush
+        safeAcquire(uploadRequestedSemaphore);
+        uploadContinueSemaphore.release();
+
+        // Get reference to the hollow VBCC before it is uploaded
+        safeAcquire(uploadRequestedSemaphore);
+        testStatelessPlugin.uploadRequestedSemaphoreReference.set(null);
+
+        var hollowVbcc = commitServiceA.getCurrentVirtualBcc(shardId);
+        // Explicitly increment ref count to simulate getVbccChunk action calling
+        // statelessCommitService::readVirtualBatchedCompoundCommitChunk -> getBytesByRange() -> vbcc.incRef()
+        hollowVbcc.mustIncRef();
+
+        testStatelessPlugin.uploadContinueSemaphoreReference.set(null);
+        uploadContinueSemaphore.release();
+        safeAwait(relocationFailed);
+
+        // Due to relocation, we expect to have a HollowIndexEngine now, even if the primary handoff failed
+        assertBusy(() -> {
+            indexShard.withEngine(e -> {
+                assertThat(e, instanceOf(HollowIndexEngine.class));
+                return null;
+            });
+        });
+
+        // Cancel the relocation
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeB), indexName);
+        ensureGreen(indexName);
+
+        // Trigger unhollowing by indexing some docs.
+        // This triggers assertion error in ShardLocalCommitRefs as hollow vbcc is still referenced
+        indexDocs(indexName, randomIntBetween(16, 64));
+        flush(indexName);
+
+        // We expect to have a normal IndexEngine after unhollowing
+        assertBusy(() -> {
+            indexShard.withEngine(e -> {
+                assertThat(e, instanceOf(IndexEngine.class));
+                return null;
+            });
+        });
+
+        hollowVbcc.close();
     }
 
     public void testRealTimeGet() throws Exception {

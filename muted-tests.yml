@@ -60,8 +60,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.FollowIndexSecurityIT
   method: testCleanShardFollowTaskAfterDeleteFollower
   issue: https://github.com/elastic/elasticsearch/issues/120339
-- class: org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeToCharProcessorTests
-  issue: https://github.com/elastic/elasticsearch/issues/120575
 - class: org.elasticsearch.xpack.security.authc.service.ServiceAccountIT
   method: testAuthenticateShouldNotFallThroughInCaseOfFailure
   issue: https://github.com/elastic/elasticsearch/issues/120902
@@ -438,9 +436,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:inlinestats.MvMinMvExpand}
   issue: https://github.com/elastic/elasticsearch/issues/137679
-- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
-  method: testSubqueryWithCountStarAndDateTrunc {default}
-  issue: https://github.com/elastic/elasticsearch/issues/138601
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testWaitForSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/138669

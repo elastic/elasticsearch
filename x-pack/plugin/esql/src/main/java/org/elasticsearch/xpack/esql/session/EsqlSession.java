@@ -592,8 +592,6 @@ public class EsqlSession {
 
     /**
      * Perform a field caps request for each lookup index.
-     * <p>
-     * Updates the minimum transport version to deal with ROW queries, where the main index resolution does not make a field caps request.
      */
     private void preAnalyzeLookupIndices(
         Iterator<IndexPattern> lookupIndices,

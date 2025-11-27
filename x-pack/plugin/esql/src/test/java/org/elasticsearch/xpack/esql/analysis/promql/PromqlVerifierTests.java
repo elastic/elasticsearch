@@ -72,18 +72,9 @@ public class PromqlVerifierTests extends ESTestCase {
             + "expected LogicalPlan but found VectorBinaryArithmetic"
     )
     public void testPromqlArithmetricOperators() {
-        assertThat(
-            error("PROMQL test step 5m (1+1)", tsdb),
-            equalTo("1:27: arithmetic operators are not supported at this time [foo]")
-        );
-        assertThat(
-            error("PROMQL test step 5m (foo+1)", tsdb),
-            equalTo("1:27: arithmetic operators are not supported at this time [foo]")
-        );
-        assertThat(
-            error("PROMQL test step 5m (1+foo)", tsdb),
-            equalTo("1:27: arithmetic operators are not supported at this time [foo]")
-        );
+        assertThat(error("PROMQL test step 5m (1+1)", tsdb), equalTo("1:27: arithmetic operators are not supported at this time [foo]"));
+        assertThat(error("PROMQL test step 5m (foo+1)", tsdb), equalTo("1:27: arithmetic operators are not supported at this time [foo]"));
+        assertThat(error("PROMQL test step 5m (1+foo)", tsdb), equalTo("1:27: arithmetic operators are not supported at this time [foo]"));
         assertThat(
             error("PROMQL test step 5m (foo+bar)", tsdb),
             equalTo("1:27: arithmetic operators are not supported at this time [foo]")
@@ -96,10 +87,7 @@ public class PromqlVerifierTests extends ESTestCase {
     )
     public void testPromqlVectorMatching() {
         assertThat(
-            error(
-                "PROMQL test step 5m (method_code_http_errors_rate5m{code=\"500\"} / ignoring(code) method_http_requests_rate5m)",
-                tsdb
-            ),
+            error("PROMQL test step 5m (method_code_http_errors_rate5m{code=\"500\"} / ignoring(code) method_http_requests_rate5m)", tsdb),
             equalTo("")
         );
         assertThat(

@@ -36,7 +36,10 @@ import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENS
 
 public class DynamicTemplate implements ToXContentObject {
 
-    // Pattern to match {{param}} in dynamic template mappings
+    /**
+     * Pattern to match <code>{{param}}</code> in dynamic template mappings.
+     * These will be replaced with values from {@link DocumentParserContext#getDynamicTemplateParams(String)}
+     */
     private static final Pattern DYNAMIC_TEMPLATE_PARAM = Pattern.compile("\\{\\{(.*?)}}");
 
     public enum MatchType {
@@ -576,16 +579,15 @@ public class DynamicTemplate implements ToXContentObject {
     }
 
     private static String processString(String s, String name, String dynamicType, Map<String, String> params) {
-        s = s.replace("{{name}}", name)
-            .replace("{name}", name)
-            .replace("{{dynamic_type}}", dynamicType)
-            .replace("{dynamic_type}", dynamicType)
-            .replace("{{dynamicType}}", dynamicType)
-            .replace("{dynamicType}", dynamicType);
+        if (s.contains("{") == false) {
+            return s;
+        }
+        s = s.replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
 
         if (s.contains("{{") == false) {
             return s;
         }
+        s = s.replace("{{name}}", name).replace("{{dynamic_type}}", dynamicType).replace("{{dynamicType}}", dynamicType);
 
         // Handle {{param}} replacements
         Matcher matcher = DYNAMIC_TEMPLATE_PARAM.matcher(s);

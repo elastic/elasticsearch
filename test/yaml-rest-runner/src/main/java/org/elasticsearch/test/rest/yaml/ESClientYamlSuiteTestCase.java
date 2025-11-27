@@ -36,6 +36,7 @@ import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.rules.ErrorCollector;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -108,7 +109,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private static ClientYamlSuiteRestSpec restSpecification;
 
-    private ESClientYamlSuitErrorCollector errorCollector;
+    private ESClientYamlSuiteErrorCollector errorCollector;
 
     protected ESClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
         this.testCandidate = testCandidate;
@@ -170,7 +171,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
         restTestExecutionContext.clear();
 
-        errorCollector = new ESClientYamlSuitErrorCollector(restTestExecutionContext, testCandidate);
+        errorCollector = new ESClientYamlSuiteErrorCollector();
     }
 
     /**
@@ -530,7 +531,26 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     }
 
     private void executeSection(ExecutableSection executableSection) {
-        errorCollector.checkSucceeds(executableSection);
+        errorCollector.checkSucceeds(() -> {
+            try {
+                executableSection.execute(restTestExecutionContext);
+                return null;
+            } catch (Throwable t) {
+                if (t instanceof AssertionError) {
+                    throw t;
+                } else {
+                    throw new AssertionError(
+                        "Error executing section at ["
+                            + testCandidate.getSuitePath()
+                            + ":"
+                            + executableSection.getLocation().lineNumber()
+                            + "]: "
+                            + t.getMessage(),
+                        t
+                    );
+                }
+            }
+        });
     }
 
     protected boolean skipSetupSections() {
@@ -559,5 +579,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     public ClientYamlTestCandidate getTestCandidate() {
         return testCandidate;
+    }
+
+    private static class ESClientYamlSuiteErrorCollector extends ErrorCollector {
+
+        public void verify() throws AssertionError {
+            try {
+                super.verify();
+            } catch (Throwable e) {
+                throw new AssertionError(e.getMessage());
+            }
+        }
     }
 }

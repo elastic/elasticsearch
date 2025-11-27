@@ -433,16 +433,19 @@ public class IngestClientIT extends ESIntegTestCase {
 
         createIndex("test_index");
 
-        putJsonPipeline(
-            "test-pipeline",
-            (builder, params) -> builder.field("description", "test pipeline")
+        BytesReference source = BytesReference.bytes(
+            jsonBuilder().startObject()
+                .field("description", "test-pipeline")
                 .startArray("processors")
                 .startObject()
                 .startObject("test")
                 .endObject()
                 .endObject()
                 .endArray()
+                .endObject()
         );
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("test-pipeline", source, XContentType.JSON);
+        clusterAdmin().putPipeline(putPipelineRequest).get();
 
         // Create a bulk request with valid and invalid documents
         BulkRequest bulkRequest = new BulkRequest();
@@ -509,7 +512,8 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(client().prepareGet("test_index", "invalid_doc2").get().isExists(), is(false));
 
         // cleanup
-        deletePipeline("test-pipeline");
+        AcknowledgedResponse deletePipelineResponse = clusterAdmin().prepareDeletePipeline("test-pipeline").get();
+        assertTrue(deletePipelineResponse.isAcknowledged());
     }
 
     public static class ExtendedIngestTestPlugin extends IngestTestPlugin {

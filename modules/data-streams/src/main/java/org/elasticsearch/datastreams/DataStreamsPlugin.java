@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.datastreams;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
@@ -105,6 +107,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 
 public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlugin, ExtensiblePlugin {
+
+    private static final Logger logger = LogManager.getLogger(DataStreamsPlugin.class);
 
     public static final Setting<TimeValue> TIME_SERIES_POLL_INTERVAL = Setting.timeSetting(
         "time_series.poll_interval",
@@ -324,8 +328,15 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         List<AdditionalDataStreamLifecycleActions> dataStreamLifecycleActions = loader.loadExtensions(
             AdditionalDataStreamLifecycleActions.class
         );
-        assert dataStreamLifecycleActions.size() <= 1;
-        if (dataStreamLifecycleActions.isEmpty() == false) {
+        if (dataStreamLifecycleActions.size() > 1) {
+            throw new IllegalStateException(
+                "Only one AdditionalDataStreamLifecycleActions implementation is allowed, found: "
+                    + dataStreamLifecycleActions.stream().map(o -> o.getClass().getSimpleName()).toList()
+            );
+        }
+        if (dataStreamLifecycleActions.isEmpty()) {
+            logger.warn("No AdditionalDataStreamLifecycleActions implementation found");
+        } else {
             this.additionalDataStreamLifecycleActions = dataStreamLifecycleActions.getFirst();
         }
     }

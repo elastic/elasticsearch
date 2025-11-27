@@ -624,9 +624,10 @@ public class EsqlSession {
             // Disable aggregate_metric_double and dense_vector until we get version checks in planning
             false,
             false,
-            // We're just being consistent with the enrich policy resolution here; technically, we don't need to pass the main index
-            // resolution's minimum version, as the coordinator's just going to make another field caps request for the lookup resolution
-            // that comes with the minimum version in the response.
+            // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
+            // remote lookup indices in the field caps request - but the coordinating cluster must be considered, too!
+            // The main index resolution should already have taken the version of the coordinating cluster into account and this should
+            // be reflected in result.minimumTransportVersion().
             result.minimumTransportVersion(),
             // No need to update the minimum transport version in the PreAnalysisResult,
             // it should already have been determined during the main index resolution.

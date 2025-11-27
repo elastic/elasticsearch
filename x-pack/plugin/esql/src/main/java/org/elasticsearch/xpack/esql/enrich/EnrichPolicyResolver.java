@@ -119,8 +119,9 @@ public class EnrichPolicyResolver {
      *
      * @param enriches           the unresolved policies
      * @param executionInfo      the execution info
-     * @param minimumVersion     the minimum transport version of all clusters involved in the query, used for making the resolved mapping
-     *                           compatible with all possible nodes
+     * @param minimumVersion     the minimum transport version of all clusters involved in the query; used for making the resolved mapping
+     *                           compatible with all involved clusters in case of CCS.
+     *                           (Enrich policy resolution happens separately on each remote cluster.)
      * @param listener           notified with the enrich resolution
      */
     public void resolvePolicies(

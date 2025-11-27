@@ -622,6 +622,10 @@ POST _reindex
 
 The `host` parameter must contain a scheme, host, port (for example, `https://<OTHER_HOST_URL>:9200`), and optional path (for example, `https://<OTHER_HOST_URL>:9200/proxy`).
 
+::::{warning}
+The functionality to reindex from a remote cluster into {{serverless-full}} is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
+::::
+
 ### Using basic auth [reindex-basic-auth]
 
 To authenticate with the remote cluster using basic auth, set the `username` and `password` parameters, as in the example above.

@@ -65,7 +65,9 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.TransportVersions.V_8_15_0;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
@@ -335,7 +337,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
     );
 
-    protected abstract QueryRewriteInterceptor createQueryRewriteInterceptor();
+    protected abstract List<QueryRewriteInterceptor> createQueryRewriteInterceptors();
 
     protected abstract TransportVersion getMinimalSupportedVersion();
 
@@ -427,8 +429,9 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             indexMetadata
         );
 
-        QueryRewriteInterceptor interceptor = createQueryRewriteInterceptor();
-        Map<String, QueryRewriteInterceptor> interceptorMap = Map.of(interceptor.getQueryName(), interceptor);
+        QueryRewriteInterceptor interceptor = QueryRewriteInterceptor.multi(
+            createQueryRewriteInterceptors().stream().collect(Collectors.toMap(QueryRewriteInterceptor::getQueryName, Function.identity()))
+        );
 
         return new QueryRewriteContext(
             null,
@@ -438,7 +441,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             null,
-            QueryRewriteInterceptor.multi(interceptorMap),
+            interceptor,
             ccsMinimizeRoundTrips
         );
     }

@@ -48,6 +48,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -199,7 +200,7 @@ public class IndexRequestTests extends ESTestCase {
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         IndexRequest serialized = new IndexRequest(in);
         assertEquals(XContentType.JSON, serialized.getContentType());
-        assertEquals(new BytesArray("{}"), serialized.source());
+        assertThat(serialized.source(), equalBytes(new BytesArray("{}")));
         assertEquals(isRequireAlias, serialized.isRequireAlias());
         assertThat(serialized.getDynamicTemplates(), equalTo(dynamicTemplates));
     }

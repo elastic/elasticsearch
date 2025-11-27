@@ -24,11 +24,13 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMergeOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -220,8 +222,15 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
                 } else {
                     // TODO: reject over_time_aggregation only
-                    final Expression aggField = af.field();
-                    var tsAgg = new LastOverTime(af.source(), aggField, af.window(), timestamp.get());
+                    Expression aggField = findAggregatedField(af);
+
+                    // We use merge_over_time as default for histograms and last_over_time for other types
+                    TimeSeriesAggregateFunction tsAgg;
+                    if (aggField.dataType() == DataType.EXPONENTIAL_HISTOGRAM) {
+                        tsAgg = new HistogramMergeOverTime(af.source(), aggField, Literal.TRUE, af.window());
+                    } else {
+                        tsAgg = new LastOverTime(af.source(), aggField, af.window(), timestamp.get());
+                    }
                     final AggregateFunction firstStageFn;
                     if (inlineFilter != null) {
                         firstStageFn = tsAgg.perTimeSeriesAggregation().withFilter(inlineFilter);
@@ -367,6 +376,25 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             }
             return new Project(newChild.source(), unpackValues, projects);
         }
+    }
+
+    private static Expression findAggregatedField(AggregateFunction af) {
+        // TODO this is a temporary workaround to deal with surrogate-based aggregates on histograms
+        // E.g. a SUM(myHistogram) is replaced with the following surrogate: SUM(EXTRACT_HISTOGRAM_COMPONENT(myHistogram, "sum"))
+        // So we need to make sure to apply the implicit merge_over_time aggregation to
+        // "myHistogram" instead of EXTRACT_HISTOGRAM_COMPONENT(...)
+        // In the long term we probably want to revisit our strategy of how we apply implicit _over_time aggregations
+        // Other examples where the current approach likely doesn't work as expected is E.g. SUM(gaugeA + gaugeB),
+        // which currently translates to SUM(last_over_time(gaugeA + gaugeB)), but probably should be
+        // SUM(last_over_time(gaugeA) + last_over_time(gaugeB)) instead.
+        // One possible strategy would be to search for all field references in the expression.
+        // Then check if there is TimeSeriesAggregateFunction on the path to the outer aggregation (in the chain of parents).
+        // If not, wrap the field reference with the appropriate TimeSeriesAggregateFunction based on its type
+        Expression aggregatedExpression = af.field();
+        if (aggregatedExpression instanceof ExtractHistogramComponent extractHistogramComponent) {
+            return extractHistogramComponent.field();
+        }
+        return aggregatedExpression;
     }
 
     private static List<? extends NamedExpression> mergeExpressions(

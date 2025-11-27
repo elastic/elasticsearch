@@ -1277,7 +1277,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             }
 
             @Override
-            float calculateNodeWeightWithIndex(
+            public float calculateNodeWeightWithIndex(
                 BalancedShardsAllocator.Balancer balancer,
                 BalancedShardsAllocator.ModelNode node,
                 BalancedShardsAllocator.ProjectIndex index

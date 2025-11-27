@@ -69,6 +69,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.junit.Before;
@@ -1630,6 +1631,91 @@ public class IngestServiceTests extends ESTestCase {
 
         verify(requestItemErrorHandler, times(numIndexRequests)).apply(anyInt(), argThat(e -> e.getCause().equals(error)), eq(fsStatus));
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+    }
+
+    public void testBulkRequestExecutionWithInvalidJsonDocument() throws Exception {
+        // Test that when a document with invalid JSON (e.g., duplicate keys) is in a bulk request with a pipeline,
+        // the invalid document fails gracefully without causing the entire bulk request to fail.
+        BulkRequest bulkRequest = new BulkRequest();
+        String pipelineId = "_id";
+
+        // Valid document that should succeed
+        IndexRequest validRequest = new IndexRequest("_index").id("valid").setPipeline(pipelineId).setFinalPipeline("_none");
+        validRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
+        validRequest.setListExecutedPipelines(true);
+        bulkRequest.add(validRequest);
+
+        // Invalid document with missing closing brace
+        String invalidJson = "{\"invalid\":\"json\"";
+        IndexRequest invalidRequest = new IndexRequest("_index").id("invalid").setPipeline(pipelineId).setFinalPipeline("_none");
+        invalidRequest.source(new BytesArray(invalidJson), XContentType.JSON);
+        bulkRequest.add(invalidRequest);
+
+        // Another valid document that should succeed
+        IndexRequest validRequest2 = new IndexRequest("_index").id("valid2").setPipeline(pipelineId).setFinalPipeline("_none");
+        validRequest2.source(Requests.INDEX_CONTENT_TYPE, "field2", "value2");
+        validRequest2.setListExecutedPipelines(true);
+        bulkRequest.add(validRequest2);
+
+        // Invalid document with duplicated keys
+        String invalidJson2 = "{\"@timestamp\":\"2024-06-01T00:00:00Z\",\"@timestamp\":\"2024-06-01T00:00:00Z\"}";
+        IndexRequest invalidRequest2 = new IndexRequest("_index").id("invalid").setPipeline(pipelineId).setFinalPipeline("_none");
+        invalidRequest2.source(new BytesArray(invalidJson2), XContentType.JSON);
+        bulkRequest.add(invalidRequest2);
+
+        final Processor processor = mock(Processor.class);
+        when(processor.getType()).thenReturn("mock");
+        when(processor.getTag()).thenReturn("mockTag");
+        doAnswer(args -> {
+            BiConsumer<IngestDocument, Exception> handler = args.getArgument(1);
+            handler.accept(RandomDocumentPicks.randomIngestDocument(random()), null);
+            return null;
+        }).when(processor).execute(any(), any());
+
+        IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> processor));
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            pipelineId,
+            new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
+            XContentType.JSON
+        );
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> requestItemErrorHandler = mock();
+        final BiConsumer<Thread, Exception> onCompletion = mock();
+
+        ingestService.executeBulkRequest(
+            4,
+            bulkRequest.requests(),
+            indexReq -> {},
+            (s) -> false,
+            (slot, targetIndex, e) -> fail("Should not redirect to failure store"),
+            requestItemErrorHandler,
+            onCompletion,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+
+        // The invalid documents should fail with a parsing error
+        verify(requestItemErrorHandler).apply(
+            eq(1), // slot 1 is the invalid document
+            argThat(e -> e instanceof XContentParseException),
+            eq(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN)
+        );
+        verify(requestItemErrorHandler).apply(
+            eq(3), // slot 3 is the other invalid document
+            argThat(e -> e instanceof XContentParseException),
+            eq(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN)
+        );
+
+        // The bulk listener should still be called with success
+        verify(onCompletion).accept(any(), eq(null));
+        assertStats(ingestService.stats().totalStats(), 4, 2, 0);
+        // Verify that the valid documents were processed (they should have their pipelines executed)
+        assertThat(validRequest.getExecutedPipelines(), equalTo(List.of(pipelineId)));
+        assertThat(validRequest2.getExecutedPipelines(), equalTo(List.of(pipelineId)));
     }
 
     public void testExecuteFailureRedirection() throws Exception {

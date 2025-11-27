@@ -52,9 +52,6 @@ import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClu
 
 public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
 
-    public static final String INCLUDE_DISCOVERY_NODE_FILTERS = "include.discovery.node.filters";
-    public static final String ALLOW_EXCESS_SHARDS = "allow.excess.shards";
-
     private DiscoveryNode indexNodeOne;
     private DiscoveryNode indexNodeTwo;
     private DiscoveryNode searchNodeOne;
@@ -75,25 +72,19 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     private IndexMetadata indexMetadata;
     private RoutingAllocation routingAllocation;
     private IndexBalanceAllocationDecider indexBalanceAllocationDecider;
-    private int excessShards;
     private ShardRouting indexTierShardRouting;
     private ShardRouting searchTierShardRouting;
     private List<RoutingNode> indexTier;
     private List<RoutingNode> searchIier;
 
     private void setup(Settings settings) {
-        boolean hasDiscoveryNodeFilters = settings.getAsBoolean(INCLUDE_DISCOVERY_NODE_FILTERS, true);
-        boolean allowExcessShards = settings.getAsBoolean(ALLOW_EXCESS_SHARDS, true);
-
         final String indexName = "IndexBalanceAllocationDeciderIndex";
         final Map<DiscoveryNode, List<ShardRouting>> nodeToShardRoutings = new HashMap<>();
 
-        excessShards = allowExcessShards ? randomIntBetween(1, 5) : 0;
-
         Settings.Builder builder = Settings.builder()
+            .put(settings)
             .put("stateless.enabled", "true")
-            .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), "true")
-            .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_EXCESS_SHARDS.getKey(), excessShards);
+            .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), "true");
 
         numberOfPrimaryShards = randomIntBetween(2, 10) * 2;
         replicationFactor = 2;
@@ -107,18 +98,6 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             .roles(Collections.singleton(DiscoveryNodeRole.ML_ROLE))
             .build();
         allNodes = List.of(indexNodeOne, indexNodeTwo, searchNodeOne, searchNodeTwo, masterNode, machineLearningNode);
-
-        if (hasDiscoveryNodeFilters) {
-            String setting = randomFrom(
-                CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX,
-                CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX,
-                CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX
-            );
-            String attribute = randomFrom("_value", "name");
-            String name = randomFrom("indexNodeOne", "indexNodeTwo", "searchNodeOne", "searchNodeTwo");
-            String ip = randomFrom("192.168.0.1", "192.168.0.2", "192.168.7.1", "10.17.0.1");
-            builder.put(setting + "." + attribute, attribute.equals("name") ? name : ip);
-        }
 
         DiscoveryNodes.Builder discoveryNodeBuilder = DiscoveryNodes.builder();
         for (DiscoveryNode node : allNodes) {
@@ -232,8 +211,9 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testCanAllocateUnderThresholdWithExcessShards() {
-        Settings testSettings = Settings.builder().put(INCLUDE_DISCOVERY_NODE_FILTERS, false).put(ALLOW_EXCESS_SHARDS, true).build();
-        setup(testSettings);
+        Settings settings = allowExcessShards(Settings.EMPTY);
+        setup(settings);
+
         ShardRouting newIndexShardRouting = TestShardRouting.newShardRouting(
             new ShardId("newIndex", "uuid", 1),
             indexNodeTwo.getId(),
@@ -299,8 +279,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testCanAllocateExceedThreshold() {
-        Settings testSettings = Settings.builder().put(INCLUDE_DISCOVERY_NODE_FILTERS, false).put(ALLOW_EXCESS_SHARDS, false).build();
-        setup(testSettings);
+        setup(Settings.EMPTY);
 
         int ideal = numberOfPrimaryShards / 2;
         int current = numberOfPrimaryShards / 2;
@@ -337,11 +316,11 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testCanAllocateHasDiscoveryNodeFilters() {
-        Settings testSettings = Settings.builder()
-            .put(INCLUDE_DISCOVERY_NODE_FILTERS, true)
-            .put(ALLOW_EXCESS_SHARDS, randomBoolean())
-            .build();
-        setup(testSettings);
+        Settings settings = addRandomFilterSetting(Settings.EMPTY);
+        if (randomBoolean()) {
+            settings = allowExcessShards(settings);
+        }
+        setup(settings);
 
         for (RoutingNode routingNode : indexTier) {
             assertDecisionMatches(
@@ -360,6 +339,27 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
                 "Decider is disabled."
             );
         }
+    }
+
+    public Settings addRandomFilterSetting(Settings settings) {
+        String setting = randomFrom(
+            CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX,
+            CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX,
+            CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX
+        );
+        String attribute = randomFrom("_value", "name");
+        String name = randomFrom("indexNodeOne", "indexNodeTwo", "searchNodeOne", "searchNodeTwo");
+        String ip = randomFrom("192.168.0.1", "192.168.0.2", "192.168.7.1", "10.17.0.1");
+        return Settings.builder().put(settings).put(setting + "." + attribute, attribute.equals("name") ? name : ip).build();
+    }
+
+    public Settings allowExcessShards(Settings settings) {
+        int excessShards = randomIntBetween(1, 5);
+
+        return Settings.builder()
+            .put(settings)
+            .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_EXCESS_SHARDS.getKey(), excessShards)
+            .build();
     }
 
 }

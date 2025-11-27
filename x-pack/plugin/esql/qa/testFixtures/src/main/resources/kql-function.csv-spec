@@ -330,6 +330,40 @@ FROM logs
 2023-10-23T13:56:01.544Z | Running cats (cycle 2)
 ;
 
+kqlWithTimeZoneSetting
+required_capability: kql_function
+required_capability: kql_function_options
+required_capability: kql_qstr_timezone_support
+
+SET time_zone = "America/New_York"\;
+FROM logs
+| WHERE KQL("@timestamp > \"2023-10-23T09:56:00\" AND @timestamp < \"2023-10-23T09:57:00\"")
+| KEEP @timestamp, message
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | message:text
+2023-10-23T13:56:01.543Z | No response
+2023-10-23T13:56:01.544Z | Running cats (cycle 2)
+;
+
+kqlWithTimeZoneSettingWithOptionOverride
+required_capability: kql_function
+required_capability: kql_function_options
+required_capability: kql_qstr_timezone_support
+
+SET time_zone = "Europe/Madrid"\;
+FROM logs
+| WHERE KQL("@timestamp > \"2023-10-23T09:56:00\" AND @timestamp < \"2023-10-23T09:57:00\"", {"time_zone": "America/New_York"})
+| KEEP @timestamp, message
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | message:text
+2023-10-23T13:56:01.543Z | No response
+2023-10-23T13:56:01.544Z | Running cats (cycle 2)
+;
+
 kqlWithDefaultFieldOption
 required_capability: kql_function
 required_capability: kql_function_options

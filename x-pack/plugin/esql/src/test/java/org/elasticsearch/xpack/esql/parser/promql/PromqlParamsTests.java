@@ -87,7 +87,7 @@ public class PromqlParamsTests extends ESTestCase {
 
     public void testValidRangeQueryInvalidQuotedIdentifierValue() {
         ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL test step `1m` (avg(foo))"));
-        assertThat(e.getMessage(), containsString("1:20: Parameter value [`1m`] must not be a quoted identifier"));
+        assertThat(e.getMessage(), containsString("1:18: Parameter value [`1m`] must not be a quoted identifier"));
     }
 
     // TODO nicer error messages for missing params
@@ -153,7 +153,7 @@ public class PromqlParamsTests extends ESTestCase {
             ParsingException.class,
             () -> parse("PROMQL test start \"not-a-date\" end \"2025-10-31T01:00:00Z\" step 1m (avg(foo))")
         );
-        assertThat(e.getMessage(), containsString("1:21: Invalid date format [not-a-date]"));
+        assertThat(e.getMessage(), containsString("1:19: Invalid date format [not-a-date]"));
     }
 
     public void testOnlyStartSpecified() {

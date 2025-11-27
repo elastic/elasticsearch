@@ -52,18 +52,18 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testPromqlIllegalNameLabelMatcher() {
         assertThat(
             error("PROMQL test step 5m (avg({__name__=~\"*.foo.*\"}))", tsdb),
-            equalTo("1:28: regex label selectors on __name__ are not supported at this time [{__name__=~\"*.foo.*\"}]")
+            equalTo("1:26: regex label selectors on __name__ are not supported at this time [{__name__=~\"*.foo.*\"}]")
         );
     }
 
     public void testPromqlSubquery() {
         assertThat(
             error("PROMQL test step 5m (avg(rate(network.bytes_in[5m:])))", tsdb),
-            equalTo("1:33: subqueries are not supported at this time [network.bytes_in[5m:]]")
+            equalTo("1:31: subqueries are not supported at this time [network.bytes_in[5m:]]")
         );
         assertThat(
             error("PROMQL test step 5m (avg(rate(network.bytes_in[5m:1m])))", tsdb),
-            equalTo("1:33: subqueries are not supported at this time [network.bytes_in[5m:1m]]")
+            equalTo("1:31: subqueries are not supported at this time [network.bytes_in[5m:1m]]")
         );
     }
 
@@ -111,7 +111,7 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testPromqlModifier() {
         assertThat(
             error("PROMQL test step 5m (avg(rate(network.bytes_in[5m] offset 5m)))", tsdb),
-            equalTo("1:33: offset modifiers are not supported at this time [network.bytes_in[5m] offset 5m]")
+            equalTo("1:31: offset modifiers are not supported at this time [network.bytes_in[5m] offset 5m]")
         );
         /* TODO
         assertThat(

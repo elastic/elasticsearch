@@ -386,7 +386,7 @@ public class KnnIndexTester {
             String[][] queryResultsArray = new String[queryResults.size()][];
             for (int i = 0; i < queryResults.size(); i++) {
                 Results queryResult = queryResults.get(i);
-                queryResultsArray[i] = new String[]{
+                queryResultsArray[i] = new String[] {
                     queryResult.indexName,
                     queryResult.indexType,
                     String.format(Locale.ROOT, "%.3f", queryResult.visitPercentage),
@@ -400,7 +400,7 @@ public class KnnIndexTester {
                     String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
                     Boolean.toString(queryResult.filterCached),
                     String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
-                    String.format(Locale.ROOT, "%.2f", queryResult.dynamicPostFilterThreshold)};
+                    String.format(Locale.ROOT, "%.2f", queryResult.dynamicPostFilterThreshold) };
             }
 
             printBlock(sb, searchHeaders, queryResultsArray);

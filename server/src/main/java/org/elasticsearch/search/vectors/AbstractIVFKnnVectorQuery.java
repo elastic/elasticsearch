@@ -74,11 +74,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (numCands < k) {
             throw new IllegalArgumentException("numCands must be at least k, got: " + numCands);
         }
-        if (dynamicPostFilterThreshold < 0.0f || dynamicPostFilterThreshold > 10.0f) {
-            throw new IllegalArgumentException(
-                "dynamicPostFilterThreshold must be between 0.0 and 1.0 (both inclusive), got: " + dynamicPostFilterThreshold
-            );
-        }
         this.field = field;
         this.providedVisitRatio = visitRatio;
         this.k = k;
@@ -180,7 +175,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         int vectorsToCollect = Math.round(2f * k);
         if (leafSearchMetas.stream().anyMatch(leaf -> leaf.postFilter != null)) {
             // when there is a post filter we need to collect more vectors to account for filtering after collection
-            vectorsToCollect = Math.round((1f + (1f - dynamicPostFilterThreshold)) * vectorsToCollect) + 1;
+            vectorsToCollect += Math.round(5f * (1f - dynamicPostFilterThreshold) * vectorsToCollect);
         }
         IVFCollectorManager knnCollectorManager = getKnnCollectorManager(vectorsToCollect, indexSearcher);
 

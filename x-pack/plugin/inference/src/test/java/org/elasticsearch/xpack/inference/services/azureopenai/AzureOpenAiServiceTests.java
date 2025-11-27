@@ -1128,7 +1128,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                     {
                             "service": "azureopenai",
                             "name": "Azure OpenAI",
-                            "task_types": ["text_embedding", "completion"],
+                            "task_types": ["text_embedding", "completion", "chat_completion"],
                             "configurations": {
                                 "api_key": {
                                     "description": "You must provide either an API key or an Entra ID.",
@@ -1137,7 +1137,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                                     "sensitive": true,
                                     "updatable": true,
                                     "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 },
                                 "dimensions": {
                                     "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#request-body-1.",
@@ -1155,7 +1155,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                                     "sensitive": true,
                                     "updatable": true,
                                     "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 },
                                 "rate_limit.requests_per_minute": {
                                     "description": "The azureopenai service sets a default number of requests allowed per minute depending on the task type.",
@@ -1164,7 +1164,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                                     "sensitive": false,
                                     "updatable": false,
                                     "type": "int",
-                                    "supported_task_types": ["text_embedding", "completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 },
                                 "deployment_id": {
                                     "description": "The deployment name of your deployed models.",
@@ -1173,7 +1173,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                                     "sensitive": false,
                                     "updatable": false,
                                     "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 },
                                 "resource_name": {
                                     "description": "The name of your Azure OpenAI resource.",
@@ -1182,7 +1182,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                                     "sensitive": false,
                                     "updatable": false,
                                     "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 },
                                 "api_version": {
                                     "description": "The Azure API version ID to use.",
@@ -1191,7 +1191,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                                     "sensitive": false,
                                     "updatable": false,
                                     "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 }
                             }
                         }
@@ -1214,7 +1214,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new AzureOpenAiService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
-            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
     }

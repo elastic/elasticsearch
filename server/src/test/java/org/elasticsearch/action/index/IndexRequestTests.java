@@ -263,7 +263,7 @@ public class IndexRequestTests extends ESTestCase {
         }
     }
 
-    public void testSerializeDynamicTemplatesPrarams() throws Exception {
+    public void testSerializeDynamicTemplateParams() throws Exception {
         IndexRequest indexRequest = new IndexRequest("foo").id("1");
         indexRequest.source("{}", XContentType.JSON);
         // Empty dynamic templates

@@ -49,7 +49,7 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
             }
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             createRoleWithMetadata(upgradedTestRole, Map.of("meta", "test"));
-            waitForSecurityMigrationCompletion(adminClient(), 1);
+            waitForSecurityMigrationCompletion(adminClient(), 3);
             assertMigratedDocInSecurityIndex(oldTestRole, "meta", "test");
             assertMigratedDocInSecurityIndex(mixed1TestRole, "meta", "test");
             assertMigratedDocInSecurityIndex(mixed2TestRole, "meta", "test");

@@ -62,7 +62,9 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     final void bulkScoreFromOrds(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
         MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
         if (vectorsSeg == null) {
-            bulkFallbackScore(firstOrd, ordinals, scores, numNodes);
+            for (int i = 0; i < numNodes; i++) {
+                scores[i] = scoreFromOrds(firstOrd, ordinals[i]);
+            }
         } else {
             final int vectorLength = dims;
             final int vectorPitch = vectorLength + Float.BYTES;

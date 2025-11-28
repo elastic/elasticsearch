@@ -15,8 +15,6 @@ import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 
-import java.io.IOException;
-
 final class DefaultESVectorizationProvider extends ESVectorizationProvider {
     private final ESVectorUtilSupport vectorUtilSupport;
 
@@ -35,8 +33,13 @@ final class DefaultESVectorizationProvider extends ESVectorizationProvider {
     }
 
     @Override
-    public ESNextOSQVectorsScorer newESNextOSQVectorsScorer(IndexInput input, byte queryBits, byte indexBits, int dimension, int dataLength)
-        throws IOException {
+    public ESNextOSQVectorsScorer newESNextOSQVectorsScorer(
+        IndexInput input,
+        byte queryBits,
+        byte indexBits,
+        int dimension,
+        int dataLength
+    ) {
         return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength);
     }
 

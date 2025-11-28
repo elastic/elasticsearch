@@ -55,6 +55,14 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
         } else {
             createIndexForNode(remoteClient(), null, null, indexMode());
         }
+
+        // We need a single lookup index that has the same name across all clusters, as well as a single enrich policy per cluster.
+        // We create both only when we're testing LOOKUP mode.
+        if (indexExists(remoteClient(), LOOKUP_INDEX_NAME) == false && indexMode() == IndexMode.LOOKUP) {
+            createAllTypesIndex(remoteClient(), LOOKUP_INDEX_NAME, null, indexMode());
+            createAllTypesDoc(remoteClient(), LOOKUP_INDEX_NAME);
+            createEnrichPolicy(remoteClient(), LOOKUP_INDEX_NAME, ENRICH_POLICY_NAME);
+        }
     }
 
     private Map<String, NodeInfo> remoteNodeToInfo() throws IOException {
@@ -102,7 +110,15 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
             );
     }
 
+    @Override
+    protected boolean fetchAllIsCrossCluster() {
+        return true;
+    }
+
     public final void testFetchAllOnlyFromRemotes() throws IOException {
-        doTestFetchAll("*:%mode%*", remoteNodeToInfo(), allNodeToInfo());
+        doTestFetchAll(fromAllQuery("*:%mode%*", """
+            , _id, _ignored, _index_mode, _score, _source, _version
+            | LIMIT 1000
+            """), remoteNodeToInfo(), allNodeToInfo());
     }
 }

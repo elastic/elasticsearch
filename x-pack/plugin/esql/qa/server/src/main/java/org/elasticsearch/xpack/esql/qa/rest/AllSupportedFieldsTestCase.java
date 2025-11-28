@@ -18,6 +18,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -208,6 +209,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return nodeToInfo;
     }
 
+    protected static final String ENRICH_POLICY_NAME = "all_fields_policy";
+    protected static final String LOOKUP_INDEX_NAME = "all_fields_lookup_index";
+
     @Before
     public void createIndices() throws IOException {
         if (supportsNodeAssignment()) {
@@ -216,6 +220,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
         } else {
             createIndexForNode(client(), null, null, indexMode);
+        }
+
+        // We need a single lookup index that has the same name across all clusters, as well as a single enrich policy per cluster.
+        // We create both only when we're testing LOOKUP mode.
+        if (indexExists(LOOKUP_INDEX_NAME) == false && indexMode == IndexMode.LOOKUP) {
+            createAllTypesIndex(client(), LOOKUP_INDEX_NAME, null, indexMode);
+            createAllTypesDoc(client(), LOOKUP_INDEX_NAME);
+            createEnrichPolicy(client(), LOOKUP_INDEX_NAME, ENRICH_POLICY_NAME);
         }
     }
 
@@ -236,18 +248,32 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     public final void testFetchAll() throws IOException {
-        doTestFetchAll("*:%mode%*,%mode%*", allNodeToInfo(), allNodeToInfo());
+        doTestFetchAll(fromAllQuery("""
+            , _id, _ignored, _index_mode, _score, _source, _version
+            | LIMIT 1000
+            """), allNodeToInfo(), allNodeToInfo());
     }
 
+    public final void testFetchAllEnrich() throws IOException {
+        assumeTrue("Test only requires the enrich policy (made from a lookup index)", indexMode == IndexMode.LOOKUP);
+        // The ENRICH is a no-op because it overwrites columns with the same identical data (except that it messes with
+        // the order of the columns, but we don't assert that).
+        doTestFetchAll(fromAllQuery(LoggerMessageFormat.format(null, """
+            , _id, _ignored, _index_mode, _score, _source, _version
+            | ENRICH _remote:{} ON {}
+            | LIMIT 1000
+            """, ENRICH_POLICY_NAME, LOOKUP_ID_FIELD)), allNodeToInfo(), allNodeToInfo());
+    }
+
+    /**
+     * Runs the query and expects 1 document per index on the contributing nodes as well as all the columns.
+     */
     protected final void doTestFetchAll(
-        String indexPattern,
+        String query,
         Map<String, NodeInfo> nodesContributingIndices,
         Map<String, NodeInfo> nodesInvolvedInExecution
     ) throws IOException {
-        var responseAndCoordinatorVersion = runFromAllQuery(indexPattern, """
-            , _id, _ignored, _index_mode, _score, _source, _version
-            | LIMIT 1000
-            """);
+        var responseAndCoordinatorVersion = runQuery(query);
 
         Map<String, Object> response = responseAndCoordinatorVersion.v1();
         TransportVersion coordinatorVersion = responseAndCoordinatorVersion.v2();
@@ -276,9 +302,13 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
         assertMap(indexToRow(columns, values), expectedAllValues);
 
-        assertMinimumVersion(minVersion(nodesInvolvedInExecution), responseAndCoordinatorVersion);
+        assertMinimumVersion(minVersion(nodesInvolvedInExecution), responseAndCoordinatorVersion, true, fetchAllIsCrossCluster());
 
         profileLogger.clearProfile();
+    }
+
+    protected boolean fetchAllIsCrossCluster() {
+        return false;
     }
 
     protected static void assertNoPartialResponse(Map<String, Object> response) {
@@ -369,10 +399,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     | EVAL k = v_l2_norm(f_dense_vector, [1])  // workaround to enable fetching dense_vector
                     """ + request;
             }
-            var responseAndCoordinatorVersion = runFromAllQuery(request);
+            var responseAndCoordinatorVersion = runQuery(fromAllQuery(request));
             assertMinimumVersionFromAllQueries(responseAndCoordinatorVersion);
 
-            response = runFromAllQuery(request).v1();
+            response = runQuery(fromAllQuery(request)).v1();
             if ((Boolean) response.get("is_partial")) {
                 Map<?, ?> clusters = (Map<?, ?>) response.get("_clusters");
                 Map<?, ?> details = (Map<?, ?>) clusters.get("details");
@@ -438,10 +468,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     | EVAL junk = TO_AGGREGATE_METRIC_DOUBLE(1)  // workaround to enable fetching aggregate_metric_double
                     """ + request;
             }
-            var responseAndCoordinatorVersion = runFromAllQuery(request);
+            var responseAndCoordinatorVersion = runQuery(fromAllQuery(request));
             assertMinimumVersionFromAllQueries(responseAndCoordinatorVersion);
 
-            response = runFromAllQuery(request).v1();
+            response = runQuery(fromAllQuery(request)).v1();
             if ((Boolean) response.get("is_partial")) {
                 Map<?, ?> clusters = (Map<?, ?>) response.get("_clusters");
                 Map<?, ?> details = (Map<?, ?>) clusters.get("details");
@@ -493,12 +523,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertMap(indexToRow(columns, values), expectedAllValues);
     }
 
-    private Tuple<Map<String, Object>, TransportVersion> runFromAllQuery(String restOfQuery) throws IOException {
-        return runFromAllQuery("*:%mode%*,%mode%*", restOfQuery);
+    protected String fromAllQuery(String indexPattern, String restOfQuery) {
+        return ("FROM " + indexPattern + " METADATA _index").replace("%mode%", indexMode.toString()) + restOfQuery;
     }
 
-    private Tuple<Map<String, Object>, TransportVersion> runFromAllQuery(String indexPattern, String restOfQuery) throws IOException {
-        return runQuery(("FROM " + indexPattern + " METADATA _index").replace("%mode%", indexMode.toString()) + restOfQuery);
+    protected String fromAllQuery(String restOfQuery) {
+        return fromAllQuery("*:%mode%*,%mode%*", restOfQuery);
     }
 
     public void testRow() throws IOException {
@@ -509,100 +539,92 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         String query = "ROW x = 1 | LIMIT 1";
         var responseAndCoordinatorVersion = runQuery(query);
 
-        assertMinimumVersion(minVersion(localNodeToInfo()), responseAndCoordinatorVersion, false);
+        assertMinimumVersion(minVersion(localNodeToInfo()), responseAndCoordinatorVersion, false, false);
     }
 
     @SuppressWarnings("unchecked")
     public void testRowLookupJoin() throws IOException {
-        assumeTrue("Test only requires lookup indices", indexMode == IndexMode.LOOKUP);
-        Map<String, NodeInfo> expectedIndices = expectedIndices(IndexMode.LOOKUP, localNodeToInfo());
-        for (Map.Entry<String, NodeInfo> e : expectedIndices.entrySet()) {
-            String indexName = e.getKey();
-            String query = "ROW " + LOOKUP_ID_FIELD + " = 123 | LOOKUP JOIN " + indexName + " ON " + LOOKUP_ID_FIELD + " | LIMIT 1";
-            var responseAndCoordinatorVersion = runQuery(query);
-            TransportVersion expectedMinimumVersion = minVersion(localNodeToInfo());
+        assumeTrue("Test only requires the lookup index", indexMode == IndexMode.LOOKUP);
+        String query = "ROW " + LOOKUP_ID_FIELD + " = 123 | LOOKUP JOIN " + LOOKUP_INDEX_NAME + " ON " + LOOKUP_ID_FIELD + " | LIMIT 1";
+        var responseAndCoordinatorVersion = runQuery(query);
+        TransportVersion expectedMinimumVersion = minVersion(localNodeToInfo());
 
-            assertMinimumVersion(expectedMinimumVersion, responseAndCoordinatorVersion);
+        assertMinimumVersion(expectedMinimumVersion, responseAndCoordinatorVersion, false, false);
 
-            Map<String, Object> response = responseAndCoordinatorVersion.v1();
-            TransportVersion coordinatorVersion = responseAndCoordinatorVersion.v2();
+        Map<String, Object> response = responseAndCoordinatorVersion.v1();
+        TransportVersion coordinatorVersion = responseAndCoordinatorVersion.v2();
 
-            assertNoPartialResponse(response);
+        assertNoPartialResponse(response);
 
-            List<?> columns = (List<?>) response.get("columns");
-            List<?> values = (List<?>) response.get("values");
+        List<?> columns = (List<?>) response.get("columns");
+        List<?> values = (List<?>) response.get("values");
 
-            MapMatcher expectedColumns = allTypesColumnsMatcher(
-                coordinatorVersion,
-                expectedMinimumVersion,
-                indexMode,
-                extractPreference,
-                false,
-                true
-            );
-            assertMap(nameToType(columns), expectedColumns);
+        MapMatcher expectedColumns = allTypesColumnsMatcher(
+            coordinatorVersion,
+            expectedMinimumVersion,
+            indexMode,
+            extractPreference,
+            false,
+            true
+        );
+        assertMap(nameToType(columns), expectedColumns);
 
-            MapMatcher expectedValues = allTypesValuesMatcher(
-                coordinatorVersion,
-                expectedMinimumVersion,
-                indexMode,
-                extractPreference,
-                false,
-                true,
-                null
-            );
-            assertMap(nameToValue(names(columns), (List<Object>) values.getFirst()), expectedValues);
-        }
+        MapMatcher expectedValues = allTypesValuesMatcher(
+            coordinatorVersion,
+            expectedMinimumVersion,
+            indexMode,
+            extractPreference,
+            false,
+            true,
+            null
+        );
+        assertMap(nameToValue(names(columns), (List<Object>) values.getFirst()), expectedValues);
     }
 
     @SuppressWarnings("unchecked")
     public void testRowEnrich() throws IOException {
-        assumeTrue("Test only requires lookup indices", indexMode == IndexMode.LOOKUP);
-        Map<String, NodeInfo> expectedIndices = expectedIndices(IndexMode.LOOKUP, localNodeToInfo());
-        for (Map.Entry<String, NodeInfo> e : expectedIndices.entrySet()) {
-            String policyName = e.getKey() + "_policy";
-            String query = "ROW " + LOOKUP_ID_FIELD + " = 123 | ENRICH " + policyName + " ON " + LOOKUP_ID_FIELD + " | LIMIT 1";
-            var responseAndCoordinatorVersion = runQuery(query);
-            Map<String, Object> response = responseAndCoordinatorVersion.v1();
-            TransportVersion coordinatorVersion = responseAndCoordinatorVersion.v2();
-            TransportVersion expectedMinimumVersion = minVersion(localNodeToInfo());
+        assumeTrue("Test only requires the enrich policy (made from a lookup index)", indexMode == IndexMode.LOOKUP);
+        String query = "ROW " + LOOKUP_ID_FIELD + " = 123 | ENRICH " + ENRICH_POLICY_NAME + " ON " + LOOKUP_ID_FIELD + " | LIMIT 1";
+        var responseAndCoordinatorVersion = runQuery(query);
+        Map<String, Object> response = responseAndCoordinatorVersion.v1();
+        TransportVersion coordinatorVersion = responseAndCoordinatorVersion.v2();
+        TransportVersion expectedMinimumVersion = minVersion(localNodeToInfo());
 
-            Map<String, Object> profile = (Map<String, Object>) response.get("profile");
-            Integer actualMinimumVersion = (Integer) profile.get("minimumTransportVersion");
-            if (minVersion(localNodeToInfo()).supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)
-                // Some nodes don't send back the minimum transport version because they're too old to do that.
-                // In this case, the determined minimum version will be that of the coordinator.
-                || (coordinatorVersion.supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)
-                    && actualMinimumVersion != coordinatorVersion.id())) {
-                assertMinimumVersion(expectedMinimumVersion, responseAndCoordinatorVersion);
-            }
-
-            assertNoPartialResponse(response);
-
-            List<?> columns = (List<?>) response.get("columns");
-            List<?> values = (List<?>) response.get("values");
-
-            MapMatcher expectedColumns = allTypesColumnsMatcher(
-                coordinatorVersion,
-                expectedMinimumVersion,
-                indexMode,
-                extractPreference,
-                false,
-                false
-            );
-            assertMap(nameToType(columns), expectedColumns);
-
-            MapMatcher expectedValues = allTypesValuesMatcher(
-                coordinatorVersion,
-                expectedMinimumVersion,
-                indexMode,
-                extractPreference,
-                false,
-                false,
-                null
-            );
-            assertMap(nameToValue(names(columns), (List<Object>) values.getFirst()), expectedValues);
+        Map<String, Object> profile = (Map<String, Object>) response.get("profile");
+        Integer actualMinimumVersion = (Integer) profile.get("minimumTransportVersion");
+        if (minVersion(localNodeToInfo()).supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)
+            // Some nodes don't send back the minimum transport version because they're too old to do that.
+            // In this case, the determined minimum version will be that of the coordinator.
+            || (coordinatorVersion.supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)
+                && actualMinimumVersion != coordinatorVersion.id())) {
+            assertMinimumVersion(expectedMinimumVersion, responseAndCoordinatorVersion, false, false);
         }
+
+        assertNoPartialResponse(response);
+
+        List<?> columns = (List<?>) response.get("columns");
+        List<?> values = (List<?>) response.get("values");
+
+        MapMatcher expectedColumns = allTypesColumnsMatcher(
+            coordinatorVersion,
+            expectedMinimumVersion,
+            indexMode,
+            extractPreference,
+            false,
+            false
+        );
+        assertMap(nameToType(columns), expectedColumns);
+
+        MapMatcher expectedValues = allTypesValuesMatcher(
+            coordinatorVersion,
+            expectedMinimumVersion,
+            indexMode,
+            extractPreference,
+            false,
+            false,
+            null
+        );
+        assertMap(nameToValue(names(columns), (List<Object>) values.getFirst()), expectedValues);
     }
 
     /**
@@ -640,26 +662,20 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     protected void assertMinimumVersionFromAllQueries(Tuple<Map<String, Object>, TransportVersion> responseAndCoordinatorVersion)
         throws IOException {
-        assertMinimumVersion(minVersion(), responseAndCoordinatorVersion);
-    }
-
-    protected void assertMinimumVersion(
-        TransportVersion expectedMinimumVersion,
-        Tuple<Map<String, Object>, TransportVersion> responseAndCoordinatorVersion
-    ) {
-        assertMinimumVersion(expectedMinimumVersion, responseAndCoordinatorVersion, true);
+        assertMinimumVersion(minVersion(), responseAndCoordinatorVersion, true, fetchAllIsCrossCluster());
     }
 
     /**
      * @param expectedMinimumVersion the minimum version of all clusters that participate in the query
-     * @param performsAnyFieldCapsRequest {@code true} for queries that have any {@code FROM, ENRICH} or {@code LOOKUP JOIN} commands.
-     *                                    Simple {@code ROW} queries are executed only on the coordinator and don't perform field caps requests.
+     * @param performsMainFieldCapsRequest {@code true} for queries that have a {@code FROM} command, so we don't retrieve the minimum
+     *                                     version from the main field caps response.
      */
     @SuppressWarnings("unchecked")
     protected void assertMinimumVersion(
         TransportVersion expectedMinimumVersion,
         Tuple<Map<String, Object>, TransportVersion> responseAndCoordinatorVersion,
-        boolean performsAnyFieldCapsRequest
+        boolean performsMainFieldCapsRequest,
+        boolean isCrossCluster
     ) {
         var responseMap = responseAndCoordinatorVersion.v1();
         var coordinatorVersion = responseAndCoordinatorVersion.v2();
@@ -669,14 +685,16 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             Integer minimumVersion = (Integer) profile.get("minimumTransportVersion");
             assertNotNull(minimumVersion);
             int minimumVersionInt = minimumVersion;
-            if (expectedMinimumVersion.supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV) || (performsAnyFieldCapsRequest == false)) {
+            if (expectedMinimumVersion.supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV)
+                || (performsMainFieldCapsRequest == false)
+                || (isCrossCluster == false)) {
                 assertEquals(expectedMinimumVersion.id(), minimumVersionInt);
             } else {
-                // One node is old enough that it doesn't provide version information in the field caps response. We must assume
-                // the oldest compatible version.
-                // Since we got minimumVersion in the profile, the coordinator is on a new version.
-                // Thus, it's on the same version as this code (bwc tests only use 2 different versions) and the oldest compatible version
-                // to the coordinator is given by TransportVersion.minimumCompatible().
+                // If a remote cluster is old enough that it doesn't provide version information in the field caps response, the coordinator
+                // HAS to assume the oldest compatible version.
+                // This only applies to multi-cluster tests; if we're looking at a mixed cluster, the coordinator is new enough
+                // that it's field caps response will include the min cluster version. (Apparently the field caps request is performed
+                // directly on the coordinator.)
                 assertEquals(TransportVersion.minimumCompatible().id(), minimumVersionInt);
             }
         }
@@ -687,12 +705,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         if (false == indexExists(client, indexName)) {
             createAllTypesIndex(client, indexName, nodeId, mode);
             createAllTypesDoc(client, indexName);
-            // We create an enrich policy for each lookup index. That's a bit of an arbitrary choice, but it's probably a good idea to
-            // create 1 enrich policy per node, so we potentially detect misbehavior that stems from enrich policies being based on indices
-            // that live on newer or older nodes.
-            if (mode == IndexMode.LOOKUP) {
-                createEnrichPolicy(client, indexName);
-            }
         }
     }
 
@@ -706,7 +718,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     private static final String LOOKUP_ID_FIELD = "lookup_id";
 
-    private static void createAllTypesIndex(RestClient client, String indexName, String nodeId, IndexMode mode) throws IOException {
+    protected static void createAllTypesIndex(RestClient client, String indexName, String nodeId, IndexMode mode) throws IOException {
         XContentBuilder config = JsonXContent.contentBuilder().startObject();
         {
             config.startObject("settings");
@@ -767,7 +779,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
-    private static void createAllTypesDoc(RestClient client, String indexName) throws IOException {
+    protected static void createAllTypesDoc(RestClient client, String indexName) throws IOException {
         XContentBuilder doc = JsonXContent.contentBuilder().startObject();
         doc.field(LOOKUP_ID_FIELD);
         doc.value(123);
@@ -805,9 +817,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         client.performRequest(request);
     }
 
-    private static void createEnrichPolicy(RestClient client, String indexName) throws IOException {
-        String policyName = indexName + "_policy";
-
+    protected static void createEnrichPolicy(RestClient client, String indexName, String policyName) throws IOException {
         XContentBuilder policyConfig = JsonXContent.contentBuilder().startObject();
         {
             policyConfig.startObject("match");

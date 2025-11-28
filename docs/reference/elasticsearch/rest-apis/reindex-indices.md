@@ -637,7 +637,7 @@ It is also possible (and encouraged) to authenticate with the remote cluster thr
 
 ::::{applies-switch}
 
-:::{applies-item} { "stack": "ga 9.3", "serverless": }
+:::{applies-item} { "stack": "ga 9.3", "serverless": "preview" }
 ```console
 POST _reindex
 {
@@ -710,7 +710,7 @@ The remote hosts that you can use depend on whether you're using the versioned {
 
   The list of allowed hosts must be configured on any node that will coordinate the reindex.
 
-* In {{serverless-full}}, only remote hosts in Elastic Cloud Hosted are allowed.
+* In {{serverless-full}}, only remote hosts in Elastic Cloud Hosted are allowed. {applies_to}`serverless: preview`
 
 ### Compatibility [reindex-remote-compatibility]
 

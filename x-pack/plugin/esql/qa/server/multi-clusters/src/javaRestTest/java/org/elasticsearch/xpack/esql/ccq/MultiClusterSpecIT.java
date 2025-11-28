@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
@@ -313,7 +314,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
 
         String command = commandParts[0].trim();
-        if (command.equalsIgnoreCase("from") || command.equalsIgnoreCase("ts")) {
+        if (SourceCommand.isSourceCommand(command)) {
             String[] indexMetadataParts = commandParts[1].split("(?i)\\bmetadata\\b", 2);
             String indicesString = indexMetadataParts[0];
             String[] indices = indicesString.split(",");

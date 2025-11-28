@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -353,7 +354,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
     }
 
-    private LogicalPlan visitRelation(Source source, IndexMode indexMode, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {
+    private LogicalPlan visitRelation(Source source, SourceCommand command, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {
         List<EsqlBaseParser.IndexPatternOrSubqueryContext> ctxs = ctx == null ? null : ctx.indexPatternOrSubquery();
         List<EsqlBaseParser.IndexPatternContext> indexPatternsCtx = new ArrayList<>();
         List<EsqlBaseParser.SubqueryContext> subqueriesCtx = new ArrayList<>();
@@ -383,13 +384,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
         List<Attribute> metadataFields = List.of(metadataMap.values().toArray(Attribute[]::new));
-        final String commandName = indexMode == IndexMode.TIME_SERIES ? "TS" : "FROM";
-        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, indexMode, null, commandName);
+        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, null, command);
         if (subqueries.isEmpty()) {
             return unresolvedRelation;
         } else {
             // subquery is not supported with time-series indices at the moment
-            if (indexMode == IndexMode.TIME_SERIES) {
+            if (command == SourceCommand.TS) {
                 throw new ParsingException(source, "Subqueries are not supported in TS command");
             }
 
@@ -441,7 +441,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
-        return visitRelation(source(ctx), IndexMode.STANDARD, ctx.indexPatternAndMetadataFields());
+        return visitRelation(source(ctx), SourceCommand.FROM, ctx.indexPatternAndMetadataFields());
     }
 
     @Override
@@ -720,7 +720,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) {
-        return visitRelation(source(ctx), IndexMode.TIME_SERIES, ctx.indexPatternAndMetadataFields());
+        return visitRelation(source(ctx), SourceCommand.TS, ctx.indexPatternAndMetadataFields());
     }
 
     @Override
@@ -1246,15 +1246,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         } else {
             table = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
         }
-        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(
-            source,
-            table,
-            false,
-            List.of(),
-            IndexMode.TIME_SERIES,
-            null,
-            "PROMQL"
-        );
+        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, List.of(), null, SourceCommand.PROMQL);
 
         PromqlParams params = parsePromqlParams(ctx, source);
 

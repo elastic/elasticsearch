@@ -405,8 +405,8 @@ public class EnrichPolicyResolver {
             } else {
                 // An older coordinator contacted us. Let's assume an old version, otherwise we might send back
                 // types that it can't deserialize.
-                // (The only versions that know some new types but don't send their transport version here are 9.2.0 and 9.2.1;
-                // these types are dense_vector and aggregate_metric_double, and both don't work with ENRICH in these versions, anyway.)
+                // (The only versions that know some new types but don't send their transport version here are 9.2.0-9.2.2.
+                // These types are dense_vector and aggregate_metric_double, and both don't work with ENRICH in these versions, anyway.)
                 this.minimumVersion = TransportVersion.minimumCompatible();
             }
         }

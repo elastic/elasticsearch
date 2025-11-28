@@ -88,6 +88,8 @@ public class LogsdbIndexingRollingUpgradeIT extends ESRestTestCase {
     public void testIndexing() throws Exception {
         String dataStreamName = "logs-bwc-test";
         {
+            maybeEnableLogsdbByDefault();
+
             String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);
             createTemplate(dataStreamName, templateId, TEMPLATE);
 
@@ -299,6 +301,23 @@ public class LogsdbIndexingRollingUpgradeIT extends ESRestTestCase {
         final Map<?, ?> dataStream = (Map<?, ?>) dataStreams.getFirst();
         final List<?> backingIndices = (List<?>) dataStream.get("indices");
         return (String) ((Map<?, ?>) backingIndices.get(backingIndex)).get("index_name");
+    }
+
+    static void maybeEnableLogsdbByDefault() throws IOException {
+        var version = Version.fromString(System.getProperty("tests.old_cluster_version"));
+        if (version.onOrAfter(Version.fromString("9.0.0"))) {
+            return;
+        }
+
+        var request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+                "persistent": {
+                    "cluster.logsdb.enabled": true
+                }
+            }
+            """);
+        assertOK(client().performRequest(request));
     }
 
 }

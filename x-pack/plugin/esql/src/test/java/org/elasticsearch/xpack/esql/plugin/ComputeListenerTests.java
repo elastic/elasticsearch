@@ -95,7 +95,7 @@ public class ComputeListenerTests extends ESTestCase {
     }
 
     private PlanTimeProfile randomPlanTimeProfile() {
-        return randomBoolean() ? null : new PlanTimeProfile(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+        return randomBoolean() ? null : new PlanTimeProfile(randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     public void testEmpty() {

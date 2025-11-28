@@ -224,19 +224,10 @@ public class PlannerUtils {
     ) {
         final LocalMapper localMapper = new LocalMapper();
         var isCoordPlan = new Holder<>(Boolean.TRUE);
-        long planStartNanos = 0L;
-        boolean profilingEnabled = planTimeProfile != null;
-        if (profilingEnabled) {
-            planStartNanos = System.nanoTime();
-        }
         Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
             .stream()
             .map(x -> ((LookupJoinExec) x).right())
             .collect(Collectors.toSet());
-
-        if (profilingEnabled) {
-            planTimeProfile.addPlanTime(System.nanoTime() - planStartNanos);
-        }
 
         PhysicalPlan localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
             if (lookupJoinExecRightChildren.contains(f)) {
@@ -248,6 +239,7 @@ public class PlannerUtils {
             isCoordPlan.set(Boolean.FALSE);
 
             // Logical optimization
+            boolean profilingEnabled = planTimeProfile != null;
             long logicalStartNanos = profilingEnabled ? System.nanoTime() : 0;
             LogicalPlan optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
             if (profilingEnabled) {

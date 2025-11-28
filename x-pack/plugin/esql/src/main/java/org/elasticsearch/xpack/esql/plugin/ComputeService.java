@@ -327,17 +327,10 @@ public class ComputeService {
         Supplier<ExchangeSink> exchangeSinkSupplier,
         PlanTimeProfile planTimeProfile
     ) {
-        long startTime = 0L;
-        if (configuration.profile()) {
-            startTime = System.nanoTime();
-        }
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
             configuration
         );
-        if (configuration.profile()) {
-            planTimeProfile.addPlanTime(System.nanoTime() - startTime);
-        }
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
         listener = listener.delegateResponse((l, e) -> {
             collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));

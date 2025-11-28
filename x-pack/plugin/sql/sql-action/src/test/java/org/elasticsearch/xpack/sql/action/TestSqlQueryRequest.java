@@ -87,7 +87,8 @@ public class TestSqlQueryRequest extends SqlQueryRequest implements ToXContentOb
             ProtoShim.toProto(this.waitForCompletionTimeout()),
             this.keepOnCompletion(),
             ProtoShim.toProto(this.keepAlive()),
-            this.allowPartialSearchResults()
+            this.allowPartialSearchResults(),
+            null
         );
         return SqlTestUtils.toXContentBuilder(builder, this, protoInstance);
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -1013,6 +1014,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     public void testProfileXContent() {
+        TransportVersion minimumVersion = EsqlQueryResponseProfileTests.randomMinimumVersion();
+
         try (
             EsqlQueryResponse response = new EsqlQueryResponse(
                 List.of(new ColumnInfoImpl("foo", "integer", null)),
@@ -1035,7 +1038,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         )
                     ),
                     List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree")),
-                    new TransportVersion(1234)
+                    minimumVersion
                 ),
                 false,
                 false,
@@ -1044,7 +1047,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 null
             );
         ) {
-            assertThat(Strings.toString(wrapAsToXContent(response), true, false), equalTo("""
+            assertThat(Strings.toString(wrapAsToXContent(response), true, false), equalTo(LoggerMessageFormat.format("""
                 {
                   "documents_found" : 10,
                   "values_loaded" : 100,
@@ -1101,9 +1104,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         "plan" : "plan tree"
                       }
                     ],
-                    "minimumTransportVersion" : 1234
+                    "minimumTransportVersion" : {}
                   }
-                }"""));
+                }""", minimumVersion == null ? "null" : minimumVersion.id())));
         }
     }
 

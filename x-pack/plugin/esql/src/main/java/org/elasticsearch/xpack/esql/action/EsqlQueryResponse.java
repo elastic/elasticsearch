@@ -332,7 +332,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             content.add(ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params));
             content.add(ChunkedToXContentHelper.array("plans", profile.plans.iterator()));
             content.add(ChunkedToXContentHelper.chunk((b, p) -> {
-                b.field("minimumTransportVersion", profile.minimumVersion().id());
+                TransportVersion minimumVersion = profile.minimumVersion();
+                b.field("minimumTransportVersion", minimumVersion == null ? null : minimumVersion.id());
                 return b;
             }));
             content.add(ChunkedToXContentHelper.endObject());
@@ -451,7 +452,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 in.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)
                     ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
                     : List.of(),
-                in.getTransportVersion().supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION) ? TransportVersion.readVersion(in) : null
+                in.getTransportVersion().supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION) ? readOptionalTransportVersion(in) : null
             );
         }
 
@@ -462,7 +463,25 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 out.writeCollection(plans);
             }
             if (out.getTransportVersion().supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)) {
-                TransportVersion.writeVersion(minimumVersion, out);
+                // When retrieving the profile from an older node, there might be no minimum version attached.
+                // When writing the profile somewhere else, we need to handle the case that the minimum version is null.
+                writeOptionalTransportVersion(minimumVersion, out);
+            }
+        }
+
+        private static TransportVersion readOptionalTransportVersion(StreamInput in) throws IOException {
+            if (in.readBoolean()) {
+                return TransportVersion.readVersion(in);
+            }
+            return null;
+        }
+
+        private static void writeOptionalTransportVersion(@Nullable TransportVersion version, StreamOutput out) throws IOException {
+            if (version == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                TransportVersion.writeVersion(version, out);
             }
         }
     }

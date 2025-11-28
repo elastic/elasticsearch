@@ -418,16 +418,18 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
             NodeClient client = new NoOpNodeClient(threadPool) {
                 @SuppressWarnings("unchecked")
                 @Override
-                public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
-                                                                                                       Request request,
-                                                                                                       ActionListener<Response> listener) {
+                public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
                     switch (action.name()) {
                         case NodesDeprecationCheckAction.NAME:
                             NodesDeprecationCheckAction.NodeResponse nodeResponse = new NodesDeprecationCheckAction.NodeResponse(
                                 node1,
-                                List.of(new DeprecationIssue(
-                                    DeprecationIssue.Level.WARNING, "Node issue", "http://url", "details", false, null
-                                ))
+                                List.of(
+                                    new DeprecationIssue(DeprecationIssue.Level.WARNING, "Node issue", "http://url", "details", false, null)
+                                )
                             );
                             NodesDeprecationCheckResponse nodesResponse = new NodesDeprecationCheckResponse(
                                 ClusterName.DEFAULT,
@@ -447,7 +449,10 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
 
             // Disable ML to avoid MlDeprecationChecker making calls
             Settings settings = Settings.builder().put("xpack.ml.enabled", false).build();
-            ClusterSettings clusterSettings = new ClusterSettings(settings, Set.copyOf(CollectionUtils.appendToCopy(BUILT_IN_CLUSTER_SETTINGS, SKIP_DEPRECATIONS_SETTING)));
+            ClusterSettings clusterSettings = new ClusterSettings(
+                settings,
+                Set.copyOf(CollectionUtils.appendToCopy(BUILT_IN_CLUSTER_SETTINGS, SKIP_DEPRECATIONS_SETTING))
+            );
             when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
             when(clusterService.getClusterName()).thenReturn(ClusterName.DEFAULT);
 

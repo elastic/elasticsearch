@@ -27,10 +27,7 @@ public class EsqlTestUtilsTests extends ESTestCase {
     }
 
     public void testPromQLDefaultIndex() {
-        assertThat(
-            EsqlTestUtils.addRemotes("PROMQL step 1m (avg(baz))", Set.of(), false),
-            equalTo("PROMQL *:*,* step 1m (avg(baz))")
-        );
+        assertThat(EsqlTestUtils.addRemotes("PROMQL step 1m (avg(baz))", Set.of(), false), equalTo("PROMQL *:*,* step 1m (avg(baz))"));
     }
 
     public void testSet() {
@@ -55,10 +52,7 @@ public class EsqlTestUtilsTests extends ESTestCase {
     }
 
     public void testIndexPatternWildcard() {
-        assertThat(
-            EsqlTestUtils.addRemotes("TS fo* | SORT bar", Set.of(), false),
-            equalTo("TS *:fo*,fo* | SORT bar")
-        );
+        assertThat(EsqlTestUtils.addRemotes("TS fo* | SORT bar", Set.of(), false), equalTo("TS *:fo*,fo* | SORT bar"));
     }
 
     public void testDuplicateIndex() {

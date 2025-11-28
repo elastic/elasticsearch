@@ -86,7 +86,9 @@ public class LogsdbIndexingRollingUpgradeIT extends ESRestTestCase {
     }
 
     public void testIndexing() throws Exception {
-        logger.info("system_properties: {}", System.getProperties());
+        for (Map.Entry<Object, Object> entry : System.getProperties().entrySet()) {
+            logger.info("system_property: {} / {}", entry.getKey(), entry.getValue());
+        }
 
         String dataStreamName = "logs-bwc-test";
         {

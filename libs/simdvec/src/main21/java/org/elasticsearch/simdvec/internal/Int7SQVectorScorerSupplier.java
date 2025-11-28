@@ -153,24 +153,6 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         return fallbackScorer.score(a, aOffsetValue, b, bOffsetValue);
     }
 
-    private void bulkFallbackScore(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
-        final int vectorPitch = dims + Float.BYTES;
-        long firstByteOffset = (long) firstOrd * vectorPitch;
-
-        byte[] a = new byte[dims];
-        input.readBytes(firstByteOffset, a, 0, a.length);
-        float aOffsetValue = Float.intBitsToFloat(input.readInt(firstByteOffset + dims));
-
-        byte[] b = new byte[dims];
-        for (int c = 0; c < numNodes; ++c) {
-            long secondByteOffset = (long) ordinals[c] * vectorPitch;
-            input.readBytes(secondByteOffset, b, 0, a.length);
-            float bOffsetValue = Float.intBitsToFloat(input.readInt(secondByteOffset + dims));
-
-            scores[c] = fallbackScorer.score(a, aOffsetValue, b, bOffsetValue);
-        }
-    }
-
     @Override
     public UpdateableRandomVectorScorer scorer() {
         return new UpdateableRandomVectorScorer.AbstractUpdateableRandomVectorScorer(values) {

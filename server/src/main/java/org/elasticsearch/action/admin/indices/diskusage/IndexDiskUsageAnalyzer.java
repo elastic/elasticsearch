@@ -372,6 +372,7 @@ final class IndexDiskUsageAnalyzer {
             if (SyntheticIdField.hasSyntheticIdAttributes(field.attributes())) {
                 // Synthetic _id field doesn't have an inverted index stored on disk,
                 // but it pretends to have one on the read path by setting IndexOptions.DOCS
+                assert SyntheticIdField.NAME.equals(field.getName()) : "Expected only synthetic id fields to have synthetic id attribute";
                 continue;
             }
             // It's expensive to look up every term and visit every document of the postings lists of all terms.

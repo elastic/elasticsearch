@@ -45,6 +45,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -1000,8 +1001,8 @@ public abstract class Engine implements Closeable {
     // Called before a {@link Searcher} is created, to allow subclasses to perform any stats or logging operations.
     protected void onSearcherCreation(String source, SearcherScope scope) {}
 
-    // Allows subclasses to wrap the DirectoryReader before it is used to create Searchers
-    protected DirectoryReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+    // Allows subclasses to wrap the DirectoryReader before it is used to create external Searchers
+    protected DirectoryReader wrapExternalDirectoryReader(DirectoryReader reader, SplitShardCountSummary ignored) throws IOException {
         return reader;
     }
 
@@ -1009,13 +1010,22 @@ public abstract class Engine implements Closeable {
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
     public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
-        ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
-        return acquireSearcherSupplier(wrapper, scope, referenceManager::acquire, referenceManager::release);
+        return acquireSearcherSupplier(wrapper, scope, SplitShardCountSummary.UNSET);
     }
 
     public SearcherSupplier acquireSearcherSupplier(
         Function<Searcher, Searcher> wrapper,
         SearcherScope scope,
+        SplitShardCountSummary splitShardCountSummary
+    ) throws EngineException {
+        ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
+        return acquireSearcherSupplier(wrapper, scope, splitShardCountSummary, referenceManager::acquire, referenceManager::release);
+    }
+
+    public SearcherSupplier acquireSearcherSupplier(
+        Function<Searcher, Searcher> wrapper,
+        SearcherScope scope,
+        SplitShardCountSummary splitShardCountSummary,
         CheckedSupplier<ElasticsearchDirectoryReader, IOException> directorySupplier,
         CheckedConsumer<ElasticsearchDirectoryReader, IOException> releaseAction
     ) throws EngineException {
@@ -1028,8 +1038,12 @@ public abstract class Engine implements Closeable {
         Releasable releasable = store::decRef;
         try {
             ElasticsearchDirectoryReader acquire = directorySupplier.get();
-
-            DirectoryReader wrappedDirectoryReader = wrapDirectoryReader(acquire);
+            final DirectoryReader maybeWrappedDirectoryReader;
+            if (scope == SearcherScope.EXTERNAL) {
+                maybeWrappedDirectoryReader = wrapExternalDirectoryReader(acquire, splitShardCountSummary);
+            } else {
+                maybeWrappedDirectoryReader = acquire;
+            }
             SearcherSupplier reader = new SearcherSupplier(wrapper) {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
@@ -1037,7 +1051,7 @@ public abstract class Engine implements Closeable {
                     onSearcherCreation(source, scope);
                     return new Searcher(
                         source,
-                        wrappedDirectoryReader,
+                        maybeWrappedDirectoryReader,
                         engineConfig.getSimilarity(),
                         engineConfig.getQueryCache(),
                         engineConfig.getQueryCachingPolicy(),
@@ -1082,9 +1096,25 @@ public abstract class Engine implements Closeable {
     }
 
     public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
+        return acquireSearcher(source, scope, SplitShardCountSummary.UNSET, wrapper);
+    }
+
+    public Searcher acquireSearcher(
+        String source,
+        SearcherScope scope,
+        SplitShardCountSummary splitShardCountSummary,
+        Function<Searcher, Searcher> wrapper
+    ) throws EngineException {
         SearcherSupplier releasable = null;
         try {
-            SearcherSupplier reader = releasable = acquireSearcherSupplier(wrapper, scope);
+            ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
+            SearcherSupplier reader = releasable = acquireSearcherSupplier(
+                wrapper,
+                scope,
+                splitShardCountSummary,
+                referenceManager::acquire,
+                referenceManager::release
+            );
             Searcher searcher = reader.acquireSearcher(source);
             releasable = null;
             onSearcherCreation(source, scope);

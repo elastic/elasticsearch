@@ -48,7 +48,6 @@ EXPORT void vec_dot7u_bulk_offsets(
     const int32_t pitch,
     const int32_t* offsets,
     const int32_t count,
-    const f32_t score_correction,
     f32_t* results);
 
 EXPORT int32_t vec_sqr7u(int8_t *a, int8_t *b, const int32_t length);

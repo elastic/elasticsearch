@@ -69,15 +69,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             if (SUPPORTS_HEAP_SEGMENTS) {
                 var ordinalsSeg = MemorySegment.ofArray(ordinals);
                 var scoresSeg = MemorySegment.ofArray(scores);
-                bulkScoreFromSegment(
-                    vectorsSeg,
-                    vectorLength,
-                    vectorPitch,
-                    firstOrd,
-                    ordinalsSeg,
-                    scoresSeg,
-                    numNodes
-                );
+                bulkScoreFromSegment(vectorsSeg, vectorLength, vectorPitch, firstOrd, ordinalsSeg, scoresSeg, numNodes);
             } else {
                 try (var arena = Arena.ofConfined()) {
                     var ordinalsMemorySegment = arena.allocate((long) numNodes * Integer.BYTES, 32);
@@ -251,16 +243,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         ) {
             long firstByteOffset = (long) firstOrd * vectorPitch;
             var firstVector = vectors.asSlice(firstByteOffset, vectorPitch);
-            Similarities.dotProduct7uBulkWithOffsets(
-                vectors,
-                firstVector,
-                dims,
-                vectorPitch,
-                ordinals,
-                numNodes,
-                scoreCorrectionConstant,
-                scores
-            );
+            Similarities.dotProduct7uBulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
 
             // Java-side adjustment
             var aOffset = Float.intBitsToFloat(vectors.asSlice(firstByteOffset + vectorLength, Float.BYTES).get(ValueLayout.JAVA_INT, 0));

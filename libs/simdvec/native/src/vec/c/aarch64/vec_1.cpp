@@ -100,20 +100,6 @@ EXPORT int32_t vec_dot7u(const int8_t* a, const int8_t* b, const int32_t dims) {
     return res;
 }
 
-static inline f32_t adjust(f32_t raw_score, f32_t score_correction, f32_t first_offset, f32_t second_offset) {
-    auto adjusted_score = raw_score * score_correction + first_offset + second_offset;
-    return fmaxf((1.0f + adjusted_score) / 2.0f, 0.0f);
-}
-
-static inline f32_t int_bits_to_float(const int32_t v) {
-    union {
-      int i;
-      float f;
-    } u;
-    u.i = (long)v;
-    return (f32_t)u.f;
-}
-
 template <int64_t(*mapper)(const int32_t, const int32_t*)>
 static inline void dot7u_inner_bulk(
     const int8_t* a,
@@ -122,7 +108,6 @@ static inline void dot7u_inner_bulk(
     const int32_t pitch,
     const int32_t* offsets,
     const int32_t count,
-    const f32_t score_correction,
     f32_t* results
 ) {
     size_t blk = dims & ~15;
@@ -215,7 +200,7 @@ static inline int64_t index(const int32_t i, const int32_t* offsets) {
 }
 
 EXPORT void vec_dot7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    dot7u_inner_bulk<identity>(a, b, dims, dims, NULL, count, 1.0f, results);
+    dot7u_inner_bulk<identity>(a, b, dims, dims, NULL, count, results);
 }
 
 
@@ -226,9 +211,8 @@ EXPORT void vec_dot7u_bulk_offsets(
     const int32_t pitch,
     const int32_t* offsets,
     const int32_t count,
-    const f32_t score_correction,
     f32_t* results) {
-    dot7u_inner_bulk<index>(a, b, dims, pitch, offsets, count, score_correction, results);
+    dot7u_inner_bulk<index>(a, b, dims, pitch, offsets, count, results);
 }
 
 static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, const int32_t dims) {

@@ -62,7 +62,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     );
                     dot7uBulkWithOffsets$mh = downcallHandle(
                         "vec_dot7u_bulk_offsets_2",
-                        FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT, JAVA_FLOAT, ADDRESS),
+                        FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS),
                         LinkerHelperUtil.critical()
                     );
                     sqr7u$mh = downcallHandle(
@@ -98,7 +98,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     );
                     dot7uBulkWithOffsets$mh = downcallHandle(
                         "vec_dot7u_bulk_offsets",
-                        FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT, JAVA_FLOAT, ADDRESS),
+                        FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS),
                         LinkerHelperUtil.critical()
                     );
                     sqr7u$mh = downcallHandle(
@@ -180,10 +180,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
             int pitch,
             MemorySegment offsets,
             int count,
-            float scoreCorrection,
             MemorySegment result
         ) {
-            dot7uBulkWithOffsets(a, b, length, pitch, offsets, count, scoreCorrection, result);
+            dot7uBulkWithOffsets(a, b, length, pitch, offsets, count, result);
         }
 
         /**
@@ -269,11 +268,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
             int pitch,
             MemorySegment offsets,
             int count,
-            float scoreCorrection,
             MemorySegment result
         ) {
             try {
-                JdkVectorLibrary.dot7uBulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scoreCorrection, result);
+                JdkVectorLibrary.dot7uBulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, result);
             } catch (Throwable t) {
                 throw new AssertionError(t);
             }
@@ -340,7 +338,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
                         int.class,
                         MemorySegment.class,
                         int.class,
-                        float.class,
                         MemorySegment.class
                     )
                 );

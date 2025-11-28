@@ -165,7 +165,6 @@ static inline void dot7u_inner_bulk(
     const int32_t pitch,
     const int32_t* offsets,
     const int32_t count,
-    const f32_t score_correction, // TODO
     f32_t* results
 ) {
     if (dims > STRIDE_BYTES_LEN) {
@@ -211,9 +210,8 @@ EXPORT void vec_dot7u_bulk_offsets(
     const int32_t pitch,
     const int32_t* offsets,
     const int32_t count,
-    const f32_t score_correction,
     f32_t* results) {
-    dot7u_inner_bulk<index>(a, b, dims, pitch, offsets, count, score_correction, results);
+    dot7u_inner_bulk<index>(a, b, dims, pitch, offsets, count, results);
 }
 
 static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, const int32_t dims) {

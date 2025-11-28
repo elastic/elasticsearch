@@ -122,16 +122,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                 var scoresSeg = MemorySegment.ofArray(scores);
 
                 var vectorPitch = vectorByteSize + Float.BYTES;
-                dotProduct7uBulkWithOffsets(
-                    vectorsSeg,
-                    query,
-                    vectorByteSize,
-                    vectorPitch,
-                    ordinalsSeg,
-                    numNodes,
-                    scoreCorrectionConstant,
-                    scoresSeg
-                );
+                dotProduct7uBulkWithOffsets(vectorsSeg, query, vectorByteSize, vectorPitch, ordinalsSeg, numNodes, scoresSeg);
 
                 for (int i = 0; i < numNodes; ++i) {
                     var dotProduct = scores[i];

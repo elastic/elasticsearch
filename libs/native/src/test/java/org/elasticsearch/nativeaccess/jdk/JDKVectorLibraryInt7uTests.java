@@ -140,7 +140,7 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         var nativeQuerySeg = vectorsSegment.asSlice((long) queryOrd * dims, dims);
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
 
-        dotProduct7uBulkWithOffsets(vectorsSegment, nativeQuerySeg, dims, dims, offsetsSegment, numVecs, 1.0f, bulkScoresSeg);
+        dotProduct7uBulkWithOffsets(vectorsSegment, nativeQuerySeg, dims, dims, offsetsSegment, numVecs, bulkScoresSeg);
         assertScoresEquals(expectedScores, bulkScoresSeg);
     }
 
@@ -168,7 +168,7 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         var nativeQuerySeg = vectorsSegment.asSlice((long) queryOrd * pitch, pitch);
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
 
-        dotProduct7uBulkWithOffsets(vectorsSegment, nativeQuerySeg, dims, pitch, offsetsSegment, numVecs, 1.0f, bulkScoresSeg);
+        dotProduct7uBulkWithOffsets(vectorsSegment, nativeQuerySeg, dims, pitch, offsetsSegment, numVecs, bulkScoresSeg);
         assertScoresEquals(expectedScores, bulkScoresSeg);
     }
 
@@ -199,7 +199,6 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
             dims,
             MemorySegment.ofArray(offsets),
             numVecs,
-            1.0f,
             MemorySegment.ofArray(bulkScores)
         );
         assertArrayEquals(expectedScores, bulkScores, 0f);
@@ -297,11 +296,10 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         int pitch,
         MemorySegment offsets,
         int count,
-        float scoreCorrection,
         MemorySegment result
     ) {
         try {
-            getVectorDistance().dotProductHandle7uBulkWithOffsets().invokeExact(a, b, dims, pitch, offsets, count, scoreCorrection, result);
+            getVectorDistance().dotProductHandle7uBulkWithOffsets().invokeExact(a, b, dims, pitch, offsets, count, result);
         } catch (Throwable e) {
             if (e instanceof Error err) {
                 throw err;

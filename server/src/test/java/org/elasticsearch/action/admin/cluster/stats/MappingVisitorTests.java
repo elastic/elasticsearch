@@ -185,7 +185,7 @@ public class MappingVisitorTests extends ESTestCase {
 
         assertTrue(properties.containsKey("my-object"));
         Map<String, Object> myObject = (Map<String, Object>) properties.get("my-object");
-        assertEquals("keyword", myObject.get("type"));
+        assertEquals("object", myObject.get("type"));
         assertTrue(myObject.containsKey("properties"));
         Map<String, Object> foundSubObjects = (Map<String, Object>) myObject.get("properties");
         assertTrue(foundSubObjects.containsKey("my-long"));

@@ -95,8 +95,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     /**
      * Build a function to replace this one after resolving the function.
      */
-    public Function buildResolved(Configuration configuration, FunctionDefinition def) {
-        return resolution.buildResolved(this, configuration, def);
+    public Function buildResolved(FunctionDefinition def) {
+        return resolution.buildResolved(this, def);
     }
 
     /**

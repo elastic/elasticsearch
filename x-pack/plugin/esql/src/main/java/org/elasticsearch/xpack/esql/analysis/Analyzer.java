@@ -1452,13 +1452,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             final EsqlFunctionRegistry snapshotRegistry = context.functionRegistry().snapshotRegistry();
             return plan.transformExpressionsOnly(
                 UnresolvedFunction.class,
-                uf -> resolveFunction(uf, context.configuration(), snapshotRegistry)
+                uf -> resolveFunction(uf, snapshotRegistry)
             );
         }
 
         public static org.elasticsearch.xpack.esql.core.expression.function.Function resolveFunction(
             UnresolvedFunction uf,
-            Configuration configuration,
             EsqlFunctionRegistry functionRegistry
         ) {
             org.elasticsearch.xpack.esql.core.expression.function.Function f = null;
@@ -1470,7 +1469,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     f = uf.missing(functionName, functionRegistry.listFunctions());
                 } else {
                     FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-                    f = uf.buildResolved(configuration, def);
+                    f = uf.buildResolved(def);
                 }
             }
             return f;

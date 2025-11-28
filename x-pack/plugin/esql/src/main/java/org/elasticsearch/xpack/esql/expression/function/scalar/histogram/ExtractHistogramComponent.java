@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -37,7 +38,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
 /**
  * Extracts a {@link org.elasticsearch.compute.data.ExponentialHistogramBlock.Component} from an exponential histogram.
@@ -63,7 +64,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
      * @param componentOrdinal The {@link org.elasticsearch.compute.data.ExponentialHistogramBlock.Component#ordinal()}
      *                         as integer-expression, must be foldable
      */
-    @FunctionInfo(returnType = { "long", "double" })
+    @FunctionInfo(returnType = { "double" })
     public ExtractHistogramComponent(
         Source source,
         @Param(name = "histogram", type = { "exponential_histogram" }) Expression field,
@@ -78,7 +79,11 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
-    Expression field() {
+    public static Expression create(Source source, Expression field, ExponentialHistogramBlock.Component component) {
+        return new ExtractHistogramComponent(source, field, new Literal(source, component.ordinal(), INTEGER));
+    }
+
+    public Expression field() {
         return field;
     }
 
@@ -113,8 +118,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
     public DataType dataType() {
         return switch (component()) {
             case null -> DataType.NULL;
-            case MIN, MAX, SUM -> DOUBLE;
-            case COUNT -> LONG;
+            case MIN, MAX, SUM, COUNT -> DOUBLE;
         };
     }
 

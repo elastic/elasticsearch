@@ -265,6 +265,17 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             """, ENRICH_POLICY_NAME, LOOKUP_ID_FIELD)), allNodeToInfo(), allNodeToInfo());
     }
 
+    public final void testFetchAllLookupJoin() throws IOException {
+        assumeTrue("Test only requires lookup indices", indexMode == IndexMode.LOOKUP);
+        // The LOOKUP JOIN is a no-op because it overwrites columns with the same identical data (except that it messes with
+        // the order of the columns, but we don't assert that).
+        doTestFetchAll(fromAllQuery(LoggerMessageFormat.format(null, """
+            , _id, _ignored, _index_mode, _score, _source, _version
+            | LOOKUP JOIN {} ON {}
+            | LIMIT 1000
+            """, LOOKUP_INDEX_NAME, LOOKUP_ID_FIELD)), allNodeToInfo(), allNodeToInfo());
+    }
+
     /**
      * Runs the query and expects 1 document per index on the contributing nodes as well as all the columns.
      */

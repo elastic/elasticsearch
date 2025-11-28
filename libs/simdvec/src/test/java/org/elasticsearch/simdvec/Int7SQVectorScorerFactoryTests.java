@@ -449,9 +449,12 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                         var referenceScorer = luceneScoreSupplier(values, VectorSimilarityType.of(sim)).scorer();
                         referenceScorer.setScoringOrdinal(idx0);
                         referenceScorer.bulkScore(nodes, expected, nodes.length);
-                        var supplier = factory
-                            .getInt7SQVectorScorerSupplier(sim, in, values, values.getScalarQuantizer().getConstantMultiplier())
-                            .orElseThrow();
+                        var supplier = factory.getInt7SQVectorScorerSupplier(
+                            sim,
+                            in,
+                            values,
+                            values.getScalarQuantizer().getConstantMultiplier()
+                        ).orElseThrow();
                         var testScorer = supplier.scorer();
                         testScorer.setScoringOrdinal(idx0);
                         testScorer.bulkScore(nodes, scores, nodes.length);
@@ -496,9 +499,12 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                         var referenceScorer = luceneScoreSupplier(values, VectorSimilarityType.of(sim)).scorer();
                         referenceScorer.setScoringOrdinal(idx0);
                         referenceScorer.bulkScore(nodes, expected, nodes.length);
-                        var supplier = factory
-                            .getInt7SQVectorScorerSupplier(sim, in, values, values.getScalarQuantizer().getConstantMultiplier())
-                            .orElseThrow();
+                        var supplier = factory.getInt7SQVectorScorerSupplier(
+                            sim,
+                            in,
+                            values,
+                            values.getScalarQuantizer().getConstantMultiplier()
+                        ).orElseThrow();
                         var testScorer = supplier.scorer();
                         testScorer.setScoringOrdinal(idx0);
                         testScorer.bulkScore(nodes, scores, nodes.length);

@@ -88,6 +88,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.IndexingPressure.MAX_COORDINATING_BYTES;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
@@ -136,9 +137,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        List<Object[]> lst = new ArrayList<>();
-        lst.add(new Object[] { true });
-        return lst;
+        return List.of(new Object[] { true }, new Object[] { false });
     }
 
     @Before
@@ -767,7 +766,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
                 IndexRequest doc1IndexRequest = getIndexRequestOrNull(doc1Request.request());
                 assertThat(doc1IndexRequest, notNullValue());
-                assertThat(doc1IndexRequest.source(), equalTo(BytesReference.bytes(doc1Source)));
+                assertThat(doc1IndexRequest.source(), equalBytes(BytesReference.bytes(doc1Source)));
 
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
                 assertThat(coordinatingIndexingPressure, notNullValue());
@@ -851,7 +850,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
                 IndexRequest doc1IndexRequest = getIndexRequestOrNull(doc1Request.request());
                 assertThat(doc1IndexRequest, notNullValue());
-                assertThat(doc1IndexRequest.source(), equalTo(BytesReference.bytes(doc1Source)));
+                assertThat(doc1IndexRequest.source(), equalBytes(BytesReference.bytes(doc1Source)));
 
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
                 assertThat(coordinatingIndexingPressure, notNullValue());
@@ -964,7 +963,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
                 IndexRequest doc2IndexRequest = getIndexRequestOrNull(doc2Request.request());
                 assertThat(doc2IndexRequest, notNullValue());
-                assertThat(doc2IndexRequest.source(), equalTo(BytesReference.bytes(doc2Source)));
+                assertThat(doc2IndexRequest.source(), equalBytes(BytesReference.bytes(doc2Source)));
 
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
                 assertThat(coordinatingIndexingPressure, notNullValue());

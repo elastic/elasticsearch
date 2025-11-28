@@ -112,7 +112,7 @@ public class LogsdbIndexingRollingUpgradeIT extends ESRestTestCase {
             search(dataStreamName);
             query(dataStreamName);
         }
-        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes"));
+        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
         for (int i = 0; i < numNodes; i++) {
             upgradeNode(i);
             time = time.plusNanos(60 * 30);

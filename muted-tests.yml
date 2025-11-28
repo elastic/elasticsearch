@@ -445,6 +445,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/160_exists_query/Test exists query on object field in empty index}
   issue: https://github.com/elastic/elasticsearch/issues/138733
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.S3RepositoryAnalysisStrongMpusRestIT
+  method: testRepositoryAnalysis
+  issue: https://github.com/elastic/elasticsearch/issues/138762
 
 # Examples:
 #

@@ -82,10 +82,10 @@ public class VectorScorerInt7uBulkBenchmark {
 
     // 128k is typically enough to not fit in L1 (core) cache for most processors;
     // 1.5M is typically enough to not fit in L2 (core) cache;
-    // 40M is typically enough to not fit in L3 cache
-    @Param({ "128000", "1500000", "30000000" })
+    // 130M is enough to not fit in L3 cache
+    @Param({ "128", "1500", "130000" })
     public int numVectors;
-    public int numVectorsToScore = 20_000;
+    public int numVectorsToScore;
 
     Path path;
     Directory dir;
@@ -107,6 +107,7 @@ public class VectorScorerInt7uBulkBenchmark {
 
     @Setup(Level.Trial)
     public void setup() throws IOException {
+        numVectorsToScore = Math.min(numVectors, 20_000);
         factory = getScorerFactoryOrDie();
 
         var random = ThreadLocalRandom.current();

@@ -609,7 +609,7 @@ public class EsqlSession {
     }
 
     /**
-     * Perform a field caps request for each lookup index.
+     * Perform a field caps request for each lookup index. Does not update the minimum transport version.
      */
     private void preAnalyzeLookupIndices(
         Iterator<IndexPattern> lookupIndices,

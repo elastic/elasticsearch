@@ -470,7 +470,7 @@ public class EnrichPolicyResolver {
                 new ChannelActionListener<>(channel),
                 threadContext
             );
-            try (var refs = new RefCountingListener(listener.map(unused -> { return new LookupResponse(resolvedPolices, failures); }))) {
+            try (var refs = new RefCountingListener(listener.map(unused -> new LookupResponse(resolvedPolices, failures)))) {
                 for (String policyName : request.policyNames) {
                     EnrichPolicy p = availablePolicies.get(policyName);
                     if (p == null) {

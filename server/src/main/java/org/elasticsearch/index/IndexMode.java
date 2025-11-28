@@ -243,7 +243,7 @@ public enum IndexMode {
         }
 
         @Override
-        public boolean useTimeSeriesDocValuesCodec() {
+        public boolean useCustomDocValuesCodec() {
             return true;
         }
 
@@ -338,7 +338,7 @@ public enum IndexMode {
         }
 
         @Override
-        public boolean useTimeSeriesDocValuesCodec() {
+        public boolean useCustomDocValuesCodec() {
             return true;
         }
 
@@ -588,9 +588,9 @@ public enum IndexMode {
     }
 
     /**
-     * Whether by default to use the time series doc values codec.
+     * Whether by default to use the custom doc values codec.
      */
-    public boolean useTimeSeriesDocValuesCodec() {
+    public boolean useCustomDocValuesCodec() {
         return false;
     }
 

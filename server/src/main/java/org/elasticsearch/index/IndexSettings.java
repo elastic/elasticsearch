@@ -835,7 +835,20 @@ public final class IndexSettings {
                 return Boolean.FALSE.toString();
             }
             var indexMode = IndexSettings.MODE.get(settings);
-            return Boolean.toString(indexMode.useTimeSeriesDocValuesCodec());
+            return Boolean.toString(indexMode == IndexMode.TIME_SERIES && indexMode.useCustomDocValuesCodec());
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final Setting<Boolean> USE_LOGS_DOC_VALUES_FORMAT_SETTING = Setting.boolSetting(
+        "index.use_logs_doc_values_format",
+        settings -> {
+            if (settings == null) {
+                return Boolean.FALSE.toString();
+            }
+            var indexMode = IndexSettings.MODE.get(settings);
+            return Boolean.toString(indexMode == IndexMode.LOGSDB && indexMode.useCustomDocValuesCodec());
         },
         Property.IndexScope,
         Property.Final
@@ -1019,6 +1032,7 @@ public final class IndexSettings {
     private final boolean useDocValuesSkipper;
     private final boolean useTimeSeriesSyntheticId;
     private final boolean useTimeSeriesDocValuesFormat;
+    private final boolean useLogsDocValuesFormat;
     private final boolean useEs812PostingsFormat;
 
     /**
@@ -1207,6 +1221,7 @@ public final class IndexSettings {
         useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
+        useLogsDocValuesFormat = scopedSettings.get(USE_LOGS_DOC_VALUES_FORMAT_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
         if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
@@ -1974,6 +1989,13 @@ public final class IndexSettings {
      */
     public boolean useTimeSeriesDocValuesFormat() {
         return useTimeSeriesDocValuesFormat;
+    }
+
+    /**
+     * @return Whether the logs doc value format should be used.
+     */
+    public boolean useLogsDocValuesFormat() {
+        return useLogsDocValuesFormat;
     }
 
     /**

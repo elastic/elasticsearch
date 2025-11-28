@@ -137,6 +137,10 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     final BinaryDVCompressionMode binaryDVCompressionMode;
     final boolean enablePerBlockCompression;
 
+    public static ES819TSDBDocValuesFormat getInstance(boolean useLargeNumericBlock) {
+        return useLargeNumericBlock ? new ES819TSDBDocValuesFormat(NUMERIC_LARGE_BLOCK_SHIFT) : new ES819TSDBDocValuesFormat();
+    }
+
     public ES819TSDBDocValuesFormat() {
         this(NUMERIC_BLOCK_SHIFT);
     }
@@ -200,7 +204,6 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         final int numericBlockShift
     ) {
         super(CODEC_NAME);
-        assert numericBlockShift == NUMERIC_BLOCK_SHIFT || numericBlockShift == NUMERIC_LARGE_BLOCK_SHIFT : numericBlockShift;
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");
         }

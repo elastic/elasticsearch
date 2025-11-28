@@ -150,24 +150,18 @@ public class PerFieldFormatSupplier {
     }
 
     boolean useTSDBDocValuesFormat(final String field) {
-        if (excludeFields(field)) {
+        if (excludeFields(field) || excludeMapperTypes(field)) {
             return false;
         }
-
-        if (excludeMapperTypes(field)) {
-            return false;
-        }
-
         return mapperService != null
             && mapperService.getIndexSettings().useTimeSeriesDocValuesFormat()
             && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
     }
 
     boolean useLogsDocValuesFormat(final String field) {
-        if (excludeFields(field)) {
+        if (excludeFields(field) || excludeMapperTypes(field)) {
             return false;
         }
-
         return mapperService != null
             && mapperService.getIndexSettings().useLogsDocValuesFormat()
             && mapperService.getIndexSettings().isES87TSDBCodecEnabled();

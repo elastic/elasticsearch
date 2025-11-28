@@ -893,15 +893,16 @@ public class EsqlSession {
                 result.fieldNames,
                 createQueryFilter(indexMode, requestFilter),
                 indexMode == IndexMode.TIME_SERIES,
-                // TODO: in case of subqueries, the different main index resolutions don't know about each other's minimum version.
+                // TODO: In case of subqueries, the different main index resolutions don't know about each other's minimum version.
                 // This is bad because `FROM (FROM remote1:*) (FROM remote2:*)` can have different minimum versions
-                // while resolving each subquery's main index pattern; we'll determine the correct overall minimum transport version
-                // in the end because we keep updating the PreAnalysisResult after each resolution, but the EsIndex objects may be
-                // inconsistent with this version (by e.g. containing data types that aren't supported on the overall minimum version).
-                // Passing `result.minimumTransportVersion()` here instead of `localClusterMinimumVersion` doesn't fix this problem,
-                // as the main index pattern from a subquery that we resolve first may have a higher min version than an index pattern
-                // that we resolve later.
-                localClusterMinimumVersion,
+                // while resolving each subquery's main index pattern. We'll determine the correct overall minimum transport version
+                // in the end because we keep updating the PreAnalysisResult after each resolution; but the EsIndex objects may be
+                // inconsistent with this version:
+                // The main index pattern from a subquery that we resolve first may have a higher min version in the field caps response
+                // than an index pattern that we resolve later.
+                // Thus, the EsIndex for `FROM remote1:*` may contain data types that aren't supported on the overall minimum version
+                // if we only find out that the overall version is actually lower when resolving `FROM remote2:*`.
+                result.minimumTransportVersion(),
                 preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                 preAnalysis.useDenseVectorWhenNotSupported(),
                 indicesExpressionGrouper,
@@ -930,7 +931,8 @@ public class EsqlSession {
             result.fieldNames,
             createQueryFilter(indexMode, requestFilter),
             indexMode == IndexMode.TIME_SERIES,
-            localClusterMinimumVersion,
+            // TODO: Same problem with subqueries as preAnalyzeMainIndices, see above.
+            result.minimumTransportVersion(),
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
             preAnalysis.useDenseVectorWhenNotSupported(),
             listener.delegateFailureAndWrap((l, indexResolution) -> {

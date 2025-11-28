@@ -100,7 +100,12 @@ public class IndexResolver {
      * Like {@link IndexResolver#resolveIndicesVersioned(String, Set, QueryBuilder, boolean, TransportVersion, boolean, boolean, IndicesExpressionGrouper, ActionListener)}
      * but simplified and does not pass on the determined minimum transport version to the listener.
      */
-    public void resolveIndices(String indexPattern, Set<String> fieldNames, TransportVersion minimumVersion, ActionListener<IndexResolution> listener) {
+    public void resolveIndices(
+        String indexPattern,
+        Set<String> fieldNames,
+        TransportVersion minimumVersion,
+        ActionListener<IndexResolution> listener
+    ) {
         doResolveIndices(
             createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, fieldNames, null, false, false),
             indexPattern,
@@ -215,7 +220,8 @@ public class IndexResolver {
                 useDenseVectorWhenNotSupported
             );
             LOGGER.debug(
-                "previously assumed minimum transport version [{}] updated to effective version [{}]" + " using field caps response version [{}] for index pattern [{}]",
+                "previously assumed minimum transport version [{}] updated to effective version [{}]"
+                    + " using field caps response version [{}] for index pattern [{}]",
                 minimumVersion,
                 info.minTransportVersion(),
                 responseMinimumVersion,

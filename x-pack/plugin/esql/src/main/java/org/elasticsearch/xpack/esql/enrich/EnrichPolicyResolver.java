@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -479,22 +478,30 @@ public class EnrichPolicyResolver {
                     }
                     try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
-                        indexResolver.resolveIndices(indexName, IndexResolver.ALL_FIELDS, request.minimumVersion, refs.acquire(indexResult -> {
-                            if (indexResult.isValid() && indexResult.get().concreteQualifiedIndices().size() == 1) {
-                                EsIndex esIndex = indexResult.get();
-                                var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteQualifiedIndices(), 0));
-                                var resolved = new ResolvedEnrichPolicy(
-                                    p.getMatchField(),
-                                    p.getType(),
-                                    p.getEnrichFields(),
-                                    concreteIndices,
-                                    esIndex.mapping()
-                                );
-                                resolvedPolices.put(policyName, resolved);
-                            } else {
-                                failures.put(policyName, indexResult.toString());
-                            }
-                        }));
+                        indexResolver.resolveIndices(
+                            indexName,
+                            IndexResolver.ALL_FIELDS,
+                            request.minimumVersion,
+                            refs.acquire(indexResult -> {
+                                if (indexResult.isValid() && indexResult.get().concreteQualifiedIndices().size() == 1) {
+                                    EsIndex esIndex = indexResult.get();
+                                    var concreteIndices = Map.of(
+                                        request.clusterAlias,
+                                        Iterables.get(esIndex.concreteQualifiedIndices(), 0)
+                                    );
+                                    var resolved = new ResolvedEnrichPolicy(
+                                        p.getMatchField(),
+                                        p.getType(),
+                                        p.getEnrichFields(),
+                                        concreteIndices,
+                                        esIndex.mapping()
+                                    );
+                                    resolvedPolices.put(policyName, resolved);
+                                } else {
+                                    failures.put(policyName, indexResult.toString());
+                                }
+                            })
+                        );
                     }
                 }
             }

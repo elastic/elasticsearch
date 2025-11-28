@@ -143,15 +143,12 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         ClusterState state,
         final ActionListener<DeprecationInfoAction.Response> listener
     ) {
-        PrecomputedData precomputedData = new PrecomputedData();
         DeprecationIssue lowWatermarkIssue = checkDiskLowWatermark(
             clusterService.getClusterSettings(),
             clusterInfoService.getClusterInfo(),
             state.nodes()
         );
-        if (lowWatermarkIssue != null) {
-            precomputedData.setOnceDiskWatermarkIssue(lowWatermarkIssue);
-        }
+        PrecomputedData precomputedData = new PrecomputedData(lowWatermarkIssue);
 
         final var project = projectResolver.getProjectMetadata(state);
         try (var refs = new RefCountingListener(checkAndCreateResponse(project, request, precomputedData, listener))) {
@@ -180,7 +177,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
      * @return The listener that should be executed after all the remote requests have completed and the {@link PrecomputedData}
      * is initialised.
      */
-    public ActionListener<Void> checkAndCreateResponse(
+    private ActionListener<Void> checkAndCreateResponse(
         ProjectMetadata project,
         DeprecationInfoAction.Request request,
         PrecomputedData precomputedData,
@@ -266,7 +263,11 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         private final SetOnce<List<DeprecationIssue>> nodeSettingsIssues = new SetOnce<>();
         private final SetOnce<Map<String, List<DeprecationIssue>>> pluginIssues = new SetOnce<>();
         private final SetOnce<List<TransformConfig>> transformConfigs = new SetOnce<>();
-        private final SetOnce<DeprecationIssue> diskWatermarkIssue = new SetOnce<>();
+        private final DeprecationIssue diskWatermarkIssue;
+
+        public PrecomputedData(DeprecationIssue diskWatermarkIssue) {
+            this.diskWatermarkIssue = diskWatermarkIssue;
+        }
 
         public void setOnceNodeSettingsIssues(List<DeprecationIssue> nodeSettingsIssues) {
             this.nodeSettingsIssues.set(nodeSettingsIssues);
@@ -280,17 +281,13 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             this.transformConfigs.set(transformConfigs);
         }
 
-        public void setOnceDiskWatermarkIssue(DeprecationIssue diskWatermarkIssue) {
-            this.diskWatermarkIssue.set(diskWatermarkIssue);
-        }
-
         public List<DeprecationIssue> nodeSettingsIssues() {
-            DeprecationIssue watermarkIssue = diskWatermarkIssue.get();
             List<DeprecationIssue> deprecationIssues = nodeSettingsIssues.get();
-            if (watermarkIssue == null) {
+            assert deprecationIssues != null : "nodeSettingsIssues must be set before calling this method";
+            if (diskWatermarkIssue == null) {
                 return deprecationIssues;
             }
-            return CollectionUtils.appendToCopy(deprecationIssues, watermarkIssue);
+            return CollectionUtils.appendToCopy(deprecationIssues, diskWatermarkIssue);
         }
 
         public Map<String, List<DeprecationIssue>> pluginIssues() {

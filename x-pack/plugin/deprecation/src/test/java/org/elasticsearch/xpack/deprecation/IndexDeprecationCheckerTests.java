@@ -50,7 +50,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
     private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
     private final IndexDeprecationChecker checker = new IndexDeprecationChecker(indexNameExpressionResolver);
     private final TransportDeprecationInfoAction.PrecomputedData emptyPrecomputedData =
-        new TransportDeprecationInfoAction.PrecomputedData();
+        new TransportDeprecationInfoAction.PrecomputedData(null);
     private final IndexMetadata.State indexMetdataState;
 
     public IndexDeprecationCheckerTests(@Name("indexMetadataState") IndexMetadata.State indexMetdataState) {
@@ -723,7 +723,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 );
             }
         }
-        TransportDeprecationInfoAction.PrecomputedData precomputedData = new TransportDeprecationInfoAction.PrecomputedData();
+        TransportDeprecationInfoAction.PrecomputedData precomputedData = new TransportDeprecationInfoAction.PrecomputedData(null);
         precomputedData.setOnceTransformConfigs(transforms);
         return precomputedData;
     }

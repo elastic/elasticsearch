@@ -8,6 +8,7 @@
 package org.elasticsearch.blobcache.shared;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -37,12 +38,13 @@ class KeyMapping<Key1, Key2, Value> {
      * @return the resulting value.
      */
     public Value computeIfAbsent(Key1 key1, Key2 key2, Function<Key2, Value> function) {
-        var inner = mapping.compute(key1, (k, current) -> {
+        AtomicReference<Value> result = new AtomicReference<>();
+        mapping.compute(key1, (k, current) -> {
             ConcurrentHashMap<Key2, Value> map = current == null ? new ConcurrentHashMap<>() : current;
-            map.computeIfAbsent(key2, function);
+            result.setPlain(map.computeIfAbsent(key2, function));
             return map;
         });
-        return inner.get(key2);
+        return result.getPlain();
     }
 
     public boolean remove(Key1 key1, Key2 key2, Value value) {

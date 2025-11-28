@@ -62,7 +62,7 @@ public class KeyMappingTests extends ESTestCase {
             for (int j = 0; j < 1000; ++j) {
                 Integer finalJ = j;
                 assertNull(mapping.get(k1, k2));
-                mapping.computeIfAbsent(k1, k2, (kx) -> finalJ);
+                assertSame(finalJ, mapping.computeIfAbsent(k1, k2, (kx) -> finalJ));
                 assertEquals(finalJ, mapping.get(k1, k2));
                 assertTrue(mapping.remove(k1, k2, finalJ));
                 if ((j & 1) == 0) {
@@ -73,6 +73,32 @@ public class KeyMappingTests extends ESTestCase {
             assertNull(mapping.get(k1, k2));
         }, "test-thread-" + i)).toList();
 
+        threads.forEach(Thread::start);
+        threads.forEach(t -> {
+            try {
+                t.join(10000);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        assertEquals(Set.of(), mapping.key1s());
+    }
+
+    public void testMultiThreadedSameKey() {
+        final String k1 = randomAlphanumericOfLength(10);
+        KeyMapping<String, String, Integer> mapping = new KeyMapping<>();
+
+        List<Thread> threads = IntStream.range(0, 10).mapToObj(i -> new Thread(() -> {
+            for (int j = 0; j < 1000; ++j) {
+                Integer computeValue = i * 1000 + j;
+                Integer value = mapping.computeIfAbsent(k1, k1, (kx) -> computeValue);
+                assertNotNull(value);
+                // either our value or another threads value.
+                assertTrue(value == computeValue || value / 1000 != i);
+                mapping.remove(k1, k1, value);
+            }
+        })).toList();
         threads.forEach(Thread::start);
         threads.forEach(t -> {
             try {

@@ -13,7 +13,6 @@ import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 
@@ -37,11 +36,8 @@ import java.io.IOException;
  */
 public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesFormat {
 
-    public static final boolean BINARY_DV_COMPRESSION_FEATURE_FLAG = new FeatureFlag("binary_dv_compression").isEnabled();
-
     static final int NUMERIC_BLOCK_SHIFT = 7;
-    public static final int NUMERIC_BLOCK_SIZE = 1 << NUMERIC_BLOCK_SHIFT;
-    static final int NUMERIC_BLOCK_MASK = NUMERIC_BLOCK_SIZE - 1;
+    static final int NUMERIC_LARGE_BLOCK_SHIFT = 9;
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
     static final String CODEC_NAME = "ES819TSDB";
     static final String DATA_CODEC = "ES819TSDBDocValuesData";
@@ -56,7 +52,8 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
 
     static final int VERSION_START = 0;
     static final int VERSION_BINARY_DV_COMPRESSION = 1;
-    static final int VERSION_CURRENT = VERSION_BINARY_DV_COMPRESSION;
+    static final int VERSION_NUMERIC_LARGE_BLOCKS = 2;
+    static final int VERSION_CURRENT = VERSION_NUMERIC_LARGE_BLOCKS;
 
     static final int TERMS_DICT_BLOCK_LZ4_SHIFT = 6;
     static final int TERMS_DICT_BLOCK_LZ4_SIZE = 1 << TERMS_DICT_BLOCK_LZ4_SHIFT;
@@ -133,19 +130,23 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
      */
     public static final int ORDINAL_RANGE_ENCODING_BLOCK_SHIFT = 12;
 
+    final int numericBlockShift;
     final int skipIndexIntervalSize;
     final int minDocsPerOrdinalForRangeEncoding;
     final boolean enableOptimizedMerge;
     final BinaryDVCompressionMode binaryDVCompressionMode;
     final boolean enablePerBlockCompression;
 
-    /** Default constructor. */
     public ES819TSDBDocValuesFormat() {
+        this(NUMERIC_BLOCK_SHIFT);
+    }
+
+    public ES819TSDBDocValuesFormat(int numericBlockShift) {
         this(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             OPTIMIZED_MERGE_ENABLE_DEFAULT,
-            BINARY_DV_COMPRESSION_FEATURE_FLAG ? BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1 : BinaryDVCompressionMode.NO_COMPRESS,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
             true
         );
     }
@@ -156,7 +157,8 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             OPTIMIZED_MERGE_ENABLE_DEFAULT,
             binaryDVCompressionMode,
-            true
+            true,
+            NUMERIC_BLOCK_SHIFT
         );
     }
 
@@ -166,7 +168,8 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             OPTIMIZED_MERGE_ENABLE_DEFAULT,
             binaryDVCompressionMode,
-            enablePerBlockCompression
+            enablePerBlockCompression,
+            NUMERIC_BLOCK_SHIFT
         );
     }
 
@@ -178,7 +181,26 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         BinaryDVCompressionMode binaryDVCompressionMode,
         final boolean enablePerBlockCompression
     ) {
+        this(
+            skipIndexIntervalSize,
+            minDocsPerOrdinalForRangeEncoding,
+            enableOptimizedMerge,
+            binaryDVCompressionMode,
+            enablePerBlockCompression,
+            NUMERIC_BLOCK_SHIFT
+        );
+    }
+
+    public ES819TSDBDocValuesFormat(
+        int skipIndexIntervalSize,
+        int minDocsPerOrdinalForRangeEncoding,
+        boolean enableOptimizedMerge,
+        BinaryDVCompressionMode binaryDVCompressionMode,
+        final boolean enablePerBlockCompression,
+        final int numericBlockShift
+    ) {
         super(CODEC_NAME);
+        assert numericBlockShift == NUMERIC_BLOCK_SHIFT || numericBlockShift == NUMERIC_LARGE_BLOCK_SHIFT : numericBlockShift;
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");
         }
@@ -187,6 +209,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         this.enableOptimizedMerge = enableOptimizedMerge;
         this.binaryDVCompressionMode = binaryDVCompressionMode;
         this.enablePerBlockCompression = enablePerBlockCompression;
+        this.numericBlockShift = numericBlockShift;
     }
 
     @Override
@@ -198,6 +221,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
             skipIndexIntervalSize,
             minDocsPerOrdinalForRangeEncoding,
             enableOptimizedMerge,
+            numericBlockShift,
             DATA_CODEC,
             DATA_EXTENSION,
             META_CODEC,

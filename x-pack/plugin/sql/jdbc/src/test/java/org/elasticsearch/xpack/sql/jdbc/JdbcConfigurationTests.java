@@ -99,7 +99,6 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertThat(ci.debugOut(), is("jdbc.out"));
     }
 
-
     public void testDebugFlushAlways() throws Exception {
         JdbcConfiguration ci = ci(jdbcPrefix() + "a:1/?debug=true&debug.flushAlways=false");
         assertThat(ci.baseUri().toString(), is("http://a:1/"));

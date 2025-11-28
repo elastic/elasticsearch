@@ -12,7 +12,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gpu.GPUSupport;
-import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
@@ -37,9 +36,8 @@ import static org.hamcrest.Matchers.containsString;
 public class GPUIndexIT extends ESIntegTestCase {
 
     public static class TestGPUPlugin extends GPUPlugin {
-        @Inject
-        public TestGPUPlugin(Settings settings) {
-            super(Settings.builder().put(settings).put("vectors.indexing.use_gpu", GpuMode.TRUE.name()).build());
+        public TestGPUPlugin() {
+            super(Settings.builder().put("vectors.indexing.use_gpu", GpuMode.TRUE.name()).build());
         }
 
         @Override

@@ -19,7 +19,6 @@ import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
-import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
@@ -35,7 +34,6 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
 
     private final GpuMode gpuMode;
 
-    @Inject
     public GPUPlugin(Settings settings) {
         this.gpuMode = VECTORS_INDEXING_USE_GPU_NODE_SETTING.get(settings);
     }

@@ -16,7 +16,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
@@ -49,9 +48,8 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
 
     public static class TestGPUPlugin extends GPUPlugin {
 
-        @Inject
-        public TestGPUPlugin(Settings settings) {
-            super(Settings.builder().put(settings).put("vectors.indexing.use_gpu", gpuMode.name()).build());
+        public TestGPUPlugin() {
+            super(Settings.builder().put("vectors.indexing.use_gpu", gpuMode.name()).build());
         }
 
         @Override

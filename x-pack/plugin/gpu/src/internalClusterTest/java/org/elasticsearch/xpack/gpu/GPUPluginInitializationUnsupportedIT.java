@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.gpu;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
@@ -27,15 +28,21 @@ public class GPUPluginInitializationUnsupportedIT extends ESIntegTestCase {
         TestCuVSServiceProvider.mockedGPUInfoProvider = p -> { throw new UnsupportedOperationException("cuvs-java UnsupportedProvider"); };
     }
 
+    public static class TestGPUPlugin extends GPUPlugin {
+        public TestGPUPlugin() {
+            super(Settings.EMPTY);
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(GPUPlugin.class);
+        return List.of(TestGPUPlugin.class);
     }
 
     public void testAutoModeWithUnavailableGPU() {
         assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
 
-        GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
+        TestGPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
 
         createIndex("index1");

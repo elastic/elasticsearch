@@ -377,6 +377,9 @@ tests:
 - class: org.elasticsearch.threadpool.ThreadPoolTests
   method: testDetailedUtilizationMetric
   issue: https://github.com/elastic/elasticsearch/issues/138242
+- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
+  method: testSearchWithRandomDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/138128
 
 # Examples:
 #

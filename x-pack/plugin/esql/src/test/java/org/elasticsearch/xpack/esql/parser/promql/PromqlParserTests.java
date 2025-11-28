@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.junit.BeforeClass;
 
@@ -25,10 +26,11 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assume.assumeTrue;
 
-public class PromqlParamsTests extends ESTestCase {
+public class PromqlParserTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
 
@@ -184,6 +186,20 @@ public class PromqlParamsTests extends ESTestCase {
             () -> parse("PROMQL test start \"2025-10-31T00:00:00Z\" end \"2025-10-31T01:00:00Z\" (avg(foo))")
         );
         assertThat(e.getMessage(), containsString("Parameter [step] or [time] is required"));
+    }
+
+    public void testParseMultipleIndices() {
+        PromqlCommand promqlCommand = parse("PROMQL foo, bar step 5m (avg(foo))");
+        List<UnresolvedRelation> unresolvedRelations = promqlCommand.collect(UnresolvedRelation.class);
+        assertThat(unresolvedRelations, hasSize(1));
+        assertThat(unresolvedRelations.getFirst().indexPattern().indexPattern(), equalTo("foo,bar"));
+    }
+
+    public void testParseRemoteIndices() {
+        PromqlCommand promqlCommand = parse("PROMQL *:foo,foo step 5m (avg(foo))");
+        List<UnresolvedRelation> unresolvedRelations = promqlCommand.collect(UnresolvedRelation.class);
+        assertThat(unresolvedRelations, hasSize(1));
+        assertThat(unresolvedRelations.getFirst().indexPattern().indexPattern(), equalTo("*:foo,foo"));
     }
 
     private static PromqlCommand parse(String query) {

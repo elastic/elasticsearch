@@ -225,11 +225,11 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
             idMode = switch (randomInt(2)) {
                 case 0 -> null;
                 case 1 -> """
-                "use_synthetic_id": "false"
-                """;
+                    "use_synthetic_id": "false"
+                    """;
                 case 2 -> """
-                "use_synthetic_id": "true"
-                """;
+                    "use_synthetic_id": "true"
+                    """;
                 default -> throw new AssertionError("Unknown mode");
             };
         } else {

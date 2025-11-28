@@ -63,8 +63,6 @@ import static org.elasticsearch.xpack.kql.query.KqlQueryBuilder.TIME_ZONE_FIELD;
 public class Kql extends FullTextFunction implements OptionalArgument, ConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Kql", Kql::readFrom);
 
-    private final Configuration configuration;
-
     // Options for KQL function. They don't need to be serialized as the data nodes will retrieve them from the query builder
     private final transient Expression options;
 
@@ -127,15 +125,13 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
                     description = "Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0."
                 ) },
             optional = true
-        ) Expression options,
-        Configuration configuration
+        ) Expression options
     ) {
-        this(source, queryString, options, null, configuration);
+        this(source, queryString, options, null);
     }
 
-    public Kql(Source source, Expression queryString, Expression options, QueryBuilder queryBuilder, Configuration configuration) {
+    public Kql(Source source, Expression queryString, Expression options, QueryBuilder queryBuilder) {
         super(source, queryString, options == null ? List.of(queryString) : List.of(queryString, options), queryBuilder);
-        this.configuration = configuration;
         this.options = options;
     }
 
@@ -144,7 +140,7 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         // Options are not serialized - they're embedded in the QueryBuilder
-        return new Kql(source, query, null, queryBuilder, ((PlanStreamInput) in).configuration());
+        return new Kql(source, query, null, queryBuilder);
     }
 
     @Override
@@ -183,7 +179,7 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
         return resolveQuery().and(Options.resolve(options(), source(), SECOND, ALLOWED_OPTIONS));
     }
 
-    private Map<String, Object> kqlQueryOptions() throws InvalidArgumentException {
+    private Map<String, Object> kqlQueryOptions(Configuration configuration) throws InvalidArgumentException {
         if (options() == null && configuration.zoneId().equals(ZoneOffset.UTC)) {
             return null;
         }
@@ -198,22 +194,22 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Kql(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null, queryBuilder(), configuration);
+        return new Kql(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null, queryBuilder());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Kql::new, query(), options(), queryBuilder(), configuration);
+        return NodeInfo.create(this, Kql::new, query(), options(), queryBuilder());
     }
 
     @Override
-    protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        return new KqlQuery(source(), Foldables.queryAsString(query(), sourceText()), kqlQueryOptions());
+    protected Query translate(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        return new KqlQuery(source(), Foldables.queryAsString(query(), sourceText()), kqlQueryOptions(configuration));
     }
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new Kql(source(), query(), options(), queryBuilder, configuration);
+        return new Kql(source(), query(), options(), queryBuilder);
     }
 
     @Override
@@ -222,14 +218,12 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
         // ignore options when comparing.
         if (o == null || getClass() != o.getClass()) return false;
         var kql = (Kql) o;
-        return Objects.equals(query(), kql.query())
-            && Objects.equals(queryBuilder(), kql.queryBuilder())
-            && Objects.equals(configuration, kql.configuration);
+        return Objects.equals(query(), kql.query()) && Objects.equals(queryBuilder(), kql.queryBuilder());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(query(), queryBuilder(), configuration);
+        return Objects.hash(query(), queryBuilder());
     }
 
     @Override

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentile;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
@@ -166,7 +167,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     }
 
     @Override
-    public Expression surrogate() {
+    public Expression surrogate(Configuration configuration) {
         var field = field();
 
         if (field.dataType() == DataType.EXPONENTIAL_HISTOGRAM) {

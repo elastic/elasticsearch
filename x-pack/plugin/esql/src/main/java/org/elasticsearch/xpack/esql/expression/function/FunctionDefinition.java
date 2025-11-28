@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
 
@@ -23,7 +22,7 @@ public class FunctionDefinition {
      */
     @FunctionalInterface
     public interface Builder {
-        Function build(UnresolvedFunction uf, Configuration configuration, Object... extras);
+        Function build(UnresolvedFunction uf, Object... extras);
     }
 
     private final String name;

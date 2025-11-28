@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -227,7 +228,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
     }
 
     @Override
-    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    public Query asQuery(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         return translate(handler);
     }
 

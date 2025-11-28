@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
@@ -143,7 +144,7 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
     }
 
     @Override
-    public Expression surrogate() {
+    public Expression surrogate(Configuration configuration) {
         var s = source();
         var field = field();
         var weight = weight();

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunct
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
 
@@ -198,25 +199,32 @@ public class InferenceFunctionEvaluator {
          * @param inferenceService the inference service
          * @return a new instance of {@link InferenceFunctionEvaluator}
          */
-        public InferenceFunctionEvaluator create(FoldContext foldContext, InferenceService inferenceService) {
-            return new InferenceFunctionEvaluator(foldContext, createInferenceOperatorProvider(foldContext, inferenceService));
+        public InferenceFunctionEvaluator create(Configuration configuration, FoldContext foldContext, InferenceService inferenceService) {
+            return new InferenceFunctionEvaluator(
+                foldContext,
+                createInferenceOperatorProvider(configuration, foldContext, inferenceService)
+            );
         }
 
         /**
          * Creates an {@link InferenceOperatorProvider} that can produce operators for all supported inference functions.
          */
-        private InferenceOperatorProvider createInferenceOperatorProvider(FoldContext foldContext, InferenceService inferenceService) {
+        private InferenceOperatorProvider createInferenceOperatorProvider(
+            Configuration configuration,
+            FoldContext foldContext,
+            InferenceService inferenceService
+        ) {
             return (inferenceFunction, driverContext) -> {
                 Operator.OperatorFactory operatorFactory = switch (inferenceFunction) {
                     case TextEmbedding textEmbedding -> new TextEmbeddingOperator.Factory(
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
-                        expressionEvaluatorFactory(textEmbedding.inputText(), foldContext)
+                        expressionEvaluatorFactory(textEmbedding.inputText(), configuration, foldContext)
                     );
                     case CompletionFunction completion -> new CompletionOperator.Factory(
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
-                        expressionEvaluatorFactory(completion.prompt(), foldContext)
+                        expressionEvaluatorFactory(completion.prompt(), configuration, foldContext)
                     );
                     default -> throw new IllegalArgumentException("Unknown inference function: " + inferenceFunction.getClass().getName());
                 };
@@ -244,9 +252,13 @@ public class InferenceFunctionEvaluator {
          * @param e the foldable expression to create an evaluator factory for
          * @return an expression evaluator factory for the given expression
          */
-        private EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory(Expression e, FoldContext foldContext) {
+        private EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory(
+            Expression e,
+            Configuration configuration,
+            FoldContext foldContext
+        ) {
             assert e.foldable() : "Input expression must be foldable";
-            return EvalMapper.toEvaluator(foldContext, Literal.of(foldContext, e), null);
+            return EvalMapper.toEvaluator(configuration, foldContext, Literal.of(foldContext, e), null);
         }
     }
 }

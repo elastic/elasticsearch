@@ -22,12 +22,12 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -55,7 +55,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt
  * in multiples of the unit specified in the first argument.
  * If the second argument (start) is greater than the third argument (end), then negative values are returned.
  */
-public class DateDiff extends EsqlConfigurationFunction {
+public class DateDiff extends EsqlScalarFunction implements ConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "DateDiff", DateDiff::new);
 
     private final Expression unit;
@@ -174,10 +174,9 @@ public class DateDiff extends EsqlConfigurationFunction {
             name = "endTimestamp",
             type = { "date", "date_nanos" },
             description = "A string representing an end timestamp"
-        ) Expression endTimestamp,
-        Configuration configuration
+        ) Expression endTimestamp
     ) {
-        super(source, List.of(unit, startTimestamp, endTimestamp), configuration);
+        super(source, List.of(unit, startTimestamp, endTimestamp));
         this.unit = unit;
         this.startTimestamp = startTimestamp;
         this.endTimestamp = endTimestamp;
@@ -188,8 +187,7 @@ public class DateDiff extends EsqlConfigurationFunction {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            ((PlanStreamInput) in).configuration()
+            in.readNamedWriteable(Expression.class)
         );
     }
 
@@ -296,7 +294,7 @@ public class DateDiff extends EsqlConfigurationFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        ZoneId zoneId = configuration().zoneId();
+        ZoneId zoneId = toEvaluator.configuration().zoneId();
         if (startTimestamp.dataType() == DATETIME && endTimestamp.dataType() == DATETIME) {
             return toEvaluator(toEvaluator, DateDiffConstantMillisEvaluator.Factory::new, DateDiffMillisEvaluator.Factory::new, zoneId);
         } else if (startTimestamp.dataType() == DATE_NANOS && endTimestamp.dataType() == DATE_NANOS) {
@@ -377,11 +375,11 @@ public class DateDiff extends EsqlConfigurationFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new DateDiff(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), configuration());
+        return new DateDiff(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, DateDiff::new, children().get(0), children().get(1), children().get(2), configuration());
+        return NodeInfo.create(this, DateDiff::new, children().get(0), children().get(1), children().get(2));
     }
 }

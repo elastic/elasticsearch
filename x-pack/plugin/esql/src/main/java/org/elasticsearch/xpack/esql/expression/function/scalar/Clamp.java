@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -161,7 +162,7 @@ public class Clamp extends EsqlScalarFunction implements SurrogateExpression {
     }
 
     @Override
-    public Expression surrogate() {
+    public Expression surrogate(Configuration configuration) {
         return new ClampMax(source(), new ClampMin(source(), field, min), max);
     }
 }

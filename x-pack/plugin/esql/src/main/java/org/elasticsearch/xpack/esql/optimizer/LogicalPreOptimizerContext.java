@@ -10,10 +10,16 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 /**
  * Context passed to logical pre-optimizer rules.
  */
-public record LogicalPreOptimizerContext(FoldContext foldCtx, InferenceService inferenceService, TransportVersion minimumVersion) {
+public record LogicalPreOptimizerContext(
+    Configuration configuration,
+    FoldContext foldCtx,
+    InferenceService inferenceService,
+    TransportVersion minimumVersion
+) {
 
 }

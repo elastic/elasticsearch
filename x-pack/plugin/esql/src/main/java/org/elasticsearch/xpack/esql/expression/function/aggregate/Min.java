@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggre
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
@@ -162,7 +163,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     @Override
-    public Expression surrogate() {
+    public Expression surrogate(Configuration configuration) {
         if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
             return new Min(
                 source(),

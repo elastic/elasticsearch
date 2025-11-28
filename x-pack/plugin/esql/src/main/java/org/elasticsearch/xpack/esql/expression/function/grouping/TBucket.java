@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.IMPLICIT;
@@ -40,7 +39,6 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         ConfigurationFunction {
     public static final String NAME = "TBucket";
 
-    private final Configuration configuration;
     private final Expression buckets;
     private final Expression timestamp;
 
@@ -71,13 +69,11 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
     public TBucket(
         Source source,
         @Param(name = "buckets", type = { "date_period", "time_duration" }, description = "Desired bucket size.") Expression buckets,
-        Expression timestamp,
-        Configuration configuration
+        Expression timestamp
     ) {
         super(source, List.of(buckets, timestamp));
         this.buckets = buckets;
         this.timestamp = timestamp;
-        this.configuration = configuration;
     }
 
     @Override
@@ -96,8 +92,8 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     @Override
-    public Expression surrogate() {
-        return new Bucket(source(), timestamp, buckets, null, null, configuration);
+    public Expression surrogate(Configuration configuration) {
+        return new Bucket(source(), timestamp, buckets, null, null);
     }
 
     @Override
@@ -117,12 +113,12 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new TBucket(source(), newChildren.get(0), newChildren.get(1), configuration);
+        return new TBucket(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, TBucket::new, buckets, timestamp, configuration);
+        return NodeInfo.create(this, TBucket::new, buckets, timestamp);
     }
 
     @Override
@@ -137,20 +133,5 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
     @Override
     public String toString() {
         return "TBucket{buckets=" + buckets + "}";
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(getClass(), children(), configuration);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj) == false) {
-            return false;
-        }
-        TBucket other = (TBucket) obj;
-
-        return configuration.equals(other.configuration);
     }
 }

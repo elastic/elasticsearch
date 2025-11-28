@@ -112,7 +112,11 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                                     ) != TranslationAware.Translatable.YES) {
                                         return null; // can't push down
                                     }
-                                    var countFilter = TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, count.filter());
+                                    var countFilter = TRANSLATOR_HANDLER.asQuery(
+                                        context.configuration(),
+                                        LucenePushdownPredicates.DEFAULT,
+                                        count.filter()
+                                    );
                                     query = Queries.combine(Queries.Clause.MUST, asList(countFilter.toQueryBuilder(), query));
                                 }
                                 return new EsStatsQueryExec.BasicStat(fieldName, COUNT, query);

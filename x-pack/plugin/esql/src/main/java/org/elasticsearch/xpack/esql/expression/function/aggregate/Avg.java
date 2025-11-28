@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.Extract
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
@@ -123,14 +124,14 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     }
 
     @Override
-    public Expression surrogate() {
+    public Expression surrogate(Configuration configuration) {
         var s = source();
         var field = field();
         if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
             return new Div(
                 s,
-                new Sum(s, field, filter(), window(), summationMode).surrogate(),
-                new Count(s, field, filter(), window()).surrogate()
+                new Sum(s, field, filter(), window(), summationMode).surrogate(configuration),
+                new Count(s, field, filter(), window()).surrogate(configuration)
             );
         }
         if (field.dataType() == EXPONENTIAL_HISTOGRAM) {

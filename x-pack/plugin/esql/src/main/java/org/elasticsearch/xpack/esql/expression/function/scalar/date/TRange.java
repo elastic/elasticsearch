@@ -22,12 +22,13 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
@@ -67,8 +68,9 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
  *     <li>TRANGE(1715504400000, 1715517000000) - [explicit start in millis; explicit end in millis]</li>
  * </ul>
  */
-public class TRange extends EsqlConfigurationFunction
+public class TRange extends EsqlScalarFunction
     implements
+        ConfigurationFunction,
         OptionalArgument,
         SurrogateExpression,
         PostAnalysisPlanVerificationAware,
@@ -104,10 +106,9 @@ public class TRange extends EsqlConfigurationFunction
         ) Expression first,
         @Param(name = END_TIME_PARAMETER, type = { "keyword", "long", "date", "date_nanos" }, description = """
             Explicit end time that can be a date string, date, date_nanos or epoch milliseconds.""", optional = true) Expression second,
-        Expression timestamp,
-        Configuration configuration
+        Expression timestamp
     ) {
-        super(source, second != null ? List.of(first, second, timestamp) : List.of(first, timestamp), configuration);
+        super(source, second != null ? List.of(first, second, timestamp) : List.of(first, timestamp));
         this.first = first;
         this.second = second;
         this.timestamp = timestamp;
@@ -192,18 +193,12 @@ public class TRange extends EsqlConfigurationFunction
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new TRange(
-            source(),
-            newChildren.getFirst(),
-            newChildren.size() == 3 ? newChildren.get(1) : null,
-            newChildren.getLast(),
-            configuration()
-        );
+        return new TRange(source(), newChildren.getFirst(), newChildren.size() == 3 ? newChildren.get(1) : null, newChildren.getLast());
     }
 
     @Override
-    public Expression surrogate() {
-        long[] range = getRange(FoldContext.small());
+    public Expression surrogate(Configuration configuration) {
+        long[] range = getRange(configuration, FoldContext.small());
 
         Expression startLiteral = new Literal(source(), range[0], timestamp.dataType());
         Expression endLiteral = new Literal(source(), range[1], timestamp.dataType());
@@ -213,7 +208,7 @@ public class TRange extends EsqlConfigurationFunction
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, TRange::new, first, second, timestamp, configuration());
+        return NodeInfo.create(this, TRange::new, first, second, timestamp);
     }
 
     @Override
@@ -221,14 +216,14 @@ public class TRange extends EsqlConfigurationFunction
         return timestamp.nullable();
     }
 
-    private long[] getRange(FoldContext foldContext) {
+    private long[] getRange(Configuration configuration, FoldContext foldContext) {
         Instant rangeStart;
         Instant rangeEnd;
 
         try {
             Object foldFirst = first.fold(foldContext);
             if (second == null) {
-                rangeEnd = configuration().now().toInstant();
+                rangeEnd = configuration.now().toInstant();
                 rangeStart = timeWithOffset(foldFirst, rangeEnd);
             } else {
                 Object foldSecond = second.fold(foldContext);

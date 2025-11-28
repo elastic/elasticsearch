@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -228,7 +227,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         }
     }
 
-    public static class DummyConfigurationOptionalArgumentFunction extends EsqlConfigurationFunction implements OptionalArgument {
+    public static class DummyConfigurationOptionalArgumentFunction extends ConfigurationFunction implements OptionalArgument {
 
         public DummyConfigurationOptionalArgumentFunction(Source source, List<Expression> fields, Configuration configuration) {
             super(source, fields, configuration);

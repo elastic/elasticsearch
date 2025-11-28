@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -545,6 +546,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             @Override
             public ExpressionEvaluator.Factory apply(Expression expression) {
                 return evaluator(expression);
+            }
+
+            @Override
+            public Configuration configuration() {
+                return configuration;
             }
 
             @Override

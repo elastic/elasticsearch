@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
 import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -174,8 +175,10 @@ public abstract class FullTextFunction extends Function
     }
 
     @Override
-    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        return queryBuilder != null ? new TranslationAwareExpressionQuery(source(), queryBuilder) : translate(pushdownPredicates, handler);
+    public Query asQuery(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        return queryBuilder != null
+            ? new TranslationAwareExpressionQuery(source(), queryBuilder)
+            : translate(configuration, pushdownPredicates, handler);
     }
 
     @Override
@@ -183,7 +186,7 @@ public abstract class FullTextFunction extends Function
         return queryBuilder;
     }
 
-    protected abstract Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler);
+    protected abstract Query translate(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler);
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {

@@ -321,7 +321,7 @@ public class PlannerUtils {
                     }
                 }
                 if (matches.isEmpty() == false) {
-                    Query qlQuery = TRANSLATOR_HANDLER.asQuery(ctx, Predicates.combineAnd(matches));
+                    Query qlQuery = TRANSLATOR_HANDLER.asQuery(configuration, ctx, Predicates.combineAnd(matches));
                     QueryBuilder builder = qlQuery.toQueryBuilder();
                     if (qlQuery.containsPlan()) {
                         builder = new PlanStreamWrapperQueryBuilder(configuration, builder);

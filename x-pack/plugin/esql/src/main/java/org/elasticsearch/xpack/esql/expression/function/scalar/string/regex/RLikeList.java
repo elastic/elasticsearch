@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.io.stream.ExpressionQuery;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
@@ -123,7 +124,7 @@ public class RLikeList extends RegexMatch<RLikePatternList> {
      * For now, we only support a single pattern in the list for pushdown.
      */
     @Override
-    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    public Query asQuery(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var field = field();
         LucenePushdownPredicates.checkIsPushableAttribute(field);
         return translateField(handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field));

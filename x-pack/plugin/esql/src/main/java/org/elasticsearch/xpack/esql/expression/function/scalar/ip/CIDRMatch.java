@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -184,7 +185,7 @@ public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.Si
     }
 
     @Override
-    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    public Query asQuery(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var fa = LucenePushdownPredicates.checkIsFieldAttribute(ipField);
         Check.isTrue(Expressions.foldable(matches), "Expected foldable matches, but got [{}]", matches);
 

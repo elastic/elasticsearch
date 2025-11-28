@@ -37,7 +37,10 @@ public class FoldInferenceFunctions implements LogicalPlanPreOptimizerRule {
     private final InferenceFunctionEvaluator inferenceFunctionEvaluator;
 
     public FoldInferenceFunctions(LogicalPreOptimizerContext preOptimizerContext) {
-        this(InferenceFunctionEvaluator.factory().create(preOptimizerContext.foldCtx(), preOptimizerContext.inferenceService()));
+        this(
+            InferenceFunctionEvaluator.factory()
+                .create(preOptimizerContext.configuration(), preOptimizerContext.foldCtx(), preOptimizerContext.inferenceService())
+        );
     }
 
     protected FoldInferenceFunctions(InferenceFunctionEvaluator inferenceFunctionEvaluator) {

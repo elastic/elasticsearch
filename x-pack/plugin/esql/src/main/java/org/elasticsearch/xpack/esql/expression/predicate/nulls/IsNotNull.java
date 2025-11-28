@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 
@@ -134,7 +135,7 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
     }
 
     @Override
-    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    public Query asQuery(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         return new ExistsQuery(source(), handler.nameOf(field()));
     }
 

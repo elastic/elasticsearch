@@ -20,10 +20,11 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -41,7 +42,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 
-public class DateTrunc extends EsqlConfigurationFunction {
+public class DateTrunc extends EsqlScalarFunction implements ConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DateTrunc",
@@ -83,21 +84,15 @@ public class DateTrunc extends EsqlConfigurationFunction {
             type = { "date_period", "time_duration" },
             description = "Interval; expressed using the timespan literal syntax."
         ) Expression interval,
-        @Param(name = "date", type = { "date", "date_nanos" }, description = "Date expression") Expression field,
-        Configuration configuration
+        @Param(name = "date", type = { "date", "date_nanos" }, description = "Date expression") Expression field
     ) {
-        super(source, List.of(interval, field), configuration);
+        super(source, List.of(interval, field));
         this.interval = interval;
         this.timestampField = field;
     }
 
     private DateTrunc(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            ((PlanStreamInput) in).configuration()
-        );
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
     @Override
@@ -120,8 +115,8 @@ public class DateTrunc extends EsqlConfigurationFunction {
         return timestampField;
     }
 
-    public ZoneId zoneId() {
-        return configuration().zoneId();
+    public ZoneId zoneId(Configuration configuration) {
+        return configuration.zoneId();
     }
 
     @Override
@@ -154,12 +149,12 @@ public class DateTrunc extends EsqlConfigurationFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new DateTrunc(source(), newChildren.get(0), newChildren.get(1), configuration());
+        return new DateTrunc(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, DateTrunc::new, children().get(0), children().get(1), configuration());
+        return NodeInfo.create(this, DateTrunc::new, children().get(0), children().get(1));
     }
 
     @Override
@@ -256,7 +251,12 @@ public class DateTrunc extends EsqlConfigurationFunction {
                 "Function [" + sourceText() + "] has invalid interval [" + interval.sourceText() + "]. " + e.getMessage()
             );
         }
-        return evaluator(dataType(), source(), fieldEvaluator, createRounding(foldedInterval, zoneId(), null, null));
+        return evaluator(
+            dataType(),
+            source(),
+            fieldEvaluator,
+            createRounding(foldedInterval, zoneId(toEvaluator.configuration()), null, null)
+        );
     }
 
     public static ExpressionEvaluator.Factory evaluator(

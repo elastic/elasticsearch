@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
@@ -135,7 +136,7 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
     }
 
     @Override
-    protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    protected Query translate(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         // Uses a term query that contributes to scoring
         return new TermQuery(source(), ((FieldAttribute) field()).name(), Foldables.queryAsObject(query(), sourceText()), false, true);
     }

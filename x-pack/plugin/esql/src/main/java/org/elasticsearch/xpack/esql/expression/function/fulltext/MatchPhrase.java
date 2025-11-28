@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchPhraseQuery;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -214,7 +215,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     }
 
     @Override
-    protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    protected Query translate(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var fieldAttribute = fieldAsFieldAttribute();
         Check.notNull(fieldAttribute, "MatchPhrase must have a field attribute as the first argument");
         String fieldName = getNameFromFieldAttribute(fieldAttribute);

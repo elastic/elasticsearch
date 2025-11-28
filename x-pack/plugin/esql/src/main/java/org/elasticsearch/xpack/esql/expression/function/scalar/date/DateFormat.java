@@ -21,13 +21,13 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,7 +41,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DA
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 
-public class DateFormat extends EsqlConfigurationFunction implements OptionalArgument {
+public class DateFormat extends EsqlScalarFunction implements ConfigurationFunction, OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DateFormat",
@@ -65,10 +65,9 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
             name = "date",
             type = { "date", "date_nanos" },
             description = "Date expression. If `null`, the function returns `null`."
-        ) Expression date,
-        Configuration configuration
+        ) Expression date
     ) {
-        super(source, date != null ? List.of(format, date) : List.of(format), configuration);
+        super(source, date != null ? List.of(format, date) : List.of(format));
         this.field = date != null ? date : format;
         this.format = date != null ? format : null;
     }
@@ -77,8 +76,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class),
-            ((PlanStreamInput) in).configuration()
+            in.readOptionalNamedWriteable(Expression.class)
         );
     }
 
@@ -169,13 +167,14 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
 
     private ExpressionEvaluator.Factory getEvaluator(
         DataType dateType,
+        Locale locale,
         EvalOperator.ExpressionEvaluator.Factory fieldEvaluator,
         EvalOperator.ExpressionEvaluator.Factory formatEvaluator
     ) {
         if (dateType == DATE_NANOS) {
-            return new DateFormatNanosEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, configuration().locale());
+            return new DateFormatNanosEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, locale);
         }
-        return new DateFormatMillisEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, configuration().locale());
+        return new DateFormatMillisEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, locale);
     }
 
     @Override
@@ -187,12 +186,13 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
         if (DataType.isString(format.dataType()) == false) {
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
         }
+        Locale locale = toEvaluator.configuration().locale();
         if (format.foldable()) {
-            DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()), configuration().locale());
+            DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()), locale);
             return getConstantEvaluator(field.dataType(), fieldEvaluator, formatter);
         }
         var formatEvaluator = toEvaluator.apply(format);
-        return getEvaluator(field().dataType(), fieldEvaluator, formatEvaluator);
+        return getEvaluator(field().dataType(), locale, fieldEvaluator, formatEvaluator);
     }
 
     private static DateFormatter toFormatter(Object format, Locale locale) {
@@ -202,13 +202,13 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new DateFormat(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null, configuration());
+        return new DateFormat(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
         Expression first = format != null ? format : field;
         Expression second = format != null ? field : null;
-        return NodeInfo.create(this, DateFormat::new, first, second, configuration());
+        return NodeInfo.create(this, DateFormat::new, first, second);
     }
 }

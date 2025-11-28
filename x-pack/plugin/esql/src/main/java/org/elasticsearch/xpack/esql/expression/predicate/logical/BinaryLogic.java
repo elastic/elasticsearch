@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -87,11 +88,11 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     @Override
-    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    public Query asQuery(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         return boolQuery(
             source(),
-            handler.asQuery(pushdownPredicates, left()),
-            handler.asQuery(pushdownPredicates, right()),
+            handler.asQuery(configuration, pushdownPredicates, left()),
+            handler.asQuery(configuration, pushdownPredicates, right()),
             this instanceof And
         );
     }

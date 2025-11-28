@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.Map;
@@ -95,7 +96,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
      * Some spatial functions can replace themselves with alternatives that are more efficient for certain cases.
      */
     @Override
-    public SpatialRelatesFunction surrogate() {
+    public SpatialRelatesFunction surrogate(Configuration configuration) {
         return this;
     }
 
@@ -296,7 +297,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     }
 
     @Override
-    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    public Query asQuery(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         if (left().foldable()) {
             checkSpatialRelatesFunction(left(), queryRelation());
             return translate(handler, right(), left());

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 /**
  * Expressions implementing this interface are asked provide an
@@ -48,7 +49,7 @@ public interface TranslationAware {
      * <p>and <b>not</b> this:</p>
      * <p>{@code Query childQuery = child.asQuery(handler);}</p>
      */
-    Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler);
+    Query asQuery(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler);
 
     /**
      * Translates this expression into a Lucene {@link org.apache.lucene.search.Query}.

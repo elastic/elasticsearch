@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -295,6 +296,11 @@ public class CaseExtraTests extends ESTestCase {
                     };
                 }
                 return AbstractFunctionTestCase.evaluator(expression);
+            }
+
+            @Override
+            public Configuration configuration() {
+                return configuration;
             }
 
             @Override

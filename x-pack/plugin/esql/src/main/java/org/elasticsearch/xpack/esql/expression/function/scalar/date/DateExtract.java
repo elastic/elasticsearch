@@ -21,12 +21,12 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.EsqlConver
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLongNanos;
 
-public class DateExtract extends EsqlConfigurationFunction {
+public class DateExtract extends EsqlScalarFunction implements ConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DateExtract",
@@ -76,19 +76,13 @@ public class DateExtract extends EsqlConfigurationFunction {
             name = "date",
             type = { "date", "date_nanos" },
             description = "Date expression. If `null`, the function returns `null`."
-        ) Expression field,
-        Configuration configuration
+        ) Expression field
     ) {
-        super(source, List.of(chronoFieldExp, field), configuration);
+        super(source, List.of(chronoFieldExp, field));
     }
 
     private DateExtract(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            ((PlanStreamInput) in).configuration()
-        );
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
     @Override
@@ -126,6 +120,8 @@ public class DateExtract extends EsqlConfigurationFunction {
 
         ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(children().get(1));
 
+        ZoneId zoneId = toEvaluator.configuration().zoneId();
+
         // Constant chrono field
         if (children().get(0).foldable()) {
             ChronoField chrono = chronoField(toEvaluator.foldCtx());
@@ -135,18 +131,18 @@ public class DateExtract extends EsqlConfigurationFunction {
             }
 
             if (isNanos) {
-                return new DateExtractConstantNanosEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
+                return new DateExtractConstantNanosEvaluator.Factory(source(), fieldEvaluator, chrono, zoneId);
             } else {
-                return new DateExtractConstantMillisEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
+                return new DateExtractConstantMillisEvaluator.Factory(source(), fieldEvaluator, chrono, zoneId);
             }
         }
 
         var chronoEvaluator = toEvaluator.apply(children().get(0));
 
         if (isNanos) {
-            return new DateExtractNanosEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
+            return new DateExtractNanosEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, zoneId);
         } else {
-            return new DateExtractMillisEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
+            return new DateExtractMillisEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, zoneId);
         }
 
     }
@@ -189,12 +185,12 @@ public class DateExtract extends EsqlConfigurationFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new DateExtract(source(), newChildren.get(0), newChildren.get(1), configuration());
+        return new DateExtract(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, DateExtract::new, children().get(0), children().get(1), configuration());
+        return NodeInfo.create(this, DateExtract::new, children().get(0), children().get(1));
     }
 
     @Override

@@ -109,8 +109,6 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         QueryString::readFrom
     );
 
-    private final Configuration configuration;
-
     // Options for QueryString. They don't need to be serialized as the data nodes will retrieve them from the query builder.
     private final transient Expression options;
 
@@ -272,15 +270,13 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
             description = "(Optional) Additional options for Query String as <<esql-function-named-params,function named parameters>>."
                 + " See <<query-dsl-query-string-query,query string query>> for more information.",
             optional = true
-        ) Expression options,
-        Configuration configuration
+        ) Expression options
     ) {
-        this(source, queryString, options, null, configuration);
+        this(source, queryString, options, null);
     }
 
-    public QueryString(Source source, Expression queryString, Expression options, QueryBuilder queryBuilder, Configuration configuration) {
+    public QueryString(Source source, Expression queryString, Expression options, QueryBuilder queryBuilder) {
         super(source, queryString, options == null ? List.of(queryString) : List.of(queryString, options), queryBuilder);
-        this.configuration = configuration;
         this.options = options;
     }
 
@@ -288,7 +284,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        return new QueryString(source, query, null, queryBuilder, ((PlanStreamInput) in).configuration());
+        return new QueryString(source, query, null, queryBuilder);
     }
 
     @Override
@@ -328,7 +324,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    private Map<String, Object> queryStringOptions() throws InvalidArgumentException {
+    private Map<String, Object> queryStringOptions(Configuration configuration) throws InvalidArgumentException {
         if (options() == null && configuration.zoneId().equals(ZoneOffset.UTC)) {
             return null;
         }
@@ -348,28 +344,22 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new QueryString(
-            source(),
-            newChildren.getFirst(),
-            newChildren.size() == 1 ? null : newChildren.get(1),
-            queryBuilder(),
-            configuration
-        );
+        return new QueryString(source(), newChildren.getFirst(), newChildren.size() == 1 ? null : newChildren.get(1), queryBuilder());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, QueryString::new, query(), options(), queryBuilder(), configuration);
+        return NodeInfo.create(this, QueryString::new, query(), options(), queryBuilder());
     }
 
     @Override
-    protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        return new QueryStringQuery(source(), Foldables.queryAsString(query(), sourceText()), Map.of(), queryStringOptions());
+    protected Query translate(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        return new QueryStringQuery(source(), Foldables.queryAsString(query(), sourceText()), Map.of(), queryStringOptions(configuration));
     }
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new QueryString(source(), query(), options(), queryBuilder, configuration);
+        return new QueryString(source(), query(), options(), queryBuilder);
     }
 
     @Override
@@ -378,13 +368,11 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         // ignore options when comparing.
         if (o == null || getClass() != o.getClass()) return false;
         var qstr = (QueryString) o;
-        return Objects.equals(query(), qstr.query())
-            && Objects.equals(queryBuilder(), qstr.queryBuilder())
-            && Objects.equals(configuration, qstr.configuration);
+        return Objects.equals(query(), qstr.query()) && Objects.equals(queryBuilder(), qstr.queryBuilder());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(query(), queryBuilder(), configuration);
+        return Objects.hash(query(), queryBuilder());
     }
 }

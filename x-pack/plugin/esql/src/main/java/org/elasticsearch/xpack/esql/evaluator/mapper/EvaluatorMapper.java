@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import static org.elasticsearch.compute.data.BlockUtils.fromArrayRow;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -34,6 +35,8 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 public interface EvaluatorMapper {
     interface ToEvaluator {
         ExpressionEvaluator.Factory apply(Expression expression);
+
+        Configuration configuration();
 
         FoldContext foldCtx();
 
@@ -76,7 +79,7 @@ public interface EvaluatorMapper {
      * Fold using {@link #toEvaluator} so you don't need a "by hand"
      * implementation of {@link Expression#fold}.
      */
-    default Object fold(Source source, FoldContext ctx) {
+    default Object fold(Source source, Configuration configuration, FoldContext ctx) {
         /*
          * OK! So! We're going to build a bunch of *stuff* that so that we can
          * call toEvaluator and use it without standing up an entire compute
@@ -109,6 +112,11 @@ public interface EvaluatorMapper {
                     @Override
                     public void close() {}
                 };
+            }
+
+            @Override
+            public Configuration configuration() {
+                return configuration;
             }
 
             @Override

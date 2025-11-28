@@ -18,16 +18,16 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
 
-public class Now extends EsqlConfigurationFunction {
+public class Now extends EsqlScalarFunction implements ConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Now", Now::new);
 
     private final long now;
@@ -39,14 +39,12 @@ public class Now extends EsqlConfigurationFunction {
             @Example(file = "date", tag = "docsNow"),
             @Example(file = "date", tag = "docsNowWhere", description = "To retrieve logs from the last hour:") }
     )
-    public Now(Source source, Configuration configuration) {
-        super(source, List.of(), configuration);
-        assert configuration.now() != null;
-        this.now = configuration.now().toInstant().toEpochMilli();
+    public Now(Source source) {
+        super(source, List.of());
     }
 
     private Now(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).configuration());
+        this(Source.readFrom((PlanStreamInput) in));
     }
 
     @Override
@@ -61,7 +59,8 @@ public class Now extends EsqlConfigurationFunction {
 
     @Override
     public Object fold(FoldContext ctx) {
-        return now;
+        assert configuration.now() != null;
+        return configuration.now().toInstant().toEpochMilli();
     }
 
     @Override
@@ -86,11 +85,12 @@ public class Now extends EsqlConfigurationFunction {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Now::new, configuration());
+        return NodeInfo.create(this);
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return dvrCtx -> new NowEvaluator(source(), now, dvrCtx);
+        assert toEvaluator.configuration().now() != null;
+        return dvrCtx -> new NowEvaluator(source(), toEvaluator.configuration().now().toInstant().toEpochMilli(), dvrCtx);
     }
 }

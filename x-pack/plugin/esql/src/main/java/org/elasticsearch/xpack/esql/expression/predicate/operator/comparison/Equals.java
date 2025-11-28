@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.EqualsSyntheticSourceDelegate;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.ZoneId;
 import java.util.Collection;
@@ -156,7 +157,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
     }
 
     @Override
-    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    public Query asQuery(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         if (right() instanceof Literal lit) {
             if (left().dataType() == DataType.TEXT && left() instanceof FieldAttribute fa) {
                 String value = ((BytesRef) lit.value()).utf8ToString();
@@ -166,7 +167,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                 }
             }
         }
-        return super.asQuery(pushdownPredicates, handler);
+        return super.asQuery(configuration, pushdownPredicates, handler);
     }
 
     @Override

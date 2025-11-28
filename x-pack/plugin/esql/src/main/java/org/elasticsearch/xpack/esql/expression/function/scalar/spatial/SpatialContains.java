@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -239,7 +240,7 @@ public class SpatialContains extends SpatialRelatesFunction {
      * This also makes other optimizations, like lucene-pushdown, simpler to develop.
      */
     @Override
-    public SpatialRelatesFunction surrogate() {
+    public SpatialRelatesFunction surrogate(Configuration configuration) {
         if (left().foldable() && right().foldable() == false) {
             return new SpatialWithin(source(), right(), left(), rightDocValues, leftDocValues);
         }

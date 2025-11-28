@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedu
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
@@ -218,7 +219,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     }
 
     @Override
-    public Expression surrogate() {
+    public Expression surrogate(Configuration configuration) {
         var s = source();
         var field = field();
 

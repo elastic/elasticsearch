@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -153,7 +154,7 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
      * This also makes other optimizations, like lucene-pushdown, simpler to develop.
      */
     @Override
-    public SpatialRelatesFunction surrogate() {
+    public SpatialRelatesFunction surrogate(Configuration configuration) {
         if (left().foldable() && right().foldable() == false) {
             return new SpatialContains(source(), right(), left(), rightDocValues, leftDocValues);
         }

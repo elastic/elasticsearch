@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallel
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -158,12 +159,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     private final PlannerSettings plannerSettings;
 
     public EsPhysicalOperationProviders(
+        Configuration configuration,
         FoldContext foldContext,
         IndexedByShardId<? extends ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
         PlannerSettings plannerSettings
     ) {
-        super(foldContext, analysisRegistry);
+        super(configuration, foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
         this.plannerSettings = plannerSettings;
     }
@@ -216,7 +218,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
             return conversion == null
                 ? BlockLoader.CONSTANT_NULLS
-                : new TypeConvertingBlockLoader(blockLoader, (EsqlScalarFunction) conversion);
+                : new TypeConvertingBlockLoader(blockLoader, (EsqlScalarFunction) conversion, configuration);
         }
         return blockLoader;
     }
@@ -592,9 +594,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final BlockLoader delegate;
         private final TypeConverter typeConverter;
 
-        protected TypeConvertingBlockLoader(BlockLoader delegate, EsqlScalarFunction convertFunction) {
+        protected TypeConvertingBlockLoader(BlockLoader delegate, EsqlScalarFunction convertFunction, Configuration configuration) {
             this.delegate = delegate;
-            this.typeConverter = TypeConverter.fromScalarFunction(convertFunction);
+            this.typeConverter = TypeConverter.fromScalarFunction(convertFunction, configuration);
         }
 
         @Override

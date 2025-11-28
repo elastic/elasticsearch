@@ -19,14 +19,14 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -38,7 +38,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 
-public class MonthName extends EsqlConfigurationFunction {
+public class MonthName extends EsqlScalarFunction implements ConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MonthName",
@@ -59,15 +59,14 @@ public class MonthName extends EsqlConfigurationFunction {
             name = "date",
             type = { "date", "date_nanos" },
             description = "Date expression. If `null`, the function returns `null`."
-        ) Expression date,
-        Configuration configuration
+        ) Expression date
     ) {
-        super(source, List.of(date), configuration);
+        super(source, List.of(date));
         this.field = date;
     }
 
     private MonthName(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), ((PlanStreamInput) in).configuration());
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
     }
 
     @Override
@@ -113,20 +112,22 @@ public class MonthName extends EsqlConfigurationFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
+        ZoneId zoneId = toEvaluator.configuration().zoneId();
+        Locale locale = toEvaluator.configuration().locale();
         if (field().dataType() == DataType.DATE_NANOS) {
-            return new MonthNameNanosEvaluator.Factory(source(), fieldEvaluator, configuration().zoneId(), configuration().locale());
+            return new MonthNameNanosEvaluator.Factory(source(), fieldEvaluator, zoneId, locale);
         }
-        return new MonthNameMillisEvaluator.Factory(source(), fieldEvaluator, configuration().zoneId(), configuration().locale());
+        return new MonthNameMillisEvaluator.Factory(source(), fieldEvaluator, zoneId, locale);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new MonthName(source(), newChildren.get(0), configuration());
+        return new MonthName(source(), newChildren.get(0));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, MonthName::new, field, configuration());
+        return NodeInfo.create(this, MonthName::new, field);
     }
 
     @Evaluator(extraName = "Millis")

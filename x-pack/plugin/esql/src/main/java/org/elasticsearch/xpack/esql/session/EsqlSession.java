@@ -244,7 +244,7 @@ public class EsqlSession {
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
 
                     var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
-                        new LogicalPreOptimizerContext(foldContext, inferenceService, minimumVersion)
+                        new LogicalPreOptimizerContext(configuration, foldContext, inferenceService, minimumVersion)
                     );
                     var logicalPlanOptimizer = new LogicalPlanOptimizer(
                         new LogicalOptimizerContext(configuration, foldContext, minimumVersion)
@@ -254,6 +254,7 @@ public class EsqlSession {
                         .<LogicalPlan>andThen(
                             (l, p) -> preMapper.preMapper(
                                 new Versioned<>(optimizedPlan(p, logicalPlanOptimizer, planTimeProfile), minimumVersion),
+                                configuration,
                                 l
                             )
                         )

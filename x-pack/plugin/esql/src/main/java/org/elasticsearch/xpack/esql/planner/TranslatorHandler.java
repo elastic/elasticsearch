@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 /**
  * Handler used during query translation.
@@ -30,9 +31,9 @@ public final class TranslatorHandler {
 
     private TranslatorHandler() {}
 
-    public Query asQuery(LucenePushdownPredicates predicates, Expression e) {
+    public Query asQuery(Configuration configuration, LucenePushdownPredicates predicates, Expression e) {
         if (e instanceof TranslationAware ta) {
-            Query query = ta.asQuery(predicates, this);
+            Query query = ta.asQuery(configuration, predicates, this);
             return ta instanceof TranslationAware.SingleValueTranslationAware sv ? wrapFunctionQuery(sv.singleValueField(), query) : query;
         }
 

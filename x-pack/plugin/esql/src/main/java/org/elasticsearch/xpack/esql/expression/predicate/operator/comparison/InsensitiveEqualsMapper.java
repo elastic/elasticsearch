@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import static org.elasticsearch.xpack.esql.evaluator.EvalMapper.toEvaluator;
 
@@ -31,6 +32,7 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
 
     @Override
     public final ExpressionEvaluator.Factory map(
+        Configuration configuration,
         FoldContext foldCtx,
         InsensitiveEquals bc,
         Layout layout,
@@ -39,8 +41,8 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
         DataType leftType = bc.left().dataType();
         DataType rightType = bc.right().dataType();
 
-        var leftEval = toEvaluator(foldCtx, bc.left(), layout, shardContexts);
-        var rightEval = toEvaluator(foldCtx, bc.right(), layout, shardContexts);
+        var leftEval = toEvaluator(configuration, foldCtx, bc.left(), layout, shardContexts);
+        var rightEval = toEvaluator(configuration, foldCtx, bc.right(), layout, shardContexts);
         if (DataType.isString(leftType)) {
             if (bc.right().foldable() && DataType.isString(rightType)) {
                 BytesRef rightVal = BytesRefs.toBytesRef(bc.right().fold(foldCtx));

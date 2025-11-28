@@ -323,6 +323,7 @@ public class LocalExecutionPlanner {
         String inferenceId = BytesRefs.toString(completion.inferenceId().fold(context.foldCtx()));
         Layout outputLayout = source.layout.builder().append(completion.targetField()).build();
         EvalOperator.ExpressionEvaluator.Factory promptEvaluatorFactory = EvalMapper.toEvaluator(
+            configuration,
             context.foldCtx(),
             completion.prompt(),
             source.layout
@@ -525,7 +526,13 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(eval.child(), context);
 
         for (Alias field : eval.fields()) {
-            var evaluatorSupplier = EvalMapper.toEvaluator(context.foldCtx(), field.child(), source.layout, context.shardContexts);
+            var evaluatorSupplier = EvalMapper.toEvaluator(
+                configuration,
+                context.foldCtx(),
+                field.child(),
+                source.layout,
+                context.shardContexts
+            );
             Layout.Builder layout = source.layout.builder();
             layout.append(field.toAttribute());
             source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
@@ -546,7 +553,7 @@ public class LocalExecutionPlanner {
         source = source.with(
             new StringExtractOperator.StringExtractOperatorFactory(
                 patternNames,
-                EvalMapper.toEvaluator(context.foldCtx(), expr, layout),
+                EvalMapper.toEvaluator(configuration, context.foldCtx(), expr, layout),
                 () -> (input) -> dissect.parser().parser().parse(input)
             ),
             layout
@@ -578,7 +585,7 @@ public class LocalExecutionPlanner {
         source = source.with(
             new ColumnExtractOperator.Factory(
                 types,
-                EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout),
+                EvalMapper.toEvaluator(configuration, context.foldCtx(), grok.inputExpression(), layout),
                 () -> new GrokEvaluatorExtracter(grok.pattern().grok(), grok.pattern().pattern(), fieldToPos, fieldToType)
             ),
             layout
@@ -632,12 +639,17 @@ public class LocalExecutionPlanner {
             for (var rerankField : rerank.rerankFields()) {
                 rerankFieldsEvaluatorSuppliers.put(
                     new ColumnInfoImpl(rerankField.name(), rerankField.dataType(), null),
-                    EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout)
+                    EvalMapper.toEvaluator(configuration, context.foldCtx(), rerankField.child(), source.layout)
                 );
             }
             rowEncoderFactory = XContentRowEncoder.yamlRowEncoderFactory(rerankFieldsEvaluatorSuppliers);
         } else {
-            rowEncoderFactory = EvalMapper.toEvaluator(context.foldCtx(), rerank.rerankFields().get(0).child(), source.layout);
+            rowEncoderFactory = EvalMapper.toEvaluator(
+                configuration,
+                context.foldCtx(),
+                rerank.rerankFields().get(0).child(),
+                source.layout
+            );
         }
 
         String inferenceId = BytesRefs.toString(rerank.inferenceId().fold(context.foldCtx));
@@ -860,7 +872,9 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(filter.child(), context);
         // TODO: should this be extracted into a separate eval block?
         PhysicalOperation filterOperation = source.with(
-            new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, context.shardContexts)),
+            new FilterOperatorFactory(
+                EvalMapper.toEvaluator(configuration, context.foldCtx(), filter.condition(), source.layout, context.shardContexts)
+            ),
             source.layout
         );
         if (PlannerUtils.usesScoring(filter)) {

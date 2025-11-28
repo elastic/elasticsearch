@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -94,7 +93,6 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         (zoneId) -> Rounding.builder(TimeValue.timeValueMillis(1)).timeZone(zoneId).build()
     );
 
-    private final Configuration configuration;
     private final Expression field;
     private final Expression buckets;
     private final Expression from;
@@ -217,15 +215,13 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             type = { "integer", "long", "double", "date", "keyword", "text" },
             optional = true,
             description = "End of the range. Can be a number, a date or a date expressed as a string."
-        ) Expression to,
-        Configuration configuration
+        ) Expression to
     ) {
         super(source, fields(field, buckets, from, to));
         this.field = field;
         this.buckets = buckets;
         this.from = from;
         this.to = to;
-        this.configuration = configuration;
     }
 
     private Bucket(StreamInput in) throws IOException {
@@ -234,8 +230,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class),
-            ((PlanStreamInput) in).configuration()
+            in.readOptionalNamedWriteable(Expression.class)
         );
     }
 
@@ -274,7 +269,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
-            Rounding.Prepared preparedRounding = getDateRounding(toEvaluator.foldCtx());
+            Rounding.Prepared preparedRounding = getDateRounding(toEvaluator.configuration(), toEvaluator.foldCtx());
             return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {
@@ -309,11 +304,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         }
     }
 
-    private Rounding.Prepared getDateRounding(FoldContext foldContext) {
-        return getDateRounding(foldContext, null, null);
+    private Rounding.Prepared getDateRounding(Configuration configuration, FoldContext foldContext) {
+        return getDateRounding(configuration, foldContext, null, null);
     }
 
-    public Rounding.Prepared getDateRounding(FoldContext foldContext, Long min, Long max) {
+    public Rounding.Prepared getDateRounding(Configuration configuration, FoldContext foldContext, Long min, Long max) {
         assert field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS : "expected date type; got " + field;
         if (buckets.dataType().isWholeNumber()) {
             int b = ((Number) buckets.fold(foldContext)).intValue();
@@ -477,12 +472,12 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     public Expression replaceChildren(List<Expression> newChildren) {
         Expression from = newChildren.size() > 2 ? newChildren.get(2) : null;
         Expression to = newChildren.size() > 3 ? newChildren.get(3) : null;
-        return new Bucket(source(), newChildren.get(0), newChildren.get(1), from, to, configuration);
+        return new Bucket(source(), newChildren.get(0), newChildren.get(1), from, to);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Bucket::new, field, buckets, from, to, configuration);
+        return NodeInfo.create(this, Bucket::new, field, buckets, from, to);
     }
 
     public Expression field() {
@@ -504,20 +499,5 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     @Override
     public String toString() {
         return "Bucket{" + "field=" + field + ", buckets=" + buckets + ", from=" + from + ", to=" + to + '}';
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(getClass(), children(), configuration);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj) == false) {
-            return false;
-        }
-        Bucket other = (Bucket) obj;
-
-        return configuration.equals(other.configuration);
     }
 }

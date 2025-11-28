@@ -443,7 +443,7 @@ public class EsqlFunctionRegistry {
                 def(Chunk.class, bi(Chunk::new), "chunk") },
             // date
             new FunctionDefinition[] {
-                def(DateDiff.class, tric(DateDiff::new), "date_diff"),
+                def(DateDiff.class, DateDiff::new, "date_diff"),
                 def(DateExtract.class, DateExtract::new, "date_extract"),
                 def(DateFormat.class, DateFormat::new, "date_format"),
                 def(DateParse.class, DateParse::new, "date_parse"),
@@ -530,22 +530,22 @@ public class EsqlFunctionRegistry {
             // search functions
             new FunctionDefinition[] {
                 def(Decay.class, quad(Decay::new), "decay"),
-                def(Kql.class, bic(Kql::new), "kql"),
+                def(Kql.class, bi(Kql::new), "kql"),
                 def(Knn.class, tri(Knn::new), "knn"),
                 def(Match.class, tri(Match::new), "match"),
                 def(MultiMatch.class, MultiMatch::new, "multi_match"),
-                def(QueryString.class, bic(QueryString::new), "qstr"),
+                def(QueryString.class, bi(QueryString::new), "qstr"),
                 def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase"),
                 def(Score.class, uni(Score::new), "score"),
                 def(TopSnippets.class, tri(TopSnippets::new), "top_snippets") },
             // time-series functions
             new FunctionDefinition[] {
-                defTS3(Rate.class, Rate::new, "rate"),
-                defTS3(Irate.class, Irate::new, "irate"),
-                defTS3(Idelta.class, Idelta::new, "idelta"),
-                defTS3(Delta.class, Delta::new, "delta"),
-                defTS3(Increase.class, Increase::new, "increase"),
-                defTS3(Deriv.class, Deriv::new, "deriv"),
+                defTS(Rate.class, Rate::new, "rate"),
+                defTS(Irate.class, Irate::new, "irate"),
+                defTS(Idelta.class, Idelta::new, "idelta"),
+                defTS(Delta.class, Delta::new, "delta"),
+                defTS(Increase.class, Increase::new, "increase"),
+                defTS(Deriv.class, Deriv::new, "deriv"),
                 def(MaxOverTime.class, bi(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, bi(MinOverTime::new), "min_over_time"),
                 def(SumOverTime.class, bi(SumOverTime::new), "sum_over_time"),
@@ -556,8 +556,8 @@ public class EsqlFunctionRegistry {
                 def(PresentOverTime.class, bi(PresentOverTime::new), "present_over_time"),
                 def(AbsentOverTime.class, bi(AbsentOverTime::new), "absent_over_time"),
                 def(AvgOverTime.class, bi(AvgOverTime::new), "avg_over_time"),
-                defTS3(LastOverTime.class, LastOverTime::new, "last_over_time"),
-                defTS3(FirstOverTime.class, FirstOverTime::new, "first_over_time"),
+                defTS(LastOverTime.class, LastOverTime::new, "last_over_time"),
+                defTS(FirstOverTime.class, FirstOverTime::new, "first_over_time"),
                 def(PercentileOverTime.class, bi(PercentileOverTime::new), "percentile_over_time"),
                 // dense vector function
                 def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
@@ -966,7 +966,7 @@ public class EsqlFunctionRegistry {
     }
 
     protected interface FunctionBuilder {
-        Function build(Source source, List<Expression> children, Configuration cfg);
+        Function build(Source source, List<Expression> children);
     }
 
     /**
@@ -979,7 +979,7 @@ public class EsqlFunctionRegistry {
         Check.isTrue(names.length > 0, "At least one name must be provided for the function");
         String primaryName = names[0];
         List<String> aliases = Arrays.asList(names).subList(1, names.length);
-        FunctionDefinition.Builder realBuilder = (uf, cfg, extras) -> {
+        FunctionDefinition.Builder realBuilder = (uf, extras) -> {
             if (CollectionUtils.isEmpty(extras) == false) {
                 throw new ParsingException(
                     uf.source(),
@@ -989,7 +989,7 @@ public class EsqlFunctionRegistry {
                 );
             }
             try {
-                return builder.build(uf.source(), uf.children(), cfg);
+                return builder.build(uf.source(), uf.children());
             } catch (QlIllegalArgumentException e) {
                 throw new ParsingException(e, uf.source(), "error building [{}]: {}", primaryName, e.getMessage());
             }
@@ -1005,7 +1005,7 @@ public class EsqlFunctionRegistry {
         java.util.function.Function<Source, T> ctorRef,
         String... names
     ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children) -> {
             if (false == children.isEmpty()) {
                 throw new QlIllegalArgumentException("expects no arguments");
             }
@@ -1023,7 +1023,7 @@ public class EsqlFunctionRegistry {
         BiFunction<Source, Expression, T> ctorRef,
         String... names
     ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children) -> {
             checkIsUniFunction(children.size());
             return ctorRef.apply(source, children.get(0));
         };
@@ -1035,7 +1035,7 @@ public class EsqlFunctionRegistry {
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
     protected <T extends Function> FunctionDefinition def(Class<T> function, NaryBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> { return ctorRef.build(source, children); };
+        FunctionBuilder builder = (source, children) -> { return ctorRef.build(source, children); };
         return def(function, builder, names);
     }
 
@@ -1048,7 +1048,7 @@ public class EsqlFunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     public static <T extends Function> FunctionDefinition def(Class<T> function, BinaryBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children) -> {
             boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
             if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
                 throw new QlIllegalArgumentException(
@@ -1073,7 +1073,7 @@ public class EsqlFunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     protected static <T extends Function> FunctionDefinition def(Class<T> function, TernaryBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children) -> {
             checkIsOptionalTriFunction(function, children.size());
             return ctorRef.build(
                 source,
@@ -1094,7 +1094,7 @@ public class EsqlFunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     protected static <T extends Function> FunctionDefinition def(Class<T> function, QuaternaryBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children) -> {
             if (OptionalArgument.class.isAssignableFrom(function)) {
                 if (children.size() > 4 || children.size() < 3) {
                     throw new QlIllegalArgumentException("expects three or four arguments");
@@ -1131,7 +1131,7 @@ public class EsqlFunctionRegistry {
         int numOptionalParams,
         String... names
     ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children) -> {
             final int NUM_TOTAL_PARAMS = 5;
             boolean hasOptionalParams = OptionalArgument.class.isAssignableFrom(function);
             if (hasOptionalParams && (children.size() > NUM_TOTAL_PARAMS || children.size() < NUM_TOTAL_PARAMS - numOptionalParams)) {
@@ -1166,7 +1166,7 @@ public class EsqlFunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     protected static <T extends Function> FunctionDefinition def(Class<T> function, UnaryVariadicBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children) -> {
             boolean hasMinimumOne = OptionalArgument.class.isAssignableFrom(function);
             if (hasMinimumOne && children.size() < 1) {
                 throw new QlIllegalArgumentException("expects at least one argument");
@@ -1191,7 +1191,7 @@ public class EsqlFunctionRegistry {
         BinaryVariadicWithOptionsBuilder<T> ctorRef,
         String... names
     ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children) -> {
             boolean hasMinimumOne = OptionalArgument.class.isAssignableFrom(function);
             if (hasMinimumOne && children.size() < 1) {
                 throw new QlIllegalArgumentException("expects at least one argument");
@@ -1208,158 +1208,18 @@ public class EsqlFunctionRegistry {
         return def(function, builder, names);
     }
 
-    /**
-     * Build a {@linkplain FunctionDefinition} for a no-argument function that is configuration aware.
-     */
-    @SuppressWarnings("overloads")
-    protected static <T extends Function> FunctionDefinition def(Class<T> function, ConfigurationAwareBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            if (false == children.isEmpty()) {
-                throw new QlIllegalArgumentException("expects no arguments");
-            }
-            return ctorRef.build(source, cfg);
-        };
-        return def(function, builder, names);
-    }
-
-    protected interface ConfigurationAwareBuilder<T> {
-        T build(Source source, Configuration configuration);
-    }
-
-    /**
-     * Build a {@linkplain FunctionDefinition} for a one-argument function that is configuration aware.
-     */
-    @SuppressWarnings("overloads")
-    public static <T extends Function> FunctionDefinition def(
-        Class<T> function,
-        UnaryConfigurationAwareBuilder<T> ctorRef,
-        String... names
-    ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            if (children.size() != 1) {
-                throw new QlIllegalArgumentException("expects exactly one argument");
-            }
-            Expression ex = children.get(0);
-            return ctorRef.build(source, ex, cfg);
-        };
-        return def(function, builder, names);
-    }
-
-    public interface UnaryConfigurationAwareBuilder<T> {
-        T build(Source source, Expression exp, Configuration configuration);
-    }
-
-    /**
-     * Build a {@linkplain FunctionDefinition} for a binary function that is configuration aware.
-     */
-    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(
-        Class<T> function,
-        BinaryConfigurationAwareBuilder<T> ctorRef,
-        String... names
-    ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            checkIsOptionalBiFunction(function, children.size());
-            return ctorRef.build(source, children.get(0), children.size() == 2 ? children.get(1) : null, cfg);
-        };
-        return def(function, builder, names);
-    }
-
-    protected interface BinaryConfigurationAwareBuilder<T> {
-        T build(Source source, Expression left, Expression right, Configuration configuration);
-    }
-
-    /**
-     * Build a {@linkplain FunctionDefinition} for a ternary function that is configuration aware.
-     */
-    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(
-        Class<T> function,
-        TernaryConfigurationAwareBuilder<T> ctorRef,
-        String... names
-    ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            checkIsOptionalTriFunction(function, children.size());
-            return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null, cfg);
-        };
-        return def(function, builder, names);
-    }
-
-    protected interface TernaryConfigurationAwareBuilder<T> {
-        T build(Source source, Expression one, Expression two, Expression three, Configuration configuration);
-    }
-
-    /**
-     * Build a {@linkplain FunctionDefinition} for a quaternary function that is configuration aware.
-     */
-    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(
-        Class<T> function,
-        QuaternaryConfigurationAwareBuilder<T> ctorRef,
-        String... names
-    ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            checkIsOptionalQuadFunction(function, children.size());
-            return ctorRef.build(
-                source,
-                children.get(0),
-                children.get(1),
-                children.size() > 2 ? children.get(2) : null,
-                children.size() > 3 ? children.get(3) : null,
-                cfg
-            );
-        };
-        return def(function, builder, names);
-    }
-
-    protected interface QuaternaryConfigurationAwareBuilder<T> {
-        T build(Source source, Expression one, Expression two, Expression three, Expression four, Configuration configuration);
-    }
-
     protected static <T extends Function> FunctionDefinition defTS(Class<T> function, BinaryBuilder<T> ctorRef, String... names) {
         checkIsTimestampAware(function);
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children) -> {
             checkIsUniFunction(children.size());
             return ctorRef.build(source, children.getFirst(), UnresolvedTimestamp.withSource(source));
         };
         return def(function, builder, names);
     }
 
-    protected static <T extends Function> FunctionDefinition defTS(
-        Class<T> function,
-        BinaryConfigurationAwareBuilder<T> ctorRef,
-        String... names
-    ) {
+    protected static <T extends Function> FunctionDefinition defTS(Class<T> function, TernaryBuilder<T> ctorRef, String... names) {
         checkIsTimestampAware(function);
-        FunctionBuilder builder = (source, children, cfg) -> {
-            checkIsUniFunction(children.size());
-            return ctorRef.build(source, children.getFirst(), UnresolvedTimestamp.withSource(source), cfg);
-        };
-        return def(function, builder, names);
-    }
-
-    protected static <T extends Function> FunctionDefinition defTS(
-        Class<T> function,
-        TernaryConfigurationAwareBuilder<T> ctorRef,
-        String... names
-    ) {
-        checkIsTimestampAware(function);
-        FunctionBuilder builder = (source, children, cfg) -> {
-            checkIsOptionalBiFunction(function, children.size());
-            return ctorRef.build(
-                source,
-                children.get(0),
-                children.size() == 2 ? children.get(1) : null,
-                UnresolvedTimestamp.withSource(source),
-                cfg
-            );
-        };
-        return def(function, builder, names);
-    }
-
-    protected static <T extends Function> FunctionDefinition defTS3(Class<T> function, TernaryBuilder<T> ctorRef, String... names) {
-        checkIsTimestampAware(function);
-        FunctionBuilder builder = (source, children, cfg) -> {
+        FunctionBuilder builder = (source, children) -> {
             checkIsOptionalBiFunction(function, children.size());
             return ctorRef.build(
                 source,
@@ -1379,23 +1239,11 @@ public class EsqlFunctionRegistry {
         return function;
     }
 
-    private static <T extends Function> UnaryConfigurationAwareBuilder<T> unic(UnaryConfigurationAwareBuilder<T> function) {
-        return function;
-    }
-
     private static <T extends Function> BinaryBuilder<T> bi(BinaryBuilder<T> function) {
         return function;
     }
 
-    private static <T extends Function> BinaryConfigurationAwareBuilder<T> bic(BinaryConfigurationAwareBuilder<T> function) {
-        return function;
-    }
-
     private static <T extends Function> TernaryBuilder<T> tri(TernaryBuilder<T> function) {
-        return function;
-    }
-
-    private static <T extends Function> TernaryConfigurationAwareBuilder<T> tric(TernaryConfigurationAwareBuilder<T> function) {
         return function;
     }
 
@@ -1433,20 +1281,6 @@ public class EsqlFunctionRegistry {
             throw new QlIllegalArgumentException("expects two or three arguments");
         } else if (hasMinimumOne == false && hasMinimumTwo == false && childrenSize != 3) {
             throw new QlIllegalArgumentException("expects exactly three arguments");
-        }
-    }
-
-    private static void checkIsOptionalQuadFunction(Class<? extends Function> function, int childrenSize) {
-        if (OptionalArgument.class.isAssignableFrom(function)) {
-            if (childrenSize > 4 || childrenSize < 3) {
-                throw new QlIllegalArgumentException("expects three or four arguments");
-            }
-        } else if (TwoOptionalArguments.class.isAssignableFrom(function)) {
-            if (childrenSize > 4 || childrenSize < 2) {
-                throw new QlIllegalArgumentException("expects minimum two, maximum four arguments");
-            }
-        } else if (childrenSize != 4) {
-            throw new QlIllegalArgumentException("expects exactly four arguments");
         }
     }
 }

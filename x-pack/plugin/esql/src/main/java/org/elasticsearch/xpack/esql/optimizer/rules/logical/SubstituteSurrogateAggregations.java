@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -32,13 +33,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public final class SubstituteSurrogateAggregations extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class SubstituteSurrogateAggregations extends OptimizerRules.ParameterizedOptimizerRule<Aggregate, LogicalOptimizerContext> {
     public SubstituteSurrogateAggregations() {
         super(OptimizerRules.TransformDirection.UP);
     }
 
     @Override
-    protected LogicalPlan rule(Aggregate aggregate) {
+    protected LogicalPlan rule(Aggregate aggregate, LogicalOptimizerContext context) {
         var aggs = aggregate.aggregates();
         List<NamedExpression> newAggs = new ArrayList<>(aggs.size());
         // existing aggregate and their respective attributes
@@ -50,7 +51,7 @@ public final class SubstituteSurrogateAggregations extends OptimizerRules.Optimi
         // first pass to check existing aggregates (to avoid duplication and alias waste)
         for (NamedExpression agg : aggs) {
             if (Alias.unwrap(agg) instanceof AggregateFunction af) {
-                if ((af instanceof SurrogateExpression se && se.surrogate() != null) == false) {
+                if ((af instanceof SurrogateExpression se && se.surrogate(context.configuration()) != null) == false) {
                     aggFuncToAttr.put(af, agg.toAttribute());
                 }
             }
@@ -60,9 +61,9 @@ public final class SubstituteSurrogateAggregations extends OptimizerRules.Optimi
         // 0. check list of surrogate expressions
         for (NamedExpression agg : aggs) {
             Expression e = Alias.unwrap(agg);
-            if (e instanceof SurrogateExpression sf && sf.surrogate() != null) {
+            if (e instanceof SurrogateExpression sf && sf.surrogate(context.configuration()) != null) {
                 changed = true;
-                Expression s = sf.surrogate();
+                Expression s = sf.surrogate(context.configuration());
 
                 // if the expression is NOT a 1:1 replacement need to add an eval
                 if (s instanceof AggregateFunction == false) {

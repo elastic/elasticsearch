@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.KnnQuery;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -229,7 +230,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     }
 
     @Override
-    protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    protected Query translate(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         assert implicitK() != null : "Knn function must have a k value set before translation";
         var fieldAttribute = fieldAsFieldAttribute(field());
 
@@ -244,7 +245,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
                 // Knn won't be pushed down so it's safe not to translate all filters and check them when creating an evaluator
                 // for the non-pushed down query
                 if (translationAware.translatable(pushdownPredicates) == Translatable.YES) {
-                    filterQueries.add(handler.asQuery(pushdownPredicates, filterExpression).toQueryBuilder());
+                    filterQueries.add(handler.asQuery(configuration, pushdownPredicates, filterExpression).toQueryBuilder());
                 }
             }
         }

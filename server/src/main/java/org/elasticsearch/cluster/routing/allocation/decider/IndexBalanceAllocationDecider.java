@@ -95,7 +95,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         final IndexMetadata indexMetadata = allocation.getClusterState().metadata().getProject(projectId).index(index);
 
         if (hasIndexRoutingFilters(indexMetadata)) {
-            return allocation.decision(Decision.YES, NAME, "Decider is disabled.");
+            return allocation.decision(Decision.YES, NAME, "Decider is disabled for index level allocation filters.");
         }
 
         final Set<DiscoveryNode> eligibleNodes = new HashSet<>();

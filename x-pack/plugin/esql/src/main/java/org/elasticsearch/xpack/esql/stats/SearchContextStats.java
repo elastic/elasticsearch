@@ -165,6 +165,9 @@ public class SearchContextStats implements SearchStats {
         BlockLoaderFunctionConfig config,
         MappedFieldType.FieldExtractPreference preference
     ) {
+        if (config == null) {
+            throw new UnsupportedOperationException("config must be provided");
+        }
         for (SearchExecutionContext context : contexts) {
             MappedFieldType ft = context.getFieldType(name.string());
             if (ft == null) {

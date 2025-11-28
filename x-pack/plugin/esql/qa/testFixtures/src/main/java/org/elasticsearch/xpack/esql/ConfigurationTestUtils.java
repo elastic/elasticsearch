@@ -76,8 +76,13 @@ public class ConfigurationTestUtils {
             System.nanoTime(),
             false,
             tsTruncation,
-            defaultTsTruncation
+            defaultTsTruncation,
+            null
         );
+    }
+
+    public static ConfigurationBuilder randomConfigurationBuilder() {
+        return new ConfigurationBuilder(randomConfiguration());
     }
 
     private static QueryPragmas randomQueryPragmas() {

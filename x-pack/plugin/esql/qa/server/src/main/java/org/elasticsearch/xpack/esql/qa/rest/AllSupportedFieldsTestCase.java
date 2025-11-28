@@ -603,15 +603,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         TransportVersion coordinatorVersion = responseAndCoordinatorVersion.v2();
         TransportVersion expectedMinimumVersion = minVersion(localNodeToInfo());
 
-        Map<String, Object> profile = (Map<String, Object>) response.get("profile");
-        Integer actualMinimumVersion = (Integer) profile.get("minimumTransportVersion");
-        if (minVersion(localNodeToInfo()).supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)
-            // Some nodes don't send back the minimum transport version because they're too old to do that.
-            // In this case, the determined minimum version will be that of the coordinator.
-            || (coordinatorVersion.supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)
-                && actualMinimumVersion != coordinatorVersion.id())) {
-            assertMinimumVersion(expectedMinimumVersion, responseAndCoordinatorVersion, false, false);
-        }
+        assertMinimumVersion(expectedMinimumVersion, responseAndCoordinatorVersion, false, false);
 
         assertNoPartialResponse(response);
 

@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 
 import java.util.HashSet;
@@ -112,15 +111,12 @@ public class MapperFeatures implements FeatureSpecification {
             BASE64_DENSE_VECTORS,
             FIX_DENSE_VECTOR_WRONG_FIELDS,
             BBQ_DISK_STATS_SUPPORT,
+            SKIPPERS_ON_UNINDEXED_FIELDS,
             STORED_FIELDS_SPEC_MERGE_BUG
         );
         if (ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()) {
             features = new HashSet<>(features);
             features.add(GENERIC_VECTOR_FORMAT);
-        }
-        if (IndexSettings.DOC_VALUES_SKIPPER) {
-            features = new HashSet<>(features);
-            features.add(SKIPPERS_ON_UNINDEXED_FIELDS);
         }
         return features;
     }

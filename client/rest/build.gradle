@@ -55,9 +55,7 @@ dependencies {
 }
 
 tasks.named("processResources").configure {
-  expand versions: [
-    elasticsearch: VersionProperties.getElasticsearch()
-  ]
+  expand([elasticsearch: VersionProperties.getElasticsearch()])
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {

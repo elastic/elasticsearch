@@ -19,11 +19,15 @@ public class Clusters {
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .withNode(node -> node.version(oldVersionString, isDetachedVersion))
-            .withNode(node -> node.version(oldVersionString, isDetachedVersion))
             .setting("xpack.security.enabled", "true")
             .user(user, pass)
             .keystore("bootstrap.password", pass)
             .setting("xpack.license.self_generated.type", "trial");
+
+        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
+        for (int i = 0; i < numNodes; i++) {
+            cluster.withNode(node -> node.version(oldVersionString, isDetachedVersion));
+        }
 
         if (supportRetryOnShardFailures(oldVersion) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");

@@ -91,14 +91,15 @@ public class LogsdbIndexingRollingUpgradeIT extends ESRestTestCase {
         }
 
         String dataStreamName = "logs-bwc-test";
+        Instant time;
         {
             maybeEnableLogsdbByDefault();
 
             String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);
             createTemplate(dataStreamName, templateId, TEMPLATE);
 
-            Instant startTime = Instant.now().minusSeconds(60 * 60);
-            bulkIndex(dataStreamName, 4, 1024, startTime);
+            time = Instant.now().minusSeconds(60 * 60);
+            bulkIndex(dataStreamName, 4, 1024, time);
 
             String firstBackingIndex = getWriteBackingIndex(client(), dataStreamName, 0);
             var settings = (Map<?, ?>) getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
@@ -110,23 +111,16 @@ public class LogsdbIndexingRollingUpgradeIT extends ESRestTestCase {
             ensureGreen(dataStreamName);
             search(dataStreamName);
             query(dataStreamName);
-            upgradeNode(0);
         }
-        {
-            Instant startTime = Instant.now().minusSeconds(60 * 30);
-            bulkIndex(dataStreamName, 4, 1024, startTime);
-
-            ensureGreen(dataStreamName);
+        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes"));
+        for (int i = 0; i < numNodes; i++) {
+            upgradeNode(i);
+            time = time.plusNanos(60 * 30);
+            bulkIndex(dataStreamName, 4, 1024, time);
             search(dataStreamName);
             query(dataStreamName);
-            upgradeNode(1);
         }
         {
-            Instant startTime = Instant.now();
-            bulkIndex(dataStreamName, 4, 1024, startTime);
-            search(dataStreamName);
-            query(dataStreamName);
-
             var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
             forceMergeRequest.addParameter("max_num_segments", "1");
             assertOK(client().performRequest(forceMergeRequest));
@@ -310,6 +304,10 @@ public class LogsdbIndexingRollingUpgradeIT extends ESRestTestCase {
     }
 
     static void maybeEnableLogsdbByDefault() throws IOException {
+        if (System.getProperty("tests.bwc.tag") != null) {
+            return;
+        }
+
         var version = Version.fromString(System.getProperty("tests.old_cluster_version"));
         if (version.onOrAfter(Version.fromString("9.0.0"))) {
             return;

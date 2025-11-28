@@ -343,6 +343,7 @@ class S3Service extends AbstractLifecycleComponent {
             retryStrategyBuilder.retryOnException(S3Service::isInvalidAccessKeyIdException);
         }
         clientOverrideConfiguration.retryStrategy(retryStrategyBuilder.build());
+        clientOverrideConfiguration.apiCallTimeout(Duration.ofMillis(clientSettings.apiCallTimeoutMillis));
         return clientOverrideConfiguration.build();
     }
 

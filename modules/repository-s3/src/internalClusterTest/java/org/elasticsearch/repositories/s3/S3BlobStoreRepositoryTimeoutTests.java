@@ -68,9 +68,7 @@ public class S3BlobStoreRepositoryTimeoutTests extends ESMockAPIBasedRepositoryI
         Settings.Builder settingsBuilder = Settings.builder()
             .put(super.repositorySettings(repoName))
             .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
-            .put(S3Repository.CLIENT_NAME.getKey(), "test")
-            .put(S3ClientSettings.READ_TIMEOUT_SETTING.getKey(), "1s")
-            .put(S3ClientSettings.MAX_RETRIES_SETTING.getKey(), "0");
+            .put(S3Repository.CLIENT_NAME.getKey(), "test");
         if (randomBoolean()) {
             settingsBuilder.put(S3Repository.BASE_PATH_SETTING.getKey(), randomFrom("test", "test/1"));
         }
@@ -97,6 +95,9 @@ public class S3BlobStoreRepositoryTimeoutTests extends ESMockAPIBasedRepositoryI
         final Settings.Builder builder = Settings.builder()
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that verify an exact wait time
             .put(S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl())
+            .put(S3ClientSettings.READ_TIMEOUT_SETTING.getConcreteSettingForNamespace("test").getKey(), "1s")
+            .put(S3ClientSettings.MAX_RETRIES_SETTING.getConcreteSettingForNamespace("test").getKey(), "0")
+            .put(S3ClientSettings.API_CALL_TIMEOUT_SETTING.getConcreteSettingForNamespace("test").getKey(), "5s")
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .setSecureSettings(secureSettings);
 

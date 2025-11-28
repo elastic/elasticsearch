@@ -76,7 +76,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
     public static final Setting<Integer> ASYNC_PREFETCH_LIMIT = Setting.intSetting(
         "index.store.fs.directio_async_prefetch_limit",
-        64,
+        0,
         // 0 disables async prefetching
         0,
         // creates 256 * 8k buffers, which is 2MB

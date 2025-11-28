@@ -269,9 +269,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assumeTrue("Test only requires lookup indices", indexMode == IndexMode.LOOKUP);
         // The LOOKUP JOIN is a no-op because it overwrites columns with the same identical data (except that it messes with
         // the order of the columns, but we don't assert that).
+        // We force the lookup join on to the remotes by having a SORT after it.
         doTestFetchAll(fromAllQuery(LoggerMessageFormat.format(null, """
             , _id, _ignored, _index_mode, _score, _source, _version
             | LOOKUP JOIN {} ON {}
+            | SORT _id
             | LIMIT 1000
             """, LOOKUP_INDEX_NAME, LOOKUP_ID_FIELD)), allNodeToInfo(), allNodeToInfo());
     }

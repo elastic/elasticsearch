@@ -39,8 +39,7 @@ public class RestPutViewAction extends BaseRestHandler {
             PutViewAction.Request req = new PutViewAction.Request(
                 RestUtils.getMasterNodeTimeout(request),
                 RestUtils.getAckTimeout(request),
-                request.param("name"),
-                View.PARSER.parse(parser, null)
+                View.parser(request.param("name")).parse(parser, null)
             );
             return channel -> client.execute(PutViewAction.INSTANCE, req, new RestToXContentListener<>(channel));
         }

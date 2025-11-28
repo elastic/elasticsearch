@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.After;
 import org.junit.Before;
@@ -20,6 +19,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG;
+import static org.elasticsearch.xpack.esql.view.ViewTests.randomName;
 import static org.elasticsearch.xpack.esql.view.ViewTests.randomView;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,10 +55,10 @@ public class ViewCrudTests extends AbstractViewTestCase {
     }
 
     public void testCrud() throws Exception {
-        View view = randomView(XContentType.JSON);
         String name = "my-view";
+        View view = randomView(name);
 
-        AtomicReference<Exception> error = viewsApi.save(name, view);
+        AtomicReference<Exception> error = viewsApi.save(view);
         assertThat(error.get(), nullValue());
         assertView(viewsApi.get(name), name, view);
 
@@ -68,10 +68,10 @@ public class ViewCrudTests extends AbstractViewTestCase {
 
     public void testList() throws Exception {
         for (int i = 0; i < 10; i++) {
-            View view = randomView(XContentType.JSON);
             String name = "my-view-" + i;
+            View view = randomView(name);
 
-            AtomicReference<Exception> error = viewsApi.save(name, view);
+            AtomicReference<Exception> error = viewsApi.save(view);
             assertThat(error.get(), nullValue());
             assertView(viewsApi.get(name), name, view);
             assertThat(viewsApi.get().size(), equalTo(1 + i));
@@ -85,14 +85,14 @@ public class ViewCrudTests extends AbstractViewTestCase {
     }
 
     public void testUpdate() throws Exception {
-        View view = randomView(XContentType.JSON);
         String name = "my-view";
+        View view = randomView(name);
 
-        AtomicReference<Exception> error = viewsApi.save(name, view);
+        AtomicReference<Exception> error = viewsApi.save(view);
         assertThat(error.get(), nullValue());
 
-        view = randomView(XContentType.JSON);
-        error = viewsApi.save(name, view);
+        view = randomView(name);
+        error = viewsApi.save(view);
         assertThat(error.get(), nullValue());
         assertView(viewsApi.get(name), name, view);
 
@@ -101,37 +101,37 @@ public class ViewCrudTests extends AbstractViewTestCase {
     }
 
     public void testPutValidation() throws Exception {
-        View view = randomView(XContentType.JSON);
+        View view = randomView(randomName());
 
         {
             String nullOrEmptyName = randomBoolean() ? "" : null;
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save(nullOrEmptyName, view));
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save(randomView(nullOrEmptyName)));
             assertThat(error.getMessage(), equalTo("name is missing or empty"));
         }
         {
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save("my-view", null));
-            assertThat(error.getMessage(), equalTo("view is missing"));
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save(new View("my-view", null)));
+            assertThat(error.getMessage(), equalTo("view query is missing or empty"));
         }
         {
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save("my#view", view));
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save(randomView("my#view")));
             assertThat(error.getMessage(), equalTo("Invalid view name [my#view], must not contain '#'"));
         }
         {
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save("..", view));
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save(randomView("..")));
             assertThat(error.getMessage(), equalTo("Invalid view name [..], must not be '.' or '..'"));
         }
         {
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save("myView", view));
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save(randomView("myView")));
             assertThat(error.getMessage(), equalTo("Invalid view name [myView], must be lowercase"));
         }
         {
-            View invalidView = new View("FROMMM abc");
-            ParsingException error = expectThrows(ParsingException.class, () -> viewsApi.save("name", invalidView));
+            View invalidView = new View("name", "FROMMM abc");
+            ParsingException error = expectThrows(ParsingException.class, () -> viewsApi.save(invalidView));
             assertThat(error.getMessage(), containsString("mismatched input 'FROMMM'"));
         }
         {
-            View invalidView = new View("FROM abc | SELECT 1 AS");
-            ParsingException error = expectThrows(ParsingException.class, () -> viewsApi.save("name", invalidView));
+            View invalidView = new View("name", "FROM abc | SELECT 1 AS");
+            ParsingException error = expectThrows(ParsingException.class, () -> viewsApi.save(invalidView));
             assertThat(error.getMessage(), containsString("mismatched input 'SELECT'"));
         }
     }
@@ -158,7 +158,7 @@ public class ViewCrudTests extends AbstractViewTestCase {
             equalTo("Views do not exist: v1, v2"),
             () -> viewsApi.get("v1", "v2")
         );
-        viewsApi.save("v2", randomView(XContentType.JSON));
+        viewsApi.save(randomView("v2"));
         expectThrows(
             "partially missing views",
             ResourceNotFoundException.class,

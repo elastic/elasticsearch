@@ -23,8 +23,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
+import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -66,7 +66,7 @@ public class ClusterViewService extends ViewService {
         ProjectId projectId,
         AcknowledgedRequest<?> request,
         ActionListener<? extends AcknowledgedResponse> callback,
-        Function<ViewMetadata, Map<String, View>> function
+        Function<ViewMetadata, List<View>> function
     ) {
         ViewMetadataUpdateTask updateTask = new ViewMetadataUpdateTask(request, callback, projectId, function);
         String taskName = String.format(Locale.ROOT, "update-esql-view-metadata-[%s]", verb.toLowerCase(Locale.ROOT));
@@ -90,13 +90,13 @@ public class ClusterViewService extends ViewService {
 
     class ViewMetadataUpdateTask extends AckedClusterStateUpdateTask {
         private final ProjectId projectId;
-        private final Function<ViewMetadata, Map<String, View>> updateFunction;
+        private final Function<ViewMetadata, List<View>> updateFunction;
 
         ViewMetadataUpdateTask(
             AcknowledgedRequest<?> request,
             ActionListener<? extends AcknowledgedResponse> listener,
             ProjectId projectId,
-            Function<ViewMetadata, Map<String, View>> updateFunction
+            Function<ViewMetadata, List<View>> updateFunction
         ) {
             super(request, listener);
             this.projectId = projectId;
@@ -107,7 +107,7 @@ public class ClusterViewService extends ViewService {
         public ClusterState execute(ClusterState currentState) {
             var project = currentState.metadata().getProject(projectId);
             var views = project.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
-            Map<String, View> policies = updateFunction.apply(views);
+            List<View> policies = updateFunction.apply(views);
             var metadata = ProjectMetadata.builder(project).putCustom(ViewMetadata.TYPE, new ViewMetadata(policies));
             return ClusterState.builder(currentState).putProjectMetadata(metadata).build();
         }

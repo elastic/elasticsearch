@@ -14,19 +14,20 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.common.io.stream.StreamOutput.GENERIC_LIST_HEADER;
 
 /**
  * Encapsulates view definitions as custom metadata inside ProjectMetadata within cluster state.
@@ -34,48 +35,60 @@ import java.util.Objects;
 public final class ViewMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
     public static final String TYPE = "esql_view";
     public static final List<NamedWriteableRegistry.Entry> ENTRIES = List.of(
-        new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, TYPE, ViewMetadata::new),
+        new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, TYPE, ViewMetadata::readFromStream),
         new NamedWriteableRegistry.Entry(NamedDiff.class, TYPE, in -> ViewMetadata.readDiffFrom(Metadata.ProjectCustom.class, TYPE, in))
     );
     private static final TransportVersion ESQL_VIEWS = TransportVersion.fromName("esql_views");
 
     static final ParseField VIEWS = new ParseField("views");
 
-    public static final ViewMetadata EMPTY = new ViewMetadata(Collections.emptyMap());
+    public static final ViewMetadata EMPTY = new ViewMetadata(Collections.emptyList());
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ViewMetadata, Void> PARSER = new ConstructingObjectParser<>(
-        "view_metadata",
-        args -> new ViewMetadata((Map<String, View>) args[0])
-    );
+    private static final ObjectParser<ViewMetadata, Void> PARSER = new ObjectParser<>("view_metadata", ViewMetadata::new);
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
-            Map<String, View> patterns = new HashMap<>();
-            while (p.nextToken() != XContentParser.Token.END_OBJECT) {
-                String name = p.currentName();
-                patterns.put(name, View.fromXContent(p));
-            }
-            return patterns;
-        }, VIEWS);
+        PARSER.declareObjectArrayOrNull((viewMetadata, views) -> views.forEach(viewMetadata::add), (p, c) -> View.fromXContent(p), VIEWS);
     }
 
     public static ViewMetadata fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    private final Map<String, View> views;
+    private final ArrayList<View> views;
 
-    public ViewMetadata(StreamInput in) throws IOException {
-        this(in.readMap(View::new));
+    public static ViewMetadata readFromStream(StreamInput in) throws IOException {
+        assert in.readByte() == GENERIC_LIST_HEADER;
+        int count = in.readVInt();
+        ArrayList<View> views = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            views.add(new View(in));
+        }
+        return new ViewMetadata(views);
     }
 
-    public ViewMetadata(Map<String, View> views) {
-        this.views = Collections.unmodifiableMap(views);
+    public ViewMetadata() {
+        this(List.of());
     }
 
-    public Map<String, View> views() {
+    public ViewMetadata(List<View> views) {
+        this.views = new ArrayList<>(views);
+    }
+
+    public void add(View view) {
+        views.add(view);
+    }
+
+    public List<View> views() {
         return views;
+    }
+
+    public List<String> viewNames() {
+        return views.stream().map(View::name).toList();
+    }
+
+    public View getView(String name) {
+        return views.stream().filter(v -> v.name().equals(name)).findAny().orElse(null);
     }
 
     @Override
@@ -95,12 +108,32 @@ public final class ViewMetadata extends AbstractNamedDiffable<Metadata.ProjectCu
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(views, StreamOutput::writeWriteable);
+        out.writeGenericList(views, StreamOutput::writeWriteable);
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.xContentObjectFieldObjects(VIEWS.getPreferredName(), views);
+        return ChunkedToXContentHelper.array(VIEWS.getPreferredName(), new ViewIterator());
+    }
+
+    private class ViewIterator implements Iterator<ToXContent> {
+        private final Iterator<View> internal = views.iterator();
+
+        @Override
+        public boolean hasNext() {
+            return internal.hasNext();
+        }
+
+        @Override
+        public ToXContent next() {
+            View view = internal.next();
+            return (builder, params) -> {
+                builder.startObject();
+                view.toXContent(builder, params);
+                builder.endObject();
+                return builder;
+            };
+        }
     }
 
     @Override

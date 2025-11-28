@@ -54,10 +54,10 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
             this.projectState = clusterService.state().projectState(projectId);
         }
 
-        protected AtomicReference<Exception> save(String name, View view) throws InterruptedException {
-            assertNotNull(name);
+        protected AtomicReference<Exception> save(View view) throws InterruptedException {
+            assertNotNull(view.name());
             TestResponseCapture<AcknowledgedResponse> responseCapture = new TestResponseCapture<>();
-            PutViewAction.Request request = new PutViewAction.Request(TimeValue.MAX_VALUE, TimeValue.MAX_VALUE, name, view);
+            PutViewAction.Request request = new PutViewAction.Request(TimeValue.MAX_VALUE, TimeValue.MAX_VALUE, view);
             viewService.put(projectId, request, responseCapture);
             responseCapture.latch.await();
             return responseCapture.error;

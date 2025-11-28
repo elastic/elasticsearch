@@ -26,30 +26,22 @@ public class PutViewAction extends ActionType<AcknowledgedResponse> {
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
-        private final String name;
         private final View view;
 
-        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name, View view) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, View view) {
             super(masterNodeTimeout, ackTimeout);
-            this.name = Objects.requireNonNull(name, "name cannot be null");
             this.view = view;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            name = in.readString();
             view = new View(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(name);
             view.writeTo(out);
-        }
-
-        public String name() {
-            return name;
         }
 
         public View view() {
@@ -61,12 +53,12 @@ public class PutViewAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return name.equals(request.name) && view.equals(request.view);
+            return view.equals(request.view);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, view);
+            return Objects.hash(view);
         }
     }
 }

@@ -8,15 +8,15 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
+import static org.elasticsearch.xpack.esql.view.ViewTests.randomName;
 import static org.elasticsearch.xpack.esql.view.ViewTests.randomView;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -29,43 +29,41 @@ public class ViewMetadataTests extends AbstractChunkedSerializingTestCase<ViewMe
 
     @Override
     protected ViewMetadata createTestInstance() {
-        return randomViewMetadata(randomFrom(XContentType.values()));
+        return randomViewMetadata();
     }
 
     @Override
     protected ViewMetadata mutateInstance(ViewMetadata instance) {
-        HashMap<String, View> views = new HashMap<>(instance.views());
-        views.replaceAll((name, view) -> randomView(randomFrom(XContentType.values())));
+        ArrayList<View> views = new ArrayList<>(instance.views());
+        views.replaceAll((view) -> randomView(randomName()));
         return new ViewMetadata(views);
     }
 
     @Override
     protected ViewMetadata createXContextTestInstance(XContentType xContentType) {
-        return randomViewMetadata(xContentType);
+        return randomViewMetadata();
     }
 
-    private static ViewMetadata randomViewMetadata(XContentType xContentType) {
+    private static ViewMetadata randomViewMetadata() {
         int numViews = randomIntBetween(8, 64);
-        Map<String, View> views = Maps.newMapWithExpectedSize(numViews);
+        List<View> views = new ArrayList<>(numViews);
         for (int i = 0; i < numViews; i++) {
-            View view = randomView(xContentType);
-            views.put(randomAlphaOfLength(8), view);
+            views.add(randomView(randomName()));
         }
         return new ViewMetadata(views);
     }
 
     @Override
     protected Writeable.Reader<ViewMetadata> instanceReader() {
-        return ViewMetadata::new;
+        return ViewMetadata::readFromStream;
     }
 
     @Override
     protected void assertEqualInstances(ViewMetadata expectedInstance, ViewMetadata newInstance) {
         assertNotSame(expectedInstance, newInstance);
         assertThat(newInstance.views().size(), equalTo(expectedInstance.views().size()));
-        for (Map.Entry<String, View> entry : newInstance.views().entrySet()) {
-            View actual = entry.getValue();
-            View expected = expectedInstance.views().get(entry.getKey());
+        for (View actual : newInstance.views()) {
+            View expected = expectedInstance.getView(actual.name());
             ViewTests.assertEqualViews(expected, actual);
         }
     }

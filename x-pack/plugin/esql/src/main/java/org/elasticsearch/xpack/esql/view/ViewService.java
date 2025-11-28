@@ -26,11 +26,8 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 public abstract class ViewService {
@@ -76,7 +73,8 @@ public abstract class ViewService {
                 List<LogicalPlan> subqueries = new ArrayList<>();
                 for (String name : ur.indexPattern().indexPattern().split(",")) {
                     name = name.trim();
-                    if (views.views().containsKey(name)) {
+                    View view = views.getView(name);
+                    if (view != null) {
                         boolean alreadySeen = seen.contains(name);
                         seen.add(name);
                         if (alreadySeen) {
@@ -85,7 +83,6 @@ public abstract class ViewService {
                         if (seen.size() > config.maxViewDepth) {
                             throw viewError("The maximum allowed view depth of " + config.maxViewDepth + " has been exceeded: ", seen);
                         }
-                        View view = views.views().get(name);
                         subqueries.add(resolve(view, telemetry));
                     } else {
                         indexes.add(name);
@@ -150,17 +147,31 @@ public abstract class ViewService {
     public void put(ProjectId projectId, PutViewAction.Request request, ActionListener<? extends AcknowledgedResponse> callback) {
         assertMasterNode();
         if (viewsFeatureEnabled()) {
-            validatePutView(projectId, request.name(), request.view());
+            View view = request.view();
+            validatePutView(projectId, view);
             updateViewMetadata("PUT", projectId, request, callback, current -> {
-                Map<String, View> original = getMetadata(projectId).views();
-                Map<String, View> updated = new HashMap<>(original);
-                updated.put(request.name(), request.view());
+                List<View> updated = new ArrayList<>(current.views());
+                View exists = current.getView(view.name());
+                if (exists != null) {
+                    // View already exists
+                    if (exists.equals(request.view())) {
+                        // no change
+                        return current.views();
+                    }
+                    // Remove the existing view
+                    updated.remove(exists);
+                }
+                updated.add(view);
                 return updated;
             });
         }
     }
 
-    private void validatePutView(ProjectId projectId, String name, View view) {
+    private void validatePutView(ProjectId projectId, View view) {
+        if (view == null) {
+            throw new IllegalArgumentException("view is missing");
+        }
+        String name = view.name();
         if (Strings.hasText(name) == false) {
             throw new IllegalArgumentException("name is missing or empty");
         }
@@ -172,23 +183,22 @@ public abstract class ViewService {
         if (name.toLowerCase(Locale.ROOT).equals(name) == false) {
             throw new IllegalArgumentException("Invalid view name [" + name + "], must be lowercase");
         }
-        if (view == null) {
-            throw new IllegalArgumentException("view is missing");
-        }
-        if (Strings.isNullOrEmpty(view.query())) {
+        String query = view.query();
+        if (Strings.isNullOrEmpty(query)) {
             throw new IllegalArgumentException("view query is missing or empty");
         }
-        if (view.query().length() > config.maxViewSize) {
+        if (query.length() > config.maxViewSize) {
             throw new IllegalArgumentException(
-                "view query is too large: " + view.query().length() + " characters, the maximum allowed is " + config.maxViewSize
+                "view query is too large: " + query.length() + " characters, the maximum allowed is " + config.maxViewSize
             );
         }
-        Map<String, View> views = getMetadata(projectId).views();
-        if (views.containsKey(name) == false && views.size() >= config.maxViews) {
+        ViewMetadata views = getMetadata(projectId);
+        View existing = getMetadata(projectId).getView(name);
+        if (existing == null && views.views().size() >= config.maxViews) {
             throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + config.maxViews);
         }
         // Parse the query to ensure it's valid, this will throw appropriate exceptions if not
-        new EsqlParser().createStatement(view.query(), new QueryParams(), telemetry);
+        new EsqlParser().createStatement(query, new QueryParams(), telemetry);
     }
 
     /**
@@ -198,14 +208,14 @@ public abstract class ViewService {
         if (Strings.hasText(name) == false) {
             throw new IllegalArgumentException("name is missing or empty");
         }
-        return viewsFeatureEnabled() ? getMetadata(projectId).views().get(name) : null;
+        return viewsFeatureEnabled() ? getMetadata(projectId).getView(name) : null;
     }
 
     /**
      * List current view names.
      */
-    public Set<String> list(ProjectId projectId) {
-        return viewsFeatureEnabled() ? getMetadata(projectId).views().keySet() : Set.of();
+    public List<String> list(ProjectId projectId) {
+        return viewsFeatureEnabled() ? getMetadata(projectId).viewNames() : List.of();
     }
 
     /**
@@ -220,12 +230,12 @@ public abstract class ViewService {
 
         if (viewsFeatureEnabled()) {
             updateViewMetadata("DELETE", projectId, request, callback, current -> {
-                Map<String, View> original = current.views();
-                if (original.containsKey(name) == false) {
+                View original = current.getView(name);
+                if (original == null) {
                     throw new ResourceNotFoundException("view [{}] not found", name);
                 }
-                Map<String, View> updated = new HashMap<>(original);
-                updated.remove(name);
+                List<View> updated = new ArrayList<>(current.views());
+                updated.remove(original);
                 return updated;
             });
         }
@@ -242,6 +252,6 @@ public abstract class ViewService {
         ProjectId projectId,
         AcknowledgedRequest<?> request,
         ActionListener<? extends AcknowledgedResponse> callback,
-        Function<ViewMetadata, Map<String, View>> function
+        Function<ViewMetadata, List<View>> function
     );
 }

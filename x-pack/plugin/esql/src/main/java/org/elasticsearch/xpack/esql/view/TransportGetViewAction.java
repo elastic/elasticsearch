@@ -64,7 +64,7 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
         List<String> missing = new ArrayList<>();
         Collection<String> names = request.names();
         if (names.isEmpty()) {
-            names = Collections.unmodifiableSet(viewService.list(projectId));
+            names = Collections.unmodifiableList(viewService.list(projectId));
         }
         for (String name : names) {
             View view = viewService.get(projectId, name);

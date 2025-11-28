@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
 
-import java.util.Map;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -56,9 +56,9 @@ public class InMemoryViewService extends ViewService {
         ProjectId projectId,
         AcknowledgedRequest<?> request,
         ActionListener<? extends AcknowledgedResponse> callback,
-        Function<ViewMetadata, Map<String, View>> function
+        Function<ViewMetadata, List<View>> function
     ) {
-        Map<String, View> updated = function.apply(metadata);
+        List<View> updated = function.apply(metadata);
         this.metadata = new ViewMetadata(updated);
     }
 

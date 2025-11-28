@@ -25,22 +25,26 @@ public class ViewTests extends AbstractXContentSerializingTestCase<View> {
 
     @Override
     protected View createTestInstance() {
-        return randomView(randomFrom(XContentType.values()));
+        return randomView(randomName());
     }
 
     @Override
     protected View mutateInstance(View instance) {
-        return randomView(randomFrom(XContentType.values()));
+        return randomView(instance.name());
     }
 
     @Override
     protected View createXContextTestInstance(XContentType xContentType) {
-        return randomView(xContentType);
+        return randomView(randomName());
     }
 
-    public static View randomView(XContentType xContentType) {
+    public static String randomName() {
+        return randomAlphaOfLength(8);
+    }
+
+    public static View randomView(String name) {
         String query = "FROM " + randomAlphaOfLength(10);
-        return new View(query);
+        return new View(name, query);
     }
 
     @Override

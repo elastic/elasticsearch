@@ -22,10 +22,10 @@ import java.util.Set;
  */
 public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
-    private final Set<String> includes;
+    private final Set<String> dimensions;
 
-    public TimeSeriesMetadataFieldBlockLoader(Set<String> includes) {
-        this.includes = Collections.unmodifiableSet(includes);
+    public TimeSeriesMetadataFieldBlockLoader(Set<String> dimensions) {
+        this.dimensions = Collections.unmodifiableSet(dimensions);
     }
 
     @Override
@@ -45,7 +45,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     @Override
     public StoredFieldsSpec rowStrideStoredFieldSpec() {
-        return StoredFieldsSpec.withSourcePaths(IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE, includes);
+        return StoredFieldsSpec.withSourcePaths(IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE, dimensions);
     }
 
     @Override

@@ -798,7 +798,7 @@ max_deriv:double | max_rate:double | time_bucket:datetime     | cluster:keyword
 ;
 
 bare_count_over_time_outputs_dimensions
-required_capability: ts_command_v0
+required_capability: metrics_group_by_all
 required_capability: metrics_group_by_all_with_ts_dimensions
   
 TS k8s
@@ -820,7 +820,7 @@ count:long | _timeseries:keyword
 ;
 
 bare_count_over_time_with_tbucket_outputs_dimensions
-required_capability: ts_command_v0  
+required_capability: metrics_group_by_all  
 required_capability: metrics_group_by_all_with_ts_dimensions
 
 TS k8s
@@ -842,7 +842,7 @@ count:long | _timeseries:keyword                                                
 ;
 
 bare_avg_over_time_outputs_dimensions
-required_capability: ts_command_v0  
+required_capability: metrics_group_by_all  
 required_capability: metrics_group_by_all_with_ts_dimensions
 
 TS k8s
@@ -864,7 +864,7 @@ avg:double         | _timeseries:keyword
 ;
 
 bare_avg_over_time_with_tbucket_outputs_dimensions
-required_capability: ts_command_v0  
+required_capability: metrics_group_by_all  
 required_capability: metrics_group_by_all_with_ts_dimensions
 
 TS k8s
@@ -886,7 +886,7 @@ avg:double         | _timeseries:keyword                                        
 ;
 
 bare_sum_over_time_outputs_dimensions
-required_capability: ts_command_v0  
+required_capability: metrics_group_by_all  
 required_capability: metrics_group_by_all_with_ts_dimensions
 
 TS k8s
@@ -908,7 +908,7 @@ sum:double | _timeseries:keyword
 ;
 
 bare_sum_over_time_with_tbucket_outputs_dimensions
-required_capability: ts_command_v0  
+required_capability: metrics_group_by_all  
 required_capability: metrics_group_by_all_with_ts_dimensions
 
 TS k8s
@@ -930,7 +930,7 @@ sum:double | _timeseries:keyword                                                
 ;
 
 bare_rate_outputs_dimensions
-required_capability: ts_command_v0  
+required_capability: metrics_group_by_all
 required_capability: metrics_group_by_all_with_ts_dimensions
 
 TS k8s
@@ -952,7 +952,7 @@ rate:double        | _timeseries:keyword
 ;
 
 bare_rate_with_tbucket_outputs_dimensions
-required_capability: ts_command_v0  
+required_capability: metrics_group_by_all  
 required_capability: metrics_group_by_all_with_ts_dimensions
 
 TS k8s
@@ -974,7 +974,7 @@ rate:double        | _timeseries:keyword                                        
 ;
 
 wrapped_rate
-required_capability: ts_command_v0
+required_capability: metrics_group_by_all
 required_capability: metrics_group_by_all_with_ts_dimensions
 
 TS k8s

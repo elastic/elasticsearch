@@ -280,14 +280,36 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
         }
 
         /**
-         * Scan all documents to find the first document that has a _tsid equal or greater than the provided _tsid ordinal, returning its
-         * document ID. If no document is found, the method returns {@link DocIdSetIterator#NO_MORE_DOCS}.
+         * Use a doc values skipper to find a starting document ID for the provided _tsid ordinal. The returned document ID might have the
+         * exact _tsid ordinal provided, or a lower one.
          *
-         * Warning: This method is very slow because it potentially scans all documents in the segment.
+         * @param tsIdOrd the _tsid ordinal
+         * @return a docID to start scanning documents from in order to find the first document ID matching the provided _tsid
+         * @throws IOException if any I/O exception occurs
          */
-        private int slowScanToFirstDocWithTsIdOrdinalEqualOrGreaterThan(int tsIdOrd) throws IOException {
+        private int findStartDocIDForTsIdOrd(int tsIdOrd) throws IOException {
+            var skipper = docValuesProducer.getSkipper(tsIdFieldInfo);
+            assert skipper != null;
+            if (skipper.minValue() > tsIdOrd || tsIdOrd > skipper.maxValue()) {
+                return DocIdSetIterator.NO_MORE_DOCS;
+            }
+            skipper.advance(tsIdOrd, Long.MAX_VALUE);
+            return skipper.minDocID(0);
+        }
+
+        /**
+         * Find the first document that has a _tsid equal or greater than the provided _tsid ordinal, returning its document ID. If no
+         * document is found, the method returns {@link DocIdSetIterator#NO_MORE_DOCS}.
+         *
+         * Warning: This method can be slow because it potentially scans many documents in the segment.
+         */
+        private int findFirstDocWithTsIdOrdinalEqualOrGreaterThan(int tsIdOrd) throws IOException {
+            final int startDocId = findStartDocIDForTsIdOrd(tsIdOrd);
+            if (startDocId == DocIdSetIterator.NO_MORE_DOCS) {
+                return startDocId;
+            }
             // recreate even if doc values are already on the same ordinal, to ensure the method returns the first doc
-            if (tsIdDocValues == null || (cachedTsIdOrd != -1 && cachedTsIdOrd >= tsIdOrd)) {
+            if (tsIdDocValues == null || (cachedTsIdOrd != -1 && cachedTsIdOrd >= tsIdOrd) || tsIdDocValues.docID() > startDocId) {
                 tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
                 cachedTsIdOrd = -1;
                 cachedTsId = null;
@@ -295,7 +317,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             assert 0 <= tsIdOrd : tsIdOrd;
             assert tsIdOrd < tsIdDocValues.getValueCount() : tsIdOrd;
 
-            for (int docID = 0; docID != DocIdSetIterator.NO_MORE_DOCS; docID = tsIdDocValues.nextDoc()) {
+            for (int docID = startDocId; docID != DocIdSetIterator.NO_MORE_DOCS; docID = tsIdDocValues.nextDoc()) {
                 boolean found = tsIdDocValues.advanceExact(docID);
                 assert found : "No value found for field [" + tsIdFieldInfo.getName() + " and docID " + docID;
                 var ord = tsIdDocValues.ordValue();
@@ -313,14 +335,17 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
         }
 
         /**
-         * Scan all documents to find the first document that has a _tsid equal to the provided _tsid ordinal, returning its
-         * document ID. If no document is found, the method returns {@link DocIdSetIterator#NO_MORE_DOCS}.
+         * Find the first document that has a _tsid equal to the provided _tsid ordinal, returning its document ID. If no document is found,
+         * the method returns {@link DocIdSetIterator#NO_MORE_DOCS}.
          *
-         * Warning: This method is very slow because it potentially scans all documents in the segment.
+         * Warning: This method can be slow because it potentially scans many documents in the segment.
          */
-        private int slowScanToFirstDocWithTsIdOrdinalEqualTo(int tsIdOrd) throws IOException {
+        private int findFirstDocWithTsIdOrdinalEqualTo(int tsIdOrd) throws IOException {
+            final int startDocId = findStartDocIDForTsIdOrd(tsIdOrd);
+            assert startDocId != DocIdSetIterator.NO_MORE_DOCS : startDocId;
+
             // recreate even if doc values are already on the same ordinal, to ensure the method returns the first doc
-            if (tsIdDocValues == null || (cachedTsIdOrd != -1 && cachedTsIdOrd >= tsIdOrd)) {
+            if (tsIdDocValues == null || (cachedTsIdOrd != -1 && cachedTsIdOrd >= tsIdOrd) || tsIdDocValues.docID() > startDocId) {
                 tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
                 cachedTsIdOrd = -1;
                 cachedTsId = null;
@@ -328,7 +353,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             assert 0 <= tsIdOrd : tsIdOrd;
             assert tsIdOrd < tsIdDocValues.getValueCount() : tsIdOrd;
 
-            for (int docID = 0; docID != DocIdSetIterator.NO_MORE_DOCS; docID = tsIdDocValues.nextDoc()) {
+            for (int docID = startDocId; docID != DocIdSetIterator.NO_MORE_DOCS; docID = tsIdDocValues.nextDoc()) {
                 boolean found = tsIdDocValues.advanceExact(docID);
                 assert found : "No value found for field [" + tsIdFieldInfo.getName() + " and docID " + docID;
                 var ord = tsIdDocValues.ordValue();
@@ -441,7 +466,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 tsIdOrd = -tsIdOrd - 1;
                 // set the terms enum on the first non-matching document
                 if (tsIdOrd < docValues.getTsIdValueCount()) {
-                    int docID = docValues.slowScanToFirstDocWithTsIdOrdinalEqualOrGreaterThan(tsIdOrd);
+                    int docID = docValues.findFirstDocWithTsIdOrdinalEqualOrGreaterThan(tsIdOrd);
                     if (docID != DocIdSetIterator.NO_MORE_DOCS) {
                         current = new SyntheticTerm(
                             docID,
@@ -461,8 +486,8 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             // _tsid found, extract the timestamp
             final long timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(id);
 
-            // Slow scan to the first document matching the _tsid
-            final int startDocID = docValues.slowScanToFirstDocWithTsIdOrdinalEqualTo(tsIdOrd);
+            // Find the first document matching the _tsid
+            final int startDocID = docValues.findFirstDocWithTsIdOrdinalEqualTo(tsIdOrd);
             assert startDocID >= 0 : startDocID;
 
             int docID = startDocID;

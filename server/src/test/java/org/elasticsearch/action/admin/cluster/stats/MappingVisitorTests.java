@@ -143,7 +143,7 @@ public class MappingVisitorTests extends ESTestCase {
         Map<String, Object> textType = Map.of("type", "text");
         Map<String, Object> floatType = Map.of("type", "float", "scaling_factor", 1000);
         Map<String, Object> multiField = Map.of("type", "keyword", "fields", Map.of("my-long", longType, "my-float", floatType));
-        Map<String, Object> objectField = Map.of("type", "keyword", "properties", Map.of("my-text", textType, "my-long", longType));
+        Map<String, Object> objectField = Map.of("type", "object", "properties", Map.of("my-text", textType, "my-long", longType));
         Map<String, Object> expectedProperties = Map.of(
             "properties",
             Map.of("my-long", longType, "my-float", floatType, "my-multi-field", multiField, "my-object", objectField)

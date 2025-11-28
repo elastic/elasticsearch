@@ -75,7 +75,7 @@ public class MockRequest {
 
     @Override
     public String toString() {
-        return String.format(Locale.ROOT, "%s %s", method, uri);
+        return String.format(Locale.ROOT, "%s %s %s", method, uri, body);
     }
 
     /**

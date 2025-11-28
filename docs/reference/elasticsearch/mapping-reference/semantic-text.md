@@ -9,14 +9,37 @@ applies_to:
 
 # Semantic text field type [semantic-text]
 
-The `semantic_text` field type automatically generates embeddings for text content using an [inference endpoint](./semantic-text-reference.md#configuring-inference-endpoints). 
-Using `semantic_text`, you don't need to specify how to generate embeddings for your data, or how to index it. The inference endpoint automatically determines the embedding generation, indexing, and query to use. 
+The `semantic_text` field type simplifies [semantic search](docs-content://solutions/search/semantic-search.md) by providing defaults for the required infrastructure. Using `semantic_text`, you don't have to manually configure mappings, set up ingestion pipelines, or handle chunking. The field type automatically:
+
+- Configures index mappings: Chooses the correct field type (`sparse_vector` or `dense_vector`), dimensions, similarity functions, and storage optimizations based on the inference endpoint.
+- Generates embeddings during indexing: Automatically generates embeddings when you index documents, without requiring ingestion pipelines or inference processors.
+- Handles chunking: Automatically chunks long text documents during indexing.
+
+The following example creates an index mapping with a `semantic_text` field:
+
+```console
+PUT semantic-embeddings 
+{
+  "mappings": { <1>
+    "properties": {
+      "content": { 
+        "type": "semantic_text" 
+      }
+    }
+  }
+}
+```
+% TEST[skip:Requires inference endpoint]
+
+1. In this example, there is no `inference_id` is specified, so `semantic_text` uses a [default inference endpoint](./semantic-text-how-tos.md#default-and-preconfigured-endpoints).
+
+For a complete walkthrough on how to perform semantic search with `semantic_text` fields, refer to the [Semantic search with semantic_text](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md) tutorial. 
 
 ## Overview
 
 The `semantic_text` field type documentation is organized into reference content and how-to guides. 
 
-The [Reference](./semantic-text-reference.md) page provides parameter descriptions, explanations of concepts, and technical specifications:
+The [Reference](./semantic-text-reference.md) page provides parameter descriptions, inference endpoint configurations, chunking behavior, querying options, limitations, and other technical specifications, for instance:
 
 - [Parameters](./semantic-text-reference.md#semantic-text-params): Parameter descriptions for `semantic_text` fields.
 
@@ -24,26 +47,18 @@ The [Reference](./semantic-text-reference.md) page provides parameter descriptio
 
 - [Chunking](./semantic-text-reference.md#chunking-behavior): Overview of how `semantic_text` automatically processes long text passages by generating smaller chunks.
 
-- [Updates and partial updates](./semantic-text-reference.md#updates-and-partial-updates): Behavior differences between full document updates, partial updates using the Bulk API, and partial updates using the Update API, including scripted update support.
-
-- [Document count discrepancy](./semantic-text-reference.md#document-count-discrepancy): Explanation of why `_cat/indices` may show higher document counts due to nested documents used internally for storing embeddings.
-
 - [Querying](./semantic-text-reference.md#querying-semantic-text-fields): Supported query types for `semantic_text` fields.
 
-- [Limitations](./semantic-text-reference.md#limitations): Current restrictions and unsupported features for `semantic_text` fields.
+The [How-to guides](./semantic-text-how-tos.md) page contains procedure descriptions and examples for configuring inference endpoints, pre-chunking content, retrieving embeddings, highlighting fragments, cross-cluster search, and other common tasks, for instance:
 
-The [How-to guides](./how-to-semantic-text.md) page contains procedure descriptions and examples for common tasks and configurations:
+- [Configuring inference endpoints](./semantic-text-how-tos.md#configure-inference-endpoints): Learn how to use [default and preconfigured endpoints](./semantic-text-how-tos.md#default-and-preconfigured-endpoints), [ELSER on EIS](./semantic-text-how-tos.md#using-elser-on-eis), and [custom inference endpoints](./semantic-text-how-tos.md#using-custom-endpoint).
 
-- [Configuring inference endpoints](./how-to-semantic-text.md#configure-inference-endpoints): Learn how to use [default and preconfigured endpoints](./how-to-semantic-text.md#default-and-preconfigured-endpoints), [ELSER on EIS](./how-to-semantic-text.md#using-elser-on-eis), and [custom inference endpoints](./how-to-semantic-text.md#using-custom-endpoint).
+- [Setting up dedicated endpoints](./semantic-text-how-tos.md#dedicated-endpoints-for-ingestion-and-search): Learn how to configure separate inference endpoints for ingestion and search operations.
 
-- [Setting up dedicated endpoints](./how-to-semantic-text.md#dedicated-endpoints-for-ingestion-and-search): Learn how to configure separate inference endpoints for ingestion and search operations.
+- [Pre-chunking content](./semantic-text-how-tos.md#pre-chunking): Learn how to provide pre-chunked text as arrays and [retrieve indexed chunks](./semantic-text-how-tos.md#retrieving-indexed-chunks).
 
-- [Pre-chunking content](./how-to-semantic-text.md#pre-chunking): Learn how to provide pre-chunked text as arrays and [retrieve indexed chunks](./how-to-semantic-text.md#retrieving-indexed-chunks).
+- [Returning embeddings](./semantic-text-how-tos.md#returning-semantic-field-embeddings): Learn how to return `semantic_text` field embeddings in [`_source`](./semantic-text-how-tos.md#returning-semantic-field-embeddings-in-_source) (for {{es}} 9.2+) or using the [`fields` parameter](./semantic-text-how-tos.md#returning-semantic-field-embeddings-using-fields) (for earlier versions).
 
-- [Returning embeddings](./how-to-semantic-text.md#returning-semantic-field-embeddings): Learn how to return `semantic_text` field embeddings in [`_source`](./how-to-semantic-text.md#returning-semantic-field-embeddings-in-_source) (for {{es}} 9.2+) or using the [`fields` parameter](./how-to-semantic-text.md#returning-semantic-field-embeddings-using-fields) (for earlier versions).
+- [Highlighting fragments](./semantic-text-how-tos.md#highlighting-fragments): Learn how to extract the most relevant text fragments from `semantic_text` fields.
 
-- [Highlighting fragments](./how-to-semantic-text.md#highlighting-fragments): Learn how to extract the most relevant text fragments from `semantic_text` fields.
 
-- [Cross-cluster search](./how-to-semantic-text.md#cross-cluster-search): Learn how to perform cross-cluster searches on `semantic_text` fields.
-
-- [Using `copy_to` and multi-fields](./how-to-semantic-text.md#use-copy-to-with-semantic-text): Learn how to combine multiple fields into a single `semantic_text` field using `copy_to` or multi-field mappings.

@@ -118,7 +118,7 @@ redirects:
     to: 'reference/elasticsearch/mapping-reference/semantic-text.md'
     anchors: {} # pass-through unlisted anchors in the `many` ruleset
     many:
-      - to: 'reference/elasticsearch/mapping-reference/how-to-semantic-text.md'
+      - to: 'reference/elasticsearch/mapping-reference/semantic-text-how-tos.md'
         anchors: { 'using-elser-on-eis' }
       - to: 'reference/elasticsearch/mapping-reference/semantic-text-reference.md'
         anchors: { 'querying-semantic-text-fields' }

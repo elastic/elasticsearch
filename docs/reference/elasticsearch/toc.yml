@@ -175,7 +175,7 @@ toc:
           - file: mapping-reference/semantic-text.md
             children:
               - file: mapping-reference/semantic-text-reference.md
-              - file: mapping-reference/how-to-semantic-text.md
+              - file: mapping-reference/semantic-text-how-tos.md
           - file: mapping-reference/shape.md
           - file: mapping-reference/sparse-vector.md
           - file: mapping-reference/text-type-family.md

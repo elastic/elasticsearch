@@ -50,7 +50,7 @@ embeddings at query time. Use the [Create {{infer}} API](https://www.elastic.co/
     You can update this parameter by using
 the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping).     
     
-    Learn how to [use dedicated endpoints for ingestion and search](./how-to-semantic-text.md#dedicated-endpoints-for-ingestion-and-search).
+    Learn how to [use dedicated endpoints for ingestion and search](./semantic-text-how-tos.md#dedicated-endpoints-for-ingestion-and-search).
 
 `index_options` {applies_to}`stack: ga 9.1`
 :   (Optional, object) Specifies the index options to override default values
@@ -66,7 +66,7 @@ If specified, these will override the chunking settings set in the {{infer-cap}}
 endpoint associated with `inference_id`.
 
     If chunking settings are updated, they will not be applied to existing documents
-until they are reindexed.  Defaults to the optimal chunking settings for [Elastic Rerank](docs-content:///explore-analyze/machine-learning/nlp/ml-nlp-rerank.md).
+until they are reindexed.  Defaults to the optimal chunking settings for [Elastic Rerank](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-rerank.md).
 
     To completely disable chunking, use the `none` chunking strategy.
 
@@ -117,13 +117,13 @@ The `semantic_text` field type specifies an inference endpoint identifier (`infe
 
 The following inference endpoint configurations are available:
 
-- [Default and preconfigured endpoints](./how-to-semantic-text.md#default-and-preconfigured-endpoints): Use `semantic_text` without creating an inference endpoint manually. 
+- [Default and preconfigured endpoints](./semantic-text-how-tos.md#default-and-preconfigured-endpoints): Use `semantic_text` without creating an inference endpoint manually. 
 
-- [ELSER on EIS](./how-to-semantic-text.md#using-elser-on-eis): Use the ELSER model through the Elastic Inference Service. 
+- [ELSER on EIS](./semantic-text-how-tos.md#using-elser-on-eis): Use the ELSER model through the Elastic Inference Service. 
 
-- [Custom endpoints](./how-to-semantic-text.md#using-custom-endpoint): Create your own inference endpoint using the [Create inference API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) to use custom models or third-party services.
+- [Custom endpoints](./semantic-text-how-tos.md#using-custom-endpoint): Create your own inference endpoint using the [Create inference API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) to use custom models or third-party services.
 
-The recommended method is to use [dedicated endpoints for ingestion and search](./how-to-semantic-text.md#dedicated-endpoints-for-ingestion-and-search) with separate `inference_id` and `search_inference_id` parameters. This ensures optimal performance by isolating ingestion and search workloads.
+The recommended method is to use [dedicated endpoints for ingestion and search](./semantic-text-how-tos.md#dedicated-endpoints-for-ingestion-and-search) with separate `inference_id` and `search_inference_id` parameters. This ensures optimal performance by isolating ingestion and search workloads.
 
 ::::{warning}
 Removing an {{infer}} endpoint will cause ingestion of documents and semantic
@@ -148,9 +148,9 @@ Chunks are stored as start and end character offsets rather than as separate
 text strings. These offsets point to the exact location of each chunk within the
 original input text.
 
-You can [pre-chunk content](./how-to-semantic-text.md#pre-chunking) by providing text as arrays before indexing.
+You can [pre-chunk content](./semantic-text-how-tos.md#pre-chunking) by providing text as arrays before indexing.
 
-Refer to the [Inference API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for values for `chunking_settings` and to [Configuring chunking](https://www.elastic.co/docs/explore-analyze/elastic-inference/inference-api#infer-chunking-config) to learn about different chunking strategies.
+Refer to the [Inference API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for values for `chunking_settings` and to [Configuring chunking](docs-content://explore-analyze/elastic-inference/inference-api.md#infer-chunking-config) to learn about different chunking strategies.
 
 ## Updates and partial updates [updates-and-partial-updates]
 
@@ -192,7 +192,7 @@ To count only top-level documents, excluding the nested documents that store emb
 
 You can query `semantic_text` fields using the following query types:
 
-- Match query: The recommended method for querying `semantic_text` fields. You can use [Query DSL](/reference/query-languages/query-dsl/query-dsl-match-query.md) or [ES|QL](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) syntax. To learn how to run match queries on `semantic_text` fields, refer to this [example](https://www.elastic.co/docs/solutions/search/semantic-search/semantic-search-semantic-text#semantic-text-semantic-search).
+- Match query: The recommended method for querying `semantic_text` fields. You can use [Query DSL](/reference/query-languages/query-dsl/query-dsl-match-query.md) or [ES|QL](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) syntax. To learn how to run match queries on `semantic_text` fields, refer to this [example](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md#semantic-text-semantic-search).
 
 - kNN query: Finds the nearest vectors to a query vector using a similarity metric, mainly for advanced or combined search use cases. You can use [Query DSL](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-with-semantic-text) or {applies_to}`stack: ga 9.2` [ES|QL](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) syntax. To learn how to run knn queries on `semantic_text` fields, refer to this [example](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-with-semantic-text).
 

@@ -62,14 +62,32 @@ public class ConfidenceInterval extends EsqlScalarFunction {
     private final Expression bucketCount;
     private final Expression confidenceLevel;
 
-    @FunctionInfo(returnType = { "double", }, description = "...")
+    @FunctionInfo(
+        returnType = { "double", },
+        description = "Computes the confidence interval and its reliability for the given best estimate and bootstrap estimates. The "
+            + "output usually is an array with three values: lower bound, upper bound, and the fraction of trials that give a reliable "
+            + "interval. If no sensible interval is found, the function returns null instead."
+    )
     public ConfidenceInterval(
         Source source,
-        @Param(name = "bestEstimate", type = { "double" }) Expression bestEstimate,
-        @Param(name = "estimates", type = { "double" }) Expression estimates,
-        @Param(name = "trialCount", type = { "integer" }) Expression trialCount,
-        @Param(name = "bucketCount", type = { "integer" }) Expression bucketCount,
-        @Param(name = "confidenceLevel", type = { "double" }) Expression confidenceLevel
+        @Param(name = "bestEstimate", type = { "double" }, description = "Best estimate of the parameter") Expression bestEstimate,
+        @Param(
+            name = "estimates",
+            type = { "double" },
+            description = "Bootstrap estimates of the parameter. This contains a concatenation of trialCount trials with bucketCount "
+                + "estimates each."
+        ) Expression estimates,
+        @Param(name = "trialCount", type = { "integer" }, description = "Number of trials in the estimates data.") Expression trialCount,
+        @Param(
+            name = "bucketCount",
+            type = { "integer" },
+            description = "Number of buckets in each trial of the estimates data."
+        ) Expression bucketCount,
+        @Param(
+            name = "confidenceLevel",
+            type = { "double" },
+            description = "The desired confidence level of the interval."
+        ) Expression confidenceLevel
     ) {
         super(source, List.of(bestEstimate, estimates, trialCount, bucketCount, confidenceLevel));
         this.bestEstimate = bestEstimate;
@@ -217,13 +235,19 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         }
     }
 
-    static double[] computeConfidenceInterval(
+    private static double[] computeConfidenceInterval(
         double bestEstimate,
         double[] estimates,
         int trialCount,
         int bucketCount,
         double confidenceLevel
     ) {
+        // When a bucket is empty (indicated by a NaN value), it's not clear how to use it to
+        // compute the confidence interval. To compute a mean, empty buckets are best ignored.
+        // However, to compute a count or sum, it's best to treat them as zero. For a mixed
+        // quantity like sum+avg, it's not clear what to do at all.
+        // We try both strategies (ignoring and replacing by zero), and pick the one that gives
+        // an estimate closest to the best estimate.
         Mean meansIgnoreNaN = new Mean();
         Mean meansZeroNaN = new Mean();
         for (int trial = 0; trial < trialCount; trial++) {
@@ -253,9 +277,23 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         double meanIgnoreNan = meansIgnoreNaN.getResult();
         double meanZeroNan = meansZeroNaN.getResult();
 
+        // Pick the NaN strategy that gives the mean closest to the best estimate.
         boolean ignoreNaNs = Math.abs(meanIgnoreNan - bestEstimate) < Math.abs(meanZeroNan - bestEstimate);
         double mm = ignoreNaNs ? meanIgnoreNan : meanZeroNan;
 
+        // To compute the reliability of each trial's estimate, we use the skewness and kurtosis
+        // of the bucket estimates. Under the null hypothesis these should be zero. If these are
+        // too large, the trial is considered unreliable. This is a two-tailed p-value at the
+        // 95% significance level.
+        double maxSkew = 1.96 * Math.sqrt(
+            6.0 * bucketCount * (bucketCount - 1) / (bucketCount - 2) / (bucketCount + 1) / (bucketCount + 3)
+        );
+        double maxKurtosis = 1.96 * Math.sqrt(
+            24.0 * bucketCount * (bucketCount - 1) * (bucketCount - 1) / (bucketCount - 3) / (bucketCount - 2) / (bucketCount + 3)
+                / (bucketCount + 5)
+        );
+
+        // Compute the stddev, skewness, and kurtosis for each of the trials.
         Mean stddevs = new Mean();
         Mean skews = new Mean();
         Mean kurtoses = new Mean();
@@ -291,7 +329,13 @@ public class ConfidenceInterval extends EsqlScalarFunction {
             if (Double.isNaN(kurtosisResult) == false) {
                 kurtoses.increment(kurtosisResult);
             }
-            if (hasNans == false && computeReliable(skewResult, kurtosisResult, bucketCount)) {
+            // A trial is considered reliable if it has no empty buckets (no NaNs; indicating
+            // enough data), and its skewness and kurtosis are within acceptable limits.
+            if (hasNans == false
+                && Double.isNaN(skewResult) == false
+                && Math.abs(skewResult) < maxSkew
+                && Double.isNaN(kurtosisResult) == false
+                && Math.abs(kurtosisResult) < maxKurtosis) {
                 reliableCount++;
             }
         }
@@ -302,11 +346,13 @@ public class ConfidenceInterval extends EsqlScalarFunction {
             return null;
         }
         if (sm == 0.0) {
-            return new double[] { bestEstimate, bestEstimate, 1.0 };
+            return new double[] { bestEstimate, bestEstimate, (double) reliableCount / trialCount };
         }
 
         // Scale the acceleration to account for the dependence of skewness on sample size.
         double scale = 1 / Math.sqrt(bucketCount);
+
+        // Use adjusted bootstrap confidence interval (BCa) method to compute the confidence interval.
         double a = scale * skew / 6.0;
         double z0 = (bestEstimate - mm) / sm;
         double dz = normal.inverseCumulativeProbability((1.0 + confidenceLevel) / 2.0);
@@ -315,16 +361,9 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         double lower = mm + scale * sm * zl;
         double upper = mm + scale * sm * zu;
 
+        // If the bestEstimate is outside the confidence interval, it is not a sensible interval,
+        // so return null instead.
         return lower <= bestEstimate && bestEstimate <= upper ? new double[] { lower, upper, (double) reliableCount / trialCount } : null;
-    }
-
-    static boolean computeReliable(double skew, double kurtosis, int B) {
-        if (Double.isNaN(skew) || Double.isNaN(kurtosis) || B < 4) {
-            return false;
-        }
-        double maxSkew = Math.sqrt(6.0 * B * (B - 1) / ((B - 2) * (B + 1) * (B + 3))) * 1.96;
-        double maxKurtosis = Math.sqrt(24.0 * B * (B - 1) * (B - 1) / ((B - 3) * (B - 2) * (B + 3) * (B + 5))) * 1.96;
-        return Math.abs(skew) < maxSkew && Math.abs(kurtosis) < maxKurtosis;
     }
 
     @Override

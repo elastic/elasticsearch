@@ -199,7 +199,7 @@ static inline int64_t index(const int32_t i, const int32_t* offsets) {
 }
 
 EXPORT void vec_dot7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    dot7u_inner_bulk<identity>(a, b, dims, dims, NULL, count, 1.0f, results);
+    dot7u_inner_bulk<identity>(a, b, dims, dims, NULL, count, results);
 }
 
 

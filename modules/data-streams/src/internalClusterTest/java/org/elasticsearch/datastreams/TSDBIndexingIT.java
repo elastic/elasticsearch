@@ -744,34 +744,40 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName))
-                .template(new Template(Settings.builder()
-                    .put("index.mode", "time_series")
-                    .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean())
-                    .build(), new CompressedXContent("""
-                        {
-                      "_doc": {
-                        "dynamic_templates": [
-                          {
-                            "labels": {
-                              "match_mapping_type": "string",
-                              "mapping": {
-                                "type": "keyword",
-                                "time_series_dimension": true
+                .template(
+                    new Template(
+                        Settings.builder()
+                            .put("index.mode", "time_series")
+                            .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean())
+                            .build(),
+                        new CompressedXContent("""
+                                {
+                              "_doc": {
+                                "dynamic_templates": [
+                                  {
+                                    "labels": {
+                                      "match_mapping_type": "string",
+                                      "mapping": {
+                                        "type": "keyword",
+                                        "time_series_dimension": true
+                                      }
+                                    }
+                                  }
+                                ],
+                                "properties": {
+                                  "@timestamp": {
+                                    "type": "date"
+                                  },
+                                  "metricset": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                  }
+                                }
                               }
-                            }
-                          }
-                        ],
-                        "properties": {
-                          "@timestamp": {
-                            "type": "date"
-                          },
-                          "metricset": {
-                            "type": "keyword",
-                            "time_series_dimension": true
-                          }
-                        }
-                      }
-                    }"""), null))
+                            }"""),
+                        null
+                    )
+                )
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
@@ -809,34 +815,40 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName))
-                .template(new Template(Settings.builder()
-                    .put("index.mode", "time_series")
-                    .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean())
-                    .build(), new CompressedXContent("""
+                .template(
+                    new Template(
+                        Settings.builder()
+                            .put("index.mode", "time_series")
+                            .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean())
+                            .build(),
+                        new CompressedXContent("""
 
-                        {
-                      "_doc": {
-                        "dynamic_templates": [
-                          {
-                            "label": {
-                              "mapping": {
-                                "type": "keyword",
-                                "time_series_dimension": true
+                                {
+                              "_doc": {
+                                "dynamic_templates": [
+                                  {
+                                    "label": {
+                                      "mapping": {
+                                        "type": "keyword",
+                                        "time_series_dimension": true
+                                      }
+                                    }
+                                  }
+                                ],
+                                "properties": {
+                                  "@timestamp": {
+                                    "type": "date"
+                                  },
+                                  "metricset": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                  }
+                                }
                               }
-                            }
-                          }
-                        ],
-                        "properties": {
-                          "@timestamp": {
-                            "type": "date"
-                          },
-                          "metricset": {
-                            "type": "keyword",
-                            "time_series_dimension": true
-                          }
-                        }
-                      }
-                    }"""), null))
+                            }"""),
+                        null
+                    )
+                )
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );

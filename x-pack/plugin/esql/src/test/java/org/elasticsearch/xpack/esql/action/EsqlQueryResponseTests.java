@@ -1101,7 +1101,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         "plan" : "plan tree"
                       }
                     ],
-                    "minimumVersion" : 1234
+                    "minimumTransportVersion" : 1234
                   }
                 }"""));
         }

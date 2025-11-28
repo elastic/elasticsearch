@@ -83,9 +83,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         EnrichPolicyResolver enrichResolver = mock(EnrichPolicyResolver.class);
         doAnswer(invocation -> {
             Object[] arguments = invocation.getArguments();
-            ActionListener<Versioned<EnrichResolution>> listener = (ActionListener<Versioned<EnrichResolution>>) arguments[arguments.length
-                - 1];
-            listener.onResponse(new Versioned<>(new EnrichResolution(), TransportVersion.current()));
+            ActionListener<EnrichResolution> listener = (ActionListener<EnrichResolution>) arguments[arguments.length - 1];
+            listener.onResponse(new EnrichResolution());
             return null;
         }).when(enrichResolver).resolvePolicies(any(), any(), any(), any());
         return enrichResolver;

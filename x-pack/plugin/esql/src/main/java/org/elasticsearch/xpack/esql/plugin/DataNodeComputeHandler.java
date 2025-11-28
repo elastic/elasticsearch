@@ -569,6 +569,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         // We can avoid synchronization (for the most part) since the array elements are never modified, and the array is only added to,
         // with its size being known before we start the computation.
         PlanTimeProfile planTimeProfile = null;
+        if (configuration.profile()) {
+            planTimeProfile = new PlanTimeProfile();
+        }
         if (request.plan() instanceof ExchangeSinkExec plan) {
             reductionPlan = ComputeService.reductionPlan(
                 computeService.plannerSettings(),
@@ -577,11 +580,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 configuration.newFoldContext(),
                 plan,
                 request.runNodeLevelReduction(),
-                request.reductionLateMaterialization()
+                request.reductionLateMaterialization(),
+                planTimeProfile
             );
-            if (configuration.profile()) {
-                planTimeProfile = new PlanTimeProfile();
-            }
         } else {
             listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));
             return;

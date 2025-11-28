@@ -268,7 +268,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             configuration.newFoldContext(),
             plan,
             true,
-            false
+            false,
+            configuration.profile() ? new PlanTimeProfile() : null
         );
         PhysicalPlan coordinatorPlan = reductionPlan.nodeReducePlan();
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();

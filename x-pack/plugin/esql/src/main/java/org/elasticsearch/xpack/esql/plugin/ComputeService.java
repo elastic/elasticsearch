@@ -742,8 +742,10 @@ public class ComputeService {
         FoldContext foldCtx,
         ExchangeSinkExec originalPlan,
         boolean runNodeLevelReduction,
-        boolean reduceNodeLateMaterialization
+        boolean reduceNodeLateMaterialization,
+        PlanTimeProfile planTimeProfile
     ) {
+        long startTime = planTimeProfile == null ? 0 : System.nanoTime();
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
         ReductionPlan defaultResult = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
         if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
@@ -755,7 +757,7 @@ public class ComputeService {
             originalPlan
         );
         // The default plan is just the exchange source piped directly into the exchange sink.
-        return switch (PlannerUtils.reductionPlan(originalPlan)) {
+        ReductionPlan reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
             case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization ->
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
                 // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
@@ -770,6 +772,10 @@ public class ComputeService {
             case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
             default -> defaultResult;
         };
+        if (planTimeProfile != null) {
+            planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
+        }
+        return reductionPlan;
     }
 
     String newChildSession(String session) {

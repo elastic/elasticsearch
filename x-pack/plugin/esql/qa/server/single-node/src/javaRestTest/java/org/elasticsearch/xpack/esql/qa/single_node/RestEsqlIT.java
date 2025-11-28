@@ -372,12 +372,20 @@ public class RestEsqlIT extends RestEsqlTestCase {
             assertThat(plan.get("cluster_name"), equalTo("test-cluster"));
             assertThat(plan.get("node_name"), equalTo("test-cluster-0"));
             assertThat(plan.get("plan"), notNullValue());
-            assertThat((int) plan.get("plan_nanos"), greaterThanOrEqualTo(0));
             String description = (String) plan.get("description");
             assertTrue("Unexpected plan description " + description, Set.of("final", "node_reduce", "data").contains(description));
-            if ("final".equals(description) || "data".equals(description)) {
-                assertThat((int) plan.get("logical_optimization_nanos"), greaterThanOrEqualTo(0));
-                assertThat((int) plan.get("physical_optimization_nanos"), greaterThanOrEqualTo(0));
+            switch(description) {
+                case "final", "data" -> {
+                    assertThat((int) plan.get("logical_optimization_nanos"), greaterThanOrEqualTo(0));
+                    assertThat((int) plan.get("physical_optimization_nanos"), greaterThanOrEqualTo(0));
+                    assertFalse(plan.containsKey("reduction_nanos"));
+                }
+                case "node_reduce" -> {
+                    assertThat((int) plan.get("reduction_nanos"), greaterThanOrEqualTo(0));
+                    assertFalse(plan.containsKey("logical_optimization_nanos"));
+                    assertFalse(plan.containsKey("physical_optimization_nanos"));
+                }
+                default -> {}
             }
         }
     }

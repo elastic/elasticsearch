@@ -22,31 +22,36 @@ import java.util.Objects;
  *
  */
 public final class PlanTimeProfile implements Writeable, ToXContentObject {
+    private long reductionPlanNanos;
     private long logicalOptimizationNanos;
     private long physicalOptimizationNanos;
 
     /**
      * @param logicalOptimizationNanos  Time spent on local logical plan optimization (in nanoseconds)
      * @param physicalOptimizationNanos Time spent on local physical plan optimization (in nanoseconds)
+     * @param reductionPlanNanos Time spent on reduction plan for node_reduce phase (in nanoseconds)
      */
-    public PlanTimeProfile(long logicalOptimizationNanos, long physicalOptimizationNanos) {
+    public PlanTimeProfile(long logicalOptimizationNanos, long physicalOptimizationNanos, long reductionPlanNanos) {
         this.logicalOptimizationNanos = logicalOptimizationNanos;
         this.physicalOptimizationNanos = physicalOptimizationNanos;
+        this.reductionPlanNanos = reductionPlanNanos;
     }
 
     public PlanTimeProfile() {
         this.logicalOptimizationNanos = 0L;
         this.physicalOptimizationNanos = 0L;
+        this.reductionPlanNanos = 0L;
     }
 
     public PlanTimeProfile(StreamInput in) throws IOException {
-        this(in.readVLong(), in.readVLong());
+        this(in.readVLong(), in.readVLong(), in.readVLong());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(logicalOptimizationNanos);
         out.writeVLong(physicalOptimizationNanos);
+        out.writeVLong(reductionPlanNanos);
     }
 
     @Override
@@ -56,6 +61,9 @@ public final class PlanTimeProfile implements Writeable, ToXContentObject {
         }
         if (physicalOptimizationNanos > 0) {
             builder.field("physical_optimization_nanos", physicalOptimizationNanos);
+        }
+        if (reductionPlanNanos > 0) {
+            builder.field("reduction_nanos", physicalOptimizationNanos);
         }
         return builder;
     }
@@ -68,18 +76,23 @@ public final class PlanTimeProfile implements Writeable, ToXContentObject {
         this.physicalOptimizationNanos = this.physicalOptimizationNanos + physicalOptimizationPlanTime;
     }
 
+    public void addReductionPlanNanos(long reductionPlanNanos) {
+        this.reductionPlanNanos = this.reductionPlanNanos + reductionPlanNanos;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj == this) return true;
         if (obj == null || obj.getClass() != this.getClass()) return false;
         var that = (PlanTimeProfile) obj;
         return this.logicalOptimizationNanos == that.logicalOptimizationNanos
-            && this.physicalOptimizationNanos == that.physicalOptimizationNanos;
+            && this.physicalOptimizationNanos == that.physicalOptimizationNanos
+            && this.reductionPlanNanos == that.reductionPlanNanos;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(logicalOptimizationNanos, physicalOptimizationNanos);
+        return Objects.hash(logicalOptimizationNanos, physicalOptimizationNanos, reductionPlanNanos);
     }
 
     @Override
@@ -90,6 +103,9 @@ public final class PlanTimeProfile implements Writeable, ToXContentObject {
             + ", "
             + "physicalOptimizationNanos="
             + physicalOptimizationNanos
+            + ", "
+            + "reductionPlanNanos="
+            + reductionPlanNanos
             + ']';
     }
 

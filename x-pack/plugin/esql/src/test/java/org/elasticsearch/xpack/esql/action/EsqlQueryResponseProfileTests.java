@@ -74,7 +74,7 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
     }
 
     private PlanTimeProfile randomPlanTimeProfile() {
-        return randomBoolean() ? null : new PlanTimeProfile(randomNonNegativeLong(), randomNonNegativeLong());
+        return randomBoolean() ? null : new PlanTimeProfile(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     private OperatorStatus randomOperatorStatus() {

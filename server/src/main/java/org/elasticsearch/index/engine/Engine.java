@@ -1107,13 +1107,10 @@ public abstract class Engine implements Closeable {
     ) throws EngineException {
         SearcherSupplier releasable = null;
         try {
-            ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             SearcherSupplier reader = releasable = acquireSearcherSupplier(
                 wrapper,
                 scope,
-                splitShardCountSummary,
-                referenceManager::acquire,
-                referenceManager::release
+                splitShardCountSummary
             );
             Searcher searcher = reader.acquireSearcher(source);
             releasable = null;

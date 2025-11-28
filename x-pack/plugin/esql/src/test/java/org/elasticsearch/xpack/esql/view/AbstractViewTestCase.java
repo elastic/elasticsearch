@@ -18,7 +18,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -74,7 +73,7 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
             }
         }
 
-        public Map<String, View> get(String... names) throws Exception {
+        public List<View> get(String... names) throws Exception {
             if (names == null || (names.length == 1 && names[0] == null)) {
                 // This is only for consistent testing, in production this is already checked in the REST API
                 throw new IllegalArgumentException("name is missing or empty");

@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.TreeMap;
 
 public class TransportGetViewAction extends TransportLocalProjectMetadataAction<GetViewAction.Request, GetViewAction.Response> {
     public static final ActionType<RemoteInfoResponse> TYPE = new ActionType<>(GetViewAction.NAME);
@@ -60,7 +59,7 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
         ActionListener<GetViewAction.Response> listener
     ) {
         ProjectId projectId = project.projectId();
-        TreeMap<String, View> views = new TreeMap<>();
+        List<View> views = new ArrayList<>();
         List<String> missing = new ArrayList<>();
         Collection<String> names = request.names();
         if (names.isEmpty()) {
@@ -71,7 +70,7 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
             if (view == null) {
                 missing.add(name);
             } else {
-                views.put(name, view);
+                views.add(view);
             }
         }
         if (missing.isEmpty() == false) {

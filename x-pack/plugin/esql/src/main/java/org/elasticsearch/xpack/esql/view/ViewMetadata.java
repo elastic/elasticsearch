@@ -113,11 +113,15 @@ public final class ViewMetadata extends AbstractNamedDiffable<Metadata.ProjectCu
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.array(VIEWS.getPreferredName(), new ViewIterator());
+        return ChunkedToXContentHelper.array(VIEWS.getPreferredName(), new ViewIterator(views));
     }
 
-    private class ViewIterator implements Iterator<ToXContent> {
-        private final Iterator<View> internal = views.iterator();
+    static class ViewIterator implements Iterator<ToXContent> {
+        private final Iterator<View> internal;
+
+        ViewIterator(List<View> views) {
+            this.internal = views.iterator();
+        }
 
         @Override
         public boolean hasNext() {

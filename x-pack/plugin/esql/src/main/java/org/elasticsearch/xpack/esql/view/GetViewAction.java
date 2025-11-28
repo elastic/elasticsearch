@@ -21,12 +21,10 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
-
-import static org.elasticsearch.xpack.esql.view.ViewMetadata.VIEWS;
 
 public class GetViewAction extends ActionType<GetViewAction.Response> {
 
@@ -75,15 +73,14 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final Map<String, View> views;
+        private final List<View> views;
 
-        public Response(Map<String, View> views) {
+        public Response(List<View> views) {
             Objects.requireNonNull(views, "views cannot be null");
-            // use a treemap to guarantee ordering in the set, then transform it to the list of named policies
-            this.views = new TreeMap<>(views);
+            this.views = Collections.unmodifiableList(views);
         }
 
-        public Map<String, View> getViews() {
+        public List<View> getViews() {
             return views;
         }
 
@@ -95,7 +92,7 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            var v = ChunkedToXContentHelper.xContentObjectFieldObjects(VIEWS.getPreferredName(), views);
+            var v = ChunkedToXContentHelper.array("views", new ViewMetadata.ViewIterator(views));
             while (v.hasNext()) {
                 v.next().toXContent(builder, params);
             }
@@ -121,7 +118,7 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
 
         @Override
         public String toString() {
-            return "GetViewAction.Response" + views.keySet();
+            return "GetViewAction.Response" + views.stream().map(View::name).toList();
         }
     }
 }

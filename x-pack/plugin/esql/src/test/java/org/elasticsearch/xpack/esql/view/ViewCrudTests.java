@@ -15,7 +15,8 @@ import org.junit.Rule;
 import org.junit.rules.TestRule;
 import org.junit.runners.model.Statement;
 
-import java.util.Map;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG;
@@ -23,7 +24,6 @@ import static org.elasticsearch.xpack.esql.view.ViewTests.randomName;
 import static org.elasticsearch.xpack.esql.view.ViewTests.randomView;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ViewCrudTests extends AbstractViewTestCase {
@@ -167,11 +167,11 @@ public class ViewCrudTests extends AbstractViewTestCase {
         );
     }
 
-    private void assertView(Map<String, View> result, String name, View view) {
+    private void assertView(List<View> result, String name, View view) {
         assertThat(result.size(), equalTo(1));
-        View found = result.get(name);
-        assertThat(found, not(nullValue()));
-        assertThat(found, equalTo(view));
+        Optional<View> found = result.stream().filter(v -> v.name().equals(name)).findFirst();
+        assertFalse(found.isEmpty());
+        assertThat(found.get(), equalTo(view));
     }
 
     private void assertViewMissing(TestViewsApi viewsApi, String name, int viewCount) throws Exception {

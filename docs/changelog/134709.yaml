@@ -1,0 +1,5 @@
+pr: 134709
+summary: "OTLP: store units in mappings"
+area: Mapping
+type: enhancement
+issues: []

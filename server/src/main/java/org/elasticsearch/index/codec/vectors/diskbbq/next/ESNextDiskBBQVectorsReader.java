@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
 import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
 
@@ -140,7 +141,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             final DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(List.of(acceptDocs.iterator(), docIndexIterator));
             final LongValues longValues = DirectReader.getInstance(centroids.randomAccessSlice(fp, sizeLookup), bitsRequired);
             int doc = iterator.nextDoc();
-            for (; doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+            for (; doc != NO_MORE_DOCS; doc = iterator.nextDoc()) {
                 acceptCentroids.set((int) longValues.get(docIndexIterator.index()));
             }
         }
@@ -748,8 +749,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 // we have taken advantage of not building the bitset + we wouldn't need any acceptDocs
                 int doc = docIdsScratch[count++];
                 if (postFilterIterator != null) {
-                    System.err.println("FINDME>> " + postFilterIterator + " is at doc: " + postFilterIterator.docID()  + ", looking for doc: " + doc);
-                    if (postFilterIterator.advance(doc) == doc) {
+                    if (postFilterIterator.docID() != NO_MORE_DOCS && postFilterIterator.advance(doc) == doc) {
                         quantizeQueryIfNecessary();
                         float qcDist = osqVectorsScorer.quantizeScore(quantizedQueryScratch);
                         indexInput.readFloats(correctiveValues, 0, 3);

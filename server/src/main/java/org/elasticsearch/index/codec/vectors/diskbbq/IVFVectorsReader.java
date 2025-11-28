@@ -327,6 +327,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
             // is enough?
             expectedDocs += scorer.resetPostingsScorer(offsetAndLength.offset());
+            System.err.println("FINDME>> " + "centroidIterator");
             actualDocs += scorer.visit(knnCollector);
             if (knnCollector.getSearchStrategy() != null) {
                 knnCollector.getSearchStrategy().nextVectorsBlock();
@@ -340,6 +341,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
                 CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
                 scorer.resetPostingsScorer(offsetAndLength.offset());
+                System.err.println("FINDME>> " + "continuing");
                 actualDocs += scorer.visit(knnCollector);
                 if (knnCollector.getSearchStrategy() != null) {
                     knnCollector.getSearchStrategy().nextVectorsBlock();

@@ -356,7 +356,7 @@ An expert-only feature is the ability to prune the contents of the `_source` fie
 Removing fields from the `_source` has similar downsides to disabling `_source`, especially the fact that you cannot reindex documents from one Elasticsearch index to another. Consider using [source filtering](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#source-filtering) instead.
 ::::
 
-If the [`index.lossy.source-mapping-parameters`](/reference/elasticsearch/index-settings/source.md#index-lossy-source_mapping_parameters) settings is `false` then these parameters cannot be configured.
+In {{serverless-short}}, these parameters are by default not configurable, unless the `index.lossy.source-mapping-parameters` cluster setting is set to `true`.
 
 The `includes`/`excludes` parameters (which also accept wildcards) can be used as follows:
 

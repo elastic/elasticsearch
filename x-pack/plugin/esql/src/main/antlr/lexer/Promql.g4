@@ -45,7 +45,7 @@ PROMQL_NESTED_LP
 
 // Query text - everything except parens and special characters
 PROMQL_QUERY_TEXT
-    : ( PROMQL_STRING_LITERAL | PROMQL_QUERY_COMMENT | ~[|()"'`#\r\n] )+    // Exclude both ( and ) from text
+    : ( PROMQL_STRING_LITERAL | PROMQL_QUERY_COMMENT | ~[|()"'`#\r\n ] )+    // Exclude both ( and ) from text
     ;
 
 // String literals (preserved with quotes as part of text)

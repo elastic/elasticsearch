@@ -135,7 +135,7 @@ public class LogsdbIndexingRollingUpgradeIT extends ESRestTestCase {
 
     private void upgradeNode(int n) throws IOException {
         closeClients();
-        var upgradeVersion = System.getProperty("tests.new_cluster_version") == null
+        var upgradeVersion = System.getProperty("tests.new_cluster_version") != null
             ? Version.fromString(System.getProperty("tests.new_cluster_version"))
             : Version.CURRENT;
         logger.info("Upgrading node {} to version {}", n, upgradeVersion);

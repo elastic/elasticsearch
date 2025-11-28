@@ -322,7 +322,7 @@ public class ConnectionConfiguration {
         return allowPartialSearchResults;
     }
 
-    public String projectRouting(){
+    public String projectRouting() {
         return projectRouting;
     }
 }

@@ -16,6 +16,14 @@
 #include <math.h>
 #include "vec.h"
 
+// AVX-512 code
+#ifdef __clang__
+#pragma clang attribute push(__attribute__((target("arch=skylake-avx512"))), apply_to=function)
+#elif __GNUC__
+#pragma GCC push_options
+#pragma GCC target ("arch=skylake-avx512")
+#endif
+
 // Includes for intrinsics
 #ifdef _MSC_VER
 #include <intrin.h>
@@ -27,14 +35,6 @@
 
 #include <emmintrin.h>
 #include <immintrin.h>
-
-// AVX-512 code
-#ifdef __clang__
-#pragma clang attribute push(__attribute__((target("arch=skylake-avx512"))), apply_to=function)
-#elif __GNUC__
-#pragma GCC push_options
-#pragma GCC target ("arch=skylake-avx512")
-#endif
 
 #ifndef STRIDE_BYTES_LEN
 #define STRIDE_BYTES_LEN sizeof(__m512i) // Must be a power of 2
@@ -165,7 +165,7 @@ static inline int64_t index(const int32_t i, const int32_t* offsets) {
 }
 
 EXPORT void vec_dot7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    dot7u_inner_bulk<identity>(a, b, dims, dims, NULL, count, 1.0f, results);
+    dot7u_inner_bulk<identity>(a, b, dims, dims, NULL, count, results);
 }
 
 

@@ -22,3 +22,7 @@ $$$synthetic-source-keep$$$
 
 `index.mapping.synthetic_source_keep`
 : (Static, string) Controls how to retain accuracy of fields at the index level. Valid values are `none` or `arrays`.This is a subset of [synthetic source keep mapping attribute](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source-keep). Defaults to `arrays` if `index.mode` is `logsdb` or otherwise `none`.
+
+$$$index-lossy-source_mapping_parameters$$$
+
+`index.lossy.source-mapping-parameters` {applies_to}`stack: ga 8.14` {applies-to}`serverless: all`: (Static, boolean) Indicates whether [source include/excludes](/reference/elasticsearch/mapping-reference/mapping-source-field.md#include-exclude) are permitted. Defaults to `true` in {{stack}} and `false` in {{serverless-short}}.

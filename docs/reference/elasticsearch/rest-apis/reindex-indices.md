@@ -590,6 +590,10 @@ Think of the possibilities! Just be careful; you are able to change:
 Setting `_version` to `null` or clearing it from the `ctx` map is just like not sending the version in an indexing request; it will cause the document to be overwritten in the destination regardless of the version on the target or the version type you use in the reindex API request.
 
 ## Reindex from remote [reindex-from-remote]
+```{applies_to}
+stack: ga
+serverless: preview
+```
 
 Reindex supports reindexing from a remote {{es}} cluster:
 
@@ -621,10 +625,6 @@ POST _reindex
 % TEST[s/"password": "pass"/"password": "x-pack-test-password"/]
 
 The `host` parameter must contain a scheme, host, port (for example, `https://<OTHER_HOST_URL>:9200`), and optional path (for example, `https://<OTHER_HOST_URL>:9200/proxy`).
-
-::::{warning}
-The functionality to reindex from a remote cluster into {{serverless-full}} is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
 
 ### Using basic auth [reindex-basic-auth]
 

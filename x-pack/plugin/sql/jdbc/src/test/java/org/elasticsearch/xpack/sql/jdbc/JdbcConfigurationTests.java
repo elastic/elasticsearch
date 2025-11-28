@@ -99,6 +99,7 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertThat(ci.debugOut(), is("jdbc.out"));
     }
 
+
     public void testDebugFlushAlways() throws Exception {
         JdbcConfiguration ci = ci(jdbcPrefix() + "a:1/?debug=true&debug.flushAlways=false");
         assertThat(ci.baseUri().toString(), is("http://a:1/"));
@@ -114,6 +115,12 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertThat(ci.baseUri().toString(), is("http://a:1/"));
         assertThat(ci.debug(), is(true));
         assertThat(ci.flushAlways(), is(false));
+    }
+
+    public void testProjectRouting() throws Exception {
+        JdbcConfiguration ci = ci(jdbcPrefix() + "a:1/?project.routing=foo");
+        assertThat(ci.baseUri().toString(), is("http://a:1/"));
+        assertThat(ci.projectRouting(), is("foo"));
     }
 
     public void testTypeInParam() throws Exception {

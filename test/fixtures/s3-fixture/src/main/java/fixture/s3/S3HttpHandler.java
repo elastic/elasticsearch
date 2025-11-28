@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.XmlUtils;
@@ -45,6 +46,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -70,6 +72,7 @@ public class S3HttpHandler implements HttpHandler {
 
     private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, MultipartUpload> uploads = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, AtomicInteger> completingUploads = new ConcurrentHashMap<>();
 
     public S3HttpHandler(final String bucket) {
         this(bucket, null);
@@ -191,43 +194,46 @@ public class S3HttpHandler implements HttpHandler {
                 }
 
             } else if (request.isCompleteMultipartUploadRequest()) {
+                final var uploadId = request.getQueryParamOnce("uploadId");
                 final byte[] responseBody;
                 final RestStatus responseCode;
-                synchronized (uploads) {
-                    final var upload = getUpload(request.getQueryParamOnce("uploadId"));
-                    if (upload == null) {
-                        if (Randomness.get().nextBoolean()) {
-                            responseCode = RestStatus.NOT_FOUND;
-                            responseBody = null;
+                try (var ignoredCompletingUploadRef = setUploadCompleting(uploadId)) {
+                    synchronized (uploads) {
+                        final var upload = getUpload(request.getQueryParamOnce("uploadId"));
+                        if (upload == null) {
+                            if (Randomness.get().nextBoolean()) {
+                                responseCode = RestStatus.NOT_FOUND;
+                                responseBody = null;
+                            } else {
+                                responseCode = RestStatus.OK;
+                                responseBody = """
+                                    <?xml version="1.0" encoding="UTF-8"?>
+                                    <Error>
+                                    <Code>NoSuchUpload</Code>
+                                    <Message>No such upload</Message>
+                                    <RequestId>test-request-id</RequestId>
+                                    <HostId>test-host-id</HostId>
+                                    </Error>""".getBytes(StandardCharsets.UTF_8);
+                            }
                         } else {
-                            responseCode = RestStatus.OK;
-                            responseBody = """
-                                <?xml version="1.0" encoding="UTF-8"?>
-                                <Error>
-                                <Code>NoSuchUpload</Code>
-                                <Message>No such upload</Message>
-                                <RequestId>test-request-id</RequestId>
-                                <HostId>test-host-id</HostId>
-                                </Error>""".getBytes(StandardCharsets.UTF_8);
-                        }
-                    } else {
-                        final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
-                        responseCode = updateBlobContents(exchange, request.path(), blobContents);
-                        if (responseCode == RestStatus.OK) {
-                            responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                                + "<CompleteMultipartUploadResult>\n"
-                                + "<Bucket>"
-                                + bucket
-                                + "</Bucket>\n"
-                                + "<Key>"
-                                + request.path()
-                                + "</Key>\n"
-                                + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
-                        } else {
-                            responseBody = null;
-                        }
-                        if (responseCode != RestStatus.PRECONDITION_FAILED) {
-                            removeUpload(upload.getUploadId());
+                            final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
+                            responseCode = updateBlobContents(exchange, request.path(), blobContents);
+                            if (responseCode == RestStatus.OK) {
+                                responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                                    + "<CompleteMultipartUploadResult>\n"
+                                    + "<Bucket>"
+                                    + bucket
+                                    + "</Bucket>\n"
+                                    + "<Key>"
+                                    + request.path()
+                                    + "</Key>\n"
+                                    + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                            } else {
+                                responseBody = null;
+                            }
+                            if (responseCode != RestStatus.PRECONDITION_FAILED) {
+                                removeUpload(upload.getUploadId());
+                            }
                         }
                     }
                 }
@@ -238,9 +244,16 @@ public class S3HttpHandler implements HttpHandler {
                 } else {
                     exchange.sendResponseHeaders(responseCode.getStatus(), -1);
                 }
+
             } else if (request.isAbortMultipartUploadRequest()) {
-                final var upload = removeUpload(request.getQueryParamOnce("uploadId"));
-                exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
+                final var uploadId = request.getQueryParamOnce("uploadId");
+                if (consistencyModel().hasStrongMultipartUploads() == false && completingUploads.containsKey(uploadId)) {
+                    // See AWS support case 176070774900712: aborts may sometimes return early if complete is already in progress
+                    exchange.sendResponseHeaders(RestStatus.NO_CONTENT.getStatus(), -1);
+                } else {
+                    final var upload = removeUpload(request.getQueryParamOnce("uploadId"));
+                    exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
+                }
 
             } else if (request.isPutObjectRequest()) {
                 // a copy request is a put request with an X-amz-copy-source header
@@ -417,29 +430,31 @@ public class S3HttpHandler implements HttpHandler {
      * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html#conditional-error-response">AWS docs</a>
      */
     private RestStatus updateBlobContents(HttpExchange exchange, String path, BytesReference newContents) {
-        if (isProtectOverwrite(exchange)) {
-            return blobs.putIfAbsent(path, newContents) == null
-                ? RestStatus.OK
-                : ESTestCase.randomFrom(RestStatus.PRECONDITION_FAILED, RestStatus.CONFLICT);
-        }
+        if (consistencyModel().hasConditionalWrites()) {
+            if (isProtectOverwrite(exchange)) {
+                return blobs.putIfAbsent(path, newContents) == null
+                    ? RestStatus.OK
+                    : ESTestCase.randomFrom(RestStatus.PRECONDITION_FAILED, RestStatus.CONFLICT);
+            }
 
-        final var requireExistingETag = getRequiredExistingETag(exchange);
-        if (requireExistingETag != null) {
-            final var responseCode = new AtomicReference<>(RestStatus.OK);
-            blobs.compute(path, (ignoredPath, existingContents) -> {
-                if (existingContents != null && requireExistingETag.equals(getEtagFromContents(existingContents))) {
-                    return newContents;
-                }
+            final var requireExistingETag = getRequiredExistingETag(exchange);
+            if (requireExistingETag != null) {
+                final var responseCode = new AtomicReference<>(RestStatus.OK);
+                blobs.compute(path, (ignoredPath, existingContents) -> {
+                    if (existingContents != null && requireExistingETag.equals(getEtagFromContents(existingContents))) {
+                        return newContents;
+                    }
 
-                responseCode.set(
-                    ESTestCase.randomFrom(
-                        existingContents == null ? RestStatus.NOT_FOUND : RestStatus.PRECONDITION_FAILED,
-                        RestStatus.CONFLICT
-                    )
-                );
-                return existingContents;
-            });
-            return responseCode.get();
+                    responseCode.set(
+                        ESTestCase.randomFrom(
+                            existingContents == null ? RestStatus.NOT_FOUND : RestStatus.PRECONDITION_FAILED,
+                            RestStatus.CONFLICT
+                        )
+                    );
+                    return existingContents;
+                });
+                return responseCode.get();
+            }
         }
 
         blobs.put(path, newContents);
@@ -625,6 +640,7 @@ public class S3HttpHandler implements HttpHandler {
         if (exchange.getRequestHeaders().get("If-Match") != null) {
             throw new AssertionError("Handling both If-None-Match and If-Match headers is not supported");
         }
+
         if (ifNoneMatch.size() != 1) {
             throw new AssertionError("multiple If-None-Match headers found: " + ifNoneMatch);
         }
@@ -677,6 +693,28 @@ public class S3HttpHandler implements HttpHandler {
         synchronized (uploads) {
             return uploads.remove(uploadId);
         }
+    }
+
+    private Releasable setUploadCompleting(String uploadId) {
+        completingUploads.computeIfAbsent(uploadId, ignored -> new AtomicInteger()).incrementAndGet();
+        return () -> clearUploadCompleting(uploadId);
+    }
+
+    private void clearUploadCompleting(String uploadId) {
+        completingUploads.compute(uploadId, (ignored, uploadCount) -> {
+            if (uploadCount == null) {
+                throw new AssertionError("upload [" + uploadId + "] not tracked");
+            }
+            if (uploadCount.decrementAndGet() == 0) {
+                return null;
+            } else {
+                return uploadCount;
+            }
+        });
+    }
+
+    protected S3ConsistencyModel consistencyModel() {
+        return S3ConsistencyModel.AWS_DEFAULT;
     }
 
     public S3Request parseRequest(HttpExchange exchange) {

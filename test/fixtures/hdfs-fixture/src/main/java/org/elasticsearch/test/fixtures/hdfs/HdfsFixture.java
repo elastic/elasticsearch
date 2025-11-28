@@ -52,11 +52,13 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 public class HdfsFixture extends ExternalResource {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(HdfsFixture.class);
+    private static final Object STATIC_CONFIG_LOCK = new Object();
 
     private TemporaryFolder temporaryFolder = new TemporaryFolder();
     private MiniDFSCluster dfs;
@@ -81,9 +83,20 @@ public class HdfsFixture extends ExternalResource {
 
     @Override
     protected void before() throws Throwable {
-        temporaryFolder.create();
-        assumeHdfsAvailable();
-        startMinHdfs();
+        // Save current locale and set to English for consistent HDFS startup behavior
+        Locale originalLocale = Locale.getDefault();
+        // Synchronize to prevent race conditions in concurrent test execution
+        synchronized (STATIC_CONFIG_LOCK) {
+            try {
+                Locale.setDefault(Locale.ENGLISH);
+                temporaryFolder.create();
+                assumeHdfsAvailable();
+                startMinHdfs();
+            } finally {
+                // Restore original locale
+                Locale.setDefault(originalLocale);
+            }
+        }
     }
 
     private void assumeHdfsAvailable() {
@@ -458,7 +471,7 @@ public class HdfsFixture extends ExternalResource {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public static void refreshKrb5Config() throws ClassNotFoundException, NoSuchMethodException, IllegalArgumentException,
-        IllegalAccessException, InvocationTargetException, InvocationTargetException {
+        IllegalAccessException, InvocationTargetException {
         Class classRef;
         if (System.getProperty("java.vendor").contains("IBM")) {
             classRef = Class.forName("com.ibm.security.krb5.internal.Config");

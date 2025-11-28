@@ -14,6 +14,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndicesOptions.CrossProjectModeOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
@@ -21,9 +22,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -55,13 +58,14 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 
 public class IndexResolver {
-    private static Logger LOGGER = LogManager.getLogger(IndexResolver.class);
+
+    private static final Logger LOGGER = LogManager.getLogger(IndexResolver.class);
 
     public static final Set<String> ALL_FIELDS = Set.of("*");
     public static final Set<String> INDEX_METADATA_FIELD = Set.of(MetadataAttribute.INDEX);
     public static final String UNMAPPED = "unmapped";
 
-    public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = IndicesOptions.builder()
+    public static final IndicesOptions DEFAULT_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .wildcardOptions(
             IndicesOptions.WildcardOptions.builder()
@@ -76,10 +80,36 @@ public class IndexResolver {
         )
         .build();
 
+    /**
+     * Configuration options used for resolving indices in a "flat world"/CPS context.
+     * Those options shift index resolution validation to FieldCaps action itself
+     * as well as automatically expand flat expressions to multiple qualified ones.
+     */
+    private static final IndicesOptions FLAT_WORLD_OPTIONS = IndicesOptions.builder(DEFAULT_OPTIONS)
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .crossProjectModeOptions(new CrossProjectModeOptions(true))
+        .build();
+
     private final Client client;
 
     public IndexResolver(Client client) {
         this.client = client;
+    }
+
+    /**
+     * Like {@link IndexResolver#resolveIndicesVersioned(String, Set, QueryBuilder, boolean, TransportVersion, boolean, boolean, IndicesExpressionGrouper, ActionListener)}
+     * but simplified and does not pass on the determined minimum transport version to the listener.
+     */
+    public void resolveIndices(String indexPattern, Set<String> fieldNames, TransportVersion minimumVersion, ActionListener<IndexResolution> listener) {
+        doResolveIndices(
+            createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, fieldNames, null, false, false),
+            indexPattern,
+            minimumVersion,
+            false,
+            false,
+            DO_NOT_GROUP,
+            listener.map(Versioned::inner)
+        );
     }
 
     /**
@@ -103,47 +133,97 @@ public class IndexResolver {
      * <p>
      * The overall minimum version is updated using the field caps response and is passed on to the listener.
      */
-    public void resolveIndexPattern(
+    public void resolveIndicesVersioned(
         String indexPattern,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
+        TransportVersion minimumVersion,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported,
+        IndicesExpressionGrouper indicesExpressionGrouper,
+        ActionListener<Versioned<IndexResolution>> listener
+    ) {
+        doResolveIndices(
+            createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, fieldNames, requestFilter, includeAllDimensions, false),
+            indexPattern,
+            minimumVersion,
+            useAggregateMetricDoubleWhenNotSupported,
+            useDenseVectorWhenNotSupported,
+            (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
+                indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, Strings.splitStringByCommaToArray(indexPattern1), false),
+                v -> List.of(v.indices())
+            ),
+            listener
+        );
+    }
+
+    /**
+     * Like {@link IndexResolver#resolveIndicesVersioned(String, Set, QueryBuilder, boolean, TransportVersion, boolean, boolean, IndicesExpressionGrouper, ActionListener)}
+     * but for flat world queries.
+     */
+    public void resolveFlatWorldIndicesVersioned(
+        String indexPattern,
+        Set<String> fieldNames,
+        QueryBuilder requestFilter,
+        boolean includeAllDimensions,
+        TransportVersion minimumVersion,
         // Used for bwc with 9.2.0, which supports aggregate_metric_double but doesn't provide its version in the field
         // caps response. We'll just assume the type is supported based on usage in the query to not break compatibility
         // with 9.2.0.
         boolean useAggregateMetricDoubleWhenNotSupported,
         // Same as above
         boolean useDenseVectorWhenNotSupported,
-        TransportVersion minimumVersion,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
-        client.execute(
-            EsqlResolveFieldsAction.TYPE,
-            createFieldCapsRequest(indexPattern, fieldNames, requestFilter, includeAllDimensions),
-            listener.delegateFailureAndWrap((l, response) -> {
-                TransportVersion responseMinimumVersion = response.caps().minTransportVersion();
-                // Note: Once {@link EsqlResolveFieldsResponse}'s CREATED version is live everywhere
-                // we can remove this and make sure responseMinimumVersion is non-null. That'll be 10.0-ish.
-                TransportVersion overallMinimumVersion = responseMinimumVersion == null
-                    ? TransportVersion.minimumCompatible()
-                    : TransportVersion.min(minimumVersion, responseMinimumVersion);
-
-                FieldsInfo info = new FieldsInfo(
-                    response.caps(),
-                    overallMinimumVersion,
-                    Build.current().isSnapshot(),
-                    useAggregateMetricDoubleWhenNotSupported,
-                    useDenseVectorWhenNotSupported
-                );
-                LOGGER.debug(
-                    "updated minimum transport version from [{}] to effective version [{}] using version [{}] from field caps response",
-                    minimumVersion,
-                    info.minTransportVersion(),
-                    responseMinimumVersion
-                );
-                l.onResponse(new Versioned<>(mergedMappings(indexPattern, info), info.minTransportVersion()));
-            })
+        doResolveIndices(
+            createFieldCapsRequest(FLAT_WORLD_OPTIONS, indexPattern, fieldNames, requestFilter, includeAllDimensions, true),
+            indexPattern,
+            minimumVersion,
+            useAggregateMetricDoubleWhenNotSupported,
+            useDenseVectorWhenNotSupported,
+            (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
+                EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
+                v -> List.copyOf(v.expression())
+            ),
+            listener
         );
+    }
+
+    private void doResolveIndices(
+        FieldCapabilitiesRequest request,
+        String indexPattern,
+        TransportVersion minimumVersion,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported,
+        OriginalIndexExtractor originalIndexExtractor,
+        ActionListener<Versioned<IndexResolution>> listener
+    ) {
+        client.execute(EsqlResolveFieldsAction.TYPE, request, listener.delegateFailureAndWrap((l, response) -> {
+            TransportVersion responseMinimumVersion = response.caps().minTransportVersion();
+            // Note: Once {@link EsqlResolveFieldsResponse}'s CREATED version is live everywhere
+            // we can remove this and make sure responseMinimumVersion is non-null. That'll be 10.0-ish.
+            TransportVersion overallMinimumVersion = responseMinimumVersion == null
+                ? TransportVersion.minimumCompatible()
+                : TransportVersion.min(minimumVersion, responseMinimumVersion);
+
+            FieldsInfo info = new FieldsInfo(
+                response.caps(),
+                overallMinimumVersion,
+                Build.current().isSnapshot(),
+                useAggregateMetricDoubleWhenNotSupported,
+                useDenseVectorWhenNotSupported
+            );
+            LOGGER.debug(
+                "previously assumed minimum transport version [{}] updated to effective version [{}]" + " using field caps response version [{}] for index pattern [{}]",
+                minimumVersion,
+                info.minTransportVersion(),
+                responseMinimumVersion,
+                indexPattern
+            );
+
+            l.onResponse(new Versioned<>(mergedMappings(indexPattern, info, originalIndexExtractor), info.minTransportVersion()));
+        }));
     }
 
     /**
@@ -191,7 +271,11 @@ public class IndexResolver {
     ) {}
 
     // public for testing only
-    public static IndexResolution mergedMappings(String indexPattern, FieldsInfo fieldsInfo) {
+    public static IndexResolution mergedMappings(
+        String indexPattern,
+        FieldsInfo fieldsInfo,
+        OriginalIndexExtractor originalIndexExtractor
+    ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         int numberOfIndices = fieldsInfo.caps.getIndexResponses().size();
         if (numberOfIndices == 0) {
@@ -251,24 +335,36 @@ public class IndexResolver {
             }
         }
 
-        Map<String, IndexMode> concreteIndices = Maps.newMapWithExpectedSize(fieldsInfo.caps.getIndexResponses().size());
-        for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps.getIndexResponses()) {
-            concreteIndices.put(ir.getIndexName(), ir.getIndexMode());
-        }
-
         boolean allEmpty = true;
+        Map<String, IndexMode> indexNameWithModes = Maps.newMapWithExpectedSize(fieldsInfo.caps.getIndexResponses().size());
+        Map<String, List<String>> concreteIndices = Maps.newHashMapWithExpectedSize(8);
         for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps.getIndexResponses()) {
             allEmpty &= ir.get().isEmpty();
+            indexNameWithModes.put(ir.getIndexName(), ir.getIndexMode());
+            var parts = RemoteClusterAware.splitIndexName(ir.getIndexName());
+            concreteIndices.computeIfAbsent(RemoteClusterAware.getClusterAlias(parts), k -> new ArrayList<>())
+                .add(RemoteClusterAware.getLocalIndexName(parts));
         }
+
         // If all the mappings are empty we return an empty set of resolved indices to line up with QL
         // Introduced with #46775
         // We need to be able to differentiate between an empty mapping index and an empty index due to fields not being found. An empty
         // mapping index will generate no columns (important) for a query like FROM empty-mapping-index, whereas an empty result here but
         // for fields that do not exist in the index (but the index has a mapping) will result in "VerificationException Unknown column"
         // errors.
-        var index = new EsIndex(indexPattern, rootFields, allEmpty ? Map.of() : concreteIndices, partiallyUnmappedFields);
+        var index = new EsIndex(
+            indexPattern,
+            rootFields,
+            allEmpty ? Map.of() : indexNameWithModes,
+            // instead of using indexSplitter we could use original indices from
+            // FieldCapabilitiesResponse#resolvedLocally and FieldCapabilitiesResponse#resolvedRemotely
+            // once all remotes support it (v9.3+)
+            originalIndexExtractor.apply(indexPattern, fieldsInfo.caps),
+            concreteIndices,
+            partiallyUnmappedFields
+        );
         var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.caps.getFailures());
-        return IndexResolution.valid(index, concreteIndices.keySet(), failures);
+        return IndexResolution.valid(index, indexNameWithModes.keySet(), failures);
     }
 
     private record IndexFieldCapabilitiesWithSourceHash(List<IndexFieldCapabilities> fieldCapabilities, String indexMappingHash) {}
@@ -408,26 +504,36 @@ public class IndexResolver {
     }
 
     private static FieldCapabilitiesRequest createFieldCapsRequest(
+        IndicesOptions options,
         String index,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
-        boolean includeAllDimensions
+        boolean includeAllDimensions,
+        boolean includeResolvedTo
     ) {
-        FieldCapabilitiesRequest req = new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index));
-        req.fields(fieldNames.toArray(String[]::new));
-        req.includeUnmapped(true);
-        req.indexFilter(requestFilter);
-        req.returnLocalAll(false);
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.indices(Strings.commaDelimitedListToStringArray(index));
+        request.fields(fieldNames.toArray(String[]::new));
+        request.includeUnmapped(true);
+        request.indexFilter(requestFilter);
+        request.returnLocalAll(false);
         // lenient because we throw our own errors looking at the response e.g. if something was not resolved
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
-        req.indicesOptions(FIELD_CAPS_INDICES_OPTIONS);
+        request.indicesOptions(options);
         // we ignore the nested data type fields starting with https://github.com/elastic/elasticsearch/pull/111495
         if (includeAllDimensions) {
-            req.filters("-nested", "+dimension");
+            request.filters("-nested", "+dimension");
         } else {
-            req.filters("-nested");
+            request.filters("-nested");
         }
-        req.setMergeResults(false);
-        return req;
+        request.setMergeResults(false);
+        request.includeResolvedTo(includeResolvedTo);
+        return request;
     }
+
+    public interface OriginalIndexExtractor {
+        Map<String, List<String>> apply(String indexPattern, FieldCapabilitiesResponse fieldCapabilitiesResponse);
+    }
+
+    public static final OriginalIndexExtractor DO_NOT_GROUP = (indexPattern, fieldCapabilitiesResponse) -> Map.of();
 }

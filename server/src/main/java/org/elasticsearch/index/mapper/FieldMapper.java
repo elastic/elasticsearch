@@ -1314,6 +1314,32 @@ public abstract class FieldMapper extends Mapper {
             return Parameter.boolParam("index", false, initializer, defaultValue);
         }
 
+        public static Parameter<Boolean> indexParam(
+            Function<FieldMapper, Boolean> initializer,
+            IndexSettings indexSettings,
+            Supplier<Boolean> isDimension
+        ) {
+            return Parameter.boolParam(
+                "index",
+                false,
+                initializer,
+                () -> useTimeSeriesDocValuesSkippers(indexSettings, isDimension.get()) == false
+            );
+        }
+
+        public static boolean useTimeSeriesDocValuesSkippers(IndexSettings indexSettings, boolean isDimension) {
+            if (indexSettings.useDocValuesSkipper() == false) {
+                return false;
+            }
+            if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
+                if (isDimension) {
+                    return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS);
+                }
+                return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS);
+            }
+            return false;
+        }
+
         public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
             return Parameter.boolParam("store", false, initializer, defaultValue);
         }

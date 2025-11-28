@@ -49,6 +49,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
+import org.elasticsearch.xpack.core.inference.results.ModelStoreResponse;
 import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -601,7 +602,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     }
 
     public void testStoreModels_ReturnsEmptyList_WhenGivenNoModelsToStore() {
-        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        PlainActionFuture<List<ModelStoreResponse>> storeListener = new PlainActionFuture<>();
         modelRegistry.storeModels(List.of(), storeListener, TimeValue.THIRTY_SECONDS);
 
         var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
@@ -621,12 +622,12 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             new TestModel.TestSecretSettings(secrets)
         );
 
-        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        PlainActionFuture<List<ModelStoreResponse>> storeListener = new PlainActionFuture<>();
         modelRegistry.storeModels(List.of(model), storeListener, TimeValue.THIRTY_SECONDS);
 
         var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
         assertThat(response.size(), Matchers.is(1));
-        assertThat(response.get(0), Matchers.is(new ModelRegistry.ModelStoreResponse(inferenceId, RestStatus.CREATED, null)));
+        assertThat(response.get(0), Matchers.is(new ModelStoreResponse(inferenceId, RestStatus.CREATED, null)));
 
         assertMinimalServiceSettings(modelRegistry, model);
 
@@ -660,13 +661,13 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             new TestModel.TestSecretSettings(secrets)
         );
 
-        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        PlainActionFuture<List<ModelStoreResponse>> storeListener = new PlainActionFuture<>();
         modelRegistry.storeModels(List.of(model1, model2), storeListener, TimeValue.THIRTY_SECONDS);
 
         var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
         assertThat(response.size(), Matchers.is(2));
-        assertThat(response.get(0), Matchers.is(new ModelRegistry.ModelStoreResponse(inferenceId1, RestStatus.CREATED, null)));
-        assertThat(response.get(1), Matchers.is(new ModelRegistry.ModelStoreResponse(inferenceId2, RestStatus.CREATED, null)));
+        assertThat(response.get(0), Matchers.is(new ModelStoreResponse(inferenceId1, RestStatus.CREATED, null)));
+        assertThat(response.get(1), Matchers.is(new ModelStoreResponse(inferenceId2, RestStatus.CREATED, null)));
 
         assertModelAndMinimalSettingsWithSecrets(modelRegistry, model1, secrets);
         assertModelAndMinimalSettingsWithSecrets(modelRegistry, model2, secrets);
@@ -717,12 +718,12 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             new TestModel.TestSecretSettings(secrets)
         );
 
-        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        PlainActionFuture<List<ModelStoreResponse>> storeListener = new PlainActionFuture<>();
         modelRegistry.storeModels(List.of(model1, model2), storeListener, TimeValue.THIRTY_SECONDS);
 
         var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
         assertThat(response.size(), Matchers.is(2));
-        assertThat(response.get(0), Matchers.is(new ModelRegistry.ModelStoreResponse(inferenceId, RestStatus.CREATED, null)));
+        assertThat(response.get(0), Matchers.is(new ModelStoreResponse(inferenceId, RestStatus.CREATED, null)));
         assertThat(response.get(1).inferenceId(), Matchers.is(model2.getInferenceEntityId()));
         assertThat(response.get(1).status(), Matchers.is(RestStatus.CONFLICT));
         assertTrue(response.get(1).failed());
@@ -759,12 +760,12 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             new TestModel.TestSecretSettings(secrets)
         );
 
-        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        PlainActionFuture<List<ModelStoreResponse>> storeListener = new PlainActionFuture<>();
         modelRegistry.storeModels(List.of(model1, model1, model2), storeListener, TimeValue.THIRTY_SECONDS);
 
         var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
         assertThat(response.size(), Matchers.is(1));
-        assertThat(response.get(0), Matchers.is(new ModelRegistry.ModelStoreResponse(inferenceId, RestStatus.CREATED, null)));
+        assertThat(response.get(0), Matchers.is(new ModelStoreResponse(inferenceId, RestStatus.CREATED, null)));
 
         assertModelAndMinimalSettingsWithSecrets(modelRegistry, model1, secrets);
         assertIndicesContainExpectedDocsCount(model1, 2);
@@ -784,7 +785,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         storeCorruptedModel(model, false);
 
-        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        PlainActionFuture<List<ModelStoreResponse>> storeListener = new PlainActionFuture<>();
         modelRegistry.storeModels(List.of(model), storeListener, TimeValue.THIRTY_SECONDS);
 
         var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
@@ -838,7 +839,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         storeCorruptedModel(model1, false);
         storeCorruptedModel(model2, true);
 
-        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        PlainActionFuture<List<ModelStoreResponse>> storeListener = new PlainActionFuture<>();
         modelRegistry.storeModels(List.of(model1, model2, model3), storeListener, TimeValue.THIRTY_SECONDS);
 
         var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
@@ -1040,7 +1041,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
     }
 
-    private Model buildElserModelConfig(String inferenceEntityId, TaskType taskType) {
+    static Model buildElserModelConfig(String inferenceEntityId, TaskType taskType) {
         return switch (taskType) {
             case SPARSE_EMBEDDING -> new org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalModel(
                 inferenceEntityId,

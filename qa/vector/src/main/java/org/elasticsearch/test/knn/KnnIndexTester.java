@@ -32,20 +32,21 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
+import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
 import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswSQVectorsFormat;
-import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -131,6 +132,7 @@ public class KnnIndexTester {
                 encoding,
                 args.ivfClusterSize(),
                 ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                DenseVectorFieldMapper.ElementType.FLOAT,
                 args.onDiskRescore()
             );
         } else if (args.indexType() == IndexType.GPU_HNSW) {
@@ -356,7 +358,9 @@ public class KnnIndexTester {
                 "QPS",
                 "recall",
                 "visited",
-                "filter_selectivity" };
+                "filter_selectivity",
+                "filter_cached",
+                "oversampling_factor" };
 
             // Calculate appropriate column widths based on headers and data
 
@@ -381,14 +385,16 @@ public class KnnIndexTester {
                 queryResultsArray[i] = new String[] {
                     queryResult.indexName,
                     queryResult.indexType,
-                    String.format(Locale.ROOT, "%.2f", queryResult.visitPercentage),
+                    String.format(Locale.ROOT, "%.3f", queryResult.visitPercentage),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgLatency),
                     String.format(Locale.ROOT, "%.2f", queryResult.netCpuTimeMS),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgCpuCount),
                     String.format(Locale.ROOT, "%.2f", queryResult.qps),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgRecall),
                     String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
-                    String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity), };
+                    String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
+                    Boolean.toString(queryResult.filterCached),
+                    String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor) };
             }
 
             printBlock(sb, searchHeaders, queryResultsArray);
@@ -465,6 +471,8 @@ public class KnnIndexTester {
         double averageVisited;
         double netCpuTimeMS;
         double avgCpuCount;
+        boolean filterCached;
+        double overSamplingFactor;
 
         Results(String indexName, String indexType, int numDocs, float filterSelectivity) {
             this.indexName = indexName;

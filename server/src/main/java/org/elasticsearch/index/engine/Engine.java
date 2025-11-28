@@ -1107,11 +1107,7 @@ public abstract class Engine implements Closeable {
     ) throws EngineException {
         SearcherSupplier releasable = null;
         try {
-            SearcherSupplier reader = releasable = acquireSearcherSupplier(
-                wrapper,
-                scope,
-                splitShardCountSummary
-            );
+            SearcherSupplier reader = releasable = acquireSearcherSupplier(wrapper, scope, splitShardCountSummary);
             Searcher searcher = reader.acquireSearcher(source);
             releasable = null;
             onSearcherCreation(source, scope);

@@ -215,26 +215,26 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
 
     public static DataStreamLifecycle.Template randomDataLifecycleTemplate() {
         ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsamplingRounds = randomDownsamplingRounds();
-        return DataStreamLifecycle.createDataLifecycleTemplate(
-            randomBoolean(),
-            randomRetention(),
-            downsamplingRounds,
-            downsamplingRounds.get() == null
-                ? randomBoolean() ? ResettableValue.undefined() : ResettableValue.reset()
-                : randomDownsamplingMethod()
-        );
+        return DataStreamLifecycle.dataLifecycleBuilder()
+            .enabled(randomBoolean())
+            .dataRetention(randomRetention())
+            .downsamplingRounds(downsamplingRounds)
+            .downsamplingMethod(
+                downsamplingRounds.get() == null
+                    ? randomBoolean() ? ResettableValue.undefined() : ResettableValue.reset()
+                    : randomDownsamplingMethod()
+            )
+            .buildTemplate();
     }
 
     public void testInvalidLifecycleConfiguration() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new DataStreamLifecycle.Template(
-                DataStreamLifecycle.LifecycleType.FAILURES,
-                randomBoolean(),
-                randomBoolean() ? null : DataStreamLifecycleTests.randomPositiveTimeValue(),
-                DataStreamLifecycleTests.randomDownsamplingRounds(),
-                null
-            )
+            () -> DataStreamLifecycle.failuresLifecycleBuilder()
+                .enabled(randomBoolean())
+                .dataRetention(randomBoolean() ? null : DataStreamLifecycleTests.randomPositiveTimeValue())
+                .downsamplingRounds(DataStreamLifecycleTests.randomDownsamplingRounds())
+                .buildTemplate()
         );
         assertThat(
             exception.getMessage(),
@@ -243,13 +243,12 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
 
         exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new DataStreamLifecycle.Template(
-                DataStreamLifecycle.LifecycleType.DATA,
-                randomBoolean(),
-                randomBoolean() ? null : DataStreamLifecycleTests.randomPositiveTimeValue(),
-                null,
-                randomFrom(DownsampleConfig.SamplingMethod.values())
-            )
+            () -> DataStreamLifecycle.dataLifecycleBuilder()
+                .enabled(randomBoolean())
+                .dataRetention(randomBoolean() ? null : randomPositiveTimeValue())
+                .downsamplingRounds(ResettableValue.create(null))
+                .downsamplingMethod(randomFrom(DownsampleConfig.SamplingMethod.values()))
+                .buildTemplate()
         );
         assertThat(
             exception.getMessage(),
@@ -262,13 +261,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
      * downsampling.
      */
     public static DataStreamLifecycle.Template randomFailuresLifecycleTemplate() {
-        return new DataStreamLifecycle.Template(
-            DataStreamLifecycle.LifecycleType.FAILURES,
-            randomBoolean(),
-            randomRetention(),
-            ResettableValue.undefined(),
-            ResettableValue.undefined()
-        );
+        return DataStreamLifecycle.failuresLifecycleBuilder().enabled(randomBoolean()).dataRetention(randomRetention()).buildTemplate();
     }
 
     private static ResettableValue<TimeValue> randomRetention() {

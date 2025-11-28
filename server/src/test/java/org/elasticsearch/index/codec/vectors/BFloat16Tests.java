@@ -52,7 +52,12 @@ public class BFloat16Tests extends ESTestCase {
         assertRounding(construct(0b000000000, 0b0000000_10000000_00000000), 0f);
 
         // rounding the standard NaN value should be unchanged
-        assertThat(Float.floatToIntBits(BFloat16.truncateToBFloat16(Float.NaN)), equalTo(Float.floatToIntBits(Float.NaN)));
+        assertThat(Float.floatToRawIntBits(BFloat16.truncateToBFloat16(Float.NaN)), equalTo(Float.floatToRawIntBits(Float.NaN)));
+
+        // you would expect this to be turned into infinity due to overflow, but instead
+        // it stays a NaN with a different bit pattern due to using floatToIntBits rather than floatToRawIntBits
+        // inside floatToBFloat16
+        assertTrue(Float.isNaN(BFloat16.truncateToBFloat16(construct(0b011111111, 0b0000000_10000000_00000000))));
     }
 
     private static float construct(int exp, int mantissa) {
@@ -71,8 +76,11 @@ public class BFloat16Tests extends ESTestCase {
         float rounded = BFloat16.truncateToBFloat16(value);
 
         // System.out.println(value + " rounds to " + rounded);
-        assertEquals(value + " rounded to " + rounded + ", not " + expectedRounded,
-            Float.floatToIntBits(expectedRounded), Float.floatToIntBits(rounded));
+        assertEquals(
+            value + " rounded to " + rounded + ", not " + expectedRounded,
+            Float.floatToIntBits(expectedRounded),
+            Float.floatToIntBits(rounded)
+        );
 
         // there should not be a closer bfloat16 value (comparing using FP math) than the expected rounded value
         float delta = Math.abs(value - rounded);

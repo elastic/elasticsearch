@@ -23,8 +23,10 @@ public final class BFloat16 {
         // denormal - zero exp, non-zero fraction
         // infinity - all-1 exp, zero fraction
         // NaN - all-1 exp, non-zero fraction
-        // the Float.NaN constant is 0x7fc0_0000, so this won't turn the most common NaN values into
-        // infinities
+
+        // note that floatToIntBits doesn't maintain specific NaN values,
+        // unlike floatToRawIntBits, but instead can return different NaN bit patterns.
+        // this means that a NaN is unlikely to be turned into infinity by rounding
 
         int bits = Float.floatToIntBits(f);
         int bfloat16 = bits >>> 16;

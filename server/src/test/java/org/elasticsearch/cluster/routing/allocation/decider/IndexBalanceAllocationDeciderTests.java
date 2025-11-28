@@ -352,7 +352,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
                 "Having DiscoveryNodeFilters disables this decider",
                 indexBalanceAllocationDecider.canAllocate(indexTierShardRouting, routingNode, routingAllocation),
                 Decision.Type.YES,
-                "Decider is disabled."
+                "Decider is disabled for index level allocation filters."
             );
         }
 
@@ -361,7 +361,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
                 "Having DiscoveryNodeFilters disables this decider",
                 indexBalanceAllocationDecider.canAllocate(searchTierShardRouting, routingNode, routingAllocation),
                 Decision.Type.YES,
-                "Decider is disabled."
+                "Decider is disabled for index level allocation filters."
             );
         }
     }

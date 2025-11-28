@@ -1749,8 +1749,8 @@ required_capability: lookup_join_with_general_expression
 FROM multi_column_joinable
 | RENAME id_int AS id_left, name_str AS name_left
 | LOOKUP JOIN multi_column_joinable_lookup ON (id_left + id_int) == (id_left * 2)
-| KEEP id_left, name_left, id_int, name_str
-| SORT id_left, id_int
+| KEEP id_left, name_left, id_int, name_str, extra1, other1, other2
+| SORT id_left, name_left, id_int, name_str, extra1, other1, other2
 | LIMIT 20
 ;
 
@@ -1789,8 +1789,8 @@ required_capability: lookup_join_with_general_expression
 FROM multi_column_joinable
 | RENAME id_int AS id_left, name_str AS name_left
 | LOOKUP JOIN multi_column_joinable_lookup ON id_left > 5 AND id_int > 5
-| KEEP id_left, name_left, id_int, name_str
-| SORT id_left, name_left, id_int, name_str
+| KEEP id_left, name_left, id_int, name_str, extra1, other1, other2
+| SORT id_left, name_left, id_int, name_str, extra1, other1, other2
 | LIMIT 20
 ;
 
@@ -1828,8 +1828,8 @@ required_capability: lookup_join_with_general_expression
 FROM multi_column_joinable
 | RENAME id_int AS id_left, name_str AS name_left
 | LOOKUP JOIN multi_column_joinable_lookup ON id_left == id_int AND name_left == name_str AND ((id_left >= 3 AND id_int >= 3) OR (id_left < 2 AND id_int < 2))
-| KEEP id_left, name_left, name_str
-| SORT id_left
+| KEEP id_left, name_left, name_str, extra1, other1, other2
+| SORT id_left, name_left, name_str, extra1, other1, other2
 | LIMIT 20
 ;
 
@@ -1866,8 +1866,8 @@ required_capability: lookup_join_with_general_expression
 FROM multi_column_joinable
 | RENAME id_int AS id_left, name_str AS name_left
 | LOOKUP JOIN multi_column_joinable_lookup ON id_left == id_int AND TRUE
-| KEEP id_left, name_left, name_str
-| SORT id_left
+| KEEP id_left, name_left, name_str, extra1, other1, other2
+| SORT id_left, name_left, name_str, extra1, other1, other2
 | LIMIT 20
 ;
 
@@ -1904,8 +1904,8 @@ required_capability: lookup_join_with_general_expression
 FROM multi_column_joinable
 | RENAME id_int AS id_left, name_str AS name_left
 | LOOKUP JOIN multi_column_joinable_lookup ON (id_left * 2) == (id_int + id_int)
-| KEEP id_left, name_left, id_int, name_str
-| SORT id_left, id_int
+| KEEP id_left, name_left, id_int, name_str, extra1, other1, other2
+| SORT id_left, name_left, id_int, name_str, extra1, other1, other2
 | LIMIT 20
 ;
 

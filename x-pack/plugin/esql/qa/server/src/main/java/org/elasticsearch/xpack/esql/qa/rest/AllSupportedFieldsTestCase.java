@@ -236,7 +236,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     public final void testFetchAll() throws IOException {
-        var responseAndCoordinatorVersion = runFromAllQuery("""
+        doTestFetchAll("*:%mode%*,%mode%*", allNodeToInfo(), allNodeToInfo());
+    }
+
+    protected final void doTestFetchAll(
+        String indexPattern,
+        Map<String, NodeInfo> nodesContributingIndices,
+        Map<String, NodeInfo> nodesInvolvedInExecution
+    ) throws IOException {
+        var responseAndCoordinatorVersion = runFromAllQuery(indexPattern, """
             , _id, _ignored, _index_mode, _score, _source, _version
             | LIMIT 1000
             """);
@@ -253,7 +261,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertMap(nameToType(columns), expectedColumns);
 
         MapMatcher expectedAllValues = matchesMap();
-        for (Map.Entry<String, NodeInfo> e : expectedIndices(indexMode).entrySet()) {
+        for (Map.Entry<String, NodeInfo> e : expectedIndices(indexMode, nodesContributingIndices).entrySet()) {
             String indexName = e.getKey();
             MapMatcher expectedValues = allTypesValuesMatcher(
                 coordinatorVersion,
@@ -268,7 +276,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
         assertMap(indexToRow(columns, values), expectedAllValues);
 
-        assertMinimumVersionFromAllQueries(responseAndCoordinatorVersion);
+        assertMinimumVersion(minVersion(nodesInvolvedInExecution), responseAndCoordinatorVersion);
 
         profileLogger.clearProfile();
     }
@@ -405,7 +413,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         MapMatcher expectedAllValues = matchesMap();
         for (Map.Entry<String, NodeInfo> e : expectedIndices(indexMode).entrySet()) {
             String indexName = e.getKey();
-            NodeInfo nodeInfo = e.getValue();
             MapMatcher expectedValues = matchesMap();
             expectedValues = expectedValues.entry("f_dense_vector", matchesList().item(0.5).item(10.0).item(5.9999995));
             expectedValues = expectedValues.entry("_index", indexName);
@@ -487,10 +494,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     private Tuple<Map<String, Object>, TransportVersion> runFromAllQuery(String restOfQuery) throws IOException {
-        var responseAndCoordinatorVersion = runQuery(
-            "FROM *:%mode%*,%mode%* METADATA _index".replace("%mode%", indexMode.toString()) + restOfQuery
-        );
-        return responseAndCoordinatorVersion;
+        return runFromAllQuery("*:%mode%*,%mode%*", restOfQuery);
+    }
+
+    private Tuple<Map<String, Object>, TransportVersion> runFromAllQuery(String indexPattern, String restOfQuery) throws IOException {
+        return runQuery(("FROM " + indexPattern + " METADATA _index").replace("%mode%", indexMode.toString()) + restOfQuery);
     }
 
     public void testRow() throws IOException {
@@ -501,18 +509,18 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         String query = "ROW x = 1 | LIMIT 1";
         var responseAndCoordinatorVersion = runQuery(query);
 
-        assertMinimumVersion(minVersion(true), responseAndCoordinatorVersion, false);
+        assertMinimumVersion(minVersion(localNodeToInfo()), responseAndCoordinatorVersion, false);
     }
 
     @SuppressWarnings("unchecked")
     public void testRowLookupJoin() throws IOException {
         assumeTrue("Test only requires lookup indices", indexMode == IndexMode.LOOKUP);
-        Map<String, NodeInfo> expectedIndices = expectedIndices(IndexMode.LOOKUP, true);
+        Map<String, NodeInfo> expectedIndices = expectedIndices(IndexMode.LOOKUP, localNodeToInfo());
         for (Map.Entry<String, NodeInfo> e : expectedIndices.entrySet()) {
             String indexName = e.getKey();
             String query = "ROW " + LOOKUP_ID_FIELD + " = 123 | LOOKUP JOIN " + indexName + " ON " + LOOKUP_ID_FIELD + " | LIMIT 1";
             var responseAndCoordinatorVersion = runQuery(query);
-            TransportVersion expectedMinimumVersion = minVersion(true);
+            TransportVersion expectedMinimumVersion = minVersion(localNodeToInfo());
 
             assertMinimumVersion(expectedMinimumVersion, responseAndCoordinatorVersion);
 
@@ -550,18 +558,18 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testRowEnrich() throws IOException {
         assumeTrue("Test only requires lookup indices", indexMode == IndexMode.LOOKUP);
-        Map<String, NodeInfo> expectedIndices = expectedIndices(IndexMode.LOOKUP, true);
+        Map<String, NodeInfo> expectedIndices = expectedIndices(IndexMode.LOOKUP, localNodeToInfo());
         for (Map.Entry<String, NodeInfo> e : expectedIndices.entrySet()) {
             String policyName = e.getKey() + "_policy";
             String query = "ROW " + LOOKUP_ID_FIELD + " = 123 | ENRICH " + policyName + " ON " + LOOKUP_ID_FIELD + " | LIMIT 1";
             var responseAndCoordinatorVersion = runQuery(query);
             Map<String, Object> response = responseAndCoordinatorVersion.v1();
             TransportVersion coordinatorVersion = responseAndCoordinatorVersion.v2();
-            TransportVersion expectedMinimumVersion = minVersion(true);
+            TransportVersion expectedMinimumVersion = minVersion(localNodeToInfo());
 
             Map<String, Object> profile = (Map<String, Object>) response.get("profile");
             Integer actualMinimumVersion = (Integer) profile.get("minimumTransportVersion");
-            if (minVersion(true).supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)
+            if (minVersion(localNodeToInfo()).supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)
                 // Some nodes don't send back the minimum transport version because they're too old to do that.
                 // In this case, the determined minimum version will be that of the coordinator.
                 || (coordinatorVersion.supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)
@@ -1006,11 +1014,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     private Map<String, NodeInfo> expectedIndices(IndexMode indexMode) throws IOException {
-        return expectedIndices(indexMode, false);
+        return expectedIndices(indexMode, allNodeToInfo());
     }
 
-    private Map<String, NodeInfo> expectedIndices(IndexMode indexMode, boolean onlyLocalCluster) throws IOException {
-        Map<String, NodeInfo> nodeToInfo = onlyLocalCluster ? localNodeToInfo() : allNodeToInfo();
+    protected Map<String, NodeInfo> expectedIndices(IndexMode indexMode, Map<String, NodeInfo> nodeToInfo) throws IOException {
         Map<String, NodeInfo> result = new TreeMap<>();
         if (supportsNodeAssignment()) {
             for (Map.Entry<String, NodeInfo> e : nodeToInfo.entrySet()) {
@@ -1044,11 +1051,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     protected TransportVersion minVersion() throws IOException {
-        return minVersion(false);
+        return minVersion(allNodeToInfo());
     }
 
-    protected TransportVersion minVersion(boolean onlyLocalCluster) throws IOException {
-        Map<String, NodeInfo> nodeToInfo = onlyLocalCluster ? localNodeToInfo() : allNodeToInfo();
+    protected TransportVersion minVersion(Map<String, NodeInfo> nodeToInfo) throws IOException {
         return nodeToInfo.values().stream().map(NodeInfo::version).min(Comparator.naturalOrder()).get();
     }
 }

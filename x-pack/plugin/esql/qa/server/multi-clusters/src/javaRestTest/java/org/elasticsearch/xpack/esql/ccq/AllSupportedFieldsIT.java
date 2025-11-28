@@ -101,4 +101,8 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
                 false
             );
     }
+
+    public final void testFetchAllOnlyFromRemotes() throws IOException {
+        doTestFetchAll("*:%mode%*", remoteNodeToInfo(), allNodeToInfo());
+    }
 }

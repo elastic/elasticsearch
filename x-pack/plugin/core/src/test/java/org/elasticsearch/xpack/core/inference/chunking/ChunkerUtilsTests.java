@@ -12,6 +12,8 @@ import com.ibm.icu.text.BreakIterator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Locale;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkerTests.TEST_TEXT;
 
@@ -83,6 +85,12 @@ public class ChunkerUtilsTests extends ESTestCase {
             // "m", "s" - the & is not counted
             assertEquals(2, ChunkerUtils.countWords(0, text.length(), wordIterator));
         }
+    }
+
+    public void testCountWords_GivenStringCountsAllWords() {
+        int wordCount = randomIntBetween(1, 100);
+        var testText = IntStream.range(0, wordCount).mapToObj(i -> "word" + i).collect(Collectors.joining(" ")) + ".";
+        assertEquals(wordCount, ChunkerUtils.countWords(testText));
     }
 
     private int[] sentenceSizes(String text) {

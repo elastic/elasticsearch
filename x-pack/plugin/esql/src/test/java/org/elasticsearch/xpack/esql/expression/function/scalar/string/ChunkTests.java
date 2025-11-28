@@ -11,9 +11,11 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -24,15 +26,18 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk.CHUNK_SIZE;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk.NUM_CHUNKS;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk.ALLOWED_CHUNKING_SETTING_OPTIONS;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk.DEFAULT_CHUNKING_SETTINGS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ChunkTests extends AbstractScalarFunctionTestCase {
@@ -64,18 +69,15 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
                 String text = randomWordsBetween(25, 50);
                 ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(Chunk.DEFAULT_CHUNK_SIZE, 0);
 
-                List<String> chunks = Chunk.chunkText(text, chunkingSettings, Chunk.DEFAULT_NUM_CHUNKS);
+                List<String> chunks = Chunk.chunkText(text, chunkingSettings);
                 Object expectedResult = chunks.size() == 1
                     ? new BytesRef(chunks.get(0).trim())
                     : chunks.stream().map(s -> new BytesRef(s.trim())).toList();
 
                 return new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str")),
-                    "ChunkBytesRefEvaluator[str=Attribute[channel=0], numChunks=LiteralsEvaluator[lit="
-                        + Chunk.DEFAULT_NUM_CHUNKS
-                        + "], chunkSize=LiteralsEvaluator[lit="
-                        + Chunk.DEFAULT_CHUNK_SIZE
-                        + "]]",
+                    "ChunkBytesRefEvaluator[str=Attribute[channel=0], "
+                        + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}]",
                     DataType.KEYWORD,
                     equalTo(expectedResult)
                 );
@@ -83,18 +85,15 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
                 String text = randomWordsBetween(25, 50);
                 ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(Chunk.DEFAULT_CHUNK_SIZE, 0);
 
-                List<String> chunks = Chunk.chunkText(text, chunkingSettings, Chunk.DEFAULT_NUM_CHUNKS);
+                List<String> chunks = Chunk.chunkText(text, chunkingSettings);
                 Object expectedResult = chunks.size() == 1
                     ? new BytesRef(chunks.get(0).trim())
                     : chunks.stream().map(s -> new BytesRef(s.trim())).toList();
 
                 return new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(new BytesRef(text), DataType.TEXT, "str")),
-                    "ChunkBytesRefEvaluator[str=Attribute[channel=0], numChunks=LiteralsEvaluator[lit="
-                        + Chunk.DEFAULT_NUM_CHUNKS
-                        + "], chunkSize=LiteralsEvaluator[lit="
-                        + Chunk.DEFAULT_CHUNK_SIZE
-                        + "]]",
+                    "ChunkBytesRefEvaluator[str=Attribute[channel=0], "
+                        + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}]",
                     DataType.KEYWORD,
                     equalTo(expectedResult)
                 );
@@ -102,67 +101,81 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         );
     }
 
-    private static MapExpression createOptionsMap(Integer numChunks, Integer chunkSize) {
-        List<Expression> keyValuePairs = new ArrayList<>();
+    private static MapExpression createChunkingSettings(ChunkingSettings chunkingSettings) {
+        List<Expression> chunkingSettingsMap = new ArrayList<>();
 
-        if (Objects.nonNull(numChunks)) {
-            keyValuePairs.add(Literal.keyword(Source.EMPTY, NUM_CHUNKS));
-            keyValuePairs.add(new Literal(Source.EMPTY, numChunks, DataType.INTEGER));
+        if (Objects.nonNull(chunkingSettings)) {
+            chunkingSettings.asMap().forEach((k, v) -> {
+                chunkingSettingsMap.add(Literal.keyword(Source.EMPTY, k));
+                DataType dataType = ALLOWED_CHUNKING_SETTING_OPTIONS.get(k);
+                Object value = v;
+                if (dataType == DataType.KEYWORD) {
+                    if (v instanceof List<?> list) {
+                        value = list.stream().map(item -> BytesRefs.toBytesRef(item)).toList();
+                    } else if (v instanceof String str) {
+                        value = BytesRefs.toBytesRef(str);
+                    }
+                }
+                chunkingSettingsMap.add(new Literal(Source.EMPTY, value, dataType));
+            });
         }
 
-        if (Objects.nonNull(chunkSize)) {
-            keyValuePairs.add(Literal.keyword(Source.EMPTY, CHUNK_SIZE));
-            keyValuePairs.add(new Literal(Source.EMPTY, chunkSize, DataType.INTEGER));
-        }
-
-        return new MapExpression(Source.EMPTY, keyValuePairs);
+        return new MapExpression(Source.EMPTY, chunkingSettingsMap);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         // With MapParam, args contains: field, options_map
         Expression options = args.size() < 2 ? null : args.get(1);
-        // TODO needed?
-        if (options instanceof Literal lit && lit.value() == null) {
-            options = null;
-        }
         return new Chunk(source, args.get(0), options);
     }
 
     public void testDefaults() {
         // Default of 300 is huge, only one chunk returned in this case
-        verifyChunks(null, null, 1);
+        verifyChunks(null, 1);
     }
 
-    public void testDefaultNumChunks() {
-        int chunkSize = 20;
-        verifyChunks(null, chunkSize, 8);
+    public void testDefaultChunkingSettings() {
+        verifyChunks(null, 1);
     }
 
-    public void testDefaultChunkSize() {
-        int numChunks = 1; // Default of 300 is huge, only one chunk returned in this case
-        verifyChunks(numChunks, null, numChunks);
+    public void testSpecifiedChunkingSettings() {
+        // We can't randomize here, because we're testing on specifically specified chunk size that's variable.
+        int chunkSize = 25;
+        int expectedNumChunks = 6;
+        ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(chunkSize, 0);
+        verifyChunks(chunkingSettings, expectedNumChunks);
     }
 
-    public void testSpecifiedOptions() {
-        int numChunks = randomIntBetween(2, 4);
-        int chunkSize = randomIntBetween(20, 30);
-        verifyChunks(numChunks, chunkSize, numChunks);
+    public void testRandomChunkingSettings() {
+        ChunkingSettings chunkingSettings = createRandomChunkingSettings();
+        List<String> result = process(PARAGRAPH_INPUT, chunkingSettings);
+        assertNotNull(result);
+        assertFalse(result.isEmpty());
+        // Actual results depend on chunking settings passed in
     }
 
-    private void verifyChunks(Integer numChunks, Integer chunkSize, int expectedNumChunksReturned) {
-        int numChunksOrDefault = numChunks != null ? numChunks : Chunk.DEFAULT_NUM_CHUNKS;
-        int chunkSizeOrDefault = chunkSize != null ? chunkSize : Chunk.DEFAULT_CHUNK_SIZE;
-        ChunkingSettings settings = new SentenceBoundaryChunkingSettings(chunkSizeOrDefault, 0);
-        List<String> expected = Chunk.chunkText(PARAGRAPH_INPUT, settings, numChunksOrDefault).stream().map(String::trim).toList();
+    // Paranoia check, this test will fail if we add new chunking settings options without updating the Chunk function
+    public void testChunkDefinesAllAllowedChunkingSettingsOptions() {
+        Set<String> allowedOptions = ALLOWED_CHUNKING_SETTING_OPTIONS.keySet();
+        Set<String> allOptions = Arrays.stream(ChunkingSettingsOptions.values())
+            .map(ChunkingSettingsOptions::toString)
+            .collect(Collectors.toSet());
 
-        List<String> result = process(PARAGRAPH_INPUT, numChunksOrDefault, chunkSizeOrDefault);
+        assertEquals(allOptions, allowedOptions);
+    }
+
+    private void verifyChunks(ChunkingSettings chunkingSettings, int expectedNumChunksReturned) {
+        ChunkingSettings chunkingSettingsOrDefault = chunkingSettings != null ? chunkingSettings : DEFAULT_CHUNKING_SETTINGS;
+        List<String> expected = Chunk.chunkText(PARAGRAPH_INPUT, chunkingSettingsOrDefault).stream().map(String::trim).toList();
+
+        List<String> result = process(PARAGRAPH_INPUT, chunkingSettingsOrDefault);
         assertThat(result.size(), equalTo(expectedNumChunksReturned));
         assertThat(result, equalTo(expected));
     }
 
-    private List<String> process(String str, Integer numChunks, Integer chunkSize) {
-        MapExpression optionsMap = (numChunks == null && chunkSize == null) ? null : createOptionsMap(numChunks, chunkSize);
+    private List<String> process(String str, ChunkingSettings chunkingSettings) {
+        MapExpression optionsMap = chunkingSettings == null ? null : createChunkingSettings(chunkingSettings);
 
         try (
             EvalOperator.ExpressionEvaluator eval = evaluator(new Chunk(Source.EMPTY, field("str", DataType.KEYWORD), optionsMap)).get(

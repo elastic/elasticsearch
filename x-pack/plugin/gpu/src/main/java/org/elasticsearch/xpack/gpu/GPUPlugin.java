@@ -1,10 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.gpu;
@@ -12,18 +10,23 @@ package org.elasticsearch.xpack.gpu;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.gpu.GPUSupport;
+import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
+import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
+import org.elasticsearch.license.License;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
-import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswSQVectorsFormat;
-import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.List;
 
 public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlugin {
 
     public static final FeatureFlag GPU_FORMAT = new FeatureFlag("gpu_vectors_indexing");
+
+    private static final License.OperationMode MINIMUM_ALLOWED_LICENSE = License.OperationMode.ENTERPRISE;
 
     /**
      * An enum for the tri-state value of the `index.vectors.indexing.use_gpu` setting.
@@ -60,6 +63,12 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         }
     }
 
+    // Allow tests to override the license state
+    protected boolean isGpuIndexingFeatureAllowed() {
+        var licenseState = XPackPlugin.getSharedLicenseState();
+        return licenseState != null && licenseState.isAllowedByLicense(MINIMUM_ALLOWED_LICENSE);
+    }
+
     @Override
     public VectorsFormatProvider getVectorsFormatProvider() {
         return (indexSettings, indexOptions, similarity) -> {
@@ -76,9 +85,19 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
                             "[index.vectors.indexing.use_gpu] was set to [true], but GPU resources are not accessible on the node."
                         );
                     }
+                    if (isGpuIndexingFeatureAllowed() == false) {
+                        throw new IllegalArgumentException(
+                            "[index.vectors.indexing.use_gpu] was set to [true], but GPU indexing is a ["
+                                + MINIMUM_ALLOWED_LICENSE
+                                + "] level feature"
+                        );
+                    }
                     return getVectorsFormat(indexOptions, similarity);
                 }
-                if (gpuMode == GpuMode.AUTO && vectorIndexTypeSupported(indexOptions.getType()) && GPUSupport.isSupported()) {
+                if (gpuMode == GpuMode.AUTO
+                    && vectorIndexTypeSupported(indexOptions.getType())
+                    && GPUSupport.isSupported()
+                    && isGpuIndexingFeatureAllowed()) {
                     return getVectorsFormat(indexOptions, similarity);
                 }
             }

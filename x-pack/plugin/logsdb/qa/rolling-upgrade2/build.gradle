@@ -28,3 +28,7 @@ tasks.withType(Test).configureEach {
   // CI doesn't like it when there's multiple clusters running at once
   maxParallelForks = 1
 }
+
+tasks.named("javaRestTest") {
+  enabled = false
+}

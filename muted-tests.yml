@@ -448,6 +448,9 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.S3RepositoryAnalysisStrongMpusRestIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/138762
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testCreatesEisChatCompletionEndpoint
+  issue: https://github.com/elastic/elasticsearch/issues/138764
 
 # Examples:
 #

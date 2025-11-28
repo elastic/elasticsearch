@@ -49,15 +49,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         String unresolvedMessage,
         SourceCommand sourceCommand
     ) {
-        this(
-            source,
-            indexPattern,
-            frozen,
-            metadataFields,
-            sourceCommand.indexMode(),
-            unresolvedMessage,
-            sourceCommand.name()
-        );
+        this(source, indexPattern, frozen, metadataFields, sourceCommand.indexMode(), unresolvedMessage, sourceCommand.name());
     }
 
     public UnresolvedRelation(

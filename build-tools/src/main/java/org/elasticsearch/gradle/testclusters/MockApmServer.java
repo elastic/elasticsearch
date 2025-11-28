@@ -114,8 +114,26 @@ public class MockApmServer {
     }
 
     class RootHandler implements HttpHandler {
+        // checked by APM agent to identify the APM server version to adjust its behavior accordingly
+        private static final String FAKE_VERSION = """
+            {
+              "build_date": "2021-12-18T19:59:06Z",
+              "build_sha": "24fe620eeff5a19e2133c940c7e5ce1ceddb1445",
+              "publish_ready": true,
+              "version": "9.0.0"
+            }
+            """;
+
         public void handle(HttpExchange t) {
             try {
+                if ("GET".equals(t.getRequestMethod()) && "/".equals(t.getRequestURI().getPath())) {
+                    t.sendResponseHeaders(200, FAKE_VERSION.length());
+                    try (OutputStream os = t.getResponseBody()) {
+                        os.write(FAKE_VERSION.getBytes());
+                    }
+                    return;
+                }
+
                 InputStream body = t.getRequestBody();
                 if (metricFilter == null && transactionFilter == null) {
                     logRequestBody(body);

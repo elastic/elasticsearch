@@ -167,7 +167,8 @@ class IndicesAndAliasesResolver {
     }
 
     boolean resolvesCrossProject(TransportRequest request) {
-        return request instanceof IndicesRequest.Replaceable replaceable && crossProjectModeDecider.resolvesCrossProject(replaceable);
+        return request instanceof IndicesRequest.CrossProjectCandidate crossProjectCandidate
+            && crossProjectModeDecider.resolvesCrossProject(crossProjectCandidate);
     }
 
     private static boolean requiresWildcardExpansion(IndicesRequest indicesRequest) {
@@ -560,6 +561,7 @@ class IndicesAndAliasesResolver {
                 + "]";
             logger.debug(message);
             // we are excepting `*,-*` below since we've observed this already -- keeping this assertion to catch other cases
+            // If more exceptions are found, we can add a comment to above linked issue and relax this check further
             assert replaceable.indices() == null || isNoneExpression(replaceable.indices()) : message;
         }
     }

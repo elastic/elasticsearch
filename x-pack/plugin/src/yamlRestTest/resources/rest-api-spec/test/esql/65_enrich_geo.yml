@@ -75,7 +75,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM regions | ENRICH locations-policy ON shape'
+          query: 'FROM regions | ENRICH locations-policy ON shape | SORT region'
 
   - match: { columns.0.name: "region" }
   - match: { columns.0.type: "keyword" }
@@ -142,7 +142,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM regions | ENRICH locations-policy ON shape'
+          query: 'FROM regions | ENRICH locations-policy ON shape | SORT region'
 
   - match: { columns.0.name: "region" }
   - match: { columns.0.type: "keyword" }

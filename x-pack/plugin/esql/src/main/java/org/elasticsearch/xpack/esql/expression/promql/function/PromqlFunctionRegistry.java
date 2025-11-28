@@ -358,8 +358,7 @@ public class PromqlFunctionRegistry {
 
     public FunctionDefinition functionMetadata(String name) {
         String normalized = normalize(name);
-        FunctionDefinition metadata = promqlFunctions.get(normalized);
-        return metadata;
+        return promqlFunctions.get(normalized);
     }
 
     public Function buildEsqlFunction(String name, Source source, List<Expression> params) {

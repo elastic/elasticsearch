@@ -97,7 +97,7 @@ public class IndexResolver {
     }
 
     /**
-     * Like {@link IndexResolver#resolveIndicesVersioned(String, Set, QueryBuilder, boolean, TransportVersion, boolean, boolean, IndicesExpressionGrouper, ActionListener)}
+     * Like {@code IndexResolver#resolveIndicesVersioned}
      * but simplified and does not pass on the determined minimum transport version to the listener.
      */
     public void resolveIndices(
@@ -164,7 +164,7 @@ public class IndexResolver {
     }
 
     /**
-     * Like {@link IndexResolver#resolveIndicesVersioned(String, Set, QueryBuilder, boolean, TransportVersion, boolean, boolean, IndicesExpressionGrouper, ActionListener)}
+     * Like {@code IndexResolver#resolveIndicesVersioned}
      * but for flat world queries.
      */
     public void resolveFlatWorldIndicesVersioned(

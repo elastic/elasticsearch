@@ -29,6 +29,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -238,6 +239,49 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         public Optional<BitSet> getBitSet() throws IOException {
             createBitSetIfNecessary();
             return Optional.of(acceptBitSet);
+        }
+    }
+
+    /** An AcceptDocs that wraps a ScorerSupplier. Indicates that a filter was provided. */
+    public static final class PostFilterEsAcceptDocs extends ESAcceptDocs {
+        private final ScorerSupplier scorerSupplier;
+        private final Bits liveDocs;
+
+        PostFilterEsAcceptDocs(ScorerSupplier scorerSupplier, Bits liveDocs) {
+            this.scorerSupplier = scorerSupplier;
+            this.liveDocs = liveDocs;
+        }
+
+        @Override
+        public Bits bits() throws IOException {
+            throw new UnsupportedOperationException("[PostFilterEsAcceptDocs] does not support bits creation");
+        }
+
+        @Override
+        public DocIdSetIterator iterator() throws IOException {
+            return liveDocs == null
+                ? scorerSupplier.get(NO_MORE_DOCS).iterator()
+                : new FilteredDocIdSetIterator(scorerSupplier.get(NO_MORE_DOCS).iterator()) {
+                    @Override
+                    protected boolean match(int doc) {
+                        return liveDocs.get(doc);
+                    }
+                };
+        }
+
+        @Override
+        public int cost() throws IOException {
+            throw new UnsupportedOperationException("[PostFilterEsAcceptDocs] does not support computing exact cost");
+        }
+
+        @Override
+        public int approximateCost() throws IOException {
+            return Math.toIntExact(scorerSupplier.cost());
+        }
+
+        @Override
+        public Optional<BitSet> getBitSet() throws IOException {
+            throw new UnsupportedOperationException("[PostFilterEsAcceptDocs] does not support BitSet creation");
         }
     }
 }

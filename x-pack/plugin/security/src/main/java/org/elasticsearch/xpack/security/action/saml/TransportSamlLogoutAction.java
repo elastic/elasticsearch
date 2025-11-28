@@ -26,10 +26,10 @@ import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationRes
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
-import org.elasticsearch.xpack.security.authc.saml.SamlAuthenticationException;
 import org.elasticsearch.xpack.security.authc.saml.SamlNameId;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRedirect;
+import org.elasticsearch.xpack.security.authc.saml.SamlUtils;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 
 import java.util.Map;
@@ -103,23 +103,17 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
 
     private SamlLogoutResponse buildResponse(Authentication authentication, Map<String, Object> tokenMetadata) {
         if (authentication == null) {
-            throw new SamlAuthenticationException(true, null, "No active authentication");
+            throw SamlUtils.samlException("No active authentication");
         }
         final User user = authentication.getEffectiveSubject().getUser();
         if (user == null) {
-            throw new SamlAuthenticationException(true, null, "No active user");
+            throw SamlUtils.samlException("No active user");
         }
 
         final SamlRealm realm = findRealm(authentication);
         final String tokenRealm = getMetadataString(tokenMetadata, SamlRealm.TOKEN_METADATA_REALM);
         if (realm.name().equals(tokenRealm) == false) {
-            throw new SamlAuthenticationException(
-                true,
-                null,
-                "Authenticating realm [{}] does not match token realm [{}]",
-                realm,
-                tokenRealm
-            );
+            throw SamlUtils.samlException("Authenticating realm [{}] does not match token realm [{}]", realm, tokenRealm);
         }
 
         final SamlNameId nameId = new SamlNameId(
@@ -144,34 +138,28 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
             if (metadata.containsKey(key)) {
                 return null;
             }
-            throw new SamlAuthenticationException(true, null, "Access token does not have SAML metadata [{}]", key);
+            throw SamlUtils.samlException("Access token does not have SAML metadata [{}]", key);
         }
         if (value instanceof String) {
             return (String) value;
         } else {
-            throw new SamlAuthenticationException(
-                true,
-                null,
-                "In access token, SAML metadata [{}] is [{}] rather than String",
-                key,
-                value.getClass()
-            );
+            throw SamlUtils.samlException("In access token, SAML metadata [{}] is [{}] rather than String", key, value.getClass());
         }
     }
 
     private SamlRealm findRealm(Authentication authentication) {
         final Authentication.RealmRef ref = authentication.getEffectiveSubject().getRealm();
         if (ref == null || Strings.isNullOrEmpty(ref.getName())) {
-            throw new SamlAuthenticationException(true, null, "Authentication {} has no effective realm", authentication);
+            throw SamlUtils.samlException("Authentication {} has no effective realm", authentication);
         }
         final Realm realm = realms.realm(ref.getName());
         if (realm == null) {
-            throw new SamlAuthenticationException(true, null, "Authenticating realm {} does not exist", ref.getName());
+            throw SamlUtils.samlException("Authenticating realm {} does not exist", ref.getName());
         }
         if (realm instanceof SamlRealm) {
             return (SamlRealm) realm;
         } else {
-            throw new SamlAuthenticationException(true, null, "Authenticating realm {} is not a SAML realm", realm);
+            throw SamlUtils.samlException("Authenticating realm {} is not a SAML realm", realm);
         }
     }
 

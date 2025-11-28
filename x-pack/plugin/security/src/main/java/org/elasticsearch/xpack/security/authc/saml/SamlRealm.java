@@ -563,14 +563,12 @@ public final class SamlRealm extends Realm implements Releasable {
                 final SamlAttributes attributes = authenticator.authenticate(token);
                 logger.debug("Parsed token [{}] to attributes [{}]", token, attributes);
                 buildUser(attributes, ActionListener.releaseAfter(listener, attributes));
-            } catch (SamlAuthenticationException e) {
-                if (e.isTerminating()) {
-                    listener.onFailure(e);
-                } else {
-                    listener.onResponse(AuthenticationResult.unsuccessful("Provided SAML response is not valid for realm " + this, e));
-                }
             } catch (ElasticsearchSecurityException e) {
-                listener.onFailure(e);
+                if (SamlUtils.isSamlException(e)) {
+                    listener.onResponse(AuthenticationResult.unsuccessful("Provided SAML response is not valid for realm " + this, e));
+                } else {
+                    listener.onFailure(e);
+                }
             }
         } else {
             listener.onResponse(AuthenticationResult.notHandled());
@@ -850,7 +848,7 @@ public final class SamlRealm extends Realm implements Releasable {
             final EntityDescriptor descriptor = resolveEntityDescriptorWithPossibleRefresh(resolver, entityId);
             if (descriptor == null) {
                 if (failOnError) {
-                    throw new SamlAuthenticationException("Cannot find metadata for entity [{}] in [{}]", entityId, sourceLocation);
+                    throw SamlUtils.samlException("Cannot find metadata for entity [{}] in [{}]", entityId, sourceLocation);
                 } else {
                     logger.warn(
                         "cannot load SAML metadata for [{}] from [{}]; SAML authentication for this realm will fail",
@@ -862,7 +860,7 @@ public final class SamlRealm extends Realm implements Releasable {
             }
             return descriptor;
         } catch (ResolverException e) {
-            throw new SamlAuthenticationException(false, e, "Cannot resolve entity metadata");
+            throw SamlUtils.samlException("Cannot resolve entity metadata", e);
         }
     }
 
@@ -921,12 +919,7 @@ public final class SamlRealm extends Realm implements Releasable {
                 resolver.initialize();
             } catch (ComponentInitializationException e) {
                 resolver.destroy();
-                throw new SamlAuthenticationException(
-                    false,
-                    e,
-                    "cannot load SAML metadata from [{}]",
-                    config.getSetting(IDP_METADATA_PATH)
-                );
+                throw SamlUtils.samlException("cannot load SAML metadata from [{}]", e, config.getSetting(IDP_METADATA_PATH));
             }
             return null;
         });
@@ -1101,7 +1094,7 @@ public final class SamlRealm extends Realm implements Releasable {
                     attributes -> {
                         List<String> attributeValues = attributes.getAttributeValues(attributeName);
                         if (attributeValues.size() > 1) {
-                            throw new SamlAuthenticationException(
+                            throw SamlUtils.samlException(
                                 "Expected single string value for attribute: ["
                                     + attributeName
                                     + "], but got list with "

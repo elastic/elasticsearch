@@ -27,10 +27,10 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionRe
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionResponse;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
-import org.elasticsearch.xpack.security.authc.saml.SamlAuthenticationException;
 import org.elasticsearch.xpack.security.authc.saml.SamlLogoutRequestHandler;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRedirect;
+import org.elasticsearch.xpack.security.authc.saml.SamlUtils;
 import org.opensaml.saml.saml2.core.LogoutResponse;
 
 import java.util.List;
@@ -83,9 +83,9 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), request.getAssertionConsumerServiceURL());
         if (realms.isEmpty()) {
-            listener.onFailure(new SamlAuthenticationException("Cannot find any matching realm for [{}]", request));
+            listener.onFailure(SamlUtils.samlException("Cannot find any matching realm for [{}]", request));
         } else if (realms.size() > 1) {
-            listener.onFailure(new SamlAuthenticationException("Found multiple matching realms [{}] for [{}]", realms, request));
+            listener.onFailure(SamlUtils.samlException("Found multiple matching realms [{}] for [{}]", realms, request));
         } else {
             invalidateSession(realms.get(0), request, listener);
         }

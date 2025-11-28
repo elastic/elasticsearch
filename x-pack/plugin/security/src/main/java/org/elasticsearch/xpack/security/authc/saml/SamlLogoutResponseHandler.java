@@ -14,6 +14,8 @@ import org.w3c.dom.Element;
 import java.time.Clock;
 import java.util.Collection;
 
+import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
+
 public class SamlLogoutResponseHandler extends SamlResponseHandler {
 
     private static final String LOGOUT_RESPONSE_TAG_NAME = "LogoutResponse";
@@ -28,7 +30,7 @@ public class SamlLogoutResponseHandler extends SamlResponseHandler {
             logger.debug("Process SAML LogoutResponse with HTTP-Redirect binding");
             final ParsedQueryString parsed = parseQueryStringAndValidateSignature(payload, "SAMLResponse");
             if (parsed.hasSignature == false) {
-                throw new SamlAuthenticationException("Query string is not signed, but is required for HTTP-Redirect binding");
+                throw samlException("Query string is not signed, but is required for HTTP-Redirect binding");
             }
             root = parseSamlMessage(inflate(decodeBase64(parsed.samlMessage)));
         } else {
@@ -41,7 +43,7 @@ public class SamlLogoutResponseHandler extends SamlResponseHandler {
             // For HTTP-Redirect, the signature is already validated when parsing the query string
             if (httpRedirect == false) {
                 if (logoutResponse.getSignature() == null) {
-                    throw new SamlAuthenticationException("LogoutResponse is not signed, but is required for HTTP-Post binding");
+                    throw samlException("LogoutResponse is not signed, but is required for HTTP-Post binding");
                 }
                 validateSignature(logoutResponse.getSignature(), logoutResponse.getIssuer());
             }
@@ -50,7 +52,7 @@ public class SamlLogoutResponseHandler extends SamlResponseHandler {
             checkIssuer(logoutResponse.getIssuer(), logoutResponse);
             checkResponseDestination(logoutResponse, getSpConfiguration().getLogoutUrl());
         } else {
-            throw new SamlAuthenticationException(
+            throw samlException(
                 "SAML content [{}] should have a root element of Namespace=[{}] Tag=[{}]",
                 root,
                 SAML_NAMESPACE,

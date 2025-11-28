@@ -20,6 +20,7 @@ import java.time.Clock;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
 
 /**
  * Processes a LogoutRequest for an IdP-initiated logout.
@@ -56,9 +57,7 @@ public class SamlLogoutRequestHandler extends SamlObjectHandler {
                 throw e;
             }
         } else {
-            throw new SamlAuthenticationException(
-                true,
-                null,
+            throw samlException(
                 "SAML content [{}] should have a root element of Namespace=[{}] Tag=[{}]",
                 root,
                 SAML_NAMESPACE,
@@ -71,7 +70,7 @@ public class SamlLogoutRequestHandler extends SamlObjectHandler {
         final Signature signature = logoutRequest.getSignature();
         if (signature == null) {
             if (requireSignature) {
-                throw new SamlAuthenticationException("Logout request is not signed");
+                throw samlException("Logout request is not signed");
             }
         } else {
             validateSignature(signature, logoutRequest.getIssuer());
@@ -100,9 +99,7 @@ public class SamlLogoutRequestHandler extends SamlObjectHandler {
 
     private SAMLObject decrypt(EncryptedID encrypted) {
         if (decrypter == null) {
-            throw new SamlAuthenticationException(
-                "SAML EncryptedID [" + text(encrypted, 32) + "] is encrypted, but no decryption key is available"
-            );
+            throw samlException("SAML EncryptedID [" + text(encrypted, 32) + "] is encrypted, but no decryption key is available");
         }
         try {
             return decrypter.decrypt(encrypted);
@@ -115,7 +112,7 @@ public class SamlLogoutRequestHandler extends SamlObjectHandler {
                 ),
                 e
             );
-            throw new SamlAuthenticationException(false, e, "Failed to decrypt SAML EncryptedID " + text(encrypted, 32));
+            throw samlException("Failed to decrypt SAML EncryptedID " + text(encrypted, 32), e);
         }
     }
 
@@ -126,7 +123,7 @@ public class SamlLogoutRequestHandler extends SamlObjectHandler {
     private void checkDestination(LogoutRequest request) {
         final String url = getSpConfiguration().getLogoutUrl();
         if (url == null) {
-            throw new SamlAuthenticationException(
+            throw samlException(
                 "SAML request "
                     + request.getID()
                     + " is for destination "
@@ -135,7 +132,7 @@ public class SamlLogoutRequestHandler extends SamlObjectHandler {
             );
         }
         if (url.equals(request.getDestination()) == false) {
-            throw new SamlAuthenticationException(
+            throw samlException(
                 "SAML request " + request.getID() + " is for destination " + request.getDestination() + " but this realm uses " + url
             );
         }

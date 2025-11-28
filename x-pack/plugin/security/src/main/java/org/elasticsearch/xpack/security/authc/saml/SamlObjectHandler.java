@@ -74,6 +74,7 @@ import java.util.zip.InflaterInputStream;
 import javax.xml.parsers.DocumentBuilder;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
 
 public class SamlObjectHandler {
@@ -90,8 +91,7 @@ public class SamlObjectHandler {
         try {
             return SamlUtils.getHardenedBuilder(XSD_FILES);
         } catch (Exception e) {
-            // throws a terminating exception, schema is realm-agnostic
-            throw new SamlAuthenticationException(true, e, "Could not load XSD schema file");
+            throw samlException("Could not load XSD schema file", e);
         }
     });
 
@@ -259,9 +259,9 @@ public class SamlObjectHandler {
         );
         final String msg = "SAML Signature [{}] could not be validated against [{}]";
         if (cause != null) {
-            return new SamlAuthenticationException(false, cause, msg, signature, describeCredentials(credentials));
+            return samlException(msg, cause, signature, describeCredentials(credentials));
         } else {
-            return new SamlAuthenticationException(msg, signature, describeCredentials(credentials));
+            return samlException(msg, signature, describeCredentials(credentials));
         }
     }
 
@@ -302,7 +302,7 @@ public class SamlObjectHandler {
 
     protected void checkIssuer(Issuer issuer, XMLObject parent) {
         if (issuer == null) {
-            throw new SamlAuthenticationException(
+            throw samlException(
                 "Element {} ({}) has no issuer, but expected [{}]",
                 parent.getElementQName(),
                 text(parent, 16),
@@ -310,11 +310,7 @@ public class SamlObjectHandler {
             );
         }
         if (idp.getEntityId().equals(issuer.getValue()) == false) {
-            throw new SamlAuthenticationException(
-                "SAML Issuer [{}] does not match expected value [{}]",
-                issuer.getValue(),
-                idp.getEntityId()
-            );
+            throw samlException("SAML Issuer [{}] does not match expected value [{}]", issuer.getValue(), idp.getEntityId());
         }
     }
 
@@ -331,7 +327,7 @@ public class SamlObjectHandler {
         try {
             Unmarshaller unmarshaller = unmarshallerFactory.getUnmarshaller(element);
             if (unmarshaller == null) {
-                throw new SamlAuthenticationException(
+                throw samlException(
                     "XML element [{}] cannot be unmarshalled to SAML type [{}] (no unmarshaller)",
                     element.getTagName(),
                     type
@@ -342,9 +338,9 @@ public class SamlObjectHandler {
                 return type.cast(object);
             }
             Object[] args = new Object[] { element.getTagName(), type.getName(), object == null ? "<null>" : object.getClass().getName() };
-            throw new SamlAuthenticationException("SAML object [{}] is incorrect type. Expected [{}] but was [{}]", args);
+            throw samlException("SAML object [{}] is incorrect type. Expected [{}] but was [{}]", args);
         } catch (UnmarshallingException e) {
-            throw new SamlAuthenticationException(false, e, "Failed to unmarshall SAML content [{}]", element.getTagName());
+            throw samlException("Failed to unmarshall SAML content [{}]", e, element.getTagName());
         }
     }
 
@@ -384,8 +380,7 @@ public class SamlObjectHandler {
                 logger.trace("Received SAML Message: {} \n", SamlUtils.toString(root, true));
             }
         } catch (SAXException | IOException e) {
-            // throws a terminating exception, as parsing is realm-agnostic
-            throw new SamlAuthenticationException(true, e, "Failed to parse SAML message");
+            throw samlException("Failed to parse SAML message", e);
         }
         return root;
     }
@@ -397,7 +392,7 @@ public class SamlObjectHandler {
         final Instant now = now();
         final Instant pastNow = now.minusMillis(this.maxSkew.millis());
         if (pastNow.isBefore(notOnOrAfter) == false) {
-            throw new SamlAuthenticationException("Rejecting SAML assertion because [{}] is on/after [{}]", pastNow, notOnOrAfter);
+            throw samlException("Rejecting SAML assertion because [{}] is on/after [{}]", pastNow, notOnOrAfter);
         }
     }
 
@@ -407,7 +402,7 @@ public class SamlObjectHandler {
         RestUtils.decodeQueryString(queryString, 0, parameters);
         final String samlMessage = parameters.get(samlMessageParameterName);
         if (samlMessage == null) {
-            throw new SamlAuthenticationException("Could not parse {} from query string: [{}]", samlMessageParameterName, queryString);
+            throw samlException("Could not parse {} from query string: [{}]", samlMessageParameterName, queryString);
         }
 
         final String relayState = parameters.get("RelayState");
@@ -455,8 +450,7 @@ public class SamlObjectHandler {
             return Base64.getDecoder().decode(content.replaceAll("\\s+", ""));
         } catch (IllegalArgumentException e) {
             logger.info("Failed to decode base64 string [{}] - {}", content, e.toString());
-            // throws a terminating exception, as base64 decoding is realm-agnostic
-            throw new SamlAuthenticationException(true, e, "SAML message cannot be Base64 decoded");
+            throw samlException("SAML message cannot be Base64 decoded", e);
         }
     }
 
@@ -470,8 +464,7 @@ public class SamlObjectHandler {
             Streams.copy(inflate, out);
             return out.toByteArray();
         } catch (IOException e) {
-            // throws a terminating exception, as inflating is realm-agnostic
-            throw new SamlAuthenticationException(true, e, "SAML message cannot be inflated");
+            throw samlException("SAML message cannot be inflated", e);
         }
     }
 

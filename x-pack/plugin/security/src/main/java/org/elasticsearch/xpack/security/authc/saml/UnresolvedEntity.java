@@ -85,7 +85,7 @@ class UnresolvedEntity implements EntityDescriptor {
 
     @Override
     public List<RoleDescriptor> getRoleDescriptors() {
-        throw new SamlAuthenticationException(
+        throw SamlUtils.samlException(
             "Cannot get role descriptors" + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             sourceLocation,
             entityId
@@ -94,7 +94,7 @@ class UnresolvedEntity implements EntityDescriptor {
 
     @Override
     public List<RoleDescriptor> getRoleDescriptors(QName typeOrName) {
-        throw new SamlAuthenticationException(
+        throw SamlUtils.samlException(
             "Cannot get role descriptors [type/name={}]"
                 + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             typeOrName,
@@ -105,7 +105,7 @@ class UnresolvedEntity implements EntityDescriptor {
 
     @Override
     public List<RoleDescriptor> getRoleDescriptors(QName typeOrName, String supportedProtocol) {
-        throw new SamlAuthenticationException(
+        throw SamlUtils.samlException(
             "Cannot get role descriptors [type/name={}][protocol={}]"
                 + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             typeOrName,
@@ -117,7 +117,7 @@ class UnresolvedEntity implements EntityDescriptor {
 
     @Override
     public IDPSSODescriptor getIDPSSODescriptor(String supportedProtocol) {
-        throw new SamlAuthenticationException(
+        throw SamlUtils.samlException(
             "Cannot get IdP SSO descriptor [protocol={}]"
                 + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             supportedProtocol,
@@ -128,7 +128,7 @@ class UnresolvedEntity implements EntityDescriptor {
 
     @Override
     public SPSSODescriptor getSPSSODescriptor(String supportedProtocol) {
-        throw new SamlAuthenticationException(
+        throw SamlUtils.samlException(
             "Cannot get SP SSO descriptor [protocol={}]"
                 + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             supportedProtocol,
@@ -139,7 +139,7 @@ class UnresolvedEntity implements EntityDescriptor {
 
     @Override
     public AuthnAuthorityDescriptor getAuthnAuthorityDescriptor(String supportedProtocol) {
-        throw new SamlAuthenticationException(
+        throw SamlUtils.samlException(
             "Cannot get authn authority descriptor [protocol={}]"
                 + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             supportedProtocol,
@@ -150,7 +150,7 @@ class UnresolvedEntity implements EntityDescriptor {
 
     @Override
     public AttributeAuthorityDescriptor getAttributeAuthorityDescriptor(String supportedProtocol) {
-        throw new SamlAuthenticationException(
+        throw SamlUtils.samlException(
             "Cannot get attribute authority descriptor [protocol={}]"
                 + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             supportedProtocol,
@@ -161,7 +161,7 @@ class UnresolvedEntity implements EntityDescriptor {
 
     @Override
     public PDPDescriptor getPDPDescriptor(String supportedProtocol) {
-        throw new SamlAuthenticationException(
+        throw SamlUtils.samlException(
             "Cannot get PDP descriptor [protocol={}]" + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             supportedProtocol,
             sourceLocation,
@@ -171,7 +171,7 @@ class UnresolvedEntity implements EntityDescriptor {
 
     @Override
     public AffiliationDescriptor getAffiliationDescriptor() {
-        throw new SamlAuthenticationException(
+        throw SamlUtils.samlException(
             "Cannot get affiliation descriptor" + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             sourceLocation,
             entityId
@@ -185,7 +185,7 @@ class UnresolvedEntity implements EntityDescriptor {
 
     @Override
     public Organization getOrganization() {
-        throw new SamlAuthenticationException(
+        throw SamlUtils.samlException(
             "Cannot get organization" + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             sourceLocation,
             entityId
@@ -214,7 +214,7 @@ class UnresolvedEntity implements EntityDescriptor {
 
     @Override
     public String getSignatureReferenceID() {
-        throw new SamlAuthenticationException(
+        throw SamlUtils.samlException(
             "Cannot get signature reference id" + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             sourceLocation,
             entityId

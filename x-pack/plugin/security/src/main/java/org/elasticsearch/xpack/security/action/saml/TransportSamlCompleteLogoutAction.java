@@ -17,9 +17,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutRequest;
 import org.elasticsearch.xpack.security.authc.Realms;
-import org.elasticsearch.xpack.security.authc.saml.SamlAuthenticationException;
 import org.elasticsearch.xpack.security.authc.saml.SamlLogoutResponseHandler;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
+import org.elasticsearch.xpack.security.authc.saml.SamlUtils;
 
 import java.util.List;
 
@@ -43,11 +43,9 @@ public final class TransportSamlCompleteLogoutAction extends HandledTransportAct
     protected void doExecute(Task task, SamlCompleteLogoutRequest request, ActionListener<ActionResponse.Empty> listener) {
         List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealm(), null);
         if (realms.isEmpty()) {
-            listener.onFailure(new SamlAuthenticationException("Cannot find any matching realm with name [{}]", request.getRealm()));
+            listener.onFailure(SamlUtils.samlException("Cannot find any matching realm with name [{}]", request.getRealm()));
         } else if (realms.size() > 1) {
-            listener.onFailure(
-                new SamlAuthenticationException("Found multiple matching realms [{}] with name [{}]", realms, request.getRealm())
-            );
+            listener.onFailure(SamlUtils.samlException("Found multiple matching realms [{}] with name [{}]", realms, request.getRealm()));
         } else {
             processLogoutResponse(realms.get(0), request, listener);
         }

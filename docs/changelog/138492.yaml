@@ -9,25 +9,10 @@ highlight:
   body: |-
     New options have been added to the `dense_vector` field type.
 
-    The first is support for storing vectors in https://en.wikipedia.org/wiki/Bfloat16_floating-point_format[bfloat16]
-    format. This is a floating-point format that utilises 2-bytes per value rather than 4, halving the storage space
+    The first is support for storing vectors in bfloat16 format.
+    This is a floating-point format that utilises 2-bytes per value rather than 4, halving the storage space
     required compared to `element_type: float`. This can be specified with `element_type: bfloat16`
-    when creating the index, for all `dense_vector` indexing types:
-
-    [source,yaml]
-    ----------------------------
-    PUT vectors
-    {
-    "mappings": {
-      "properties": {
-        "vector": {
-          "type": "dense_vector",
-          "element_type": "bfloat16",
-          "index_options": {"type": "bbq_hnsw"}
-        }
-      }
-    }
-    ----------------------------
+    when creating the index, for all `dense_vector` indexing types.
 
     Float values are automatically truncated to 2-bytes when writing to disk, so this format can be used
     with original source vectors at 2- or 4-byte precision. BFloat16 values are zero-expanded back to 4-byte floats
@@ -43,19 +28,5 @@ highlight:
     on-disk during rescoring, and to not read it into memory first. This may significantly increase search performance
     in such low-memory situations.
 
-    This is specified as an index option for HNSW vector index types:
-
-    [source,yaml]
-    ----------------------------
-    PUT vectors
-    {
-    "mappings": {
-      "properties": {
-        "vector": {
-          "type": "dense_vector",
-          "index_options": {"type": "bbq_hnsw", "on_disk_rescore": true}
-        }
-      }
-    }
-    ----------------------------
+    This is specified using the `on_disk_rescore: true` index option.
   notable: true

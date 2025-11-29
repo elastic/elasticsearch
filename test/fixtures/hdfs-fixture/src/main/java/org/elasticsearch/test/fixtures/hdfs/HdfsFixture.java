@@ -142,20 +142,29 @@ public class HdfsFixture extends ExternalResource {
     public void failoverHDFS(String from, String to) throws IOException {
         assert isHA() && haConfiguration != null : "HA Configuration must be set up before performing failover";
         LOGGER.info("Swapping active namenodes: [{}] to standby and [{}] to active", from, to);
-        try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                CloseableHAAdmin haAdmin = new CloseableHAAdmin();
-                haAdmin.setConf(haConfiguration);
-                try {
-                    haAdmin.transitionToStandby(from);
-                    haAdmin.transitionToActive(to);
-                } finally {
-                    haAdmin.close();
-                }
-                return null;
-            });
-        } catch (PrivilegedActionException pae) {
-            throw new IOException("Unable to perform namenode failover", pae);
+        // Synchronize to prevent race conditions in concurrent test execution
+        synchronized (STATIC_CONFIG_LOCK) {
+            // Save current locale and set to English for consistent HDFS failover behavior
+            Locale originalLocale = Locale.getDefault();
+            try {
+                Locale.setDefault(Locale.ENGLISH);
+                AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
+                    CloseableHAAdmin haAdmin = new CloseableHAAdmin();
+                    haAdmin.setConf(haConfiguration);
+                    try {
+                        haAdmin.transitionToStandby(from);
+                        haAdmin.transitionToActive(to);
+                    } finally {
+                        haAdmin.close();
+                    }
+                    return null;
+                });
+            } catch (PrivilegedActionException pae) {
+                throw new IOException("Unable to perform namenode failover", pae);
+            } finally {
+                // Restore original locale
+                Locale.setDefault(originalLocale);
+            }
         }
     }
 
@@ -288,6 +297,7 @@ public class HdfsFixture extends ExternalResource {
             builder.nnTopology(namenodeTopology);
         }
         dfs = builder.build();
+//        dfs.waitClusterUp();
         // Configure contents of the filesystem
         org.apache.hadoop.fs.Path esUserPath = new org.apache.hadoop.fs.Path("/user/elasticsearch");
         FileSystem fs;
@@ -337,20 +347,31 @@ public class HdfsFixture extends ExternalResource {
 
     @Override
     protected void after() {
-        if (dfs != null) {
+        // Synchronize to prevent race conditions in concurrent test execution
+        synchronized (STATIC_CONFIG_LOCK) {
+            // Save current locale and set to English for consistent HDFS shutdown behavior
+            Locale originalLocale = Locale.getDefault();
             try {
-                if (isHA()) {
-                    dfs.getFileSystem(0).close();
-                    dfs.getFileSystem(1).close();
-                } else {
-                    dfs.getFileSystem().close();
+                Locale.setDefault(Locale.ENGLISH);
+                if (dfs != null) {
+                    try {
+                        if (isHA()) {
+                            dfs.getFileSystem(0).close();
+                            dfs.getFileSystem(1).close();
+                        } else {
+                            dfs.getFileSystem().close();
+                        }
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                    dfs.close();
                 }
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+                temporaryFolder.delete();
+            } finally {
+                // Restore original locale
+                Locale.setDefault(originalLocale);
             }
-            dfs.close();
         }
-        temporaryFolder.delete();
     }
 
     private boolean isHA() {

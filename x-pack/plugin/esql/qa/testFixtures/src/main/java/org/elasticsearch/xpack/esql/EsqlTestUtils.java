@@ -1284,9 +1284,10 @@ public final class EsqlTestUtils {
         });
     }
 
-    public static String addRemotes(String query, Set<String> lookupIndices, boolean onlyRemotes) {
+    public static String addRemoteIndices(String query, Set<String> lookupIndices, boolean onlyRemotes) {
         String[] commands = query.split("\\|");
-        String first = commands[0].trim();
+        // remove subqueries
+        String first = commands[0].split(",\\s+\\(")[0].trim();
 
         // Split "SET a=b; FROM x" into "SET a=b" and "FROM x"
         int lastSetDelimiterPosition = first.lastIndexOf(';');

@@ -301,7 +301,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         String query = testCase.query;
         // If true, we're using *:index, otherwise we're using *:index,index
         boolean onlyRemotes = canUseRemoteIndicesOnly() && randomBoolean();
-        testCase.query = EsqlTestUtils.addRemotes(testCase.query, LOOKUP_INDICES, onlyRemotes);
+        testCase.query = EsqlTestUtils.addRemoteIndices(testCase.query, LOOKUP_INDICES, onlyRemotes);
 
         int offset = testCase.query.length() - query.length();
         if (offset != 0) {

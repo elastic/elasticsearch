@@ -18,6 +18,7 @@ import org.gradle.testkit.runner.TaskOutcome;
 import org.gradle.testkit.runner.UnexpectedBuildFailure;
 import org.gradle.testkit.runner.UnexpectedBuildSuccess;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.Writer;
 import java.net.URI;
@@ -172,6 +173,11 @@ public class NormalizeOutputGradleRunner extends GradleRunner {
                 normalizedString = normalizeString(delegate.getOutput(), getProjectDir());
             }
             return normalizedString;
+        }
+
+        @Override
+        public BufferedReader getOutputReader() {
+            return delegate.getOutputReader();
         }
 
         @Override

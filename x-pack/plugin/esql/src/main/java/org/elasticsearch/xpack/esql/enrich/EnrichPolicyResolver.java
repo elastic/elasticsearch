@@ -258,7 +258,7 @@ public class EnrichPolicyResolver {
                     field.getTimeSeriesFieldType()
                 );
                 EsField old = mappings.putIfAbsent(m.getKey(), field);
-                if (old != null && typeMismatch(old.getDataType(), field.getDataType())) {
+                if (old != null && old.getDataType().equals(field.getDataType()) == false) {
                     String error = "field [" + m.getKey() + "] of enrich policy [" + policyName + "] has different data types ";
                     error += "[" + old.getDataType() + ", " + field.getDataType() + "] across clusters";
                     return Tuple.tuple(null, error);
@@ -282,17 +282,6 @@ public class EnrichPolicyResolver {
         assert last != null;
         var resolved = new ResolvedEnrichPolicy(last.matchField(), last.matchType(), last.enrichFields(), concreteIndices, mappings);
         return Tuple.tuple(resolved, null);
-    }
-
-    // When trying to enrich with a field, check if there is a mismatch in the types.
-    // Apart from just comparing them, the only special case is DATE_RANGE: it used to be an enrichment-only
-    // field and then added as a first-class ESQL field type. So in enrichment over clusters it may appear as
-    // DATE_RANGE VS UNSUPPORTED, even though it's still the same type.
-    private boolean typeMismatch(DataType old, DataType field) {
-        if (old == DataType.DATE_RANGE && field == DataType.UNSUPPORTED) {
-            return false;
-        }
-        return old.equals(field) == false;
     }
 
     private String missingPolicyError(String policyName, Collection<String> targetClusters, List<String> missingClusters) {
@@ -458,32 +447,22 @@ public class EnrichPolicyResolver {
                     }
                     try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
-                        indexResolver.resolveIndices(
-                            indexName,
-                            IndexResolver.ALL_FIELDS,
-                            null,
-                            false,
-                            // Disable aggregate_metric_double and dense_vector until we get version checks in planning
-                            false,
-                            false,
-                            false,
-                            refs.acquire(indexResult -> {
-                                if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {
-                                    EsIndex esIndex = indexResult.get();
-                                    var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteIndices(), 0));
-                                    var resolved = new ResolvedEnrichPolicy(
-                                        p.getMatchField(),
-                                        p.getType(),
-                                        p.getEnrichFields(),
-                                        concreteIndices,
-                                        esIndex.mapping()
-                                    );
-                                    resolvedPolices.put(policyName, resolved);
-                                } else {
-                                    failures.put(policyName, indexResult.toString());
-                                }
-                            })
-                        );
+                        indexResolver.resolveIndices(indexName, IndexResolver.ALL_FIELDS, refs.acquire(indexResult -> {
+                            if (indexResult.isValid() && indexResult.get().concreteQualifiedIndices().size() == 1) {
+                                EsIndex esIndex = indexResult.get();
+                                var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteQualifiedIndices(), 0));
+                                var resolved = new ResolvedEnrichPolicy(
+                                    p.getMatchField(),
+                                    p.getType(),
+                                    p.getEnrichFields(),
+                                    concreteIndices,
+                                    esIndex.mapping()
+                                );
+                                resolvedPolices.put(policyName, resolved);
+                            } else {
+                                failures.put(policyName, indexResult.toString());
+                            }
+                        }));
                     }
                 }
             }

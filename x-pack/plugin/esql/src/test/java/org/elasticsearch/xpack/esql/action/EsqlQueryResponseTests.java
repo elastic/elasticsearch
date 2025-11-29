@@ -140,6 +140,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         List<Page> values = randomList(noPages, noPages, () -> randomPage(columns));
         String id = null;
         boolean isRunning = false;
+        long startTimeMillis = 0L;
+        long expirationTimeMillis = 0L;
         if (async) {
             id = randomAlphaOfLengthBetween(1, 16);
             isRunning = randomBoolean();
@@ -154,6 +156,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             id,
             isRunning,
             async,
+            startTimeMillis,
+            expirationTimeMillis,
             createExecutionInfo()
         );
     }
@@ -357,7 +361,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             }
             default -> throw new IllegalArgumentException();
         }
-        return new EsqlQueryResponse(columns, pages, documentsFound, valuesLoaded, profile, columnar, isAsync, executionInfo);
+        return new EsqlQueryResponse(columns, pages, documentsFound, valuesLoaded, profile, columnar, isAsync, 0L, 0L, executionInfo);
     }
 
     private List<Page> deepCopyOfPages(EsqlQueryResponse response) {
@@ -442,6 +446,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 asyncExecutionId,
                 isRunning != null,
                 isAsync(asyncExecutionId, isRunning),
+                0L,
+                0L,
                 executionInfo
             );
         }
@@ -794,6 +800,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 "id-123",
                 true,
                 true,
+                0L,
+                0L,
                 null
             )
         ) {
@@ -833,6 +841,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 null,
                 false,
                 false,
+                0L,
+                0L,
                 null
             )
         ) {
@@ -874,6 +884,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 null,
                 false,
                 false,
+                0L,
+                0L,
                 null
             )
         ) {
@@ -936,6 +948,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     null,
                     false,
                     false,
+                    0L,
+                    0L,
                     null
                 )
             ) {
@@ -993,6 +1007,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             null,
             columnar,
             async,
+            0L,
+            0L,
             null
         );
     }
@@ -1023,6 +1039,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 ),
                 false,
                 false,
+                0L,
+                0L,
                 null
             );
         ) {
@@ -1101,7 +1119,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         var longBlk2 = blockFactory.newLongArrayVector(new long[] { 300L, 400L, 500L }, 3).asBlock();
         var columnInfo = List.of(new ColumnInfoImpl("foo", "integer", null), new ColumnInfoImpl("bar", "long", null));
         var pages = List.of(new Page(intBlk1, longBlk1), new Page(intBlk2, longBlk2));
-        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, null)) {
+        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, 0L, 0L, null)) {
             assertThat(columnValues(response.column(0)), contains(10, 20, 30, 40, 50));
             assertThat(columnValues(response.column(1)), contains(100L, 200L, 300L, 400L, 500L));
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
@@ -1113,7 +1131,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         var intBlk1 = blockFactory.newIntArrayVector(new int[] { 10 }, 1).asBlock();
         var columnInfo = List.of(new ColumnInfoImpl("foo", "integer", null));
         var pages = List.of(new Page(intBlk1));
-        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, null)) {
+        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, 0L, 0L, null)) {
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
             expectThrows(IllegalArgumentException.class, () -> response.column(1));
         }
@@ -1132,7 +1150,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
         var columnInfo = List.of(new ColumnInfoImpl("foo", "integer", null));
         var pages = List.of(new Page(blk1), new Page(blk2), new Page(blk3));
-        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, null)) {
+        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, 0L, 0L, null)) {
             assertThat(columnValues(response.column(0)), contains(10, null, 30, null, null, 60, null, 80, 90, null));
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
             expectThrows(IllegalArgumentException.class, () -> response.column(2));
@@ -1152,7 +1170,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
         var columnInfo = List.of(new ColumnInfoImpl("foo", "integer", null));
         var pages = List.of(new Page(blk1), new Page(blk2), new Page(blk3));
-        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, null)) {
+        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, 0L, 0L, null)) {
             assertThat(columnValues(response.column(0)), contains(List.of(10, 20), null, List.of(40, 50), null, 70, 80, null));
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
             expectThrows(IllegalArgumentException.class, () -> response.column(2));
@@ -1165,7 +1183,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             List<ColumnInfoImpl> columns = randomList(numColumns, numColumns, this::randomColumnInfo);
             int noPages = randomIntBetween(1, 20);
             List<Page> pages = randomList(noPages, noPages, () -> randomPage(columns));
-            try (var resp = new EsqlQueryResponse(columns, pages, 0, 0, null, false, "", false, false, null)) {
+            try (var resp = new EsqlQueryResponse(columns, pages, 0, 0, null, false, "", false, false, 0L, 0L, null)) {
                 var rowValues = getValuesList(resp.rows());
                 var valValues = getValuesList(resp.values());
                 for (int i = 0; i < rowValues.size(); i++) {

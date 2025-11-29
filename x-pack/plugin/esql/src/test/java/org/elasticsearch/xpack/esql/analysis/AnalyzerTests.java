@@ -39,6 +39,8 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -69,6 +71,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
@@ -195,7 +201,10 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
+        assertEquals(
+            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexNameWithModes(), NO_FIELDS),
+            limit.child()
+        );
     }
 
     public void testFailOnUnresolvedIndex() {
@@ -213,7 +222,10 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(unresolvedRelation("cluster:idx"));
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
+        assertEquals(
+            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexNameWithModes(), NO_FIELDS),
+            limit.child()
+        );
     }
 
     public void testAttributeResolution() {
@@ -3183,7 +3195,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
 
         String query = "FROM foo, bar | INSIST_🐔 message";
@@ -3208,7 +3221,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3235,7 +3249,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3260,7 +3275,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3285,7 +3301,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3311,7 +3328,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
         VerificationException e = expectThrows(
             VerificationException.class,
@@ -3333,7 +3351,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, true)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, true),
+                IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3342,7 +3361,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false),
+                IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3364,7 +3384,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, true)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, true),
+                IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3376,7 +3397,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, true)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, true),
+                IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3828,7 +3850,7 @@ public class AnalyzerTests extends ESTestCase {
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
         IndexResolver.FieldsInfo caps = fieldsInfoOnCurrentVersion(new FieldCapabilitiesResponse(idxResponses, List.of()));
-        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps);
+        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps, IndexResolver.DO_NOT_GROUP);
         var analyzer = analyzer(indexResolutions(resolution), TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }
@@ -4706,6 +4728,8 @@ public class AnalyzerTests extends ESTestCase {
             "k8s*",
             mapping,
             Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
+            Map.of(),
+            Map.of(),
             Set.of()
         );
         var analyzer = new Analyzer(
@@ -5665,6 +5689,64 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation rightRelation = as(lookupJoin.right(), EsRelation.class);
         assertEquals("languages_lookup", rightRelation.indexPattern());
         assertEquals(IndexMode.LOOKUP, rightRelation.indexMode());
+    }
+
+    public void testLikeParameters() {
+        if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
+            var anonymous_plan = analyze(
+                String.format(Locale.ROOT, "from test | where first_name like ?"),
+                "mapping-basic.json",
+                new QueryParams(List.of(paramAsConstant(null, "Anna*")))
+            );
+            var limit = as(anonymous_plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            WildcardLike like = as(filter.condition(), WildcardLike.class);
+            assertEquals("Anna*", like.pattern().pattern());
+        }
+    }
+
+    public void testLikeListParameters() {
+        if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
+            var positional_plan = analyze(
+                String.format(Locale.ROOT, "from test | where first_name like (?1, ?2)"),
+                "mapping-basic.json",
+                new QueryParams(List.of(paramAsConstant(null, "Anna*"), paramAsConstant(null, "Chris*")))
+            );
+            var limit = as(positional_plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            var likelist = as(filter.condition(), WildcardLikeList.class);
+            var patternlist = as(likelist.pattern(), WildcardPatternList.class);
+            assertEquals("(\"Anna*\", \"Chris*\")", patternlist.pattern());
+        }
+    }
+
+    public void testRLikeParameters() {
+        if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
+            var named_plan = analyze(
+                String.format(Locale.ROOT, "from test | where first_name rlike ?pattern"),
+                "mapping-basic.json",
+                new QueryParams(List.of(paramAsConstant("pattern", "Anna*")))
+            );
+            var limit = as(named_plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            RLike rlike = as(filter.condition(), RLike.class);
+            assertEquals("Anna*", rlike.pattern().pattern());
+        }
+    }
+
+    public void testRLikeListParameters() {
+        if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
+            var named_plan = analyze(
+                String.format(Locale.ROOT, "from test | where first_name rlike (?p1, ?p2)"),
+                "mapping-basic.json",
+                new QueryParams(List.of(paramAsConstant("p1", "Anna*"), paramAsConstant("p2", "Chris*")))
+            );
+            var limit = as(named_plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            RLikeList rlikelist = as(filter.condition(), RLikeList.class);
+            RLikePatternList patternlist = as(rlikelist.pattern(), RLikePatternList.class);
+            assertEquals("(\"Anna*\", \"Chris*\")", patternlist.pattern());
+        }
     }
 
     private void verifyNameAndTypeAndMultiTypeEsField(

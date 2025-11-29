@@ -38,6 +38,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 
 /**
  * Round trip tests for all {@link Writeable} things declared in this plugin.
@@ -144,7 +145,7 @@ public class RoundTripTests extends ESTestCase {
             assertNotNull(tripped.getRemoteInfo());
             assertEquals(request.getRemoteInfo().getScheme(), tripped.getRemoteInfo().getScheme());
             assertEquals(request.getRemoteInfo().getHost(), tripped.getRemoteInfo().getHost());
-            assertEquals(request.getRemoteInfo().getQuery(), tripped.getRemoteInfo().getQuery());
+            assertThat(tripped.getRemoteInfo().getQuery(), equalBytes(request.getRemoteInfo().getQuery()));
             assertEquals(request.getRemoteInfo().getUsername(), tripped.getRemoteInfo().getUsername());
             assertEquals(request.getRemoteInfo().getPassword(), tripped.getRemoteInfo().getPassword());
             assertEquals(request.getRemoteInfo().getHeaders(), tripped.getRemoteInfo().getHeaders());

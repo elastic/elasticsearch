@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -26,7 +25,6 @@ public final class PushDownMvExpandPastProject extends OptimizerRules.OptimizerR
     protected LogicalPlan rule(MvExpand mvExpand) {
         if (mvExpand.child() instanceof Project pj) {
             List<NamedExpression> projections = new ArrayList<>(pj.projections());
-            List<Attribute> output = mvExpand.output();
 
             // Skip if the expanded field has the same name as a field in the projection's input set, and
             // the projection shadows that specific field from the projection input set.
@@ -90,35 +88,8 @@ public final class PushDownMvExpandPastProject extends OptimizerRules.OptimizerR
                 }
             }
 
-            // Build a map of aliases from the original projection
-            AttributeMap.Builder<Alias> aliasBuilder = AttributeMap.builder();
-            projections.forEach(ne -> {
-                if (ne instanceof Alias alias) {
-                    aliasBuilder.put(alias.toAttribute(), alias);
-                }
-            });
-            AttributeMap<Alias> aliases = aliasBuilder.build();
-
-            // Push down the MvExpand past the Project
-            MvExpand pushedDownMvExpand = mvExpand.replaceChild(pj.child());
-
-            // Create a new projection at the top based on mvExpand.output(), plugging back in the aliases
-            List<NamedExpression> newProjections = new ArrayList<>();
-            for (Attribute outputExpr : output) {
-                Alias alias = aliases.get(outputExpr);
-                if (alias == null) {
-                    // No alias, use the output expression directly
-                    newProjections.add(outputExpr);
-                } else if (alias.child().semanticEquals(mvExpand.target().toAttribute())) {
-                    // Alias child is the target attribute, replace it with the expanded attribute
-                    newProjections.add(alias.replaceChild(mvExpand.expanded()));
-                } else {
-                    // Keep the alias as is
-                    newProjections.add(alias);
-                }
-            }
-
-            return new Project(pj.source(), pushedDownMvExpand, newProjections);
+            Project project = PushDownUtils.pushDownPastProject(mvExpand);
+            return PushDownUtils.resolveRenamesFromMap(project, AttributeMap.of(mvExpand.target().toAttribute(), mvExpand.expanded()));
         }
         return mvExpand;
     }

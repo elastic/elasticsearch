@@ -107,6 +107,7 @@ public class IndexResolver {
             indexPattern,
             false,
             false,
+            false,
             DO_NOT_GROUP,
             listener.map(Versioned::inner)
         );
@@ -157,6 +158,7 @@ public class IndexResolver {
             indexPattern,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
+            useDateRangeWhenNotSupported,
             (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
                 EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
                 v -> List.copyOf(v.expression())
@@ -170,6 +172,7 @@ public class IndexResolver {
         String indexPattern,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
+        boolean useDateRangeWhenNotSupported,
         OriginalIndexExtractor originalIndexExtractor,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
@@ -180,10 +183,10 @@ public class IndexResolver {
                 Build.current().isSnapshot(),
                 useAggregateMetricDoubleWhenNotSupported,
                 useDenseVectorWhenNotSupported,
-                    useDateRangeWhenNotSupported
-                );
-                LOGGER.debug("minimum transport version {} {}", response.caps().minTransportVersion(), info.effectiveMinTransportVersion());
-                l.onResponse(new Versioned<>(mergedMappings(indexPattern, info, originalIndexExtractor), info.effectiveMinTransportVersion()));
+                useDateRangeWhenNotSupported
+            );
+            LOGGER.debug("minimum transport version {} {}", response.caps().minTransportVersion(), info.effectiveMinTransportVersion());
+            l.onResponse(new Versioned<>(mergedMappings(indexPattern, info, originalIndexExtractor), info.effectiveMinTransportVersion()));
         }));
     }
 

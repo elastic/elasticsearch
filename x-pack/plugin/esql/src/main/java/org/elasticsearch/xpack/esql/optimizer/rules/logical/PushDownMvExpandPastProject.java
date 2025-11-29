@@ -25,6 +25,9 @@ public final class PushDownMvExpandPastProject extends OptimizerRules.OptimizerR
     protected LogicalPlan rule(MvExpand mvExpand) {
         if (mvExpand.child() instanceof Project pj) {
             List<NamedExpression> projections = new ArrayList<>(pj.projections());
+            LogicalPlan finalChild = pj.child();
+            NamedExpression finalTarget = mvExpand.target();
+            Attribute expanded = mvExpand.expanded();
 
             // Skip if the expanded field has the same name as a field in the projection's input set, and
             // the projection shadows that specific field from the projection input set.
@@ -34,7 +37,7 @@ public final class PushDownMvExpandPastProject extends OptimizerRules.OptimizerR
             // MvExpand[salary{r}#168,salary{r}#175]
             // \_Project[[$$salary$converted_to$keyword{r$}#178 AS salary#168]]
             //   \_UnionAll[[salary{r}#174, $$salary$converted_to$keyword{r$}#178]]
-            String expandedFieldName = mvExpand.expanded().name();
+            String expandedFieldName = expanded.name();
             Set<String> inputNames = pj.inputSet().stream().map(NamedExpression::name).collect(Collectors.toSet());
             if (projections.stream()
                 .anyMatch(
@@ -47,9 +50,8 @@ public final class PushDownMvExpandPastProject extends OptimizerRules.OptimizerR
 
             // Find if the target is aliased in the project and create an alias with temporary names for it.
             for (int i = 0; i < projections.size(); i++) {
-                NamedExpression projection = projections.get(i);
-                if (projection instanceof Alias alias) {
-                    if (alias.toAttribute().semanticEquals(mvExpand.target().toAttribute())) {
+                if (projections.get(i) instanceof Alias alias) {
+                    if (alias.toAttribute().semanticEquals(finalTarget.toAttribute())) {
                         // Check if the alias's original field (child) is referenced elsewhere in the projections.
                         // If the original field is not referenced by any other projection or alias,
                         // we don't need to inject an Eval to preserve it, and can safely resolve renames and push down.
@@ -59,7 +61,7 @@ public final class PushDownMvExpandPastProject extends OptimizerRules.OptimizerR
                                     || ne instanceof Alias as && as.child().semanticEquals(alias.child()) && as != alias
                             ) == false) {
                             // The alias's original field is not referenced elsewhere, no need to preserve it,
-                            mvExpand = PushDownUtils.resolveRenamesFromProject(mvExpand, pj);
+                            finalTarget = (NamedExpression) alias.child();
                             break;
                         }
 
@@ -69,11 +71,11 @@ public final class PushDownMvExpandPastProject extends OptimizerRules.OptimizerR
                             TemporaryNameUtils.temporaryName(alias.child(), alias.toAttribute(), 0),
                             alias.child()
                         );
-                        projections.set(i, mvExpand.expanded());
-                        pj = pj.replaceChild(new Eval(aliasAlias.source(), pj.child(), List.of(aliasAlias)));
-                        mvExpand = new MvExpand(mvExpand.source(), pj, aliasAlias.toAttribute(), mvExpand.expanded());
+                        projections.set(i, expanded);
+                        finalChild = new Eval(aliasAlias.source(), finalChild, List.of(aliasAlias));
+                        finalTarget = aliasAlias.toAttribute();
                         break;
-                    } else if (alias.child().semanticEquals(mvExpand.target().toAttribute())) {
+                    } else if (alias.child().semanticEquals(finalTarget.toAttribute())) {
                         // for query like: row a = 2 | eval b = a | keep * | mv_expand a
                         Alias aliasAlias = new Alias(
                             alias.source(),
@@ -81,19 +83,17 @@ public final class PushDownMvExpandPastProject extends OptimizerRules.OptimizerR
                             alias.child()
                         );
                         projections.set(i, alias.replaceChild(aliasAlias.toAttribute()));
-                        pj = pj.replaceChild(new Eval(aliasAlias.source(), pj.child(), List.of(aliasAlias)));
-                        mvExpand = mvExpand.replaceChild(pj);
+                        finalChild = new Eval(aliasAlias.source(), finalChild, List.of(aliasAlias));
                         break;
                     }
                 }
             }
 
             // Push down the MvExpand past the Project
-            MvExpand pushedDownMvExpand = mvExpand.replaceChild(pj.child());
+            MvExpand pushedDownMvExpand = new MvExpand(mvExpand.source(), finalChild, finalTarget, expanded);
 
             // Update projections to point to the expanded attribute
-            Attribute target = mvExpand.target().toAttribute();
-            Attribute expanded = mvExpand.expanded();
+            Attribute target = finalTarget.toAttribute();
             for (int i = 0; i < projections.size(); i++) {
                 NamedExpression ne = projections.get(i);
                 if (ne instanceof Alias alias && alias.child().semanticEquals(target)) {

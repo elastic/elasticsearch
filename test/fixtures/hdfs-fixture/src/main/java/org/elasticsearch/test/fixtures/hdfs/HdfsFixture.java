@@ -297,7 +297,7 @@ public class HdfsFixture extends ExternalResource {
             builder.nnTopology(namenodeTopology);
         }
         dfs = builder.build();
-//        dfs.waitClusterUp();
+        // dfs.waitClusterUp();
         // Configure contents of the filesystem
         org.apache.hadoop.fs.Path esUserPath = new org.apache.hadoop.fs.Path("/user/elasticsearch");
         FileSystem fs;

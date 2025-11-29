@@ -88,4 +88,24 @@ public class EsqlTestUtilsTests extends ESTestCase {
                 | KEEP _index,  emp_no, languages, language_name""")
         );
     }
+
+    public void testTripleQuotes() {
+        assertThat(
+            EsqlTestUtils.addRemoteIndices("from \"\"\"employees\"\"\" | limit 2", Set.of(), false),
+            equalTo("from *:employees,employees | limit 2")
+        );
+    }
+
+    public void testRow() {
+        assertThat(
+            EsqlTestUtils.addRemoteIndices("""
+                ROW a = "1953-01-23T12:15:00Z - some text - 127.0.0.1;"\s
+                 | DISSECT a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip};"\s
+                 | KEEP Y, M, D, h, m, s, msg, ip""", Set.of(), false),
+            equalTo("""
+                ROW a = "1953-01-23T12:15:00Z - some text - 127.0.0.1;"\s
+                 | DISSECT a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip};"\s
+                 | KEEP Y, M, D, h, m, s, msg, ip""")
+        );
+    }
 }

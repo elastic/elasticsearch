@@ -1298,8 +1298,8 @@ public final class EsqlTestUtils {
         String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
 
         String command = commandParts[0].trim();
-        String commandArgs = commandParts[1].trim();
         if (SourceCommand.isSourceCommand(command)) {
+            String commandArgs = commandParts[1].trim();
             String[] indices = new EsqlParser().createStatement(afterSetStatements)
                 .collect(UnresolvedRelation.class)
                 .getFirst()
@@ -1332,7 +1332,7 @@ public final class EsqlTestUtils {
         } else {
             stuffAfterIndices = commandArgs.trim();
         }
-        if (stuffAfterIndices.startsWith("\"")) {
+        while (stuffAfterIndices.startsWith("\"")) {
             stuffAfterIndices = stuffAfterIndices.substring(1).trim();
         }
         return stuffAfterIndices;

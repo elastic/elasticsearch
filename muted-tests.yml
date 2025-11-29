@@ -451,6 +451,9 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=index/100_field_name_length_limit/Test field name length limit}
   issue: https://github.com/elastic/elasticsearch/issues/138768
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/45_knn_search_byte/Vector similarity with filter only}
+  issue: https://github.com/elastic/elasticsearch/issues/138786
 
 # Examples:
 #

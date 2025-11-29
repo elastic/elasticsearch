@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -70,7 +70,7 @@ public final class PushDownMvExpandPastProject extends OptimizerRules.OptimizerR
                             alias.child()
                         );
                         projections.set(i, mvExpand.expanded());
-                        pj = new Project(pj.source(), new Eval(aliasAlias.source(), pj.child(), List.of(aliasAlias)), projections);
+                        pj = pj.replaceChild(new Eval(aliasAlias.source(), pj.child(), List.of(aliasAlias)));
                         mvExpand = new MvExpand(mvExpand.source(), pj, aliasAlias.toAttribute(), mvExpand.expanded());
                         break;
                     } else if (alias.child().semanticEquals(mvExpand.target().toAttribute())) {
@@ -81,15 +81,29 @@ public final class PushDownMvExpandPastProject extends OptimizerRules.OptimizerR
                             alias.child()
                         );
                         projections.set(i, alias.replaceChild(aliasAlias.toAttribute()));
-                        pj = new Project(pj.source(), new Eval(aliasAlias.source(), pj.child(), List.of(aliasAlias)), projections);
+                        pj = pj.replaceChild(new Eval(aliasAlias.source(), pj.child(), List.of(aliasAlias)));
                         mvExpand = mvExpand.replaceChild(pj);
                         break;
                     }
                 }
             }
 
-            Project project = PushDownUtils.pushDownPastProject(mvExpand);
-            return PushDownUtils.resolveRenamesFromMap(project, AttributeMap.of(mvExpand.target().toAttribute(), mvExpand.expanded()));
+            // Push down the MvExpand past the Project
+            MvExpand pushedDownMvExpand = mvExpand.replaceChild(pj.child());
+
+            // Update projections to point to the expanded attribute
+            Attribute target = mvExpand.target().toAttribute();
+            Attribute expanded = mvExpand.expanded();
+            for (int i = 0; i < projections.size(); i++) {
+                NamedExpression ne = projections.get(i);
+                if (ne instanceof Alias alias && alias.child().semanticEquals(target)) {
+                    projections.set(i, alias.replaceChild(expanded));
+                } else if (ne.semanticEquals(target)) {
+                    projections.set(i, expanded);
+                }
+            }
+
+            return new Project(pj.source(), pushedDownMvExpand, projections);
         }
         return mvExpand;
     }

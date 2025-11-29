@@ -27,7 +27,10 @@ public class EsqlTestUtilsTests extends ESTestCase {
     }
 
     public void testPromQLDefaultIndex() {
-        assertThat(EsqlTestUtils.addRemoteIndices("PROMQL step 1m (avg(baz))", Set.of(), false), equalTo("PROMQL *:*,* step 1m (avg(baz))"));
+        assertThat(
+            EsqlTestUtils.addRemoteIndices("PROMQL step 1m (avg(baz))", Set.of(), false),
+            equalTo("PROMQL *:*,* step 1m (avg(baz))")
+        );
     }
 
     public void testSet() {
@@ -63,24 +66,21 @@ public class EsqlTestUtilsTests extends ESTestCase {
     }
 
     public void testSubquery() {
-        assertThat(
-            EsqlTestUtils.addRemoteIndices("""
-                FROM employees, (FROM employees_incompatible
-                                 | ENRICH languages_policy on languages with language_name )
-                           metadata _index
-                | EVAL emp_no = emp_no::long
-                | WHERE emp_no >= 10091 AND emp_no < 10094
-                | SORT _index, emp_no
-                | KEEP _index,  emp_no, languages, language_name""", Set.of(), false),
-            equalTo("""
-                FROM *:employees,employees, (FROM employees_incompatible
-                                 | ENRICH languages_policy on languages with language_name )
-                           metadata _index
-                | EVAL emp_no = emp_no::long
-                | WHERE emp_no >= 10091 AND emp_no < 10094
-                | SORT _index, emp_no
-                | KEEP _index,  emp_no, languages, language_name""")
-        );
+        assertThat(EsqlTestUtils.addRemoteIndices("""
+            FROM employees, (FROM employees_incompatible
+                             | ENRICH languages_policy on languages with language_name )
+                       metadata _index
+            | EVAL emp_no = emp_no::long
+            | WHERE emp_no >= 10091 AND emp_no < 10094
+            | SORT _index, emp_no
+            | KEEP _index,  emp_no, languages, language_name""", Set.of(), false), equalTo("""
+            FROM *:employees,employees, (FROM employees_incompatible
+                             | ENRICH languages_policy on languages with language_name )
+                       metadata _index
+            | EVAL emp_no = emp_no::long
+            | WHERE emp_no >= 10091 AND emp_no < 10094
+            | SORT _index, emp_no
+            | KEEP _index,  emp_no, languages, language_name"""));
     }
 
     public void testTripleQuotes() {
@@ -91,15 +91,12 @@ public class EsqlTestUtilsTests extends ESTestCase {
     }
 
     public void testRow() {
-        assertThat(
-            EsqlTestUtils.addRemoteIndices("""
-                ROW a = "1953-01-23T12:15:00Z - some text - 127.0.0.1;"\s
-                 | DISSECT a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip};"\s
-                 | KEEP Y, M, D, h, m, s, msg, ip""", Set.of(), false),
-            equalTo("""
-                ROW a = "1953-01-23T12:15:00Z - some text - 127.0.0.1;"\s
-                 | DISSECT a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip};"\s
-                 | KEEP Y, M, D, h, m, s, msg, ip""")
-        );
+        assertThat(EsqlTestUtils.addRemoteIndices("""
+            ROW a = "1953-01-23T12:15:00Z - some text - 127.0.0.1;"\s
+             | DISSECT a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip};"\s
+             | KEEP Y, M, D, h, m, s, msg, ip""", Set.of(), false), equalTo("""
+            ROW a = "1953-01-23T12:15:00Z - some text - 127.0.0.1;"\s
+             | DISSECT a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip};"\s
+             | KEEP Y, M, D, h, m, s, msg, ip"""));
     }
 }

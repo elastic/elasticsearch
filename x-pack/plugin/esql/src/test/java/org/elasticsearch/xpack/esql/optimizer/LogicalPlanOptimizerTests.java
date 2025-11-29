@@ -3182,6 +3182,33 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(limit.child(), EsRelation.class);
     }
 
+    /**
+     * <pre>{@code
+     * Project[[b{r}#16 AS b#12, $$a$temp_name$17{r}#18 AS a#9]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_MvExpand[a{r}#4,b{r}#16]
+     *     \_Eval[[12[INTEGER] AS $$a$temp_name$17#18]]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_LocalRelation[[a{r}#4],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]]]}]
+     * }</pre>
+     */
+    public void testPushDownMvExpandPastProject4() {
+        LogicalPlan plan = optimizedPlan("""
+            row a = 2
+            | eval c = a
+            | eval a = 12
+            | rename c as b
+            | keep *
+            | mv_expand b
+            """);
+        var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 1000, true);
+        var mvExpand = as(limit.child(), MvExpand.class);
+        var eval = as(mvExpand.child(), Eval.class);
+        limit = asLimit(eval.child(), 1000, false);
+        as(limit.child(), LocalRelation.class);
+    }
+
     public void testTopNEnrich() {
         LogicalPlan plan = optimizedPlan("""
             from test

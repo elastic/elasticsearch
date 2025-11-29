@@ -516,7 +516,7 @@ goqRirHJaE:long
 testPushDownMvExpandPastProject2
 required_capability: push_down_mv_expand_past_project
 from languages 
-| eval a = 2 
+| eval a = [1,2] 
 | rename a AS b 
 | sort b 
 | mv_expand b 
@@ -524,9 +524,13 @@ from languages
 ;
 
 b:integer
+1
 2
+1
 2
+1
 2
+1
 2
 ;
 
@@ -545,4 +549,21 @@ b:integer
 2
 2
 2
+;
+
+
+testPushDownMvExpandPastProject4
+required_capability: push_down_mv_expand_past_project
+row a = [1,2,3] 
+| eval c = a 
+| eval a = 12 
+| rename c as b 
+| keep * 
+| mv_expand b
+;
+
+b:integer   | a:integer
+1           | 12
+2           | 12
+3           | 12
 ;

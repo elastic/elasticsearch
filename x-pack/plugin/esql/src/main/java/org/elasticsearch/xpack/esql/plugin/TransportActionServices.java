@@ -30,5 +30,6 @@ public record TransportActionServices(
     InferenceService inferenceService,
     BlockFactoryProvider blockFactoryProvider,
     PlannerSettings plannerSettings,
-    CrossProjectModeDecider crossProjectModeDecider
+    CrossProjectModeDecider crossProjectModeDecider,
+    org.elasticsearch.xpack.esql.action.AsyncResultResolver asyncResultResolver
 ) {}

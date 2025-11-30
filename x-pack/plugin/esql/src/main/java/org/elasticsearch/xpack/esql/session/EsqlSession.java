@@ -131,6 +131,7 @@ public class EsqlSession {
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private final InferenceService inferenceService;
+    private final org.elasticsearch.xpack.esql.action.AsyncResultResolver asyncResultResolver;
     private final RemoteClusterService remoteClusterService;
     private final BlockFactory blockFactory;
     private final ByteSizeValue intermediateLocalRelationMaxSize;
@@ -165,6 +166,7 @@ public class EsqlSession {
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.inferenceService = services.inferenceService();
+        this.asyncResultResolver = services.asyncResultResolver();
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
         this.blockFactory = services.blockFactoryProvider().blockFactory();
@@ -584,8 +586,20 @@ public class EsqlSession {
             .<PreAnalysisResult>andThen((l, r) -> {
                 inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
             })
+            .<LogicalPlan>andThen((l, r) -> {
+                asyncResultResolver.resolveLoadResults(parsed, l);
+            })
             .<Versioned<LogicalPlan>>andThen(
-                (l, r) -> analyzeWithRetry(parsed, configuration, executionInfo, description, requestFilter, preAnalysis, r, l)
+                (l, updatedPlan) -> analyzeWithRetry(
+                    updatedPlan,
+                    configuration,
+                    executionInfo,
+                    description,
+                    requestFilter,
+                    preAnalysis,
+                    result,
+                    l
+                )
             )
             .addListener(logicalPlanListener);
     }

@@ -21,10 +21,16 @@ import java.util.Objects;
 public class LoadResult extends LeafPlan implements TelemetryAware {
 
     private final Literal searchId;
+    private final List<Attribute> output;
 
     public LoadResult(Source source, Literal searchId) {
+        this(source, searchId, Collections.emptyList());
+    }
+
+    public LoadResult(Source source, Literal searchId, List<Attribute> output) {
         super(source);
         this.searchId = searchId;
+        this.output = output;
     }
 
     @Override
@@ -43,7 +49,15 @@ public class LoadResult extends LeafPlan implements TelemetryAware {
 
     @Override
     public List<Attribute> output() {
-        return Collections.emptyList();
+        return output;
+    }
+
+    public LoadResult withOutput(List<Attribute> newOutput) {
+        return new LoadResult(source(), searchId, newOutput);
+    }
+
+    public boolean resolved() {
+        return output.isEmpty() == false;
     }
 
     @Override
@@ -53,7 +67,7 @@ public class LoadResult extends LeafPlan implements TelemetryAware {
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, LoadResult::new, searchId);
+        return NodeInfo.create(this, LoadResult::new, searchId, output);
     }
 
     @Override
@@ -61,11 +75,11 @@ public class LoadResult extends LeafPlan implements TelemetryAware {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         LoadResult that = (LoadResult) o;
-        return Objects.equals(searchId, that.searchId);
+        return Objects.equals(searchId, that.searchId) && Objects.equals(output, that.output);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchId);
+        return Objects.hash(searchId, output);
     }
 }

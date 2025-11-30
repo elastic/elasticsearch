@@ -29,7 +29,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -246,10 +245,12 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
     public static final class PostFilterEsAcceptDocs extends ESAcceptDocs {
         private final ScorerSupplier scorerSupplier;
         private final Bits liveDocs;
+        private final DocIdSetIterator iterator;
 
-        PostFilterEsAcceptDocs(ScorerSupplier scorerSupplier, Bits liveDocs) {
+        PostFilterEsAcceptDocs(ScorerSupplier scorerSupplier, Bits liveDocs) throws IOException {
             this.scorerSupplier = scorerSupplier;
             this.liveDocs = liveDocs;
+            this.iterator = scorerSupplier.get(NO_MORE_DOCS).iterator();
         }
 
         @Override
@@ -259,14 +260,12 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public DocIdSetIterator iterator() throws IOException {
-            return liveDocs == null
-                ? scorerSupplier.get(NO_MORE_DOCS).iterator()
-                : new FilteredDocIdSetIterator(scorerSupplier.get(NO_MORE_DOCS).iterator()) {
-                    @Override
-                    protected boolean match(int doc) {
-                        return liveDocs.get(doc);
-                    }
-                };
+            return liveDocs == null ? iterator : new FilteredDocIdSetIterator(iterator) {
+                @Override
+                protected boolean match(int doc) {
+                    return liveDocs.get(doc);
+                }
+            };
         }
 
         @Override

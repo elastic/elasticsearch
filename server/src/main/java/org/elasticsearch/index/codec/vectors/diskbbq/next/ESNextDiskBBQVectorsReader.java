@@ -701,18 +701,17 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
         @Override
         public int visit(KnnCollector knnCollector) throws IOException {
-            var postFilterIterator = filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs ? filterDocs.iterator() : null;
-            System.err.println("FINDME>> " + postFilterIterator + " is at doc: " + (postFilterIterator != null ? postFilterIterator.docID() : "N/A"));
             indexInput.seek(slicePos);
             // block processing
             int scoredDocs = 0;
             int limit = vectors - BULK_SIZE + 1;
             int i = 0;
+            var filterDocsBits = filterDocs == null || filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs ? null : filterDocs.bits();
             // read Docs
             for (; i < limit; i += BULK_SIZE) {
                 // read the doc ids
                 readDocIds(BULK_SIZE);
-                final int docsToBulkScore = postFilterIterator != null ? BULK_SIZE : filterDocs.bits() == null ? BULK_SIZE : docToBulkScore(docIdsScratch, filterDocs.bits());
+                final int docsToBulkScore = filterDocsBits == null ? BULK_SIZE : docToBulkScore(docIdsScratch, filterDocsBits);
                 if (docsToBulkScore == 0) {
                     indexInput.skipBytes(quantizedByteLength * BULK_SIZE);
                     continue;
@@ -744,6 +743,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 readDocIds(vectors - i);
             }
             int count = 0;
+            var postFilterIterator = filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs ? filterDocs.iterator() : null;
             for (; i < vectors; i++) {
                 // this is where i could use the iterator as we have the doc ids in order
                 // we have taken advantage of not building the bitset + we wouldn't need any acceptDocs

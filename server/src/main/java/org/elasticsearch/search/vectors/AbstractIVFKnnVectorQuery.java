@@ -75,7 +75,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.k = k;
         this.filter = filter;
         this.numCands = numCands;
-        this.postFilteringThreshold = postFilteringThreshold;
+        this.postFilteringThreshold = postFilteringThreshold < 1 ? 0.01f : 1f;
     }
 
     @Override
@@ -152,7 +152,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                                 )
                             );
                         } else {
-                            leafSearchMetas.add(new VectorLeafSearchFilterMeta(leafReaderContext, new ESAcceptDocs.ScorerSupplierAcceptDocs(supplier, liveDocs, leafReader.maxDoc())));
+                            leafSearchMetas.add(
+                                new VectorLeafSearchFilterMeta(
+                                    leafReaderContext,
+                                    new ESAcceptDocs.ScorerSupplierAcceptDocs(supplier, liveDocs, leafReader.maxDoc())
+                                )
+                            );
                         }
                     }
                 }
@@ -255,7 +260,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         @Override
         public AbstractMaxScoreKnnCollector newOptimisticCollector(
-            int visitedLimit, KnnSearchStrategy searchStrategy, LeafReaderContext context, int k
+            int visitedLimit,
+            KnnSearchStrategy searchStrategy,
+            LeafReaderContext context,
+            int k
         ) throws IOException {
             return new MaxScoreTopKnnCollector(k, visitedLimit, searchStrategy);
         }

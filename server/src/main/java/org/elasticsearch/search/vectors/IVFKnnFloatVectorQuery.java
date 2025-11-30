@@ -14,7 +14,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.action.termvectors.EnsureDocsSearchableAction;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -102,17 +101,9 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         if (floatVectorValues.size() == 0) {
             return NO_RESULTS;
         }
-        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, knnCollectorManager.longAccumulator);
         assert filterDocs instanceof ESAcceptDocs;
-        float approximateCost = filterDocs instanceof ESAcceptDocs.ESAcceptDocsAll ? floatVectorValues.size() : ((ESAcceptDocs) filterDocs).approximateCost();
-        float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / floatVectorValues.size()));
-        AbstractMaxScoreKnnCollector knnCollector;
-        if (percentFiltered > postFilteringThreshold) {
-            int adjustedVisitedLimit = Math.round(k * (2 + (1 - percentFiltered)));
-            knnCollector = knnCollectorManager.newOptimisticCollector(visitedLimit, strategy, context, adjustedVisitedLimit);
-        } else {
-            knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
-        }
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, knnCollectorManager.longAccumulator);
+        var knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {
             return NO_RESULTS;
         }

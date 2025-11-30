@@ -276,11 +276,13 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 "vector query dimension: " + target.length + " differs from field dimension: " + fieldInfo.getVectorDimension()
             );
         }
+        assert filterDocs instanceof ESAcceptDocs;
         FloatVectorValues values = getReaderForField(field).getFloatVectorValues(field);
         int numVectors = values.size();
-        assert filterDocs instanceof ESAcceptDocs;
         // TODO returning cost 0 in ESAcceptDocs.ESAcceptDocsAll feels wrong? cost is related to the number of matching documents?
-        float approximateCost =  filterDocs instanceof ESAcceptDocs.ESAcceptDocsAll ? numVectors : ((ESAcceptDocs)filterDocs).approximateCost();
+        float approximateCost = filterDocs instanceof ESAcceptDocs.ESAcceptDocsAll
+            ? numVectors
+            : ((ESAcceptDocs) filterDocs).approximateCost();
         float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
         float visitRatio = DYNAMIC_VISIT_RATIO;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
@@ -327,7 +329,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
             // is enough?
             expectedDocs += scorer.resetPostingsScorer(offsetAndLength.offset());
-            System.err.println("FINDME>> " + "centroidIterator");
             actualDocs += scorer.visit(knnCollector);
             if (knnCollector.getSearchStrategy() != null) {
                 knnCollector.getSearchStrategy().nextVectorsBlock();
@@ -341,7 +342,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
                 CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
                 scorer.resetPostingsScorer(offsetAndLength.offset());
-                System.err.println("FINDME>> " + "continuing");
                 actualDocs += scorer.visit(knnCollector);
                 if (knnCollector.getSearchStrategy() != null) {
                     knnCollector.getSearchStrategy().nextVectorsBlock();

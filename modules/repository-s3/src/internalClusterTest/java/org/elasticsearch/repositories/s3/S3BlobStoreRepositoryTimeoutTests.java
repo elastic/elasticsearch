@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -36,7 +37,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -150,12 +150,7 @@ public class S3BlobStoreRepositoryTimeoutTests extends ESMockAPIBasedRepositoryI
                     exchange.getRequestURI(),
                     headerDecodedContentLength
                 );
-                try {
-                    final var released = latch.await(60, TimeUnit.SECONDS);
-                    logger.info("--> Latch released: {}", released);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
+                safeAwait(latch, TimeValue.THIRTY_SECONDS);
                 logger.info("--> Done simulating server unresponsiveness");
             }
             super.handle(exchange);

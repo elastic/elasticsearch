@@ -82,7 +82,9 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.store.MetricHolder;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
@@ -172,6 +174,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
+    private final MetricHolder<StoreMetrics> metricHolder;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -210,7 +213,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         MapperMetrics mapperMetrics,
         IndexingStatsSettings indexingStatsSettings,
         SearchStatsSettings searchStatsSettings,
-        MergeMetrics mergeMetrics
+        MergeMetrics mergeMetrics,
+        MetricHolder<StoreMetrics> metricHolder
     ) {
         super(indexSettings);
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
@@ -297,6 +301,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexingStatsSettings = indexingStatsSettings;
         this.searchStatsSettings = searchStatsSettings;
         this.mergeMetrics = mergeMetrics;
+        this.metricHolder = metricHolder;
         updateFsyncTaskIfNecessary();
     }
 
@@ -559,7 +564,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 directory,
                 lock,
                 new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)),
-                this.indexSettings.getIndexSortConfig().hasIndexSort()
+                this.indexSettings.getIndexSortConfig().hasIndexSort(),
+                metricHolder
             );
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(

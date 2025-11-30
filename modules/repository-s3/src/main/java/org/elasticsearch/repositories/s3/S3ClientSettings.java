@@ -245,7 +245,7 @@ final class S3ClientSettings {
     /**
      * The maximum time for a single attempt of an API operation
      */
-    final int apiCallTimeoutMillis;
+    final TimeValue apiCallTimeout;
 
     /** Whether the s3 client should use path style access. */
     final boolean pathStyleAccess;
@@ -272,7 +272,7 @@ final class S3ClientSettings {
         long connectionMaxIdleTimeMillis,
         int maxConnections,
         int maxRetries,
-        int apiCallTimeoutMillis,
+        TimeValue apiCallTimeout,
         boolean pathStyleAccess,
         boolean disableChunkedEncoding,
         boolean addPurposeCustomQueryParameter,
@@ -290,7 +290,7 @@ final class S3ClientSettings {
         this.connectionMaxIdleTimeMillis = connectionMaxIdleTimeMillis;
         this.maxConnections = maxConnections;
         this.maxRetries = maxRetries;
-        this.apiCallTimeoutMillis = apiCallTimeoutMillis;
+        this.apiCallTimeout = apiCallTimeout;
         this.pathStyleAccess = pathStyleAccess;
         this.disableChunkedEncoding = disableChunkedEncoding;
         this.addPurposeCustomQueryParameter = addPurposeCustomQueryParameter;
@@ -320,9 +320,7 @@ final class S3ClientSettings {
         );
         final int newMaxConnections = getRepoSettingOrDefault(MAX_CONNECTIONS_SETTING, normalizedSettings, maxConnections);
         final int newMaxRetries = getRepoSettingOrDefault(MAX_RETRIES_SETTING, normalizedSettings, maxRetries);
-        final int newApiCallTimeoutMillis = Math.toIntExact(
-            getRepoSettingOrDefault(API_CALL_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(apiCallTimeoutMillis)).millis()
-        );
+        final TimeValue newApiCallTimeout = getRepoSettingOrDefault(API_CALL_TIMEOUT_SETTING, normalizedSettings, apiCallTimeout);
         final boolean newPathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
         final boolean newDisableChunkedEncoding = getRepoSettingOrDefault(
             DISABLE_CHUNKED_ENCODING,
@@ -375,7 +373,7 @@ final class S3ClientSettings {
             newConnectionMaxIdleTimeMillis,
             newMaxConnections,
             newMaxRetries,
-            newApiCallTimeoutMillis,
+            newApiCallTimeout,
             newPathStyleAccess,
             newDisableChunkedEncoding,
             newAddPurposeCustomQueryParameter,
@@ -485,7 +483,7 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, CONNECTION_MAX_IDLE_TIME_SETTING).millis(),
                 getConfigValue(settings, clientName, MAX_CONNECTIONS_SETTING),
                 getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
-                Math.toIntExact(getConfigValue(settings, clientName, API_CALL_TIMEOUT_SETTING).millis()),
+                getConfigValue(settings, clientName, API_CALL_TIMEOUT_SETTING),
                 getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
                 getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
                 getConfigValue(settings, clientName, ADD_PURPOSE_CUSTOM_QUERY_PARAMETER),
@@ -508,7 +506,7 @@ final class S3ClientSettings {
             && Objects.equals(connectionMaxIdleTimeMillis, that.connectionMaxIdleTimeMillis)
             && maxConnections == that.maxConnections
             && maxRetries == that.maxRetries
-            && apiCallTimeoutMillis == that.apiCallTimeoutMillis
+            && apiCallTimeout == that.apiCallTimeout
             && Objects.equals(credentials, that.credentials)
             && Objects.equals(protocol, that.protocol)
             && Objects.equals(endpoint, that.endpoint)
@@ -535,7 +533,7 @@ final class S3ClientSettings {
             readTimeoutMillis,
             connectionMaxIdleTimeMillis,
             maxRetries,
-            apiCallTimeoutMillis,
+            apiCallTimeout,
             maxConnections,
             disableChunkedEncoding,
             addPurposeCustomQueryParameter,
@@ -560,6 +558,6 @@ final class S3ClientSettings {
         static final TimeValue CONNECTION_MAX_IDLE_TIME = TimeValue.timeValueSeconds(60);
         static final int MAX_CONNECTIONS = 50;
         static final int RETRY_COUNT = 3;
-        static final TimeValue API_CALL_TIMEOUT = TimeValue.ZERO; // default to no API call timeout
+        static final TimeValue API_CALL_TIMEOUT = TimeValue.MINUS_ONE; // default to no API call timeout
     }
 }

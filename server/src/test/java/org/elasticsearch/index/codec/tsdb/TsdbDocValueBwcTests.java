@@ -350,7 +350,8 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                             nextOrdinalRangeThreshold.getAsInt(),
                             random().nextBoolean(),
                             ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode(),
-                            randomBoolean()
+                            randomBoolean(),
+                            ES819TSDBDocValuesFormatTests.randomNumericBlockSize()
                         )
                     )
                 );

@@ -68,6 +68,17 @@ public class MapperUtils {
             return new ShowExec(showInfo.source(), showInfo.output(), showInfo.values());
         }
 
+        if (p instanceof org.elasticsearch.xpack.esql.plan.logical.LoadResult loadResult) {
+            String searchId = org.elasticsearch.common.lucene.BytesRefs.toString(
+                loadResult.searchId().fold(org.elasticsearch.xpack.esql.core.expression.FoldContext.small())
+            );
+            return new org.elasticsearch.xpack.esql.plan.physical.LoadResultExec(
+                loadResult.source(),
+                searchId,
+                loadResult.output()
+            );
+        }
+
         return unsupported(p);
     }
 

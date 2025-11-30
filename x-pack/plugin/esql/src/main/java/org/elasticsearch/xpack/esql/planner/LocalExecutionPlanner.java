@@ -168,6 +168,7 @@ public class LocalExecutionPlanner {
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
+    private final org.elasticsearch.xpack.esql.action.AsyncResultResolver asyncResultResolver;
     private final PhysicalOperationProviders physicalOperationProviders;
 
     public LocalExecutionPlanner(
@@ -183,6 +184,7 @@ public class LocalExecutionPlanner {
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
         InferenceService inferenceService,
+        org.elasticsearch.xpack.esql.action.AsyncResultResolver asyncResultResolver,
         PhysicalOperationProviders physicalOperationProviders
     ) {
 
@@ -198,6 +200,7 @@ public class LocalExecutionPlanner {
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = inferenceService;
+        this.asyncResultResolver = asyncResultResolver;
         this.physicalOperationProviders = physicalOperationProviders;
     }
 
@@ -293,6 +296,8 @@ public class LocalExecutionPlanner {
             return planEsStats(statsQuery, context);
         } else if (node instanceof LocalSourceExec localSource) {
             return planLocal(localSource, context);
+        } else if (node instanceof org.elasticsearch.xpack.esql.plan.physical.LoadResultExec loadResult) {
+            return planLoadResult(loadResult, context);
         } else if (node instanceof ShowExec show) {
             return planShow(show);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
@@ -829,6 +834,26 @@ public class LocalExecutionPlanner {
         LocalSourceOperator.PageSupplier supplier = () -> localSourceExec.supplier().get();
         var operator = new LocalSourceOperator(supplier);
         return PhysicalOperation.fromSource(new LocalSourceFactory(() -> operator), layout.build());
+    }
+
+    private PhysicalOperation planLoadResult(
+        org.elasticsearch.xpack.esql.plan.physical.LoadResultExec loadResultExec,
+        LocalExecutionPlannerContext context
+    ) {
+        logger.debug("Planning LoadResultExec for searchId: {} with {} output columns", 
+            loadResultExec.searchId(), loadResultExec.output().size());
+        
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(loadResultExec.output());
+        
+        var factory = new org.elasticsearch.xpack.esql.compute.operator.LoadResultOperator.Factory(
+            asyncResultResolver,
+            loadResultExec.searchId(),
+            loadResultExec.output()
+        );
+        
+        logger.debug("Created LoadResultOperator.Factory for searchId: {}", loadResultExec.searchId());
+        return PhysicalOperation.fromSource(factory, layout.build());
     }
 
     private PhysicalOperation planShow(ShowExec showExec) {

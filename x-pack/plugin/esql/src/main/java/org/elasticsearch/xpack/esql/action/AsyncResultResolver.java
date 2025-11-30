@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -29,6 +31,8 @@ import java.util.stream.Collectors;
  * Resolves LoadResult logical plans by fetching schema from async query results.
  */
 public class AsyncResultResolver {
+    
+    private static final Logger LOGGER = LogManager.getLogger(AsyncResultResolver.class);
 
     private final Client client;
     private final ThreadPool threadPool;
@@ -36,6 +40,33 @@ public class AsyncResultResolver {
     public AsyncResultResolver(Client client, ThreadPool threadPool) {
         this.client = client;
         this.threadPool = threadPool;
+    }
+
+    public Client client() {
+        return client;
+    }
+
+    /**
+     * Synchronously fetches pages from an async result.
+     * This is called at execution time.
+     */
+    public List<org.elasticsearch.compute.data.Page> fetchPages(String searchId) {
+        LOGGER.debug("fetchPages called for searchId: {}", searchId);
+        GetAsyncResultRequest request = new GetAsyncResultRequest(searchId);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueSeconds(30));
+
+        try {
+            EsqlQueryResponse response = client.execute(EsqlAsyncGetResultAction.INSTANCE, request).actionGet();
+            List<org.elasticsearch.compute.data.Page> pages = response.pages();
+            LOGGER.debug("LoadResult fetched {} pages for searchId: {}", pages.size(), searchId);
+            if (!pages.isEmpty()) {
+                LOGGER.debug("First page has {} rows", pages.get(0).getPositionCount());
+            }
+            return pages;
+        } catch (Exception e) {
+            LOGGER.error("Failed to fetch pages for searchId: {}", searchId, e);
+            throw new RuntimeException("Failed to load async result [" + searchId + "]: " + e.getMessage(), e);
+        }
     }
 
     /**

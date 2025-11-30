@@ -176,8 +176,11 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
     }
 
     private boolean hasIndexRoutingFilters(IndexMetadata indexMetadata) {
-        return indexMetadata.requireFilters() != null && indexMetadata.requireFilters().hasFilters()
-            || indexMetadata.excludeFilters() != null && indexMetadata.excludeFilters().hasFilters()
-            || indexMetadata.includeFilters() != null && indexMetadata.includeFilters().hasFilters();
+        return DiscoveryNodeFilters.trimTier(indexMetadata.requireFilters()) != null
+            && DiscoveryNodeFilters.trimTier(indexMetadata.requireFilters()).hasFilters()
+            || DiscoveryNodeFilters.trimTier(indexMetadata.excludeFilters()) != null
+                && DiscoveryNodeFilters.trimTier(indexMetadata.excludeFilters()).hasFilters()
+            || DiscoveryNodeFilters.trimTier(indexMetadata.includeFilters()) != null
+                && DiscoveryNodeFilters.trimTier(indexMetadata.includeFilters()).hasFilters();
     }
 }

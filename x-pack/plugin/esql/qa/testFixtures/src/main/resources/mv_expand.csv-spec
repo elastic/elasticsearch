@@ -567,3 +567,71 @@ b:integer   | a:integer
 2           | 12
 3           | 12
 ;
+
+
+testPushDownMvExpandPastProject5
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+required_capability: push_down_mv_expand_past_project
+from employees, (from employees | keep salary)
+| eval salary = salary::keyword
+| keep salary
+| mv_expand salary
+| sort salary 
+| limit 6 
+;
+
+salary:keyword
+25324          
+25324          
+25945          
+25945          
+25976          
+25976  
+;
+
+
+testPushDownMvExpandPastProject6
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+required_capability: push_down_mv_expand_past_project
+from employees, (from employees | keep salary)
+| eval salary = salary::keyword
+| eval tmp = salary
+| keep salary, tmp
+| mv_expand salary
+| sort salary 
+| limit 6 
+;
+
+salary:keyword | tmp:keyword
+25324          | 25324          
+25324          | 25324          
+25945          | 25945          
+25945          | 25945          
+25976          | 25976          
+25976          | 25976          
+;
+
+
+testPushDownMvExpandPastProject7
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+required_capability: push_down_mv_expand_past_project
+from employees, (from employees | keep salary)
+| eval salary = salary::keyword
+| eval tmp = salary
+| keep salary, tmp
+| mv_expand tmp
+| sort salary 
+| limit 6 
+;
+
+salary:keyword | tmp:keyword
+25324          | 25324          
+25324          | 25324          
+25945          | 25945          
+25945          | 25945          
+25976          | 25976          
+25976          | 25976       
+;

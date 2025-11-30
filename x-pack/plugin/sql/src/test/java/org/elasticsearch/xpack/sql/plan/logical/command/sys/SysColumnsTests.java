@@ -303,7 +303,8 @@ public class SysColumnsTests extends ESTestCase {
             false,
             null,
             null,
-            false
+            false,
+            null
         );
         Tuple<Command, SqlSession> tuple = sql(sql, emptyList(), config, MAPPING1);
 
@@ -350,7 +351,8 @@ public class SysColumnsTests extends ESTestCase {
             false,
             null,
             null,
-            false
+            false,
+            null
         );
         Tuple<Command, SqlSession> tuple = sql(sql, params, config, mapping);
 

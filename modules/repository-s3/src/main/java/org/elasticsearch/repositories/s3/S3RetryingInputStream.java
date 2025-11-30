@@ -63,7 +63,7 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
                 }
                 final var getObjectRequest = getObjectRequestBuilder.build();
                 final var getObjectResponse = clientReference.client().getObject(getObjectRequest);
-                return new SingleAttemptInputStream<>(new S3SingleAttemptInputStream(getObjectResponse, start, end), start, null);
+                return new SingleAttemptInputStream<>(new S3ResponseWrapperInputStream(getObjectResponse, start, end), start, null);
             } catch (SdkException e) {
                 if (e instanceof SdkServiceException sdkServiceException) {
                     if (sdkServiceException.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
@@ -180,7 +180,10 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
         return getObjectResponse.contentLength();
     }
 
-    private static class S3SingleAttemptInputStream extends InputStream {
+    /**
+     * A wrapper around the {@link ResponseInputStream} that aborts the stream if it wasn't fully read before closing.
+     */
+    private static class S3ResponseWrapperInputStream extends InputStream {
 
         private final ResponseInputStream<GetObjectResponse> responseStream;
         private final long start;
@@ -191,7 +194,7 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
         private boolean eof;
         private boolean aborted;
 
-        private S3SingleAttemptInputStream(ResponseInputStream<GetObjectResponse> responseStream, long start, long end) {
+        private S3ResponseWrapperInputStream(ResponseInputStream<GetObjectResponse> responseStream, long start, long end) {
             this.responseStream = responseStream;
             this.start = start;
             this.end = end;
@@ -289,16 +292,16 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
 
     // exposed for testing
     boolean isEof() {
-        return currentStream.unwrap(S3SingleAttemptInputStream.class).isEof();
+        return currentStream.unwrap(S3ResponseWrapperInputStream.class).isEof();
     }
 
     // exposed for testing
     boolean isAborted() {
-        return currentStream.unwrap(S3SingleAttemptInputStream.class).isAborted();
+        return currentStream.unwrap(S3ResponseWrapperInputStream.class).isAborted();
     }
 
     // exposed for testing
     long tryGetStreamLength(GetObjectResponse getObjectResponse) {
-        return currentStream.unwrap(S3SingleAttemptInputStream.class).tryGetStreamLength(getObjectResponse);
+        return currentStream.unwrap(S3ResponseWrapperInputStream.class).tryGetStreamLength(getObjectResponse);
     }
 }

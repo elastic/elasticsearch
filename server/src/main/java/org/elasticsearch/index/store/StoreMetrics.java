@@ -12,8 +12,7 @@ package org.elasticsearch.index.store;
 public class StoreMetrics {
     public static final MetricHolder<StoreMetrics> NOOP_HOLDER = MetricHolder.noop(new StoreMetrics() {
         @Override
-        public void addBytesRead(long amount) {
-        }
+        public void addBytesRead(long amount) {}
     });
 
     private long bytesRead;

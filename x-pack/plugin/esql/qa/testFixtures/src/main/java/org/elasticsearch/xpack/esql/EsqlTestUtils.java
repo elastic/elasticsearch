@@ -557,7 +557,8 @@ public final class EsqlTestUtils {
         new InferenceService(mock(Client.class)),
         new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
         TEST_PLANNER_SETTINGS,
-        new CrossProjectModeDecider(Settings.EMPTY)
+        new CrossProjectModeDecider(Settings.EMPTY),
+        mock(org.elasticsearch.xpack.esql.action.AsyncResultResolver.class)
     );
 
     private static ClusterService createMockClusterService() {

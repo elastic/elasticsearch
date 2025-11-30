@@ -192,6 +192,9 @@ public class CommandLicenseTests extends ESTestCase {
             case "Limit" -> {
                 return new Limit(source, null, child);
             }
+            case "LoadResult" -> {
+                return new LoadResult(source, new org.elasticsearch.xpack.esql.core.expression.Literal(source, new org.apache.lucene.util.BytesRef("test-async-id"), org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD));
+            }
         }
 
         // For all others, find the constructor that takes Source and LogicalPlan as the first two parameters

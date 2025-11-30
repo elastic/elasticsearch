@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalW
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceOrderByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRegexMatch;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLoadResultAsLocalRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRowAsLocalRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
@@ -235,6 +236,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceLimitAndSortAsTopN(),
             new HoistRemoteEnrichTopN(),
             new ReplaceRowAsLocalRelation(),
+            new ReplaceLoadResultAsLocalRelation(),
             new PropgateUnmappedFields(),
             new CombineLimitTopN()
         );

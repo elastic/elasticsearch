@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -414,7 +413,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return callAsyncUnified(endpoint, input, "user", responseConsumerCallback);
     }
 
-    protected Map<String, Object> embedding(String modelId, List<Tuple<InferenceString.DataType, String>> input) throws IOException {
+    protected Map<String, Object> embedding(String modelId, List<InferenceString> input) throws IOException {
         var endpoint = Strings.format("_inference/embedding/%s", modelId);
         var request = new Request("POST", endpoint);
         request.setJsonEntity(jsonBodyEmbedding(input));
@@ -539,11 +538,11 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return bodyBuilder.toString();
     }
 
-    private String jsonBodyEmbedding(List<Tuple<InferenceString.DataType, String>> inputs) {
+    private String jsonBodyEmbedding(List<InferenceString> inputs) {
         final StringBuilder bodyBuilder = new StringBuilder("{\"input\": [");
-        String contents = inputs.stream().map(t -> Strings.format("""
-            {"content": {"type": "%s", "value": "%s"}}
-            """, t.v1().name(), t.v2())).collect(Collectors.joining(","));
+        String contents = inputs.stream().map(s -> Strings.format("""
+            {"content": {"type": "%s", "format": "%s" "value": "%s"}}
+            """, s.dataType(), s.dataFormat(), s.value())).collect(Collectors.joining(","));
         bodyBuilder.append(contents);
         bodyBuilder.append("]}");
         return bodyBuilder.toString();

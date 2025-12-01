@@ -12,6 +12,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceString.DataFormat;
+import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
@@ -34,7 +36,7 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
             {
                 "input": [
                     {
-                        "content": {"type": "image_base64", "value": "some image input"}
+                        "content": {"type": "image", "format": "base64", "value": "some image input" }
                     }
                 ],
                 "input_type": "search"
@@ -50,7 +52,7 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
                 inferenceId,
                 taskType,
                 new EmbeddingRequest(
-                    List.of(new InferenceStringGroup(new InferenceString(InferenceString.DataType.IMAGE_BASE64, "some image input"))),
+                    List.of(new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, "some image input"))),
                     InputType.SEARCH
                 ),
                 context,
@@ -98,7 +100,7 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
     public void testValidate_withNonEmbeddingTaskType_returnsValidationException() {
         var request = new EmbeddingAction.Request(
             randomAlphanumericOfLength(8),
-            randomValueOtherThan(TaskType.EMBEDDING, () -> randomFrom(TaskType.values())),
+            randomValueOtherThanMany(TaskType.EMBEDDING::isAnyOrSame, () -> randomFrom(TaskType.values())),
             randomEmbeddingRequest(),
             new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
@@ -112,7 +114,7 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
     public void testValidate_withMultipleValidationErrors_returnsAll() {
         var request = new EmbeddingAction.Request(
             randomAlphanumericOfLength(8),
-            randomValueOtherThan(TaskType.EMBEDDING, () -> randomFrom(TaskType.values())),
+            randomValueOtherThanMany(TaskType.EMBEDDING::isAnyOrSame, () -> randomFrom(TaskType.values())),
             new EmbeddingRequest(null, randomFrom(InputType.values())),
             new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))

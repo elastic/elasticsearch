@@ -51,7 +51,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
             if (chunk.start() == 0 && chunk.end() == input.value().length()) {
                 return input;
             } else {
-                return new InferenceString(input.dataType(), input.value().substring(chunk.start(), chunk.end()));
+                return new InferenceString(input.dataType(), input.dataFormat(), input.value().substring(chunk.start(), chunk.end()));
             }
         }
     }

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;
@@ -17,7 +17,6 @@ import java.util.Map;
 
 public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
 
-    @SuppressWarnings("unchecked")
     public void testMockService() throws IOException {
         String inferenceEntityId = "test-mock";
         var putModel = putModel(inferenceEntityId, mockTextEmbeddingServiceModelConfig(), TaskType.TEXT_EMBEDDING);
@@ -52,11 +51,10 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
         assertNonEmptyInferenceResults(inference, 3, TaskType.TEXT_EMBEDDING);
     }
 
-    @SuppressWarnings("unchecked")
     public void testMockService_withEmbeddingTask() throws IOException {
         String inferenceEntityId = "test-mock-embedding";
         var putModel = putModel(inferenceEntityId, mockEmbeddingServiceModelConfig(), TaskType.EMBEDDING);
-        var model = getModels(inferenceEntityId, TaskType.EMBEDDING).get(0);
+        var model = getModels(inferenceEntityId, TaskType.EMBEDDING).getFirst();
 
         for (var modelMap : List.of(putModel, model)) {
             assertEquals(inferenceEntityId, modelMap.get("inference_id"));
@@ -64,7 +62,7 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
             assertEquals("text_embedding_test_service", modelMap.get("service"));
         }
 
-        var input = List.of(Tuple.tuple(InferenceString.DataType.TEXT, randomAlphaOfLength(10)));
+        var input = List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10)));
         var inference = embedding(inferenceEntityId, input);
         assertNonEmptyInferenceResults(inference, 1, TaskType.EMBEDDING);
         // Same input should return the same result
@@ -74,7 +72,7 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
             inference,
             embedding(
                 inferenceEntityId,
-                randomValueOtherThan(input, () -> List.of(Tuple.tuple(InferenceString.DataType.TEXT, randomAlphaOfLength(10))))
+                randomValueOtherThan(input, () -> List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10))))
             )
         );
     }
@@ -87,9 +85,9 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
         var inference = embedding(
             inferenceEntityId,
             List.of(
-                Tuple.tuple(InferenceString.DataType.IMAGE_BASE64, randomAlphaOfLength(5)),
-                Tuple.tuple(InferenceString.DataType.TEXT, randomAlphaOfLength(10)),
-                Tuple.tuple(InferenceString.DataType.TEXT, randomAlphaOfLength(15))
+                new InferenceString(DataType.IMAGE, randomAlphaOfLength(5)),
+                new InferenceString(DataType.TEXT, randomAlphaOfLength(10)),
+                new InferenceString(DataType.TEXT, randomAlphaOfLength(15))
             )
         );
 

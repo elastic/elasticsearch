@@ -134,6 +134,21 @@ public class EmbeddingAction extends ActionType<InferenceAction.Response> {
         public int hashCode() {
             return Objects.hash(super.hashCode(), inferenceEntityId, taskType, embeddingRequest, timeout);
         }
+
+        @Override
+        public String toString() {
+            return "Request{"
+                + "inferenceEntityId='"
+                + inferenceEntityId
+                + '\''
+                + ", taskType="
+                + taskType
+                + ", embeddingRequest="
+                + embeddingRequest
+                + ", timeout="
+                + timeout
+                + '}';
+        }
     }
 
 }

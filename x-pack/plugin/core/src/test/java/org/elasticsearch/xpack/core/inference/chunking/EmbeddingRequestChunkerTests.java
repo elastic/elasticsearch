@@ -1075,12 +1075,12 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
     }
 
     public void testDoesNotChunkNonTextInputs_whenChunkingSettingsAreSpecifiedInInput() {
-        InferenceString imageString = new InferenceString(
+        InferenceString nonTextString = new InferenceString(
             randomValueOtherThan(TEXT, () -> randomFrom(InferenceString.DataType.values())),
             "image chunks"
         );
         WordBoundaryChunkingSettings chunkingSettings = new WordBoundaryChunkingSettings(1, 0);
-        ChunkInferenceInput imageInput = new ChunkInferenceInput(new InferenceStringGroup(imageString), chunkingSettings);
+        ChunkInferenceInput imageInput = new ChunkInferenceInput(new InferenceStringGroup(nonTextString), chunkingSettings);
         ChunkInferenceInput textInput = new ChunkInferenceInput(
             new InferenceStringGroup(new InferenceString(TEXT, "text chunks")),
             chunkingSettings
@@ -1090,12 +1090,12 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
 
         assertThat(batches, hasSize(1));
         var expectedOutput = List.of(
-            new InferenceStringGroup(imageString),
+            new InferenceStringGroup(nonTextString),
             new InferenceStringGroup("text"),
             new InferenceStringGroup(" chunks")
         );
         assertThat(batches.getFirst().batch().inputs().get(), is(expectedOutput));
-        assertThat(batches.getFirst().batch().inputs().get().getFirst().inferenceStrings().getFirst(), is(sameInstance(imageString)));
+        assertThat(batches.getFirst().batch().inputs().get().getFirst().inferenceStrings().getFirst(), is(sameInstance(nonTextString)));
     }
 
     private ChunkedResultsListener testListener() {

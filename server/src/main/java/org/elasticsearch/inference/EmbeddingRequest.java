@@ -14,6 +14,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InferenceString.DataFormat;
+import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -32,16 +34,17 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 /**
  * This class handles the parsing of inputs used by the {@link TaskType#EMBEDDING} task type. The input for this task is specified using
- * a list of "content" objects, each of which specifies the {@link InferenceString.DataType} and the String value of the input:
+ * a list of "content" objects, each of which specifies the {@link DataType}, {@link DataFormat} and the String value of the input. The
+ * {@code format} field is optional, and if not specified will use the default {@link DataFormat} for the given {@link DataType}:
  * <pre>
  * "input": [
  *   {
- *     "content": {"type": "image_base64", "value": "image data"},
+ *     "content": {"type": "image", "format": "base64", "value": "image data"},
  *   },
  *   {
  *     "content": [
  *       {"type": "text", "value": "text input"},
- *       {"type": "image_base64", "value": "image data"}
+ *       {"type": "image", "value": "image data"}
  *     ]
  *   }
  * ]</pre>
@@ -49,11 +52,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * list:
  * <pre>
  * "input": {
- *   "content": {"type": "text", "value": "text input"}
+ *   "content": {"type": "text", "format": "text", "value": "text input"}
  * }</pre>
  * To preserve input compatibility with the existing {@link TaskType#TEXT_EMBEDDING} task, the input can also be specified as a single
- * String or a list of Strings, each of which will be parsed into a content object with {@link InferenceString.DataType} equal to
- * {@link InferenceString.DataType#TEXT}:
+ * String or a list of Strings, each of which will be parsed into a content object with {@link DataType} equal to
+ * {@link DataType#TEXT} and {@link DataFormat} equal to {@link DataFormat#TEXT}:
  * <pre>
  * "input": "singe text input"</pre>
  * OR
@@ -62,7 +65,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * @param inputs The list of {@link InferenceStringGroup} inputs to generate embeddings for
  * @param inputType The {@link InputType} of the request
  */
-public record EmbeddingRequest(List<InferenceStringGroup> inputs, @Nullable InputType inputType) implements Writeable, ToXContentFragment {
+public record EmbeddingRequest(List<InferenceStringGroup> inputs, InputType inputType) implements Writeable, ToXContentFragment {
 
     private static final String INPUT_FIELD = "input";
     private static final String INPUT_TYPE_FIELD = "input_type";

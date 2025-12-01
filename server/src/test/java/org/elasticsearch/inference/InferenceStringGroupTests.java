@@ -11,6 +11,8 @@ package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.InferenceString.DataFormat;
+import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -28,13 +30,13 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     public void testStringConstructor() {
         String stringValue = "a string";
         var input = new InferenceStringGroup(stringValue);
-        assertThat(input.inferenceStrings(), contains(new InferenceString(InferenceString.DataType.TEXT, stringValue)));
+        assertThat(input.inferenceStrings(), contains(new InferenceString(DataType.TEXT, DataFormat.TEXT, stringValue)));
     }
 
     public void testSingleArgumentConstructor() {
-        String stringValue = "a string";
-        var input = new InferenceStringGroup(new InferenceString(InferenceString.DataType.TEXT, stringValue));
-        assertThat(input.inferenceStrings(), contains(new InferenceString(InferenceString.DataType.TEXT, stringValue)));
+        InferenceString inferenceString = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "a string");
+        var input = new InferenceStringGroup(inferenceString);
+        assertThat(input.inferenceStrings(), contains(inferenceString));
     }
 
     public void testValue_withMoreThanOneElement_throws() {

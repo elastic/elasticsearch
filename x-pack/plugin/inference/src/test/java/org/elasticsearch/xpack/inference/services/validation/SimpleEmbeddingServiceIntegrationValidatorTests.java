@@ -23,7 +23,7 @@ import org.mockito.Mock;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.inference.services.validation.SimpleEmbeddingServiceIntegrationValidator.TEST_BASE64_INPUT;
+import static org.elasticsearch.xpack.inference.services.validation.SimpleEmbeddingServiceIntegrationValidator.TEST_IMAGE_BASE64_INPUT;
 import static org.elasticsearch.xpack.inference.services.validation.SimpleEmbeddingServiceIntegrationValidator.TEST_TEXT_INPUT;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,7 +38,7 @@ import static org.mockito.MockitoAnnotations.openMocks;
 public class SimpleEmbeddingServiceIntegrationValidatorTests extends ESTestCase {
 
     private static final EmbeddingRequest EXPECTED_REQUEST = new EmbeddingRequest(
-        List.of(TEST_TEXT_INPUT, TEST_BASE64_INPUT),
+        List.of(TEST_TEXT_INPUT, TEST_IMAGE_BASE64_INPUT),
         InputType.INTERNAL_INGEST
     );
     private static final TimeValue TIMEOUT = TimeValue.ONE_MINUTE;

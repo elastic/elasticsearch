@@ -12,6 +12,7 @@ package org.elasticsearch.inference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -23,7 +24,6 @@ import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.inference.InferenceString.DataType.TEXT;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
@@ -32,8 +32,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * <pre>
  * "input": {
  *   "content": [
- *     {"type": "text", "value": "text input"},
- *     {"type": "image_base64", "value": "data:image/png;base64,..."}
+ *     {"type": "text", "format": "text", "value": "text input"},
+ *     {"type": "image", "format": "base64", "value": "data:image/png;base64,..."}
  *   ]
  * }
  * </pre>
@@ -61,7 +61,7 @@ public record InferenceStringGroup(List<InferenceString> inferenceStrings) imple
 
     // Convenience constructor for the common use case of a single text input
     public InferenceStringGroup(String input) {
-        this(singletonList(new InferenceString(TEXT, input)));
+        this(singletonList(new InferenceString(DataType.TEXT, input)));
     }
 
     @Override
@@ -81,7 +81,7 @@ public record InferenceStringGroup(List<InferenceString> inferenceStrings) imple
         var token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
             // Create content object from String
-            return new InferenceStringGroup(singletonList(new InferenceString(TEXT, parser.text())));
+            return new InferenceStringGroup(singletonList(new InferenceString(DataType.TEXT, parser.text())));
         } else if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
             // Create content object from InferenceString(s)
             return InferenceStringGroup.PARSER.apply(parser, null);

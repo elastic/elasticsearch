@@ -32,6 +32,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -247,7 +248,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 approxFilterQuery,
                 expectedStrategy
             );
-            case FLOAT -> new ESKnnFloatVectorQuery(
+            case FLOAT, BFLOAT16 -> new ESKnnFloatVectorQuery(
                 VECTOR_FIELD,
                 queryBuilder.queryVector().asFloatVector(),
                 k,
@@ -268,7 +269,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                     yield new DenseVectorQuery.Bytes(queryBuilder.queryVector().asByteVector(), VECTOR_FIELD);
                 }
             }
-            case FLOAT -> {
+            case FLOAT, BFLOAT16 -> {
                 if (filterQuery != null) {
                     yield new BooleanQuery.Builder().add(
                         new DenseVectorQuery.Floats(queryBuilder.queryVector().asFloatVector(), VECTOR_FIELD),
@@ -564,5 +565,12 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         assertThat(rewritten.getVectorSimilarity(), equalTo(1f));
         assertThat(rewritten.filterQueries(), hasSize(numFilters));
         assertThat(rewritten.filterQueries(), equalTo(filters));
+    }
+
+    public void testSetFilterQueries() {
+        KnnVectorQueryBuilder knnQueryBuilder = doCreateTestQueryBuilder();
+        List<QueryBuilder> newFilters = randomList(5, () -> RandomQueryBuilder.createQuery(random()));
+        knnQueryBuilder.setFilterQueries(newFilters);
+        assertThat(knnQueryBuilder.filterQueries(), equalTo(newFilters));
     }
 }

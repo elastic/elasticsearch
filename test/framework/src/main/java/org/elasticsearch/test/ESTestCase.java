@@ -946,7 +946,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
 
     /**
-     * A unsigned long in a {@link BigInteger} between min (inclusive) and max (inclusive).
+     * An unsigned long in a {@link BigInteger} between min (inclusive) and max (inclusive).
      */
     public static BigInteger randomUnsignedLongBetween(BigInteger min, BigInteger max) {
         if (min.compareTo(BigInteger.ZERO) < 0) {
@@ -1134,6 +1134,13 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static DoubleStream randomDoubles(long streamSize) {
         return random().doubles(streamSize);
+    }
+
+    /**
+     * Returns a pseudo-random double from a Gaussian distribution with mean 0.0 and standard deviation 1.0
+     */
+    public static double randomGaussianDouble() {
+        return random().nextGaussian();
     }
 
     /**
@@ -2008,7 +2015,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a copy of an original {@link Writeable} object by running it through a {@link BytesStreamOutput} and
      * reading it in again using a provided {@link Writeable.Reader}. The stream that is wrapped around the {@link StreamInput}
      * potentially need to use a {@link NamedWriteableRegistry}, so this needs to be provided too (although it can be
-     * empty if the object that is streamed doesn't contain any {@link NamedWriteable} objects itself.
+     * empty if the object that is streamed doesn't contain any {@link NamedWriteable} objects itself).
      */
     public static <T extends Writeable> T copyWriteable(
         T original,
@@ -2872,7 +2879,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Run {@code numberOfTasks} parallel tasks that were created by the given {@code taskFactory}. On of the tasks will be run on the
+     * Run {@code numberOfTasks} parallel tasks that were created by the given {@code taskFactory}. One of the tasks will be run on the
      * calling thread, the rest will be run on a new thread.
      * @param numberOfTasks number of tasks to run in parallel
      * @param taskFactory task factory
@@ -2916,6 +2923,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         if (e != null) {
             throw new AssertionError(e);
         }
+    }
+
+    /**
+     * Run the given tasks in parallel. One of the tasks will be run on the calling thread, and each of the others will run on its own
+     * fresh thread.
+     */
+    public static void runInParallel(Runnable... tasks) {
+        runInParallel(tasks.length, i -> tasks[i].run());
     }
 
     public static void ensureAllContextsReleased(SearchService searchService) {

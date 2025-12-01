@@ -119,16 +119,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         );
     }
 
-    public void testValidateNotIndexed() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(timestampMapping(true, b -> {
-            b.startObject("@timestamp");
-            b.field("type", "date");
-            b.field("index", false);
-            b.endObject();
-        })));
-        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] is not indexed"));
-    }
-
     public void testValidateNotDocValues() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(timestampMapping(true, b -> {
             b.startObject("@timestamp");

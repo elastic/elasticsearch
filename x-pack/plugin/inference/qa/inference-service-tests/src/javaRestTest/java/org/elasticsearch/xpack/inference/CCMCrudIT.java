@@ -20,12 +20,15 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureFlag;
 import org.junit.After;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_CCM_PATH;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings.CCM_SUPPORTED_ENVIRONMENT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -36,7 +39,7 @@ public class CCMCrudIT extends CCMRestBaseIT {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "basic")
         .setting("xpack.security.enabled", "true")
-        .setting("xpack.inference.elastic.allow_configuring_ccm", "true")
+        .setting(CCM_SUPPORTED_ENVIRONMENT.getKey(), "true")
         .user("x_pack_rest_user", "x-pack-test-password")
         .build();
 
@@ -51,10 +54,19 @@ public class CCMCrudIT extends CCMRestBaseIT {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    @BeforeClass
+    public static void classSetup() {
+        assumeTrue("CCM is behind a feature flag and snapshot only right now", CCMFeatureFlag.FEATURE_FLAG.isEnabled());
+    }
+
     @After
-    public void cleanup() throws IOException {
-        // Disable CCM after each test to ensure a clean state
-        deleteCCMConfiguration();
+    public void cleanup() {
+        try {
+            // Disable CCM after each test to ensure a clean state
+            client().performRequest(new Request(DELETE_METHOD, INFERENCE_CCM_PATH));
+        } catch (Exception e) {
+            // ignore failures
+        }
     }
 
     public void testEnablesCCM_Succeeds() throws IOException {

@@ -84,6 +84,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
@@ -893,6 +894,29 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
         testChunkedInfer(modelId, apiKey, model);
     }
 
+    public void testChunkedInfer_noInputs() throws IOException {
+        var model = GoogleAiStudioEmbeddingsModelTests.createModel("modelId", createRandomChunkingSettings(), "apiKey", getUrl(webServer));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                model,
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+            assertThat(webServer.requests(), empty());
+        }
+    }
+
     private void testChunkedInfer(String modelId, String apiKey, GoogleAiStudioEmbeddingsModel model) throws IOException {
 
         var input = List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb"));
@@ -940,7 +964,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 assertThat(results.get(0), instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(new ChunkedInference.TextOffset(0, input.get(0).input().length()), floatResult.chunks().get(0).offset());
+                assertEquals(new ChunkedInference.TextOffset(0, input.get(0).inputText().length()), floatResult.chunks().get(0).offset());
                 assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertTrue(
                     Arrays.equals(
@@ -955,7 +979,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 assertThat(results.get(1), instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(new ChunkedInference.TextOffset(0, input.get(1).input().length()), floatResult.chunks().get(0).offset());
+                assertEquals(new ChunkedInference.TextOffset(0, input.get(1).inputText().length()), floatResult.chunks().get(0).offset());
                 assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertTrue(
                     Arrays.equals(
@@ -979,7 +1003,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                             "model",
                             Strings.format("%s/%s", "models", modelId),
                             "content",
-                            Map.of("parts", List.of(Map.of("text", input.get(0).input()))),
+                            Map.of("parts", List.of(Map.of("text", input.get(0).inputText()))),
                             "taskType",
                             "RETRIEVAL_DOCUMENT"
                         ),
@@ -987,7 +1011,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                             "model",
                             Strings.format("%s/%s", "models", modelId),
                             "content",
-                            Map.of("parts", List.of(Map.of("text", input.get(1).input()))),
+                            Map.of("parts", List.of(Map.of("text", input.get(1).inputText()))),
                             "taskType",
                             "RETRIEVAL_DOCUMENT"
                         )

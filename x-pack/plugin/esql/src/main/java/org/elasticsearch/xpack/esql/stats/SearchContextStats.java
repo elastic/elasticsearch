@@ -165,6 +165,9 @@ public class SearchContextStats implements SearchStats {
         BlockLoaderFunctionConfig config,
         MappedFieldType.FieldExtractPreference preference
     ) {
+        if (config == null) {
+            throw new UnsupportedOperationException("config must be provided");
+        }
         for (SearchExecutionContext context : contexts) {
             MappedFieldType ft = context.getFieldType(name.string());
             if (ft == null) {
@@ -421,6 +424,11 @@ public class SearchContextStats implements SearchStats {
             }
         }
         return val;
+    }
+
+    @Override
+    public MappedFieldType fieldType(FieldName field) {
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.fieldType;
     }
 
     private interface DocCountTester {

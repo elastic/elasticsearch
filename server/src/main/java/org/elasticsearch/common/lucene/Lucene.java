@@ -87,9 +87,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class Lucene {
 
@@ -126,6 +129,14 @@ public class Lucene {
             list.add(info.files());
         }
         return Iterables.flatten(list);
+    }
+
+    /**
+     * Returns the additional files that the {@param current} index commit introduces compared to the {@param previous} one.
+     */
+    public static Set<String> additionalFileNames(IndexCommit previous, IndexCommit current) throws IOException {
+        final Set<String> previousFiles = previous != null ? new HashSet<>(previous.getFileNames()) : Set.of();
+        return current.getFileNames().stream().filter(f -> previousFiles.contains(f) == false).collect(Collectors.toUnmodifiableSet());
     }
 
     /**

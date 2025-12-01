@@ -25,6 +25,9 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -57,15 +60,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
     @Before
     public void setMlModelRepository() throws IOException {
-        logger.info("setting ML model repository to: {}", mlModelServer.getUrl());
-        var request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity(Strings.format("""
-            {
-              "persistent": {
-                "xpack.ml.model_repository": "%s"
-              }
-            }""", mlModelServer.getUrl()));
-        assertOK(client().performRequest(request));
+        assertOK(mlModelServer.setMlModelRepository(adminClient()));
     }
 
     @Override
@@ -515,22 +510,22 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     protected void assertNonEmptyInferenceResults(Map<String, Object> resultMap, int expectedNumberOfResults, TaskType taskType) {
         switch (taskType) {
             case RERANK -> {
-                var results = (List<Map<String, Object>>) resultMap.get(TaskType.RERANK.toString());
+                var results = (List<Map<String, Object>>) resultMap.get(RankedDocsResults.RERANK);
                 assertThat(results, hasSize(expectedNumberOfResults));
             }
             case SPARSE_EMBEDDING -> {
-                var results = (List<Map<String, Object>>) resultMap.get(TaskType.SPARSE_EMBEDDING.toString());
+                var results = (List<Map<String, Object>>) resultMap.get(SparseEmbeddingResults.SPARSE_EMBEDDING);
                 assertThat(results, hasSize(expectedNumberOfResults));
             }
             case TEXT_EMBEDDING -> {
-                var results = (List<Map<String, Object>>) resultMap.get(TaskType.TEXT_EMBEDDING.toString());
+                var results = (List<Map<String, Object>>) resultMap.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING);
                 assertThat(results, hasSize(expectedNumberOfResults));
             }
             default -> fail("test with task type [" + taskType + "] are not supported yet");
         }
     }
 
-    static void assertStatusOkOrCreated(Response response) throws IOException {
+    public static void assertStatusOkOrCreated(Response response) throws IOException {
         int statusCode = response.getStatusLine().getStatusCode();
         // Once EntityUtils.toString(entity) is called the entity cannot be reused.
         // Avoid that call with check here.

@@ -42,7 +42,7 @@ public class TDigestState implements Releasable, Accountable {
     private final TDigest tdigest;
 
     // Supported tdigest types.
-    protected enum Type {
+    public enum Type {
         HYBRID,
         AVL_TREE,
         MERGING,
@@ -84,7 +84,7 @@ public class TDigestState implements Releasable, Accountable {
         }
     }
 
-    static TDigestState createOfType(CircuitBreaker breaker, Type type, double compression) {
+    public static TDigestState createOfType(CircuitBreaker breaker, Type type, double compression) {
         breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create-with-type");
         try {
             return new TDigestState(breaker, type, compression);

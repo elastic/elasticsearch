@@ -1,6 +1,0 @@
-pr: 134879
-summary: Throw 4xx instead of 5xx for ESQL malformed query params
-area: ES|QL
-type: bug
-issues:
- - 134618

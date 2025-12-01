@@ -20,7 +20,7 @@ public abstract class AbstractFlatVectorsFormat extends FlatVectorsFormat {
         super(name);
     }
 
-    protected abstract FlatVectorsScorer flatVectorsScorer();
+    public abstract FlatVectorsScorer flatVectorsScorer();
 
     @Override
     public int getMaxDimensions(String fieldName) {

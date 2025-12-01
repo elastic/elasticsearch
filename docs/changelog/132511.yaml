@@ -1,5 +1,0 @@
-pr: 132511
-summary: Handle special regex cases for version fields
-area: Search
-type: bug
-issues: []

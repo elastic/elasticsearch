@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Percolator"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/percolator.html
@@ -522,7 +525,7 @@ GET /my_queries1/_search
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 6,/"took": "$body.took",/]
+% TESTRESPONSE[s/"took": 6,/"took": "$body.took",/]
 
 The same technique can also be used to speed up suffix wildcard searches. By using the `reverse` token filter before the `edge_ngram` token filter.
 

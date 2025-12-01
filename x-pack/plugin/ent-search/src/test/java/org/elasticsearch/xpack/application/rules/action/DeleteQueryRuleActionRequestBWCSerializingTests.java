@@ -28,7 +28,14 @@ public class DeleteQueryRuleActionRequestBWCSerializingTests extends AbstractBWC
 
     @Override
     protected DeleteQueryRuleAction.Request mutateInstance(DeleteQueryRuleAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String rulesetId = instance.rulesetId();
+        String ruleId = instance.ruleId();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> rulesetId = randomValueOtherThan(rulesetId, () -> randomAlphaOfLengthBetween(1, 10));
+            case 1 -> ruleId = randomValueOtherThan(ruleId, () -> randomAlphaOfLengthBetween(1, 10));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new DeleteQueryRuleAction.Request(rulesetId, ruleId);
     }
 
     @Override

@@ -1,6 +1,0 @@
-pr: 136501
-summary: "Reindex-from-remote: Validate basic auth params"
-area: Indices APIs
-type: bug
-issues:
- - 135925

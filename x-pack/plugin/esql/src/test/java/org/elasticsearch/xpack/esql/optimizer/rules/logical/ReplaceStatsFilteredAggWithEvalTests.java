@@ -765,18 +765,18 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
 
     /*
      * EsqlProject[[emp_no{f}#9, count{r}#5, cc{r}#8]]
-     * \_Eval[[0[LONG] AS count#5, 0[LONG] AS cc#8]]
-     *   \_TopN[[Order[emp_no{f}#9,ASC,LAST]],3[INTEGER]]
+     * \_TopN[[Order[emp_no{f}#9,ASC,LAST]],3[INTEGER]]
+     *   \_Eval[[0[LONG] AS count#5, 0[LONG] AS cc#8]]
      *     \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      */
     public void testReplaceTwoConsecutiveInlineStats_WithFalseFilters() {
         var query = """
             FROM test
                 | KEEP emp_no
-                | SORT emp_no
-                | LIMIT 3
                 | INLINE STATS count = count(*) WHERE false
                 | INLINE STATS cc = count_distinct(emp_no) WHERE false
+                | SORT emp_no
+                | LIMIT 3
             """;
         if (releaseBuildForInlineStats(query)) {
             return;
@@ -785,7 +785,8 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         var project = as(plan, EsqlProject.class);
         assertThat(Expressions.names(project.projections()), contains("emp_no", "count", "cc"));
 
-        var eval = as(project.child(), Eval.class);
+        var topN = as(project.child(), TopN.class);
+        var eval = as(topN.child(), Eval.class);
         assertThat(eval.fields().size(), is(2));
 
         var aliasCount = as(eval.fields().get(0), Alias.class);
@@ -797,8 +798,6 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         assertThat(Expressions.name(aliasCc), startsWith("cc"));
         assertTrue(aliasCc.child().foldable());
         assertThat(aliasCc.child().fold(FoldContext.small()), is(0L));
-
-        var topN = as(eval.child(), TopN.class);
-        as(topN.child(), EsRelation.class);
+        as(eval.child(), EsRelation.class);
     }
 }

@@ -1,5 +1,0 @@
-pr: 135087
-summary: "Optimize `BytesArray::indexOf,` which is used heavily in ndjson parsing"
-area: "Performance"
-type: feature
-issues: []

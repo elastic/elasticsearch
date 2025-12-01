@@ -1,5 +1,0 @@
-pr: 136058
-summary: "Configurable HTTP read and connect timeouts for url based SAML metadata resolution"
-area: Security
-type: bug
-issues: []

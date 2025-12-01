@@ -110,9 +110,9 @@ And the following may be the response:
    }
 }
 ```
-%  TESTRESPONSE[s/"took": 11/"took": $body.took/]
-%  TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
-%  TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+% TESTRESPONSE[s/"took": 11/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 1. No derivative for the first bucket since we need at least 2 data points to calculate the derivative
 2. Derivative value units are implicitly defined by the `sales` aggregation and the parent histogram so in this case the units would be $/month assuming the `price` field has units of $.
@@ -209,9 +209,9 @@ And the following may be the response:
    }
 }
 ```
-%  TESTRESPONSE[s/"took": 50/"took": $body.took/]
-%  TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
-%  TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+% TESTRESPONSE[s/"took": 50/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 1. No second derivative for the first two buckets since we need at least 2 data points from the first derivative to calculate the second derivative
 
@@ -301,9 +301,9 @@ And the following may be the response:
    }
 }
 ```
-%  TESTRESPONSE[s/"took": 50/"took": $body.took/]
-%  TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
-%  TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+% TESTRESPONSE[s/"took": 50/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 1. `value` is reported in the original units of *per month*
 2. `normalized_value` is reported in the desired units of *per day*

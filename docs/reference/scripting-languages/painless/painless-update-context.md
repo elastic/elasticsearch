@@ -70,4 +70,4 @@ POST /seats/_update/3
   }
 }
 ```
-%  TEST[setup:seats]
+% TEST[setup:seats]

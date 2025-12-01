@@ -1,0 +1,6 @@
+pr: 138228
+summary: "Fix: Downsample returns appropriate error when target index gets deleted\
+  \ unexpectedly."
+area: Downsampling
+type: bug
+issues: []

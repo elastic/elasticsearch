@@ -339,6 +339,10 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         return textEmbeddingSettings.maxInputTokens;
     }
 
+    TextEmbeddingSettings getTextEmbeddingSettings() {
+        return textEmbeddingSettings;
+    }
+
     public String getUrl() {
         return url;
     }

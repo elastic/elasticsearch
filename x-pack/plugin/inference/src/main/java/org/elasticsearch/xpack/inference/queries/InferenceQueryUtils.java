@@ -54,6 +54,7 @@ class InferenceQueryUtils {
         Map<String, Float> fields,
         boolean resolveWildcards,
         boolean useDefaultFields,
+        boolean alwaysSkipRemotes,
         @Nullable String query,
         @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         @Nullable FullyQualifiedInferenceId inferenceIdOverride

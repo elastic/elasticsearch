@@ -460,6 +460,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/330_fetch_fields/Test nested field inside object structure}
   issue: https://github.com/elastic/elasticsearch/issues/138792
+- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
+  method: testEsqlEnrichWithSkipUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/138793
 
 # Examples:
 #

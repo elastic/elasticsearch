@@ -1143,12 +1143,11 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public void vectorAccumulateAdd(float[] a, float[] b) {
-        final VectorSpecies<Float> SPECIES = FloatVector.SPECIES_PREFERRED;
-
         int i = 0;
-        for (; i < SPECIES.loopBound(a.length); i += SPECIES.length()) {
-            FloatVector va = FloatVector.fromArray(SPECIES, a, i);
-            FloatVector vb = FloatVector.fromArray(SPECIES, b, i);
+        int limit = FLOAT_SPECIES.loopBound(a.length);
+        for (; i < limit; i += FLOAT_SPECIES.length()) {
+            FloatVector va = FloatVector.fromArray(FLOAT_SPECIES, a, i);
+            FloatVector vb = FloatVector.fromArray(FLOAT_SPECIES, b, i);
             FloatVector vc = va.add(vb);
             vc.intoArray(a, i);
         }
@@ -1160,11 +1159,9 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public void vectorScalerDivide(float[] a, float b) {
-        final VectorSpecies<Float> SPECIES = FloatVector.SPECIES_PREFERRED;
-
         int i = 0;
-        for (; i < SPECIES.loopBound(a.length); i += SPECIES.length()) {
-            FloatVector va = FloatVector.fromArray(SPECIES, a, i);
+        for (; i < FLOAT_SPECIES.loopBound(a.length); i += FLOAT_SPECIES.length()) {
+            FloatVector va = FloatVector.fromArray(FLOAT_SPECIES, a, i);
             FloatVector vc = va.div(b);
             vc.intoArray(a, i);
         }

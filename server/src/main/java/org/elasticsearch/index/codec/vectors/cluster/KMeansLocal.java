@@ -107,9 +107,10 @@ class KMeansLocal {
                 final int assignment = assignments[translateOrd.apply(idx)];
                 if (centroidChanged.get(assignment)) {
                     if (centroidCounts[assignment]++ == 0) {
-                        centroids[assignment] = vectors.vectorValue(idx);
+                        System.arraycopy(vectors.vectorValue(idx), 0, centroids[assignment], 0, vectors.vectorValue(idx).length);
                         continue;
                     }
+
                     ESVectorUtil.vectorAccumulateAdd(centroids[assignment], vectors.vectorValue(idx));
                 }
             }

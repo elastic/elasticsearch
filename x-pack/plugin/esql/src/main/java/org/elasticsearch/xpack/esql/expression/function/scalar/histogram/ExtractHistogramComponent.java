@@ -39,7 +39,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFol
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 
 /**
  * Extracts a {@link org.elasticsearch.compute.data.ExponentialHistogramBlock.Component} from an exponential histogram.
@@ -65,7 +64,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
      * @param componentOrdinal The {@link org.elasticsearch.compute.data.ExponentialHistogramBlock.Component#ordinal()}
      *                         as integer-expression, must be foldable
      */
-    @FunctionInfo(returnType = { "long", "double" })
+    @FunctionInfo(returnType = { "double" })
     public ExtractHistogramComponent(
         Source source,
         @Param(name = "histogram", type = { "exponential_histogram" }) Expression field,
@@ -84,7 +83,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
         return new ExtractHistogramComponent(source, field, new Literal(source, component.ordinal(), INTEGER));
     }
 
-    Expression field() {
+    public Expression field() {
         return field;
     }
 
@@ -119,8 +118,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
     public DataType dataType() {
         return switch (component()) {
             case null -> DataType.NULL;
-            case MIN, MAX, SUM -> DOUBLE;
-            case COUNT -> LONG;
+            case MIN, MAX, SUM, COUNT -> DOUBLE;
         };
     }
 

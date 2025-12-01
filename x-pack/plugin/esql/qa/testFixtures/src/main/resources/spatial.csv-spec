@@ -866,6 +866,17 @@ C              | 75         | BBOX (-107.51820000819862, 172.6055999379605, 55.7
 B              | 69         | BBOX (-116.51340007781982, 153.2021999359131, 60.631899973377585, -41.20620000176132) | BBOX (-116.23080002143979, 153.02809992805123, 60.46669999603182, -41.1500000115484)
 ;
 
+enrichPolicyWithGeoPoint
+required_capability: enrich_load
+
+ROW box = "POLYGON((11 55, 13 55, 13 56, 11 56, 11 55))"::geo_shape
+| ENRICH city_locations ON box WITH abbrev, airport, region, city
+;
+
+box:geo_shape                                                     | abbrev:keyword | airport:text | region:text        | city:keyword
+POLYGON ((11.0 55.0, 13.0 55.0, 13.0 56.0, 11.0 56.0, 11.0 55.0)) | CPH            | Copenhagen   | Københavns Kommune | Copenhagen
+;
+
 ###############################################
 # Tests for ST_INTERSECTS on GEO_POINT type
 

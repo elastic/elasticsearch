@@ -74,7 +74,8 @@ public class SysTablesTests extends ESTestCase {
         true,
         null,
         null,
-        false
+        false,
+        null
     );
 
     //

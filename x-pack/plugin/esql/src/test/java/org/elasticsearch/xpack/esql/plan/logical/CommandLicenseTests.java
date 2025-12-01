@@ -193,7 +193,14 @@ public class CommandLicenseTests extends ESTestCase {
                 return new Limit(source, null, child);
             }
             case "LoadResult" -> {
-                return new LoadResult(source, new org.elasticsearch.xpack.esql.core.expression.Literal(source, new org.apache.lucene.util.BytesRef("test-async-id"), org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD));
+                return new LoadResult(
+                    source,
+                    new org.elasticsearch.xpack.esql.core.expression.Literal(
+                        source,
+                        new org.apache.lucene.util.BytesRef("test-async-id"),
+                        org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD
+                    )
+                );
             }
         }
 

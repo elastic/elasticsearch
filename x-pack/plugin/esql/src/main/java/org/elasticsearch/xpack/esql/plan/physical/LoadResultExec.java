@@ -21,7 +21,7 @@ import java.util.Objects;
  * This runs only on the coordinator node and is not serializable.
  */
 public class LoadResultExec extends LeafExec {
-    
+
     private final String searchId;
     private final List<Attribute> output;
 
@@ -68,4 +68,3 @@ public class LoadResultExec extends LeafExec {
         return Objects.hash(searchId, output);
     }
 }
-

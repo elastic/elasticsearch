@@ -586,9 +586,7 @@ public class EsqlSession {
             .<PreAnalysisResult>andThen((l, r) -> {
                 inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
             })
-            .<LogicalPlan>andThen((l, r) -> {
-                asyncResultResolver.resolveLoadResults(parsed, l);
-            })
+            .<LogicalPlan>andThen((l, r) -> { asyncResultResolver.resolveLoadResults(parsed, l); })
             .<Versioned<LogicalPlan>>andThen(
                 (l, updatedPlan) -> analyzeWithRetry(
                     updatedPlan,

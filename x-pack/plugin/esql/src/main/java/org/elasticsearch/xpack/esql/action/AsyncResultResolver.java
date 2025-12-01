@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
@@ -31,7 +30,7 @@ import java.util.stream.Collectors;
  * Resolves LoadResult logical plans by fetching schema from async query results.
  */
 public class AsyncResultResolver {
-    
+
     private static final Logger LOGGER = LogManager.getLogger(AsyncResultResolver.class);
 
     private final Client client;
@@ -112,11 +111,7 @@ public class AsyncResultResolver {
                 try {
                     List<Attribute> schema = response.columns()
                         .stream()
-                        .map(col -> (Attribute) new ReferenceAttribute(
-                            loadResult.source(),
-                            col.name(),
-                            DataType.fromEs(col.outputType())
-                        ))
+                        .map(col -> (Attribute) new ReferenceAttribute(loadResult.source(), col.name(), DataType.fromEs(col.outputType())))
                         .collect(Collectors.toList());
 
                     LogicalPlan updatedPlan = plan.transformUp(LoadResult.class, lr -> {
@@ -132,13 +127,10 @@ public class AsyncResultResolver {
                 }
             }),
             (Exception e) -> threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
-                listener.onFailure(
-                    new IllegalArgumentException("Failed to load async result [" + searchId + "]: " + e.getMessage(), e)
-                );
+                listener.onFailure(new IllegalArgumentException("Failed to load async result [" + searchId + "]: " + e.getMessage(), e));
             })
         );
 
         client.execute(EsqlAsyncGetResultAction.INSTANCE, request, forkingListener);
     }
 }
-

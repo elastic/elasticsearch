@@ -840,18 +840,21 @@ public class LocalExecutionPlanner {
         org.elasticsearch.xpack.esql.plan.physical.LoadResultExec loadResultExec,
         LocalExecutionPlannerContext context
     ) {
-        logger.debug("Planning LoadResultExec for searchId: {} with {} output columns", 
-            loadResultExec.searchId(), loadResultExec.output().size());
-        
+        logger.debug(
+            "Planning LoadResultExec for searchId: {} with {} output columns",
+            loadResultExec.searchId(),
+            loadResultExec.output().size()
+        );
+
         Layout.Builder layout = new Layout.Builder();
         layout.append(loadResultExec.output());
-        
+
         var factory = new org.elasticsearch.xpack.esql.compute.operator.LoadResultOperator.Factory(
             asyncResultResolver,
             loadResultExec.searchId(),
             loadResultExec.output()
         );
-        
+
         logger.debug("Created LoadResultOperator.Factory for searchId: {}", loadResultExec.searchId());
         return PhysicalOperation.fromSource(factory, layout.build());
     }

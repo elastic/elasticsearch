@@ -167,14 +167,13 @@ public class SecurityActionFilter implements ActionFilter {
             // Step 1: authenticate the user
             .<Authentication>newForked(
                 /*
-                here we fallback on the system user. Internal system requests are requests that are triggered by
-                the system itself (e.g. pings, update mappings, share relocation, etc...) and were not originated
-                by user interaction. Since these requests are triggered by es core modules, they are security
-                agnostic and therefore not associated with any user. When these requests execute locally, they
-                are executed directly on their relevant action. Since there is no other way a request can make
-                it to the action without an associated user (not via REST or transport - this is taken care of by
-                the {@link Rest} filter and the {@link ServerTransport} filter respectively), it's safe to assume a system user
-                here if a request is not associated with any other user.
+                    here we fall back on the system user. Internal system requests are requests that are triggered by the system itself
+                    (e.g. pings, update mappings, share relocation, etc...) and were not originated by user interaction. Since these
+                    requests are triggered by es core modules, they are security agnostic and therefore not associated with any user. When
+                    these requests execute locally, they are executed directly on their relevant action. Since there is no other way a
+                    request can make it to the action without an associated user (not via REST or transport - this is taken care of by the
+                    {@link Rest} filter and the {@link ServerTransport} filter respectively), it's safe to assume a system user here if a
+                    request is not associated with any other user.
                 */
                 authcListener -> authcService.authenticate(securityAction, request, InternalUsers.SYSTEM_USER, authcListener)
             )

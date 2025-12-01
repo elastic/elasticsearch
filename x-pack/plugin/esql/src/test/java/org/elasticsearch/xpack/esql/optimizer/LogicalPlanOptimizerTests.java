@@ -10039,7 +10039,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | drop _fork
             | drop languages
             """;
-        var plan = plan(query);
+        var plan = optimizedPlan(query);
         var project = as(plan, EsqlProject.class);
         assertThat(project.projections().size(), equalTo(10));
         var limit = as(project.child(), Limit.class);
@@ -10092,5 +10092,46 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             thirdBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
             hasItems("emp_no", "first_name", "gender", "hire_date", "job", "job.raw", "last_name", "long_noidx", "salary")
         );
+    }
+
+    /**
+     * EsqlProject[[a{r}#45]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Fork[[a{r}#45]]
+     *     |_Project[[a{r}#5]]
+     *     | \_Limit[1000[INTEGER],false,false]
+     *     |   \_Aggregate[[],[MAX(salary{f}#26,true[BOOLEAN],PT0S[TIME_DURATION]) AS a#5]]
+     *     |     \_EsRelation[employees][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     *     \_Project[[a{r}#14]]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_Aggregate[[],[MAX(salary{f}#37,true[BOOLEAN],PT0S[TIME_DURATION]) AS a#14]]
+     *           \_EsRelation[employees][_meta_field{f}#38, emp_no{f}#32, first_name{f}#33, ..]
+     */
+    public void testPruneColumnsInForkBranchesKeepOnlyNeededAggs() {
+        var query = """
+            from employees
+             | fork (stats a = max(salary), b = min(salary) | KEEP b, a | EVAL x = 1 )
+                    (stats a = max(salary), b = min(salary))
+             | KEEP a
+            """;
+        var plan = optimizedPlan(query);
+        var project = as(plan, EsqlProject.class);
+        assertThat(project.projections().size(), equalTo(1));
+        assertThat(Expressions.names(project.projections()), contains("a"));
+        var limit = as(project.child(), Limit.class);
+        var fork = as(limit.child(), Fork.class);
+        assertThat(fork.output().size(), equalTo(1));
+        assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("a"));
+        for (LogicalPlan branch : fork.children()) {
+            var branchProject = as(branch, Project.class);
+            assertThat(branchProject.projections().size(), equalTo(1));
+            assertThat(Expressions.names(branchProject.projections()), contains("a"));
+            var limitInBranch = as(branchProject.child(), Limit.class);
+            var aggregateInBranch = as(limitInBranch.child(), Aggregate.class);
+            assertThat(aggregateInBranch.aggregates().size(), equalTo(1));
+            assertThat(Expressions.names(aggregateInBranch.aggregates()), contains("a"));
+            var relation = as(aggregateInBranch.child(), EsRelation.class);
+            assertThat(relation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("salary"));
+        }
     }
 }

@@ -90,7 +90,7 @@ public class DesiredBalanceComputer {
     private long numIterationsSinceLastConverged;
     private long lastConvergedTimeMillis;
     private long lastNotConvergedLogMessageTimeMillis;
-    private long firstComputeSinceConvergedTimeMillis;
+    private long firstComputeStartedSinceConvergedTimeMillis;
     private boolean lastComputeRunConverged;
     private Level convergenceLogMsgLevel;
     private ShardRouting lastTrackedUnassignedShard;
@@ -108,7 +108,7 @@ public class DesiredBalanceComputer {
         this.numIterationsSinceLastConverged = 0;
         this.lastConvergedTimeMillis = timeProvider.relativeTimeInMillis();
         this.lastNotConvergedLogMessageTimeMillis = lastConvergedTimeMillis;
-        this.firstComputeSinceConvergedTimeMillis = lastConvergedTimeMillis;
+        this.firstComputeStartedSinceConvergedTimeMillis = lastConvergedTimeMillis;
         // starts counting timing on the first run
         this.lastComputeRunConverged = true;
         this.convergenceLogMsgLevel = Level.DEBUG;
@@ -338,10 +338,11 @@ public class DesiredBalanceComputer {
         if (lastComputeRunConverged) {
             // mark our first effort at compute since a convergence,
             // so that a logging period for non-convergence warning are based from this time
-            firstComputeSinceConvergedTimeMillis = computationStartedTime;
+            firstComputeStartedSinceConvergedTimeMillis = computationStartedTime;
             lastComputeRunConverged = false;
         }
-        long nextReportTime = Math.max(lastNotConvergedLogMessageTimeMillis, firstComputeSinceConvergedTimeMillis) + timeWarningInterval;
+        long nextReportTime = Math.max(lastNotConvergedLogMessageTimeMillis, firstComputeStartedSinceConvergedTimeMillis)
+            + timeWarningInterval;
 
         int i = 0;
         boolean hasChanges = false;

@@ -14,6 +14,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
@@ -543,29 +545,40 @@ public abstract class AbstractScopedSettings {
     void validate(final String key, final Settings settings, final boolean validateValue, final boolean validateInternalOrPrivateIndex) {
         Setting<?> setting = getRaw(key);
         if (setting == null) {
-            LevenshteinDistance ld = new LevenshteinDistance();
-            List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
-            for (String k : this.keySettings.keySet()) {
-                float distance = ld.getDistance(key, k);
-                if (distance > 0.7f) {
-                    scoredKeys.add(new Tuple<>(distance, k));
-                }
-            }
-            CollectionUtil.timSort(scoredKeys, (a, b) -> b.v1().compareTo(a.v1()));
-            String msgPrefix = "unknown setting";
             SecureSettings secureSettings = settings.getSecureSettings();
-            if (secureSettings != null && settings.getSecureSettings().getSettingNames().contains(key)) {
-                msgPrefix = "unknown secure setting";
+            String msgPrefix = (secureSettings != null && secureSettings.getSettingNames().contains(key))
+                ? "unknown secure setting"
+                : "unknown setting";
+            if (key.startsWith(ARCHIVED_SETTINGS_PREFIX)) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "%s [%s] was archived after upgrading, and must be removed. See [%s] for details.",
+                        msgPrefix,
+                        key,
+                        ReferenceDocs.ARCHIVED_SETTINGS
+                    )
+                );
             }
-            String msg = msgPrefix + " [" + key + "]";
-            List<String> keys = scoredKeys.stream().map((a) -> a.v2()).toList();
+            List<String> keys = findSimilarKeys(key);
             if (keys.isEmpty() == false) {
-                msg += " did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]" : "any of " + keys.toString()) + "?";
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "%s [%s] did you mean %s?",
+                        msgPrefix,
+                        key,
+                        (keys.size() == 1 ? "[" + keys.getFirst() + "]" : "any of " + keys)
+                    )
+                );
             } else {
-                msg += " please check that any required plugins are installed, or check the breaking changes documentation for removed "
-                    + "settings";
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "%s [%s] please check that any required plugins are installed,"
+                            + " or check the breaking changes documentation for removed settings",
+                        msgPrefix,
+                        key
+                    )
+                );
             }
-            throw new IllegalArgumentException(msg);
         } else {
             Set<Setting.SettingDependency> settingsDependencies = setting.getSettingsDependencies(key);
             if (setting.hasComplexMatcher()) {
@@ -616,6 +629,19 @@ public abstract class AbstractScopedSettings {
         if (validateValue) {
             setting.get(settings);
         }
+    }
+
+    private List<String> findSimilarKeys(String key) {
+        LevenshteinDistance ld = new LevenshteinDistance();
+        List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
+        for (String k : this.keySettings.keySet()) {
+            float distance = ld.getDistance(key, k);
+            if (distance > 0.7f) {
+                scoredKeys.add(new Tuple<>(distance, k));
+            }
+        }
+        CollectionUtil.timSort(scoredKeys, (a, b) -> b.v1().compareTo(a.v1()));
+        return scoredKeys.stream().map((a) -> a.v2()).toList();
     }
 
     /**

@@ -164,8 +164,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             @Override
             StorageOptions createStorageOptions(
                 final GoogleCloudStorageClientSettings gcsClientSettings,
-                final HttpTransportOptions httpTransportOptions,
-                final RetryBehaviour retryBehaviour
+                final HttpTransportOptions httpTransportOptions
             ) {
                 final HttpTransportOptions requestCountingHttpTransportOptions = new HttpTransportOptions(
                     HttpTransportOptions.newBuilder()
@@ -192,11 +191,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                         };
                     }
                 };
-                final StorageOptions options = super.createStorageOptions(
-                    gcsClientSettings,
-                    requestCountingHttpTransportOptions,
-                    retryBehaviour
-                );
+                final StorageOptions options = super.createStorageOptions(gcsClientSettings, requestCountingHttpTransportOptions);
                 final RetrySettings.Builder retrySettingsBuilder = options.getRetrySettings()
                     .toBuilder()
                     .setInitialRetryDelay(Duration.ofMillis(10L))
@@ -206,7 +201,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                     .setInitialRpcTimeout(Duration.ofSeconds(1))
                     .setMaxRpcTimeout(Duration.ofSeconds(1));
                 return options.toBuilder()
-                    .setStorageRetryStrategy(createStorageRetryStrategy())
+                    .setStorageRetryStrategy(getRetryStrategy())
                     .setHost(options.getHost())
                     .setCredentials(options.getCredentials())
                     .setRetrySettings(retrySettingsBuilder.build())

@@ -132,7 +132,7 @@ public class GoogleCloudStorageRetryingInputStreamTests extends ESTestCase {
         HttpResponse httpResponse = httpRequest.execute();
         when(get.executeMedia()).thenReturn(httpResponse);
         final GoogleCloudStorageBlobStore mockBlobStore = mock(GoogleCloudStorageBlobStore.class);
-        when(mockBlobStore.clientNoRetries()).thenReturn(meteredStorage);
+        when(mockBlobStore.client()).thenReturn(meteredStorage);
         when(mockBlobStore.getMaxRetries()).thenReturn(6);
 
         return new GoogleCloudStorageRetryingInputStream(mockBlobStore, OperationPurpose.SNAPSHOT_DATA, blobId);
@@ -152,7 +152,7 @@ public class GoogleCloudStorageRetryingInputStreamTests extends ESTestCase {
         }
 
         final GoogleCloudStorageBlobStore mockBlobStore = mock(GoogleCloudStorageBlobStore.class);
-        when(mockBlobStore.clientNoRetries()).thenReturn(meteredStorage);
+        when(mockBlobStore.client()).thenReturn(meteredStorage);
         when(mockBlobStore.getMaxRetries()).thenReturn(6);
 
         return new GoogleCloudStorageRetryingInputStream(

@@ -15,7 +15,6 @@ import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.util.SecurityUtils;
 import com.google.api.gax.retrying.ResultRetryAlgorithm;
-import com.google.api.gax.retrying.RetrySettings;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ServiceOptions;
@@ -95,23 +94,6 @@ public class GoogleCloudStorageService {
         clientsManager.refreshAndClearCacheForClusterClients(clientsSettings);
     }
 
-    public enum RetryBehaviour {
-        ClientConfigured {
-            @Override
-            public RetrySettings createRetrySettings(GoogleCloudStorageClientSettings settings) {
-                return ServiceOptions.getDefaultRetrySettings().toBuilder().setMaxAttempts(settings.getMaxRetries() + 1).build();
-            }
-        },
-        None {
-            @Override
-            public RetrySettings createRetrySettings(GoogleCloudStorageClientSettings settings) {
-                return ServiceOptions.getNoRetrySettings();
-            }
-        };
-
-        public abstract RetrySettings createRetrySettings(GoogleCloudStorageClientSettings settings);
-    }
-
     /**
      * Attempts to retrieve a client from the cache. If the client does not exist it
      * will be created from the latest settings and will populate the cache. The
@@ -129,10 +111,9 @@ public class GoogleCloudStorageService {
         @Nullable final ProjectId projectId,
         final String clientName,
         final String repositoryName,
-        final GcsRepositoryStatsCollector statsCollector,
-        final RetryBehaviour retryBehaviour
+        final GcsRepositoryStatsCollector statsCollector
     ) throws IOException {
-        return clientsManager.client(projectId, clientName, repositoryName, statsCollector, retryBehaviour);
+        return clientsManager.client(projectId, clientName, repositoryName, statsCollector);
     }
 
     GoogleCloudStorageClientSettings clientSettings(@Nullable ProjectId projectId, final String clientName) {
@@ -161,11 +142,8 @@ public class GoogleCloudStorageService {
      * @return a new client storage instance that can be used to manage objects
      *         (blobs)
      */
-    private MeteredStorage createClient(
-        GoogleCloudStorageClientSettings gcsClientSettings,
-        GcsRepositoryStatsCollector statsCollector,
-        RetryBehaviour retryBehaviour
-    ) throws IOException {
+    private MeteredStorage createClient(GoogleCloudStorageClientSettings gcsClientSettings, GcsRepositoryStatsCollector statsCollector)
+        throws IOException {
 
         final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
         // requires java.lang.RuntimePermission "setFactory"
@@ -209,24 +187,25 @@ public class GoogleCloudStorageService {
             }
         };
 
-        final StorageOptions storageOptions = createStorageOptions(gcsClientSettings, httpTransportOptions, retryBehaviour);
+        final StorageOptions storageOptions = createStorageOptions(gcsClientSettings, httpTransportOptions);
         return new MeteredStorage(storageOptions.getService(), statsCollector);
     }
 
     StorageOptions createStorageOptions(
         final GoogleCloudStorageClientSettings gcsClientSettings,
-        final HttpTransportOptions httpTransportOptions,
-        final RetryBehaviour retryBehaviour
+        final HttpTransportOptions httpTransportOptions
     ) {
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
-            .setStorageRetryStrategy(createStorageRetryStrategy())
+            .setStorageRetryStrategy(getRetryStrategy())
             .setTransportOptions(httpTransportOptions)
             .setHeaderProvider(() -> {
                 return Strings.hasLength(gcsClientSettings.getApplicationName())
                     ? Map.of("user-agent", gcsClientSettings.getApplicationName())
                     : Map.of();
             })
-            .setRetrySettings(retryBehaviour.createRetrySettings(gcsClientSettings));
+            .setRetrySettings(
+                ServiceOptions.getDefaultRetrySettings().toBuilder().setMaxAttempts(gcsClientSettings.getMaxRetries() + 1).build()
+            );
         if (Strings.hasLength(gcsClientSettings.getHost())) {
             storageOptionsBuilder.setHost(gcsClientSettings.getHost());
         }
@@ -275,7 +254,7 @@ public class GoogleCloudStorageService {
         return storageOptionsBuilder.build();
     }
 
-    static StorageRetryStrategy createStorageRetryStrategy() {
+    protected StorageRetryStrategy getRetryStrategy() {
         return ShouldRetryDecorator.decorate(
             StorageRetryStrategy.getLegacyStorageRetryStrategy(),
             (Throwable prevThrowable, Object prevResponse, ResultRetryAlgorithm<Object> delegate) -> {
@@ -431,17 +410,12 @@ public class GoogleCloudStorageService {
             clusterClientsHolder.refreshAndClearCache(clientsSettings);
         }
 
-        MeteredStorage client(
-            ProjectId projectId,
-            String clientName,
-            String repositoryName,
-            GcsRepositoryStatsCollector statsCollector,
-            RetryBehaviour retryBehaviour
-        ) throws IOException {
+        MeteredStorage client(ProjectId projectId, String clientName, String repositoryName, GcsRepositoryStatsCollector statsCollector)
+            throws IOException {
             if (projectId == null || ProjectId.DEFAULT.equals(projectId)) {
-                return clusterClientsHolder.client(clientName, repositoryName, statsCollector, retryBehaviour);
+                return clusterClientsHolder.client(clientName, repositoryName, statsCollector);
             } else {
-                return getClientsHolderSafe(projectId).client(clientName, repositoryName, statsCollector, retryBehaviour);
+                return getClientsHolderSafe(projectId).client(clientName, repositoryName, statsCollector);
             }
         }
 
@@ -494,13 +468,11 @@ public class GoogleCloudStorageService {
 
     abstract class ClientsHolder {
 
-        protected record CacheKey(String repositoryName, RetryBehaviour retryBehaviour) {}
-
         /**
          * Dictionary of client instances. Client instances are built lazily from the
          * latest settings. Clients are cached by a composite repositoryName key.
          */
-        protected volatile Map<CacheKey, MeteredStorage> clientCache = emptyMap();
+        protected volatile Map<String, MeteredStorage> clientCache = emptyMap();
 
         /**
          * Get the current client settings for all clients in this holder.
@@ -519,21 +491,16 @@ public class GoogleCloudStorageService {
          * @return a cached client storage instance that can be used to manage objects
          *         (blobs)
          */
-        MeteredStorage client(
-            final String clientName,
-            final String repositoryName,
-            final GcsRepositoryStatsCollector statsCollector,
-            final RetryBehaviour retryBehaviour
-        ) throws IOException {
-            final var cacheKey = new CacheKey(repositoryName, retryBehaviour);
+        MeteredStorage client(final String clientName, final String repositoryName, final GcsRepositoryStatsCollector statsCollector)
+            throws IOException {
             {
-                final MeteredStorage storage = clientCache.get(cacheKey);
+                final MeteredStorage storage = clientCache.get(repositoryName);
                 if (storage != null) {
                     return storage;
                 }
             }
             synchronized (this) {
-                final MeteredStorage existing = clientCache.get(cacheKey);
+                final MeteredStorage existing = clientCache.get(repositoryName);
 
                 if (existing != null) {
                     return existing;
@@ -542,8 +509,8 @@ public class GoogleCloudStorageService {
                 final GoogleCloudStorageClientSettings settings = clientSettings(clientName);
 
                 logger.debug(() -> format("creating GCS client with client_name [%s], endpoint [%s]", clientName, settings.getHost()));
-                final MeteredStorage storage = createClient(settings, statsCollector, retryBehaviour);
-                clientCache = Maps.copyMapWithAddedEntry(clientCache, cacheKey, storage);
+                final MeteredStorage storage = createClient(settings, statsCollector);
+                clientCache = Maps.copyMapWithAddedEntry(clientCache, repositoryName, storage);
                 return storage;
             }
         }
@@ -563,13 +530,13 @@ public class GoogleCloudStorageService {
         synchronized void closeRepositoryClients(String repositoryName) {
             clientCache = clientCache.entrySet()
                 .stream()
-                .filter(entry -> entry.getKey().repositoryName().equals(repositoryName) == false)
+                .filter(entry -> entry.getKey().equals(repositoryName) == false)
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
         }
 
         // package private for tests
         final boolean hasCachedClientForRepository(String repositoryName) {
-            return clientCache.keySet().stream().anyMatch(key -> key.repositoryName().equals(repositoryName));
+            return clientCache.containsKey(repositoryName);
         }
     }
 

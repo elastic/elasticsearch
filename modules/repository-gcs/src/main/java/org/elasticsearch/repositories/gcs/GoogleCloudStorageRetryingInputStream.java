@@ -11,7 +11,6 @@ package org.elasticsearch.repositories.gcs;
 import com.google.api.client.http.HttpResponse;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.StorageException;
-import com.google.cloud.storage.StorageRetryStrategy;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,6 +25,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 
+import static com.google.cloud.BaseService.EXCEPTION_HANDLER;
+
 /**
  * Wrapper around reads from GCS that will retry blob downloads that fail part-way through, resuming from where the failure occurred.
  * <p>
@@ -35,7 +36,6 @@ import java.nio.file.NoSuchFileException;
 class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
 
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageRetryingInputStream.class);
-    private static final StorageRetryStrategy STORAGE_RETRY_STRATEGY = GoogleCloudStorageService.createStorageRetryStrategy();
 
     GoogleCloudStorageRetryingInputStream(GoogleCloudStorageBlobStore blobStore, OperationPurpose purpose, BlobId blobId)
         throws IOException {
@@ -66,7 +66,7 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
 
         @Override
         public SingleAttemptInputStream<Long> getInputStream(@Nullable Long lastGeneration, long start, long end) throws IOException {
-            final MeteredStorage client = blobStore.clientNoRetries();
+            final MeteredStorage client = blobStore.client();
             try {
                 try {
                     final var meteredGet = client.meteredObjectsGet(purpose, blobId.getBucket(), blobId.getName());
@@ -151,7 +151,7 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
         @Override
         public boolean isRetryableException(StreamAction action, Exception e) {
             return switch (action) {
-                case OPEN -> STORAGE_RETRY_STRATEGY.getIdempotentHandler().shouldRetry(e, null);
+                case OPEN -> EXCEPTION_HANDLER.shouldRetry(e, null);
                 case READ -> true;
             };
         }

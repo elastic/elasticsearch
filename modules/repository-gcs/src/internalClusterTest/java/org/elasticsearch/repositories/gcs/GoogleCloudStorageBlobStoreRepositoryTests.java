@@ -245,10 +245,9 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 @Override
                 StorageOptions createStorageOptions(
                     final GoogleCloudStorageClientSettings gcsClientSettings,
-                    final HttpTransportOptions httpTransportOptions,
-                    final RetryBehaviour retryBehaviour
+                    final HttpTransportOptions httpTransportOptions
                 ) {
-                    StorageOptions options = super.createStorageOptions(gcsClientSettings, httpTransportOptions, retryBehaviour);
+                    StorageOptions options = super.createStorageOptions(gcsClientSettings, httpTransportOptions);
                     return options.toBuilder()
                         .setStorageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy())
                         .setRetrySettings(

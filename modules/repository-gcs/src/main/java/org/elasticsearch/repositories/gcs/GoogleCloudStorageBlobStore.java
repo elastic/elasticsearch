@@ -145,22 +145,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @return A client
      */
     MeteredStorage client() throws IOException {
-        return storageService.client(
-            projectId,
-            clientName,
-            repositoryName,
-            statsCollector,
-            GoogleCloudStorageService.RetryBehaviour.ClientConfigured
-        );
-    }
-
-    /**
-     * Get a client that will not retry on failure
-     *
-     * @return A client with max retries configured to zero
-     */
-    MeteredStorage clientNoRetries() throws IOException {
-        return storageService.client(projectId, clientName, repositoryName, statsCollector, GoogleCloudStorageService.RetryBehaviour.None);
+        return storageService.client(projectId, clientName, repositoryName, statsCollector);
     }
 
     int getMaxRetries() {

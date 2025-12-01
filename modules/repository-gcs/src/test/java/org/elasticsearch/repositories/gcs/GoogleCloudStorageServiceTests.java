@@ -40,7 +40,6 @@ import java.util.Base64;
 import java.util.Locale;
 import java.util.UUID;
 
-import static org.elasticsearch.repositories.gcs.GoogleCloudStorageService.RetryBehaviour.ClientConfigured;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -92,13 +91,13 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         var statsCollector = new GcsRepositoryStatsCollector();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> service.client(projectIdForClusterClient(), "another_client", "repo", statsCollector, randomRetryBehaviour())
+            () -> service.client(projectIdForClusterClient(), "another_client", "repo", statsCollector)
         );
         assertThat(e.getMessage(), Matchers.startsWith("Unknown client name"));
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] { GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING.getConcreteSettingForNamespace(clientName) }
         );
-        final var storage = service.client(projectIdForClusterClient(), clientName, "repo", statsCollector, ClientConfigured);
+        final var storage = service.client(projectIdForClusterClient(), clientName, "repo", statsCollector);
         assertThat(storage.getOptions().getApplicationName(), Matchers.containsString(applicationName));
         assertThat(storage.getOptions().getHost(), Matchers.is(endpoint));
         assertThat(storage.getOptions().getProjectId(), Matchers.is(projectIdName));
@@ -129,19 +128,18 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool())
         );
         when(pluginServices.projectResolver()).thenReturn(TestProjectResolvers.DEFAULT_PROJECT_ONLY);
-        final GoogleCloudStorageService.RetryBehaviour retryBehaviour = randomRetryBehaviour();
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings1)) {
             plugin.createComponents(pluginServices);
             final GoogleCloudStorageService storageService = plugin.storageService.get();
             var statsCollector = new GcsRepositoryStatsCollector();
-            final var client11 = storageService.client(projectIdForClusterClient(), "gcs1", "repo1", statsCollector, retryBehaviour);
+            final var client11 = storageService.client(projectIdForClusterClient(), "gcs1", "repo1", statsCollector);
             assertThat(client11.getOptions().getProjectId(), equalTo("project_gcs11"));
-            final var client12 = storageService.client(projectIdForClusterClient(), "gcs2", "repo2", statsCollector, retryBehaviour);
+            final var client12 = storageService.client(projectIdForClusterClient(), "gcs2", "repo2", statsCollector);
             assertThat(client12.getOptions().getProjectId(), equalTo("project_gcs12"));
             // client 3 is missing
             final IllegalArgumentException e1 = expectThrows(
                 IllegalArgumentException.class,
-                () -> storageService.client(projectIdForClusterClient(), "gcs3", "repo3", statsCollector, retryBehaviour)
+                () -> storageService.client(projectIdForClusterClient(), "gcs3", "repo3", statsCollector)
             );
             assertThat(e1.getMessage(), containsString("Unknown client name [gcs3]."));
             // update client settings
@@ -149,18 +147,18 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             // old client 1 not changed
             assertThat(client11.getOptions().getProjectId(), equalTo("project_gcs11"));
             // new client 1 is changed
-            final var client21 = storageService.client(projectIdForClusterClient(), "gcs1", "repo1", statsCollector, retryBehaviour);
+            final var client21 = storageService.client(projectIdForClusterClient(), "gcs1", "repo1", statsCollector);
             assertThat(client21.getOptions().getProjectId(), equalTo("project_gcs21"));
             // old client 2 not changed
             assertThat(client12.getOptions().getProjectId(), equalTo("project_gcs12"));
             // new client2 is gone
             final IllegalArgumentException e2 = expectThrows(
                 IllegalArgumentException.class,
-                () -> storageService.client(projectIdForClusterClient(), "gcs2", "repo2", statsCollector, retryBehaviour)
+                () -> storageService.client(projectIdForClusterClient(), "gcs2", "repo2", statsCollector)
             );
             assertThat(e2.getMessage(), containsString("Unknown client name [gcs2]."));
             // client 3 emerged
-            final var client23 = storageService.client(projectIdForClusterClient(), "gcs3", "repo3", statsCollector, retryBehaviour);
+            final var client23 = storageService.client(projectIdForClusterClient(), "gcs3", "repo3", statsCollector);
             assertThat(client23.getOptions().getProjectId(), equalTo("project_gcs23"));
         }
     }
@@ -178,27 +176,23 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             plugin.createComponents(pluginServices);
             final GoogleCloudStorageService storageService = plugin.storageService.get();
 
-            final GoogleCloudStorageService.RetryBehaviour retryBehaviour = randomRetryBehaviour();
             final MeteredStorage repo1Client = storageService.client(
                 projectIdForClusterClient(),
                 "gcs1",
                 "repo1",
-                new GcsRepositoryStatsCollector(),
-                retryBehaviour
+                new GcsRepositoryStatsCollector()
             );
             final MeteredStorage repo2Client = storageService.client(
                 projectIdForClusterClient(),
                 "gcs1",
                 "repo2",
-                new GcsRepositoryStatsCollector(),
-                retryBehaviour
+                new GcsRepositoryStatsCollector()
             );
             final MeteredStorage repo1ClientSecondInstance = storageService.client(
                 projectIdForClusterClient(),
                 "gcs1",
                 "repo1",
-                new GcsRepositoryStatsCollector(),
-                retryBehaviour
+                new GcsRepositoryStatsCollector()
             );
 
             assertNotSame(repo1Client, repo2Client);
@@ -248,9 +242,5 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
 
     private ProjectId projectIdForClusterClient() {
         return randomBoolean() ? ProjectId.DEFAULT : null;
-    }
-
-    private static GoogleCloudStorageService.RetryBehaviour randomRetryBehaviour() {
-        return randomFrom(GoogleCloudStorageService.RetryBehaviour.values());
     }
 }

@@ -147,42 +147,32 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
         final ProjectId projectId = randomUniqueProjectId();
         final String clientName = randomFrom(clientNames);
         final String anotherClientName = randomValueOtherThan(clientName, () -> randomFrom(clientNames));
-        final GoogleCloudStorageService.RetryBehaviour retryBehaviour = randomRetryBehaviour();
-        final GoogleCloudStorageService.RetryBehaviour otherRetryBehaviour = randomValueOtherThan(
-            retryBehaviour,
-            GoogleCloudStorageClientsManagerTests::randomRetryBehaviour
-        );
 
         // Configure project secrets for one client
-        assertClientNotFound(projectId, clientName, retryBehaviour);
+        assertClientNotFound(projectId, clientName);
         updateProjectInClusterState(projectId, newProjectClientsSecrets(projectId, clientName));
         {
             assertProjectClientSettings(projectId, clientName);
 
             // Retrieve client for the 1st time
-            final var initialClient = getClientFromManager(projectId, clientName, retryBehaviour);
+            final var initialClient = getClientFromManager(projectId, clientName);
             assertClientCredentials(projectId, clientName, initialClient);
             // Client is cached when retrieved again
-            assertThat(initialClient, sameInstance(getClientFromManager(projectId, clientName, retryBehaviour)));
+            assertThat(initialClient, sameInstance(getClientFromManager(projectId, clientName)));
 
             // Client not configured cannot be accessed,
-            assertClientNotFound(projectId, anotherClientName, retryBehaviour);
+            assertClientNotFound(projectId, anotherClientName);
 
             // Update client secrets should release and recreate the client
             updateProjectInClusterState(projectId, newProjectClientsSecrets(projectId, clientName, anotherClientName));
             assertProjectClientSettings(projectId, clientName, anotherClientName);
-            final var clientUpdated = getClientFromManager(projectId, clientName, retryBehaviour);
+            final var clientUpdated = getClientFromManager(projectId, clientName);
             assertThat(clientUpdated, not(sameInstance(initialClient)));
 
             // A different client for a different client name
-            final var anotherClient = getClientFromManager(projectId, anotherClientName, retryBehaviour);
+            final var anotherClient = getClientFromManager(projectId, anotherClientName);
             assertClientCredentials(projectId, anotherClientName, anotherClient);
             assertThat(anotherClient, not(sameInstance(clientUpdated)));
-
-            // A different client for a different retry behaviour
-            final var anotherRetryBehaviour = getClientFromManager(projectId, clientName, otherRetryBehaviour);
-            assertClientCredentials(projectId, clientName, anotherRetryBehaviour);
-            assertThat(anotherRetryBehaviour, not(sameInstance(clientUpdated)));
         }
 
         // Remove project secrets or the entire project
@@ -191,17 +181,16 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
         } else {
             removeProjectFromClusterState(projectId);
         }
-        assertClientNotFound(projectId, clientName, retryBehaviour);
+        assertClientNotFound(projectId, clientName);
 
         assertThat(gcsClientsManager.getPerProjectClientsHolders(), not(hasKey(projectId)));
     }
 
     public void testClientsWithNoCredentialsAreFilteredOut() throws IOException {
         final ProjectId projectId = randomUniqueProjectId();
-        final GoogleCloudStorageService.RetryBehaviour retryBehaviour = randomRetryBehaviour();
         updateProjectInClusterState(projectId, newProjectClientsSecrets(projectId, clientNames.toArray(String[]::new)));
         for (var clientName : clientNames) {
-            assertNotNull(getClientFromManager(projectId, clientName, retryBehaviour));
+            assertNotNull(getClientFromManager(projectId, clientName));
         }
 
         final List<String> clientsWithIncorrectSecretsConfig = randomNonEmptySubsetOf(clientNames);
@@ -216,16 +205,15 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
 
         for (var clientName : clientNames) {
             if (clientsWithIncorrectSecretsConfig.contains(clientName)) {
-                assertClientNotFound(projectId, clientName, retryBehaviour);
+                assertClientNotFound(projectId, clientName);
             } else {
-                assertNotNull(getClientFromManager(projectId, clientName, retryBehaviour));
+                assertNotNull(getClientFromManager(projectId, clientName));
             }
         }
     }
 
     public void testClientsForMultipleProjects() throws InterruptedException {
         final List<ProjectId> projectIds = randomList(2, 8, ESTestCase::randomUniqueProjectId);
-        final GoogleCloudStorageService.RetryBehaviour retryBehaviour = randomRetryBehaviour();
 
         final List<Thread> threads = projectIds.stream().map(projectId -> new Thread(() -> {
             final int iterations = between(1, 3);
@@ -236,7 +224,7 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
                 assertProjectClientSettings(projectId, clientNames.toArray(String[]::new));
                 for (var clientName : shuffledList(clientNames)) {
                     try {
-                        final var meteredStorage = getClientFromManager(projectId, clientName, retryBehaviour);
+                        final var meteredStorage = getClientFromManager(projectId, clientName);
                         assertClientCredentials(projectId, clientName, meteredStorage);
                     } catch (IOException e) {
                         fail(e);
@@ -249,7 +237,7 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
                     removeProjectFromClusterState(projectId);
                 }
                 assertThat(gcsClientsManager.getPerProjectClientsHolders(), not(hasKey(projectId)));
-                clientNames.forEach(clientName -> assertClientNotFound(projectId, clientName, retryBehaviour));
+                clientNames.forEach(clientName -> assertClientNotFound(projectId, clientName));
             }
         })).toList();
 
@@ -263,17 +251,16 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
         final ProjectId projectId = randomUniqueProjectId();
         final String clientName = randomFrom(clientNames);
         final boolean configureProjectClientsFirst = randomBoolean();
-        final GoogleCloudStorageService.RetryBehaviour retryBehaviour = randomRetryBehaviour();
         if (configureProjectClientsFirst) {
             updateProjectInClusterState(projectId, newProjectClientsSecrets(projectId, clientName));
         }
 
-        final var clusterClient = getClientFromService(projectIdForClusterClient(), clientName, retryBehaviour);
+        final var clusterClient = getClientFromService(projectIdForClusterClient(), clientName);
         if (configureProjectClientsFirst == false) {
             assertThat(gcsClientsManager.getPerProjectClientsHolders(), anEmptyMap());
             updateProjectInClusterState(projectId, newProjectClientsSecrets(projectId, clientName));
         }
-        final var projectClient = getClientFromService(projectId, clientName, retryBehaviour);
+        final var projectClient = getClientFromService(projectId, clientName);
         assertThat(projectClient, not(sameInstance(clusterClient)));
 
         // Release the cluster client
@@ -303,27 +290,15 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
 
         // Cluster client still works
         final String clientName = randomFrom(clientNames);
-        assertNotNull(getClientFromService(projectIdForClusterClient(), clientName, randomRetryBehaviour()));
+        assertNotNull(getClientFromService(projectIdForClusterClient(), clientName));
     }
 
-    private MeteredStorage getClientFromManager(
-        ProjectId projectId,
-        String clientName,
-        GoogleCloudStorageService.RetryBehaviour retryBehaviour
-    ) throws IOException {
-        return gcsClientsManager.client(projectId, clientName, repoNameForClient(clientName), statsCollector, retryBehaviour);
+    private MeteredStorage getClientFromManager(ProjectId projectId, String clientName) throws IOException {
+        return gcsClientsManager.client(projectId, clientName, repoNameForClient(clientName), statsCollector);
     }
 
-    private static GoogleCloudStorageService.RetryBehaviour randomRetryBehaviour() {
-        return randomFrom(GoogleCloudStorageService.RetryBehaviour.values());
-    }
-
-    private MeteredStorage getClientFromService(
-        ProjectId projectId,
-        String clientName,
-        GoogleCloudStorageService.RetryBehaviour retryBehaviour
-    ) throws IOException {
-        return googleCloudStorageService.client(projectId, clientName, repoNameForClient(clientName), statsCollector, retryBehaviour);
+    private MeteredStorage getClientFromService(ProjectId projectId, String clientName) throws IOException {
+        return googleCloudStorageService.client(projectId, clientName, repoNameForClient(clientName), statsCollector);
     }
 
     private ProjectId projectIdForClusterClient() {
@@ -357,11 +332,8 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
         assertThat(credentials.getPrivateKeyId(), equalTo(projectClientPrivateKeyId(projectId, clientName)));
     }
 
-    private void assertClientNotFound(ProjectId projectId, String clientName, GoogleCloudStorageService.RetryBehaviour retryBehaviour) {
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> getClientFromManager(projectId, clientName, retryBehaviour)
-        );
+    private void assertClientNotFound(ProjectId projectId, String clientName) {
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> getClientFromManager(projectId, clientName));
         assertThat(
             e.getMessage(),
             anyOf(

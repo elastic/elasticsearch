@@ -1,5 +1,0 @@
-pr: 138842
-summary: Log a warning if an empty shutting down node doesn't leave the cluster
-area: "Distributed, Autoscaling"
-type: enhancement
-issues: []

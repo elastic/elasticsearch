@@ -435,4 +435,15 @@ public class ESVectorUtil {
         Objects.checkFromIndexSize(offset, length, bytes.length);
         return IMPL.indexOf(bytes, offset, length, marker);
     }
+
+    public static void vectorAccumulateAdd(float[] a, float[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + a.length + "!=" + b.length);
+        }
+        IMPL.vectorAccumulateAdd(a, b);
+    }
+
+    public static void vectorScalerDivide(float [] a, float b) {
+        IMPL.vectorScalerDivide(a, b);
+    }
 }

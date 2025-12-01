@@ -13,6 +13,9 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
 
+import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicLong;
+
 final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     private static float fma(float a, float b, float c) {
@@ -454,5 +457,17 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public int indexOf(byte[] bytes, int offset, int length, byte marker) {
         return ByteArrayUtils.indexOf(bytes, offset, length, marker);
+    }
+
+    public void vectorScalerDivide(float [] a, float b) {
+        for (int d = 0; d < a.length; d++) {
+            a[d] /= b;
+        }
+    }
+
+    public void vectorAccumulateAdd(float[] a, float[] b) {
+        for (int d = 0; d < a.length; d++) {
+            a[d] += b[d];
+        }
     }
 }

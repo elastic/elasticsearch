@@ -106,14 +106,11 @@ class KMeansLocal {
             for (int idx = 0; idx < vectors.size(); idx++) {
                 final int assignment = assignments[translateOrd.apply(idx)];
                 if (centroidChanged.get(assignment)) {
-                    float[] centroid = centroids[assignment];
                     if (centroidCounts[assignment]++ == 0) {
-                        Arrays.fill(centroid, 0.0f);
+                        centroids[assignment] = vectors.vectorValue(idx);
+                        continue;
                     }
-                    float[] vector = vectors.vectorValue(idx);
-                    for (int d = 0; d < dim; d++) {
-                        centroid[d] += vector[d];
-                    }
+                    ESVectorUtil.vectorAccumulateAdd(centroids[assignment], vectors.vectorValue(idx));
                 }
             }
 
@@ -121,10 +118,7 @@ class KMeansLocal {
                 if (centroidChanged.get(clusterIdx)) {
                     float count = (float) centroidCounts[clusterIdx];
                     if (count > 0) {
-                        float[] centroid = centroids[clusterIdx];
-                        for (int d = 0; d < dim; d++) {
-                            centroid[d] /= count;
-                        }
+                        ESVectorUtil.vectorScalerDivide(centroids[clusterIdx], count);
                     }
                 }
             }

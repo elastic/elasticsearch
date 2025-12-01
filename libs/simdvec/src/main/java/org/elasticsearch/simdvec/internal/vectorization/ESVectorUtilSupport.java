@@ -71,4 +71,8 @@ public interface ESVectorUtilSupport {
     void transposeHalfByte(int[] q, byte[] quantQueryByte);
 
     int indexOf(byte[] bytes, int offset, int length, byte marker);
+
+    void vectorScalerDivide(float [] a, float b);
+
+    void vectorAccumulateAdd(float[] a, float[] b);
 }

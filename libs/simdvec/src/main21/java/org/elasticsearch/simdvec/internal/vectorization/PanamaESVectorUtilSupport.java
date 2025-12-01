@@ -1140,4 +1140,37 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         }
         return -1;
     }
+
+    @Override
+    public void vectorAccumulateAdd(float[] a, float[] b) {
+        final VectorSpecies<Float> SPECIES = FloatVector.SPECIES_PREFERRED;
+
+        int i = 0;
+        for (; i < SPECIES.loopBound(a.length); i += SPECIES.length()) {
+            FloatVector va = FloatVector.fromArray(SPECIES, a, i);
+            FloatVector vb = FloatVector.fromArray(SPECIES, b, i);
+            FloatVector vc = va.add(vb);
+            vc.intoArray(a, i);
+        }
+
+        for (; i < a.length; i++) {
+            a[i] += b[i];
+        }
+    }
+
+    @Override
+    public void vectorScalerDivide(float[] a, float b) {
+        final VectorSpecies<Float> SPECIES = FloatVector.SPECIES_PREFERRED;
+
+        int i = 0;
+        for (; i < SPECIES.loopBound(a.length); i += SPECIES.length()) {
+            FloatVector va = FloatVector.fromArray(SPECIES, a, i);
+            FloatVector vc = va.div(b);
+            vc.intoArray(a, i);
+        }
+
+        for (; i < a.length; i++) {
+            a[i] = a[i] / b;
+        }
+    }
 }

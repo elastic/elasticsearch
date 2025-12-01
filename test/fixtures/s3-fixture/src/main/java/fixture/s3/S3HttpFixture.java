@@ -70,6 +70,11 @@ public class S3HttpFixture extends ExternalResource {
                     throw e;
                 }
             }
+
+            @Override
+            protected S3ConsistencyModel consistencyModel() {
+                return S3HttpFixture.this.consistencyModel();
+            }
         };
     }
 
@@ -108,5 +113,9 @@ public class S3HttpFixture extends ExternalResource {
             stop(0);
             ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
         }
+    }
+
+    protected S3ConsistencyModel consistencyModel() {
+        return S3ConsistencyModel.AWS_DEFAULT;
     }
 }

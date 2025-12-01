@@ -318,3 +318,52 @@ c: long     |   scalerank: long
 10             | 3              
 15             | 2              
 ;
+
+qstrWithTimeZoneOption
+required_capability: qstr_function
+required_capability: query_string_function_options
+
+FROM logs
+| WHERE QSTR("@timestamp:[2023-10-23T09:56:01 TO 2023-10-23T09:56:02]", {"time_zone": "America/New_York"})
+| KEEP @timestamp, message
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | message:text
+2023-10-23T13:56:01.543Z | No response
+2023-10-23T13:56:01.544Z | Running cats (cycle 2)
+;
+
+qstrWithTimeZoneSetting
+required_capability: qstr_function
+required_capability: query_string_function_options
+required_capability: kql_qstr_timezone_support
+
+SET time_zone = "America/New_York"\;
+FROM logs
+| WHERE QSTR("@timestamp:[2023-10-23T09:56:01 TO 2023-10-23T09:56:02]")
+| KEEP @timestamp, message
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | message:text
+2023-10-23T13:56:01.543Z | No response
+2023-10-23T13:56:01.544Z | Running cats (cycle 2)
+;
+
+qstrWithTimeZoneSettingWithOptionOverride
+required_capability: qstr_function
+required_capability: query_string_function_options
+required_capability: kql_qstr_timezone_support
+
+SET time_zone = "Europe/Madrid"\;
+FROM logs
+| WHERE QSTR("@timestamp:[2023-10-23T09:56:01 TO 2023-10-23T09:56:02]", {"time_zone": "America/New_York"})
+| KEEP @timestamp, message
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | message:text
+2023-10-23T13:56:01.543Z | No response
+2023-10-23T13:56:01.544Z | Running cats (cycle 2)
+;

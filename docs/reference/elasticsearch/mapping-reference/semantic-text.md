@@ -31,7 +31,7 @@ PUT semantic-embeddings
 ```
 % TEST[skip:Requires inference endpoint]
 
-1. In this example, there is no `inference_id` is specified, so `semantic_text` uses a [default inference endpoint](./semantic-text-how-tos.md#default-and-preconfigured-endpoints).
+1. In this example, the `semantic_text` field uses a [default inference endpoint](./semantic-text-how-tos.md#default-and-preconfigured-endpoints) because the `inference_id` parameter isn't specified.
 
 For a complete walkthrough on how to perform semantic search with `semantic_text` fields, refer to the [Semantic search with semantic_text](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md) tutorial. 
 

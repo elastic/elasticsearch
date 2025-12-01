@@ -28,7 +28,7 @@ public class RestGetReindexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_reindex/{id}"));
+        return List.of(new Route(GET, "/_reindex/{task_id}"));
     }
 
     @Override
@@ -38,7 +38,7 @@ public class RestGetReindexAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        TaskId taskId = new TaskId(request.param("id"));
+        TaskId taskId = new TaskId(request.param("task_id"));
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
         TimeValue timeout = getTimeout(request);
 

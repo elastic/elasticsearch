@@ -27,7 +27,7 @@ public class RestGetReindexActionTests extends RestActionTestCase {
 
     public void testRoute() {
         assertThat(action.routes().size(), equalTo(1));
-        assertThat(action.routes().get(0).getPath(), equalTo("/_reindex/{id}"));
+        assertThat(action.routes().get(0).getPath(), equalTo("/_reindex/{task_id}"));
         assertThat(action.routes().get(0).getMethod(), equalTo(RestRequest.Method.GET));
     }
 

@@ -512,7 +512,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         startRealtime(jobId);
 
         try {
-            StopDatafeedAction.Response stopDatafeedResponse = stopDatafeed(datafeedId, true);
+            StopDatafeedAction.Response stopDatafeedResponse = stopDatafeed(datafeedId, closeJobParameter);
             assertTrue(stopDatafeedResponse.isStopped());
         } catch (Exception e) {
             HotThreads.logLocalHotThreads(logger, Level.INFO, "hot threads at failure", ReferenceDocs.LOGGING);
@@ -523,7 +523,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertBusy(() -> {
             GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
             GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
-            assertThat(response.getResponse().results().get(0).getState(), equalTo(JobState.CLOSED));
+            assertThat(response.getResponse().results().get(0).getState(), equalTo(jobState));
         });
 
         assertBusy(() -> {

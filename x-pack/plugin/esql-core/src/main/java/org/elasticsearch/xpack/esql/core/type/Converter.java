@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
-
-public interface Converter extends NamedWriteable {
+public interface Converter {
 
     Object convert(Object value);
 }

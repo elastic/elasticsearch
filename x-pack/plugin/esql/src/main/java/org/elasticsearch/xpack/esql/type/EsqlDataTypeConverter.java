@@ -898,25 +898,10 @@ public class EsqlDataTypeConverter {
         STRING_TO_GEOHEX(x -> H3.stringToH3(BytesRefs.toString(x))),
         STRING_TO_DENSE_VECTOR(x -> EsqlDataTypeConverter.stringToDenseVector(BytesRefs.toString(x)));
 
-        private static final String NAME = "esql-converter";
         private final Function<Object, Object> converter;
 
         EsqlConverter(Function<Object, Object> converter) {
             this.converter = converter;
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeEnum(this);
-        }
-
-        public static Converter read(StreamInput in) throws IOException {
-            return in.readEnum(EsqlConverter.class);
         }
 
         @Override

@@ -275,35 +275,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.mapperMetrics = mapperMetrics;
     }
 
-    public MapperService(
-        Supplier<TransportVersion> clusterTransportVersion,
-        IndexSettings indexSettings,
-        IndexAnalyzers indexAnalyzers,
-        XContentParserConfiguration parserConfiguration,
-        SimilarityService similarityService,
-        MapperRegistry mapperRegistry,
-        Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-        IdFieldMapper idFieldMapper,
-        ScriptCompiler scriptCompiler,
-        Function<Query, BitSetProducer> bitSetProducer,
-        MapperMetrics mapperMetrics
-    ) {
-        this(
-            clusterTransportVersion,
-            indexSettings,
-            indexAnalyzers,
-            parserConfiguration,
-            similarityService,
-            mapperRegistry,
-            searchExecutionContextSupplier,
-            idFieldMapper,
-            scriptCompiler,
-            bitSetProducer,
-            mapperMetrics,
-            null
-        );
-    }
-
     public boolean hasNested() {
         return mappingLookup().nestedLookup() != NestedLookup.EMPTY;
     }

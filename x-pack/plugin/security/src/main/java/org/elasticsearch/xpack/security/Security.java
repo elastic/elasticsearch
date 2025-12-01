@@ -104,6 +104,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -762,7 +763,8 @@ public class Security extends Plugin
                 services.telemetryProvider(),
                 new PersistentTasksService(services.clusterService(), services.threadPool(), services.client()),
                 services.linkedProjectConfigService(),
-                services.projectResolver()
+                services.projectResolver(),
+                services.projectRoutingResolver()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -783,7 +785,8 @@ public class Security extends Plugin
         TelemetryProvider telemetryProvider,
         PersistentTasksService persistentTasksService,
         LinkedProjectConfigService linkedProjectConfigService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        ProjectRoutingResolver projectRoutingResolver
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -1166,7 +1169,8 @@ public class Security extends Plugin
             linkedProjectConfigService,
             projectResolver,
             authorizedProjectsResolver,
-            new CrossProjectModeDecider(settings)
+            new CrossProjectModeDecider(settings),
+            projectRoutingResolver
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1636,6 +1640,7 @@ public class Security extends Plugin
         settingsList.add(TokenService.TOKEN_EXPIRATION);
         settingsList.add(TokenService.DELETE_INTERVAL);
         settingsList.add(TokenService.DELETE_TIMEOUT);
+        settingsList.add(ProfileService.MAX_SIZE_SETTING);
         settingsList.addAll(SSLConfigurationSettings.getProfileSettings());
         settingsList.add(ApiKeyService.STORED_HASH_ALGO_SETTING);
         settingsList.add(ApiKeyService.DELETE_TIMEOUT);

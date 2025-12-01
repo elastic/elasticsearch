@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastBytesRefByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastDoubleByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.LastExponentialHistogramByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastFloatByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastIntByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastLongByTimestampAggregatorFunctionSupplier;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -51,7 +53,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
     // TODO: support all types
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        returnType = { "long", "integer", "double", "_tsid" },
+        returnType = { "long", "integer", "double", "_tsid", "exponential_histogram" },
         description = "Calculates the latest value of a field, where recency determined by the `@timestamp` field.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         preview = true,
@@ -61,11 +63,18 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
         Source source,
         @Param(
             name = "field",
-            type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double", "_tsid" }
+            type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double", "_tsid", "exponential_histogram" },
+            description = "the field to calculate the latest value for"
         ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to find the latest value",
+            optional = true
+        ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
     }
 
     public LastOverTime(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
@@ -112,7 +121,9 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> (dt.noCounter().isNumeric() && dt != DataType.UNSIGNED_LONG) || dt == DataType.TSID_DATA_TYPE,
+            dt -> (dt.noCounter().isNumeric() && dt != DataType.UNSIGNED_LONG)
+                || dt == DataType.TSID_DATA_TYPE
+                || dt == DataType.EXPONENTIAL_HISTOGRAM,
             sourceText(),
             DEFAULT,
             "numeric except unsigned_long"
@@ -132,6 +143,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
             case DOUBLE, COUNTER_DOUBLE -> new LastDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new LastFloatByTimestampAggregatorFunctionSupplier();
             case TSID_DATA_TYPE -> new LastBytesRefByTimestampAggregatorFunctionSupplier();
+            case EXPONENTIAL_HISTOGRAM -> new LastExponentialHistogramByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
@@ -143,7 +155,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
 
     @Override
     public String toString() {
-        return "last_over_time(" + field() + ")";
+        return "last_over_time(" + field() + ", " + timestamp() + ")";
     }
 
     @Override

@@ -800,11 +800,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
         @Override
         public String toString() {
-            return "update snapshot after shards changed ["
-                + changedShards
-                + "] or node configuration changed ["
-                + changedNodes
-                + "]";
+            return "update snapshot after shards changed [" + changedShards + "] or node configuration changed [" + changedNodes + "]";
         }
     }
 

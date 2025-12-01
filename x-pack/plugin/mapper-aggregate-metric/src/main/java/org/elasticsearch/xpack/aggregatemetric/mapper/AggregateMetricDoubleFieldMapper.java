@@ -10,7 +10,6 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
@@ -32,7 +31,6 @@ import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -44,7 +42,6 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.ScriptCompiler;
@@ -255,11 +252,11 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
             AggregateMetricDoubleFieldType metricFieldType = new AggregateMetricDoubleFieldType(
                 context.buildFullName(leafName()),
-                meta.getValue(),
-                timeSeriesMetric.getValue()
+                timeSeriesMetric.getValue(),
+                defaultMetric.getValue(),
+                metricFields,
+                meta.getValue()
             );
-            metricFieldType.setMetricFields(metricFields);
-            metricFieldType.setDefaultMetric(defaultMetric.getValue());
 
             return new AggregateMetricDoubleFieldMapper(leafName(), metricFieldType, metricMappers, builderParams(this, context), this);
         }
@@ -272,19 +269,21 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
     public static final class AggregateMetricDoubleFieldType extends SimpleMappedFieldType {
 
-        private EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields;
-
-        private Metric defaultMetric;
-
+        private final EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields;
+        private final Metric defaultMetric;
         private final MetricType metricType;
 
-        public AggregateMetricDoubleFieldType(String name) {
-            this(name, Collections.emptyMap(), null);
-        }
-
-        public AggregateMetricDoubleFieldType(String name, Map<String, String> meta, MetricType metricType) {
-            super(name, IndexType.points(true, true), false, meta);
+        public AggregateMetricDoubleFieldType(
+            String name,
+            MetricType metricType,
+            Metric defaultMetric,
+            EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields,
+            Map<String, String> meta
+        ) {
+            super(name, metricFields.get(defaultMetric).indexType(), false, meta);
             this.metricType = metricType;
+            this.defaultMetric = defaultMetric;
+            this.metricFields = metricFields;
         }
 
         /**
@@ -313,27 +312,8 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
-        private void setMetricFields(EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields) {
-            this.metricFields = metricFields;
-        }
-
         public Map<Metric, NumberFieldMapper.NumberFieldType> getMetricFields() {
             return Collections.unmodifiableMap(metricFields);
-        }
-
-        public void addMetricField(Metric m, NumberFieldMapper.NumberFieldType subfield) {
-            if (metricFields == null) {
-                metricFields = new EnumMap<>(AggregateMetricDoubleFieldMapper.Metric.class);
-            }
-
-            if (name() == null) {
-                throw new IllegalArgumentException("Field of type [" + typeName() + "] must have a name before adding a subfield");
-            }
-            metricFields.put(m, subfield);
-        }
-
-        public void setDefaultMetric(Metric defaultMetric) {
-            this.defaultMetric = defaultMetric;
         }
 
         Metric getDefaultMetric() {
@@ -508,143 +488,9 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             return SourceValueFetcher.identity(name(), context, format);
         }
 
-        public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
-            NumberFieldMapper.NumberFieldType minFieldType = metricFields.get(Metric.min);
-            NumberFieldMapper.NumberFieldType maxFieldType = metricFields.get(Metric.max);
-            NumberFieldMapper.NumberFieldType sumFieldType = metricFields.get(Metric.sum);
-            NumberFieldMapper.NumberFieldType countFieldType = metricFields.get(Metric.value_count);
-
-            private AggregateMetricDoubleBlockLoader() {}
-
-            static NumericDocValues getNumericDocValues(NumberFieldMapper.NumberFieldType field, LeafReader leafReader) throws IOException {
-                if (field == null) {
-                    return null;
-                }
-                String fieldName = field.name();
-                var values = leafReader.getNumericDocValues(fieldName);
-                if (values != null) {
-                    return values;
-                }
-
-                var sortedValues = leafReader.getSortedNumericDocValues(fieldName);
-                return DocValues.unwrapSingleton(sortedValues);
-            }
-
-            @Override
-            public AllReader reader(LeafReaderContext context) throws IOException {
-                NumericDocValues minValues = getNumericDocValues(minFieldType, context.reader());
-                NumericDocValues maxValues = getNumericDocValues(maxFieldType, context.reader());
-                NumericDocValues sumValues = getNumericDocValues(sumFieldType, context.reader());
-                NumericDocValues valueCountValues = getNumericDocValues(countFieldType, context.reader());
-
-                return new BlockDocValuesReader() {
-
-                    private int docID = -1;
-
-                    @Override
-                    protected int docId() {
-                        return docID;
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "BlockDocValuesReader.AggregateMetricDouble";
-                    }
-
-                    @Override
-                    public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-                        try (var builder = factory.aggregateMetricDoubleBuilder(docs.count() - offset)) {
-                            copyDoubleValuesToBuilder(docs, offset, builder.min(), minValues);
-                            copyDoubleValuesToBuilder(docs, offset, builder.max(), maxValues);
-                            copyDoubleValuesToBuilder(docs, offset, builder.sum(), sumValues);
-                            copyIntValuesToBuilder(docs, offset, builder.count(), valueCountValues);
-                            return builder.build();
-                        }
-                    }
-
-                    private void copyDoubleValuesToBuilder(
-                        Docs docs,
-                        int offset,
-                        BlockLoader.DoubleBuilder builder,
-                        NumericDocValues values
-                    ) throws IOException {
-                        int lastDoc = -1;
-                        for (int i = offset; i < docs.count(); i++) {
-                            int doc = docs.get(i);
-                            if (doc < lastDoc) {
-                                throw new IllegalStateException("docs within same block must be in order");
-                            }
-                            if (values == null || values.advanceExact(doc) == false) {
-                                builder.appendNull();
-                            } else {
-                                double value = NumericUtils.sortableLongToDouble(values.longValue());
-                                lastDoc = doc;
-                                this.docID = doc;
-                                builder.appendDouble(value);
-                            }
-                        }
-                    }
-
-                    private void copyIntValuesToBuilder(Docs docs, int offset, BlockLoader.IntBuilder builder, NumericDocValues values)
-                        throws IOException {
-                        int lastDoc = -1;
-                        for (int i = offset; i < docs.count(); i++) {
-                            int doc = docs.get(i);
-                            if (doc < lastDoc) {
-                                throw new IllegalStateException("docs within same block must be in order");
-                            }
-                            if (values == null || values.advanceExact(doc) == false) {
-                                builder.appendNull();
-                            } else {
-                                int value = Math.toIntExact(values.longValue());
-                                lastDoc = doc;
-                                this.docID = doc;
-                                builder.appendInt(value);
-                            }
-                        }
-                    }
-
-                    @Override
-                    public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-                        var blockBuilder = (AggregateMetricDoubleBuilder) builder;
-                        this.docID = docId;
-                        readSingleRow(docId, blockBuilder);
-                    }
-
-                    private void readSingleRow(int docId, AggregateMetricDoubleBuilder builder) throws IOException {
-                        if (minValues != null && minValues.advanceExact(docId)) {
-                            builder.min().appendDouble(NumericUtils.sortableLongToDouble(minValues.longValue()));
-                        } else {
-                            builder.min().appendNull();
-                        }
-                        if (maxValues != null && maxValues.advanceExact(docId)) {
-                            builder.max().appendDouble(NumericUtils.sortableLongToDouble(maxValues.longValue()));
-                        } else {
-                            builder.max().appendNull();
-                        }
-                        if (sumValues != null && sumValues.advanceExact(docId)) {
-                            builder.sum().appendDouble(NumericUtils.sortableLongToDouble(sumValues.longValue()));
-                        } else {
-                            builder.sum().appendNull();
-                        }
-                        if (valueCountValues != null && valueCountValues.advanceExact(docId)) {
-                            builder.count().appendInt(Math.toIntExact(valueCountValues.longValue()));
-                        } else {
-                            builder.count().appendNull();
-                        }
-                    }
-                };
-            }
-
-            @Override
-            public Builder builder(BlockFactory factory, int expectedCount) {
-                return factory.aggregateMetricDoubleBuilder(expectedCount);
-            }
-        }
-
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new AggregateMetricDoubleBlockLoader();
+            return new AggregateMetricDoubleBlockLoader(metricFields);
         }
 
         /**
@@ -935,4 +781,5 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             }
         }
     }
+
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -245,7 +246,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             new EsField("l", DataType.LONG, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
         );
         Expression greaterThan = new GreaterThan(Source.EMPTY, filterAttribute, new Literal(Source.EMPTY, value, DataType.LONG));
-        EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), List.of());
+        EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), Map.of(), Map.of(), List.of());
         Filter filter = new Filter(Source.EMPTY, esRelation, greaterThan);
         return new FragmentExec(filter);
     }
@@ -317,7 +318,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
          */
         try (
             SearchContext searchContext = searchService.createSearchContext(
-                new ShardSearchRequest(shardId, System.currentTimeMillis(), AliasFilter.EMPTY, null),
+                new ShardSearchRequest(shardId, System.currentTimeMillis(), AliasFilter.EMPTY, null, SplitShardCountSummary.UNSET),
                 SearchService.NO_TIMEOUT
             )
         ) {

@@ -42,7 +42,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     /**
      * Additional metadata specific to the resharding feature. See {@link org.elasticsearch.cluster.routing.SplitShardCountSummary}.
      */
-    private final SplitShardCountSummary reshardSplitShardCountSummary;
+    private final SplitShardCountSummary splitShardCountSummary;
 
     /**
      * Creates a {@link SearchShardIterator} instance that iterates over a set of replicas of a shard with provided <code>shardId</code>.
@@ -57,7 +57,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         ShardId shardId,
         List<ShardRouting> shards,
         OriginalIndices originalIndices,
-        SplitShardCountSummary reshardSplitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary
     ) {
         this(
             clusterAlias,
@@ -68,7 +68,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
             null,
             false,
             false,
-            reshardSplitShardCountSummary
+            splitShardCountSummary
         );
     }
 
@@ -76,15 +76,15 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      * Creates a {@link SearchShardIterator} instance that iterates over a set of nodes that are known to contain replicas of a shard
      * with provided <code>shardId</code>.
      *
-     * @param clusterAlias                  the alias of the cluster where the shard is located
-     * @param shardId                       shard id of the group
-     * @param targetNodeIds                 the list of nodes hosting shard copies
-     * @param originalIndices               the indices that the search request originally related to (before any rewriting happened)
-     * @param searchContextId               the point-in-time specified for this group if exists
-     * @param searchContextKeepAlive        the time interval that data nodes should extend the keep alive of the point-in-time
-     * @param prefiltered                   if true, then this group already executed the can_match phase
-     * @param skip                          if true, then this group won't have matches, and it can be safely skipped from the search
-     * @param reshardSplitShardCountSummary see {@link org.elasticsearch.search.internal.ShardSearchRequest#reshardSplitShardCountSummary}
+     * @param clusterAlias           the alias of the cluster where the shard is located
+     * @param shardId                shard id of the group
+     * @param targetNodeIds          the list of nodes hosting shard copies
+     * @param originalIndices        the indices that the search request originally related to (before any rewriting happened)
+     * @param searchContextId        the point-in-time specified for this group if exists
+     * @param searchContextKeepAlive the time interval that data nodes should extend the keep alive of the point-in-time
+     * @param prefiltered            if true, then this group already executed the can_match phase
+     * @param skip                   if true, then this group won't have matches, and it can be safely skipped from the search
+     * @param splitShardCountSummary see {@link org.elasticsearch.search.internal.ShardSearchRequest#splitShardCountSummary}
      */
     public SearchShardIterator(
         @Nullable String clusterAlias,
@@ -95,7 +95,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         TimeValue searchContextKeepAlive,
         boolean prefiltered,
         boolean skip,
-        SplitShardCountSummary reshardSplitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary
     ) {
         this.shardId = shardId;
         this.targetNodesIterator = new PlainIterator<>(targetNodeIds);
@@ -107,7 +107,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         this.prefiltered = prefiltered;
         this.skip = skip;
         assert skip == false || prefiltered : "only prefiltered shards are skip-able";
-        this.reshardSplitShardCountSummary = reshardSplitShardCountSummary;
+        this.splitShardCountSummary = splitShardCountSummary;
     }
 
     /**
@@ -195,8 +195,8 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return shardId;
     }
 
-    public SplitShardCountSummary getReshardSplitShardCountSummary() {
-        return reshardSplitShardCountSummary;
+    public SplitShardCountSummary getSplitShardCountSummary() {
+        return splitShardCountSummary;
     }
 
     @Override

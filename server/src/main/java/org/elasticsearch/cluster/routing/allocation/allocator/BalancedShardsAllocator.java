@@ -77,6 +77,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 public class BalancedShardsAllocator implements ShardsAllocator {
 
     private static final Logger logger = LogManager.getLogger(BalancedShardsAllocator.class);
+    private static final Logger notPreferredLogger = LogManager.getLogger(BalancedShardsAllocator.class.getName() + ".not_preferred");
 
     public static final Setting<Float> SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.shard",
@@ -861,11 +862,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             for (var storedShardMovement : bestNonPreferredShardMovementsTracker.getBestShardMovements()) {
                 final var shardRouting = storedShardMovement.shardRouting();
                 final var index = projectIndex(shardRouting);
-                // If `shardMoved` is true, there may have been moves that have made our previous move decision
-                // invalid, so we must call `decideMove` again. If not, we know we haven't made any moves, and we
-                // can use the cached decision.
-                final var moveDecision = shardMoved ? decideMove(index, shardRouting) : storedShardMovement.moveDecision();
+                final var moveDecision = refreshDecisionIfRequired(index, storedShardMovement, shardMoved);
                 if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
+                    if (notPreferredLogger.isDebugEnabled()) {
+                        notPreferredLogger.debug(
+                            "Moving shard [{}] to [{}] from a NOT_PREFERRED allocation: {}",
+                            shardRouting,
+                            moveDecision.getTargetNode().getName(),
+                            moveDecision.getCanRemainDecision()
+                        );
+                    }
                     executeMove(shardRouting, index, moveDecision, "move-non-preferred");
                     // Return after a single move so that the change can be simulated before further moves are made.
                     return true;
@@ -875,6 +881,46 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
 
             return shardMoved;
+        }
+
+        /**
+         * Re-run the allocation deciders if we need to
+         * <p>
+         * Reasons to re-run the deciders include:
+         * <ul>
+         *  <li>A shard has been moved since the decision was made, we need to
+         *      re-run the deciders to ensure the decision is still valid
+         *  </li>
+         *  <li>The {@link #notPreferredLogger} is set to <code>DEBUG</code>,
+         *      we need to re-run the deciders with
+         *      {@link org.elasticsearch.cluster.routing.allocation.RoutingAllocation.DebugMode#EXCLUDE_YES_DECISIONS},
+         *      so the explanation(s) are populated for the log message
+         *  </li>
+         * </ul>
+         *
+         * @param index The index of the shard
+         * @param storedShardMovement The existing shard movement decision
+         * @param shardMoved True if a shard moved in this balancing round, false otherwise
+         * @return The move decision to act on, recalculated if necessary
+         */
+        private MoveDecision refreshDecisionIfRequired(
+            ProjectIndex index,
+            BestShardMovementsTracker.StoredShardMovement storedShardMovement,
+            boolean shardMoved
+        ) {
+            if (notPreferredLogger.isDebugEnabled() == false && shardMoved == false) {
+                return storedShardMovement.moveDecision();
+            }
+
+            final var oldDebugMode = allocation.getDebugMode();
+            if (notPreferredLogger.isDebugEnabled()) {
+                allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
+            }
+            try {
+                return decideMove(index, storedShardMovement.shardRouting());
+            } finally {
+                allocation.setDebugMode(oldDebugMode);
+            }
         }
 
         private void executeMove(ShardRouting shardRouting, ProjectIndex index, MoveDecision moveDecision, String reason) {
@@ -1370,10 +1416,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
                 // weight of this index currently on the node
                 float currentWeight = weightFunction.calculateNodeWeightWithIndex(this, node, index);
-                // moving the shard would not improve the balance, and we are not in explain mode, so short circuit
-                if (currentWeight > minWeight && explain == false) {
-                    continue;
-                }
 
                 Decision currentDecision = allocation.deciders().canAllocate(shard, node.getRoutingNode(), allocation);
                 if (explain) {
@@ -1538,6 +1580,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
             logger.trace("No shards of [{}] can relocate from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
             return false;
+        }
+
+        // Visible for testing.
+        public RoutingAllocation getAllocation() {
+            return this.allocation;
         }
     }
 
@@ -1782,7 +1829,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
     }
 
-    record ProjectIndex(ProjectId project, String indexName) {
+    // Visible for testing.
+    public record ProjectIndex(ProjectId project, String indexName) {
         ProjectIndex(RoutingAllocation allocation, ShardRouting shard) {
             this(allocation.metadata().projectFor(shard.index()).id(), shard.getIndexName());
         }

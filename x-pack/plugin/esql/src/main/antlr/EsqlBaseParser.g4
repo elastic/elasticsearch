@@ -21,7 +21,8 @@ options {
 }
 
 import Expression,
-       Join;
+       Join,
+       Promql;
 
 statements
     : setCommand* singleStatement EOF
@@ -43,6 +44,7 @@ sourceCommand
     | timeSeriesCommand
     // in development
     | {this.isDevVersion()}? explainCommand
+    | {this.isDevVersion()}? promqlCommand
     ;
 
 processingCommand
@@ -210,6 +212,11 @@ identifierOrParameter
     : identifier
     | parameter
     | doubleParameter
+    ;
+
+stringOrParameter
+    : string
+    | parameter
     ;
 
 limitCommand

@@ -274,7 +274,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             false,
             requiresTimeSeries(),
             false,
-            EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.isEnabled()
+            false
         ).stream().filter(x -> x.requiresInferenceEndpoint() == false).map(x -> x.indexName()).toList();
     }
 

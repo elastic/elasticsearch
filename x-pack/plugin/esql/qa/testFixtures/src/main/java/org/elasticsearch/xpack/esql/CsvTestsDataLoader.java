@@ -349,7 +349,7 @@ public class CsvTestsDataLoader {
                 false,
                 false,
                 true,
-                EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.isEnabled(),
+                true,
                 (restClient, indexName, indexMapping, indexSettings) -> {
                     // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
                     StringBuilder jsonBody = new StringBuilder("{");

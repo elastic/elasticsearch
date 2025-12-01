@@ -13,17 +13,16 @@ DEV_PROMQL : {this.isDevVersion()}? 'promql' -> pushMode(PROMQL_PARAMS_MODE);
 
 mode PROMQL_PARAMS_MODE;
 
-// Simple unquoted identifier for parameter names and values
-PROMQL_UNQUOTED_IDENTIFIER
-    : [a-z0-9][a-z0-9_]*           // Starts with letter/digit, followed by letters/digits/underscores
-    | [_@][a-z0-9_]+               // OR starts with _/@ followed by at least one alphanumeric/underscore
-    ;
-
 // Also support quoted identifiers and named parameters
 PROMQL_QUOTED_IDENTIFIER: QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER);
 PROMQL_NAMED_PARAMS: NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
 
+// indexPattern tokens
+PROMQL_UNQUOTED_SOURCE: UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE);
 PROMQL_QUOTED_STRING: QUOTED_STRING -> type(QUOTED_STRING);
+PROMQL_COLON : COLON -> type(COLON);
+PROMQL_CAST_OP : CAST_OP -> type(CAST_OP);
+PROMQL_COMMA : COMMA -> type(COMMA);
 
 // Exit back to default mode on pipe
 PROMQL_PARAMS_PIPE : PIPE -> type(PIPE), popMode;
@@ -45,7 +44,7 @@ PROMQL_NESTED_LP
 
 // Query text - everything except parens and special characters
 PROMQL_QUERY_TEXT
-    : ( PROMQL_STRING_LITERAL | PROMQL_QUERY_COMMENT | ~[|()"'`#\r\n] )+    // Exclude both ( and ) from text
+    : ( PROMQL_STRING_LITERAL | PROMQL_QUERY_COMMENT | ~[|()"'`#\r\n ] )+    // Exclude both ( and ) from text
     ;
 
 // String literals (preserved with quotes as part of text)

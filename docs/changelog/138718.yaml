@@ -1,0 +1,5 @@
+pr: 138718
+summary: Add `project_routing` option
+area: SQL
+type: enhancement
+issues: []

@@ -83,7 +83,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
         return new ExtractHistogramComponent(source, field, new Literal(source, component.ordinal(), INTEGER));
     }
 
-    Expression field() {
+    public Expression field() {
         return field;
     }
 

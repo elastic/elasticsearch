@@ -382,7 +382,6 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
             Map.of(),
             Map.of(),
             Map.of(),
-            Map.of(),
             Map.of()
         );
         DiscoveryNode node1 = mock(DiscoveryNode.class);

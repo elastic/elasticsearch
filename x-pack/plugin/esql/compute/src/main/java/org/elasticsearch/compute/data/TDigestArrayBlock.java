@@ -35,6 +35,38 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
         this.maxima = maxima;
         this.sums = sums;
         this.valueCounts = valueCounts;
+        assertInvariants();
+    }
+
+
+    private void assertInvariants() {
+        for (Block b : getSubBlocks()) {
+            assert b.isReleased() == false;
+            assert b.doesHaveMultivaluedFields() == false
+                : "TDigestArrayBlock sub-blocks can't have multi-values but [" + b + "] does";
+            assert b.getPositionCount() == getPositionCount()
+                : "TDigestArrayBlock sub-blocks must have the same position count but ["
+                + b
+                + "] has "
+                + b.getPositionCount()
+                + " instead of "
+                + getPositionCount();
+            for (int i = 0; i < b.getPositionCount(); i++) {
+                if (isNull(i)) {
+                    assert b.isNull(i)
+                        : "TDigestArrayBlock sub-block [" + b + "] should be null at position " + i + ", but was not";
+                } else {
+                    if (b == sums || b == minima || b == maxima) {
+                        // sums / minima / maxima should be null exactly when value count is 0 or the histogram is null
+                        assert b.isNull(i) == (valueCounts.getLong(valueCounts.getFirstValueIndex(i)) == 0)
+                            : "TDigestArrayBlock sums/minima/maxima sub-block [" + b + "] has wrong nullity at position " + i;
+                    } else {
+                        assert b.isNull(i) == false
+                            : "TDigestArrayBlock sub-block [" + b + "] should be non-null at position " + i + ", but was not";
+                    }
+                }
+            }
+        }
     }
 
     private List<Block> getSubBlocks() {

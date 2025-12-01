@@ -307,6 +307,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         flush(dataStreamName);
 
+        forceMerge();
+
         if (randomBoolean()) {
             logger.info("--> restarting the cluster");
             internalCluster().rollingRestart(new InternalTestCluster.RestartCallback());

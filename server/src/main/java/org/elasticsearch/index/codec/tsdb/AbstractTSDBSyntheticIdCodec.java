@@ -11,18 +11,11 @@ package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldInfosFormat;
-import org.apache.lucene.codecs.FieldsConsumer;
-import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.NormsProducer;
-import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.SegmentInfo;
-import org.apache.lucene.index.SegmentReadState;
-import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.common.util.BigArrays;
@@ -52,12 +45,6 @@ import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.T
  *     replacing the standard {@code _id} field to reduce storage overhead.
  *
  * <p>
- *     One of the roles of this codec is to ensure that no inverted index is created when indexing a document id in Lucene,
- *     while allowing the usage of terms and postings on the field (now called a "synthetic _id" field) as if it was backed
- *     by an in inverted index.
- * </p>
- *
- * <p>
  *     Additionally, validates that all required fields are present and properly structured within the segment.
  * </p>
  *
@@ -66,7 +53,6 @@ import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.T
 abstract class AbstractTSDBSyntheticIdCodec extends FilterCodec {
     private final TSDBStoredFieldsFormat storedFieldsFormat;
     private final ValidatingFieldInfosFormat fieldInfosFormat;
-    private final EnsureNoPostingsFormat postingsFormat;
 
     AbstractTSDBSyntheticIdCodec(String name, Codec delegate, BigArrays bigArrays) {
         super(name, delegate);
@@ -79,7 +65,6 @@ abstract class AbstractTSDBSyntheticIdCodec extends FilterCodec {
             )
         );
         this.fieldInfosFormat = new ValidatingFieldInfosFormat(delegate.fieldInfosFormat());
-        this.postingsFormat = new EnsureNoPostingsFormat(delegate.postingsFormat());
     }
 
     @Override
@@ -90,11 +75,6 @@ abstract class AbstractTSDBSyntheticIdCodec extends FilterCodec {
     @Override
     public final FieldInfosFormat fieldInfosFormat() {
         return fieldInfosFormat;
-    }
-
-    @Override
-    public PostingsFormat postingsFormat() {
-        return postingsFormat;
     }
 
     private static class ValidatingFieldInfosFormat extends FieldInfosFormat {
@@ -155,48 +135,6 @@ abstract class AbstractTSDBSyntheticIdCodec extends FilterCodec {
             final var fieldInfos = delegate.read(directory, segmentInfo, segmentSuffix, iocontext);
             ensureSyntheticIdFields(fieldInfos);
             return fieldInfos;
-        }
-    }
-
-    /**
-     * {@link PostingsFormat} that throws an {@link IllegalArgumentException} if a Lucene field with the name {@code _id} has postings
-     * produced during indexing.
-     */
-    private static class EnsureNoPostingsFormat extends PostingsFormat {
-
-        private final PostingsFormat delegate;
-
-        private EnsureNoPostingsFormat(PostingsFormat delegate) {
-            super(delegate.getName());
-            this.delegate = delegate;
-        }
-
-        @Override
-        public FieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-            final var consumer = delegate.fieldsConsumer(state);
-            return new FieldsConsumer() {
-                @Override
-                public void write(Fields fields, NormsProducer norms) throws IOException {
-                    for (var field : fields) {
-                        if (SYNTHETIC_ID.equalsIgnoreCase(field)) {
-                            var message = "Field [" + SYNTHETIC_ID + "] has terms produced during indexing";
-                            assert false : message;
-                            throw new IllegalArgumentException(message);
-                        }
-                    }
-                    consumer.write(fields, norms);
-                }
-
-                @Override
-                public void close() throws IOException {
-                    consumer.close();
-                }
-            };
-        }
-
-        @Override
-        public FieldsProducer fieldsProducer(SegmentReadState state) throws IOException {
-            return delegate.fieldsProducer(state);
         }
     }
 }

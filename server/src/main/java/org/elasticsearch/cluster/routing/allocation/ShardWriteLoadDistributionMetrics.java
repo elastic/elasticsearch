@@ -10,7 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.HdrHistogram.DoubleHistogram;
-import org.HdrHistogram.ShortCountsHistogram;
+import org.HdrHistogram.IntCountsHistogram;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -44,7 +44,7 @@ public class ShardWriteLoadDistributionMetrics {
 
     @SuppressWarnings("unchecked")
     public ShardWriteLoadDistributionMetrics(MeterRegistry meterRegistry, int numberOfSignificantDigits, double... percentiles) {
-        this.shardWeightHistogram = new DoubleHistogram(numberOfSignificantDigits, ShortCountsHistogram.class);
+        this.shardWeightHistogram = new DoubleHistogram(numberOfSignificantDigits, IntCountsHistogram.class);
         this.percentiles = percentiles;
         this.attributes = (Map<String, Object>[]) Array.newInstance(Map.class, percentiles.length);
         for (int i = 0; i < percentiles.length; i++) {

@@ -16,6 +16,7 @@ import com.sun.net.httpserver.HttpHandler;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
@@ -26,11 +27,14 @@ import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractRepositoryAnalysisRestTestCase {
+
+    static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("tests.use.fixture", "true"));
+
     protected static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
 
     protected static class RepositoryAnalysisHttpFixture extends S3HttpFixture {
-        RepositoryAnalysisHttpFixture(boolean enabled) {
-            super(enabled, "bucket", "base_path_integration_tests", fixedAccessKey("s3_test_access_key", regionSupplier, "s3"));
+        RepositoryAnalysisHttpFixture() {
+            super(USE_FIXTURE, "bucket", "base_path_integration_tests", fixedAccessKey("s3_test_access_key", regionSupplier, "s3"));
         }
 
         private volatile boolean repoAnalysisStarted;
@@ -70,16 +74,16 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
 
     protected static final String CLIENT_NAME = "repo_test_kit";
 
-    protected static ElasticsearchCluster buildCluster(S3HttpFixture s3HttpFixture, boolean enabled) {
+    protected static ElasticsearchCluster buildCluster(S3HttpFixture s3HttpFixture) {
         final var clientPrefix = "s3.client." + CLIENT_NAME + ".";
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .keystore(clientPrefix + "access_key", System.getProperty("s3AccessKey"))
             .keystore(clientPrefix + "secret_key", System.getProperty("s3SecretKey"))
-            .setting(clientPrefix + "protocol", () -> "http", (n) -> enabled)
-            .setting(clientPrefix + "region", regionSupplier, (n) -> enabled)
+            .setting(clientPrefix + "protocol", () -> "http", n -> USE_FIXTURE)
+            .setting(clientPrefix + "region", regionSupplier, n -> USE_FIXTURE)
             .setting(clientPrefix + "add_purpose_custom_query_parameter", () -> randomFrom("true", "false"), n -> randomBoolean())
-            .setting(clientPrefix + "endpoint", s3HttpFixture::getAddress, (n) -> enabled)
+            .setting(clientPrefix + "endpoint", s3HttpFixture::getAddress, n -> USE_FIXTURE)
             .setting(
                 "repository_s3.compare_and_exchange.anti_contention_delay",
                 () -> randomFrom("1s" /* == default */, "1ms"),

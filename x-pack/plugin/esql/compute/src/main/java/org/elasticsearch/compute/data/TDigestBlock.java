@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 public sealed interface TDigestBlock extends Block permits ConstantNullBlock, TDigestArrayBlock {
@@ -26,5 +25,5 @@ public sealed interface TDigestBlock extends Block permits ConstantNullBlock, TD
         TDigestBlock build();
     }
 
-    TDigestHolder getTDigestHolder(int offset, BytesRef scratch);
+    TDigestHolder getTDigestHolder(int offset);
 }

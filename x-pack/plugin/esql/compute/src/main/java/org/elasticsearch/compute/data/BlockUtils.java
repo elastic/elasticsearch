@@ -319,9 +319,7 @@ public final class BlockUtils {
             }
             case TDIGEST -> {
                 TDigestBlock tDigestBlock = (TDigestBlock) block;
-                // TODO memory tracking? Or do we not care here because this is only called for literals?
-                BytesRef scratch = new BytesRef();
-                yield tDigestBlock.getTDigestHolder(offset, scratch);
+                yield tDigestBlock.getTDigestHolder(offset);
 
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");

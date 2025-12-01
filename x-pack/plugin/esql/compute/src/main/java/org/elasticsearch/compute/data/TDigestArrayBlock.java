@@ -259,9 +259,10 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
     }
 
     @Override
-    public TDigestHolder getTDigestHolder(int offset, BytesRef scratch) {
+    public TDigestHolder getTDigestHolder(int offset) {
         return new TDigestHolder(
-            encodedDigests.getBytesRef(offset, scratch),
+            // TODO: Memory tracking? creating a new bytes ref here doesn't seem great
+            encodedDigests.getBytesRef(offset, new BytesRef()),
             minima.getDouble(offset),
             maxima.getDouble(offset),
             sums.getDouble(offset),

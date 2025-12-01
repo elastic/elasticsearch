@@ -219,8 +219,12 @@ public final class ExponentialHistogramStates {
         public void set(long longValue, ExponentialHistogram histogram) {
             assert histogram != null;
             this.longValue = longValue;
+            ReleasableExponentialHistogram newValue;
+            try (var copyBuilder = ExponentialHistogram.builder(histogram, new HistoBreaker(breaker))) {
+                newValue = copyBuilder.build();
+            }
             Releasables.close(histogramValue);
-            this.histogramValue = ExponentialHistogram.builder(histogram, new HistoBreaker(breaker)).build();
+            this.histogramValue = newValue;
         }
 
         @Override
@@ -267,8 +271,20 @@ public final class ExponentialHistogramStates {
         private final BigArrays bigArrays;
 
         WithLongGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
-            this.longValues = bigArrays.newLongArray(1);
-            this.histogramValues = bigArrays.newObjectArray(1);
+            LongArray longValues = null;
+            ObjectArray<ReleasableExponentialHistogram> histogramValues = null;
+            boolean success = false;
+            try {
+                longValues = bigArrays.newLongArray(1);
+                histogramValues = bigArrays.newObjectArray(1);
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(histogramValues, longValues);
+                }
+            }
+            this.longValues = longValues;
+            this.histogramValues = histogramValues;
             this.bigArrays = bigArrays;
             this.breaker = new HistoBreaker(breaker);
         }
@@ -276,8 +292,10 @@ public final class ExponentialHistogramStates {
         public void set(int groupId, long longValue, ExponentialHistogram histogramValue) {
             assert histogramValue != null;
             ensureCapacity(groupId);
-            Releasables.close(histogramValues.get(groupId));
-            histogramValues.set(groupId, ExponentialHistogram.builder(histogramValue, breaker).build());
+            try (var copyBuilder = ExponentialHistogram.builder(histogramValue, breaker)) {
+                ReleasableExponentialHistogram old = histogramValues.getAndSet(groupId, copyBuilder.build());
+                Releasables.close(old);
+            }
             longValues.set(groupId, longValue);
         }
 
@@ -290,9 +308,9 @@ public final class ExponentialHistogramStates {
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 3;
             try (
-                var longBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
+                var longBuilder = driverContext.blockFactory().newLongVectorFixedBuilder(selected.getPositionCount());
                 var histoBuilder = driverContext.blockFactory().newExponentialHistogramBlockBuilder(selected.getPositionCount());
-                var seenBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount());
+                var seenBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount());
             ) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
@@ -306,9 +324,9 @@ public final class ExponentialHistogramStates {
                         histoBuilder.append(ExponentialHistogram.empty());
                     }
                 }
-                blocks[offset] = longBuilder.build();
+                blocks[offset] = longBuilder.build().asBlock();
                 blocks[offset + 1] = histoBuilder.build();
-                blocks[offset + 2] = seenBuilder.build();
+                blocks[offset + 2] = seenBuilder.build().asBlock();
             }
         }
 

@@ -9395,13 +9395,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * EsqlProject[[to_long{r}#5]]
      * \_Eval[[TOLONG(string{f}#8) AS to_long#5]]
-     *         ┗━━━━┛
-     *           one argument to_long(value) is rewritten to ToLong
+     *         ^
+     *         one argument to_long(value) is rewritten to ToLong
      *
      *   \_Limit[10[INTEGER],false,false]
      *     \_EsRelation[base_conversion][base{f}#9, expect_long{f}#10, group{f}#7, notes{f}#..]
+     * }</pre>
      */
     public void testToLongSurrogateFoldsToLong() {
         LogicalPlan statement = parser.createStatement("""
@@ -9427,13 +9429,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * EsqlProject[[to_long{r}#6]]
      * \_Eval[[TOLONGBASE(string{f}#9,base{f}#10) AS to_long#6]]
-     *         ┗━━━━━━━━┛
-     *           two argument to_long(string, base) is rewritten to ToLongBase
+     *         ^
+     *         two argument to_long(string, base) is rewritten to ToLongBase
      *
      *   \_Limit[10[INTEGER],false,false]
      *     \_EsRelation[base_conversion][base{f}#10, expect_long{f}#11, group{f}#8, notes{f}..]
+     * }</pre>
      */
     public void testToLongSurrogateFoldsToLongBase() {
         LogicalPlan statement = parser.createStatement("""
@@ -9459,13 +9463,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * EsqlProject[[ubase{r}#8831, to_long{r}#8835]]
      * \_Eval[[TOUNSIGNEDLONG(base{f}#8840) AS ubase#8831, TOLONGBASE(string{f}#8839,TOINTEGER(ubase{r}#8831)) AS to_long#8835]]
-     *                                                     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+     *                                                     ^
      *  when base is not an integer, two argument to_long(string, base) is rewritten to ToLongBase(string, ToInteger(base))
      *
      *   \_Limit[10[INTEGER],false,false]
      *     \_EsRelation[base_conversion][base{f}#8840, expect_long{f}#8841, group{f}#8838, n..]
+     * }</pre>
      */
     public void testToLongSurrogateFoldsToLongBaseWithToInteger() {
         LogicalPlan statement = parser.createStatement("""

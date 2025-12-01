@@ -61,7 +61,7 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
 
         detailedDescription = """
             When given two arguments, a string value and a whole number base,
-            the string is parsed as a long in the given base with Java's `Long.parseLong(string, radix)` function.
+            the string is parsed as a long in the given base.
             If parsing fails a warning is generated as described below and the result is null.
             A leading '0x' prefix is allowed for base 16.
             {applies_to}`stack: ga 9.3`

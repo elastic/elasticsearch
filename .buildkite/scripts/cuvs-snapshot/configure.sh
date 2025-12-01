@@ -19,8 +19,8 @@ fi
 LIBCUVS_GCS_BUCKET="elasticsearch-cuvs-snapshots"
 
 LIBCUVS_DIR="/opt/libcuvs"
-mkdir -p "$LIBCUVS_DIR"
-chmod 777 "$LIBCUVS_DIR"
+sudo mkdir -p "$LIBCUVS_DIR"
+sudo chmod 777 "$LIBCUVS_DIR"
 
 CUVS_VERSION=$(grep 'cuvs_java' build-tools-internal/version.properties | awk '{print $3}')
 

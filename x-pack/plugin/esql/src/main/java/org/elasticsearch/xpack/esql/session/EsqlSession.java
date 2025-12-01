@@ -584,11 +584,7 @@ public class EsqlSession {
                         executionInfo.getRunningClusterAliases().forEach(clusterAlias -> {
                             boolean clusterHasValidIndex = r.indexResolution.values()
                                 .stream()
-                                .anyMatch(
-                                    ir -> ir.isValid()
-                                        && ir.get().concreteIndices().get(clusterAlias) != null
-                                        && ir.get().concreteIndices().get(clusterAlias).isEmpty() == false
-                                );
+                                .anyMatch(ir -> ir.isValid() && ir.get().originalIndices().get(clusterAlias) != null);
                             if (clusterHasValidIndex == false) {
                                 String errorMsg = "no valid indices found in any subquery " + EsqlCCSUtils.inClusterName(clusterAlias);
                                 LOGGER.debug(errorMsg);

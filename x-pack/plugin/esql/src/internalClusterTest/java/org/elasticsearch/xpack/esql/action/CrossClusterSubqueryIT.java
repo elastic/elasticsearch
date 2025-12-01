@@ -304,7 +304,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         populateIndex(REMOTE_CLUSTER_2, "remote_idx", randomIntBetween(1, 5), 5);
 
         try (EsqlQueryResponse resp = runQuery("""
-            FROM  local*,(FROM *:remote* metadata _index) metadata _index
+            FROM  missing, (FROM *:remote* metadata _index) metadata _index
              | STATS c = count(*) by _index
              | SORT _index
             """, randomBoolean())) {

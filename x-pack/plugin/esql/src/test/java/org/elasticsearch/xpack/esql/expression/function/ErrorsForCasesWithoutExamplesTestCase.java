@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -150,6 +151,13 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
         String expectedTypeString = expectedTypeSupplier.apply(validPerPosition.get(badArgPosition), badArgPosition);
         String name = signature.get(badArgPosition).typeName();
         return ordinal + "argument of [" + source + "] must be [" + expectedTypeString + "], found value [] type [" + name + "]";
+    }
+
+    protected static Matcher<String> typeErrorMessage(List<DataType> signature, int badArgPosition, String expectedTypeString) {
+        String ordinal = TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT);
+        String sig = sourceForSignature(signature);
+        String name = signature.get(badArgPosition).typeName();
+        return equalTo(ordinal + " argument of [" + sig + "] must be [" + expectedTypeString + "], found value [] type [" + name + "]");
     }
 
     protected static String errorMessageStringForBinaryOperators(

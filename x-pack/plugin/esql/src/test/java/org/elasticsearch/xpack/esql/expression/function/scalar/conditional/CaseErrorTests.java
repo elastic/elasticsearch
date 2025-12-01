@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
@@ -16,10 +15,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class CaseErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
@@ -62,12 +58,5 @@ public class CaseErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             }
         }
         throw new IllegalStateException("can't find bad arg for " + signature);
-    }
-
-    private static Matcher<String> typeErrorMessage(List<DataType> signature, int badArgPosition, String expectedTypeString) {
-        String ordinal = TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT);
-        String sig = sourceForSignature(signature);
-        String name = signature.get(badArgPosition).typeName();
-        return equalTo(ordinal + " argument of [" + sig + "] must be [" + expectedTypeString + "], found value [] type [" + name + "]");
     }
 }

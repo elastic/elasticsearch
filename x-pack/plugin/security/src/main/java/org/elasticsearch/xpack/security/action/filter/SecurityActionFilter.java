@@ -178,51 +178,42 @@ public class SecurityActionFilter implements ActionFilter {
                 authcListener -> authcService.authenticate(securityAction, request, InternalUsers.SYSTEM_USER, authcListener)
             )
             // Step 2: check the authenticated user is authorized to proceed
-            .<ResponseContext<Response>>andThen((authzListener, authc) -> {
+            .<RequestContext>andThen((authzListener, authc) -> {
                 if (authc != null) {
-                    final var responseContext = new ResponseContext<Response>(AuditUtil.extractRequestId(threadContext), authc);
+                    final var responseContext = new RequestContext(AuditUtil.extractRequestId(threadContext), authc);
                     authzService.authorize(authc, securityAction, request, authzListener.map(ignored -> responseContext));
                 } else {
                     authzListener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
                 }
             })
             // Step 3: execute the action
-            .<ResponseContext<Response>>andThen(
-                (chainListener, responseContext) -> chain.proceed(task, action, request, chainListener.map(responseContext::setResponse))
-            )
-            // Step 4: record the response in the audit log
-            .andThenApply(responseContext -> {
-                auditTrailService.get()
-                    .coordinatingActionResponse(
-                        responseContext.requestId,
-                        responseContext.authc,
-                        action,
-                        request,
-                        responseContext.response
-                    );
-                return responseContext.response;
-            })
-            .addListener(listener);
+            .addListener(
+                // NB the response is handled inline here rather than via more andThen() calls because it might be refcounted, in which case
+                // it must be kept alive until the outer listener is completed
+                listener.delegateFailureAndWrap(
+                    (delegate, requestContext) -> chain.proceed(task, action, request, delegate.map(response -> {
+                        // Step 4: log the response
+                        auditTrailService.get()
+                            .coordinatingActionResponse(requestContext.requestId, requestContext.authc, action, request, response);
+                        // Step 5: pass the response back up the chain
+                        return response;
+                    }))
+                )
+            );
     }
 
     /**
      * Carries the request ID and the {@link Authentication} along with the response, for eventual audit logging.
      */
-    private static class ResponseContext<Response> {
+    private static class RequestContext {
         final String requestId;
         final Authentication authc;
-        Response response;
 
-        ResponseContext(String requestId, Authentication authc) {
+        RequestContext(String requestId, Authentication authc) {
             assert Strings.hasText(requestId);
             assert authc != null;
             this.requestId = requestId;
             this.authc = authc;
-        }
-
-        ResponseContext<Response> setResponse(Response response) {
-            this.response = response;
-            return this;
         }
     }
 }

@@ -31,7 +31,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
 
     public void testShardWriteLoadDistributionMetrics() {
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        final int numberOfSignificantDigits = randomIntBetween(2, 4);
+        final int numberOfSignificantDigits = randomIntBetween(2, 3);
         final ShardWriteLoadDistributionMetrics shardWriteLoadDistributionMetrics = new ShardWriteLoadDistributionMetrics(
             meterRegistry,
             numberOfSignificantDigits,

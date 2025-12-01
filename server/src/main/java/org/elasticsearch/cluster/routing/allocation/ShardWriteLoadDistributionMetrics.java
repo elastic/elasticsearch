@@ -38,7 +38,8 @@ public class ShardWriteLoadDistributionMetrics {
     private final double[] lastValues;
 
     public ShardWriteLoadDistributionMetrics(MeterRegistry meterRegistry) {
-        this(meterRegistry, 3, 50, 90, 95, 99, 100);
+        // 2 significant digits means error < 1% of any value in the range
+        this(meterRegistry, 2, 50, 90, 95, 99, 100);
     }
 
     @SuppressWarnings("unchecked")

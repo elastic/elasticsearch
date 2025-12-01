@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.queries;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -45,6 +46,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
 
 class InferenceQueryUtils {
     record InferenceInfo(
@@ -89,6 +91,23 @@ class InferenceQueryUtils {
                 inferenceResultsMap,
                 inferenceIdOverride
             );
+
+            if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false
+                && queryRewriteContext.isCcsMinimizeRoundTrips() == false
+                && alwaysSkipRemotes == false) {
+
+                ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> remoteInferenceInfoListener = refs
+                    .acquire(remoteInferenceInfoSupplier::set);
+                getRemoteInferenceInfo(
+                    queryRewriteContext,
+                    fields,
+                    resolveWildcards,
+                    useDefaultFields,
+                    remoteInferenceInfoListener,
+                    query,
+                    inferenceIdOverride
+                );
+            }
         }
 
         return inferenceInfoFuture;
@@ -152,6 +171,73 @@ class InferenceQueryUtils {
         );
     }
 
+    private static void getRemoteInferenceInfo(
+        QueryRewriteContext queryRewriteContext,
+        Map<String, Float> fields,
+        boolean resolveWildcards,
+        boolean useDefaultFields,
+        ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> remoteInferenceInfoListener,
+        @Nullable String query,
+        @Nullable FullyQualifiedInferenceId inferenceIdOverride
+    ) {
+        var remoteIndices = queryRewriteContext.getResolvedIndices().getRemoteClusterIndices();
+        GroupedActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> gal = new GroupedActionListener<>(
+            remoteIndices.size(),
+            remoteInferenceInfoListener.delegateFailureAndWrap((l, c) -> {
+                Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>> remoteInferenceInfoMap = new HashMap<>(c.size());
+                c.forEach(remoteInferenceInfoMap::putAll);
+                l.onResponse(remoteInferenceInfoMap);
+            })
+        );
+
+        // When an inference ID override is set, inference is only performed on the local cluster. Set the query to null in this case
+        // to disable remote inference result generation.
+        String effectiveQuery = inferenceIdOverride == null ? query : null;
+        for (var entry : remoteIndices.entrySet()) {
+            String clusterAlias = entry.getKey();
+            OriginalIndices originalIndices = entry.getValue();
+
+            GetInferenceFieldsAction.Request request = new GetInferenceFieldsAction.Request(
+                Set.of(originalIndices.indices()),
+                fields,
+                resolveWildcards,
+                useDefaultFields,
+                effectiveQuery,
+                originalIndices.indicesOptions()
+            );
+
+            queryRewriteContext.registerRemoteAsyncAction(clusterAlias, (client, threadContext, listener) -> {
+                ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> wrappedListener = listener
+                    .delegateFailureAndWrap((l, m) -> {
+                        gal.onResponse(m);
+                        l.onResponse(null);
+                    });
+
+                executeAsyncWithOrigin(threadContext, ML_ORIGIN, request, wrappedListener, (req, l1) -> {
+                    client.getConnection(req, l1.delegateFailureAndWrap((l2, c) -> {
+                        TransportVersion transportVersion = c.getTransportVersion();
+                        if (transportVersion.supports(GET_INFERENCE_FIELDS_ACTION_TV) == false) {
+                            // Assume that no remote inference fields are queried. We must do this because we cannot throw an error here
+                            // without breaking BwC for interception-eligible queries (ex: match/knn/sparse_vector) that don't need to be
+                            // intercepted. We track the transport version in the response so that more thorough error checking can be
+                            // performed with the complete output of getInferenceInfo (i.e. complete local and remote inference info).
+                            l2.onResponse(
+                                Map.of(
+                                    clusterAlias,
+                                    Tuple.tuple(new GetInferenceFieldsAction.Response(Map.of(), Map.of()), transportVersion)
+                                )
+                            );
+                        } else {
+                            client.execute(GetInferenceFieldsAction.REMOTE_TYPE, req, l2.delegateFailureAndWrap((l3, resp) -> {
+                                l3.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
+                            }));
+                        }
+                    }));
+                });
+            });
+        }
+    }
+
     private static InferenceInfo combineLocalAndRemoteInferenceInfo(
         InferenceInfo localInferenceInfo,
         Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>> remoteInferenceInfo
@@ -160,26 +246,28 @@ class InferenceQueryUtils {
         int totalIndexCount = localInferenceInfo.indexCount;
         Map<FullyQualifiedInferenceId, InferenceResults> completeInferenceResultsMap = new HashMap<>(
             localInferenceInfo.inferenceResultsMap
-        );
+        );  // TODO: Use a copy-on-write map implementation here?
         TransportVersion minTransportVersion = localInferenceInfo.minTransportVersion;
 
-        for (var entry : remoteInferenceInfo.entrySet()) {
-            String clusterAlias = entry.getKey();
-            TransportVersion transportVersion = entry.getValue().v2();
-            var response = entry.getValue().v1();
-            var inferenceFieldsMap = response.getInferenceFieldsMap();
-            var inferenceResultsMap = response.getInferenceResultsMap()
-                .entrySet()
-                .stream()
-                .collect(Collectors.toMap(e -> new FullyQualifiedInferenceId(clusterAlias, e.getKey()), Map.Entry::getValue));
+        if (remoteInferenceInfo != null) {
+            for (var entry : remoteInferenceInfo.entrySet()) {
+                String clusterAlias = entry.getKey();
+                TransportVersion transportVersion = entry.getValue().v2();
+                var response = entry.getValue().v1();
+                var inferenceFieldsMap = response.getInferenceFieldsMap();
+                var inferenceResultsMap = response.getInferenceResultsMap()
+                    .entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(e -> new FullyQualifiedInferenceId(clusterAlias, e.getKey()), Map.Entry::getValue));
 
-            totalIndexCount += inferenceFieldsMap.size();
-            for (var value : inferenceFieldsMap.values()) {
-                totalInferenceFieldCount += value.size();
+                totalIndexCount += inferenceFieldsMap.size();
+                for (var value : inferenceFieldsMap.values()) {
+                    totalInferenceFieldCount += value.size();
+                }
+
+                completeInferenceResultsMap.putAll(inferenceResultsMap);
+                minTransportVersion = TransportVersion.min(minTransportVersion, transportVersion);
             }
-
-            completeInferenceResultsMap.putAll(inferenceResultsMap);
-            minTransportVersion = TransportVersion.min(minTransportVersion, transportVersion);
         }
 
         return new InferenceInfo(totalInferenceFieldCount, totalIndexCount, completeInferenceResultsMap, minTransportVersion);

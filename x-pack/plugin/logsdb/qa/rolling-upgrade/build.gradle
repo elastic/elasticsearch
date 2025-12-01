@@ -11,10 +11,6 @@ apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.bc-upgrade-test'
 apply plugin: 'elasticsearch.internal-test-artifact' // needed to run logsdb rest tests in serverless
 
-dependencies {
-  javaRestTestImplementation project(xpackModule('logsdb'))
-}
-
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)

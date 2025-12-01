@@ -576,11 +576,6 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
                 return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
             }
-
-            @Override
-            public MappingLookup mappingLookup() {
-                return MappingLookup.EMPTY;
-            }
         };
     }
 

@@ -712,7 +712,10 @@ public abstract class MappedFieldType {
         /**
          * MappingLookup for the queried index.
          */
-        MappingLookup mappingLookup();
+        @Nullable
+        default MappingLookup mappingLookup() {
+            return null;
+        }
 
         @Nullable
         default BlockLoaderFunctionConfig blockLoaderFunctionConfig() {

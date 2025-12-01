@@ -94,6 +94,6 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
             }
             return dimensionFields;
         }
-        return null;
+        throw new IllegalStateException("The TimeSeriesMetadataFieldBlockLoader cannot be used in non-time series mode.");
     }
 }

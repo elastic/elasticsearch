@@ -1,0 +1,5 @@
+pr: 138002
+summary: Fix `SearchContext` CB memory accounting
+area: Aggregations
+type: bug
+issues: []

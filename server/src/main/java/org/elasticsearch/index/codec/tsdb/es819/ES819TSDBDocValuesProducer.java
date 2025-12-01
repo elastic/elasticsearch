@@ -52,6 +52,7 @@ import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
 
 import java.io.IOException;
 
@@ -241,8 +242,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         int offset,
                         boolean nullsFiltered,
                         BlockDocValuesReader.ToDouble toDouble,
-                        boolean toInt
-                    ) throws IOException {
+                        boolean toInt,
+                        boolean asCustomBinary) throws IOException {
                         int count = docs.count() - offset;
                         int firstDocId = docs.get(offset);
                         int lastDocId = docs.get(count - 1);
@@ -290,8 +291,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         int offset,
                         boolean nullsFiltered,
                         BlockDocValuesReader.ToDouble toDouble,
-                        boolean toInt
-                    ) throws IOException {
+                        boolean toInt,
+                        boolean asCustomBinary) throws IOException {
                         int count = docs.count() - offset;
                         int firstDocId = docs.get(offset);
                         int lastDocId = docs.get(count - 1);
@@ -402,14 +403,23 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     int offset,
                     boolean nullsFiltered,
                     BlockDocValuesReader.ToDouble toDouble,
-                    boolean toInt
-                ) throws IOException {
+                    boolean toInt,
+                    boolean asCustomBinary) throws IOException {
                     int count = docs.count() - offset;
                     int firstDocId = docs.get(offset);
                     int lastDocId = docs.get(count - 1);
                     doc = lastDocId;
 
-                    if (isDense(firstDocId, lastDocId, count)) {
+                    if (asCustomBinary) {
+                        try (var builder = factory.bytesRefs(count)) {
+                            final var reader = new CustomBinaryDocValuesReader();
+                            for (int i = offset; i < docs.count(); i++) {
+                                BytesRef bytes = decoder.decode(docs.get(i), entry.numCompressedBlocks);
+                                reader.read(bytes, builder);
+                            }
+                            return builder.build();
+                        }
+                    } else if (isDense(firstDocId, lastDocId, count)) {
                         try (var builder = factory.singletonBytesRefs(count)) {
                             decoder.decodeBulk(entry.numCompressedBlocks, firstDocId, count, builder);
                             return builder.build();
@@ -709,8 +719,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             int offset,
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
-            boolean toInt
-        ) throws IOException {
+            boolean toInt,
+            boolean asCustomBinary) throws IOException {
             return null;
         }
     }
@@ -761,8 +771,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             int offset,
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
-            boolean toInt
-        ) throws IOException {
+            boolean toInt,
+            boolean asCustomBinary) throws IOException {
             return null;
         }
     }
@@ -823,8 +833,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 int offset,
                 boolean nullsFiltered,
                 BlockDocValuesReader.ToDouble toDouble,
-                boolean toInt
-            ) throws IOException {
+                boolean toInt,
+                boolean asCustomBinary) throws IOException {
                 assert toDouble == null;
                 if (ords instanceof BaseDenseNumericValues denseOrds) {
                     var block = tryReadAHead(factory, docs, offset);
@@ -929,8 +939,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             int offset,
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
-            boolean toInt
-        ) throws IOException {
+            boolean toInt,
+            boolean asCustomBinary) throws IOException {
             return null;
         }
 
@@ -983,8 +993,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             int offset,
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
-            boolean toInt
-        ) throws IOException {
+            boolean toInt,
+            boolean asCustomBinary) throws IOException {
             return null;
         }
 
@@ -1037,8 +1047,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             int offset,
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
-            boolean toInt
-        ) throws IOException {
+            boolean toInt,
+            boolean asCustomBinary) throws IOException {
             return null;
         }
     }
@@ -1879,8 +1889,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     int offset,
                     boolean nullsFiltered,
                     BlockDocValuesReader.ToDouble toDouble,
-                    boolean toInt
-                ) throws IOException {
+                    boolean toInt,
+                    boolean asCustomBinary) throws IOException {
                     try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, docs.count() - offset, toInt)) {
                         return tryRead(singletonLongBuilder, docs, offset);
                     }
@@ -2005,8 +2015,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     int offset,
                     boolean nullsFiltered,
                     BlockDocValuesReader.ToDouble toDouble,
-                    boolean toInt
-                ) throws IOException {
+                    boolean toInt,
+                    boolean asCustomBinary) throws IOException {
                     if (nullsFiltered == false) {
                         return null;
                     }

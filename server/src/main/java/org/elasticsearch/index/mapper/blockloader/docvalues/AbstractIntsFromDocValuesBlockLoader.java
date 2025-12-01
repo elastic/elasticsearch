@@ -62,7 +62,7 @@ public abstract class AbstractIntsFromDocValuesBlockLoader extends BlockDocValue
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
             if (numericDocValues instanceof OptionalColumnAtATimeReader direct) {
-                Block result = direct.tryRead(factory, docs, offset, nullsFiltered, null, true);
+                Block result = direct.tryRead(factory, docs, offset, nullsFiltered, null, true, false);
                 if (result != null) {
                     return result;
                 }

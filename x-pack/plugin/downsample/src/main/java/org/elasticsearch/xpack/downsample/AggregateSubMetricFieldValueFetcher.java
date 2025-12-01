@@ -40,7 +40,7 @@ public final class AggregateSubMetricFieldValueFetcher extends FieldValueFetcher
     }
 
     @Override
-    public AbstractDownsampleFieldProducer fieldProducer() {
+    AbstractDownsampleFieldProducer fieldProducer() {
         return fieldProducer;
     }
 

@@ -62,7 +62,7 @@ class FieldValueFetcher {
         return numericFieldData.getDoubleValues();
     }
 
-    public AbstractDownsampleFieldProducer fieldProducer() {
+    AbstractDownsampleFieldProducer fieldProducer() {
         return fieldProducer;
     }
 

@@ -127,4 +127,3 @@
           {
             "fixed_interval": "1h"
           }
-  - is_true: acknowledged

@@ -800,11 +800,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
         @Override
         public String toString() {
-            return "update snapshot after shards changed ["
-                + changedShards
-                + "] or node configuration changed ["
-                + changedNodes
-                + "]";
+            return "update snapshot after shards changed [" + changedShards + "] or node configuration changed [" + changedNodes + "]";
         }
     }
 
@@ -962,9 +958,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             // If there are no updates to cluster state we still need to perform side effects of this task
             // If cluster state has changed it will be called from clusterStatePublished
             boolean clusterStateChanged = (res != batchExecutionContext.initialState());
-            Runnable successRunnable = (clusterStateChanged) ?
-                () -> {} :
-                new RunOnce(() -> clusterStateProcessed(res));
+            Runnable successRunnable = (clusterStateChanged) ? () -> {} : new RunOnce(() -> clusterStateProcessed(res));
             for (TaskContext<ExternalChangeTask> taskContext : batchExecutionContext.taskContexts()) {
                 taskContext.success(successRunnable);
             }

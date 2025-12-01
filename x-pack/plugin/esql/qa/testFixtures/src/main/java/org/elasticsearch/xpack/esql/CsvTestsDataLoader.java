@@ -342,22 +342,31 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, true, true, false, false, true, EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.isEnabled(), (restClient, indexName, indexMapping, indexSettings) -> {
-                // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
-                StringBuilder jsonBody = new StringBuilder("{");
-                if (indexSettings != null && indexSettings.isEmpty() == false) {
-                    jsonBody.append("\"settings\":");
-                    jsonBody.append(Strings.toString(indexSettings));
-                    jsonBody.append(",");
-                }
-                jsonBody.append("\"mappings\":");
-                jsonBody.append(indexMapping);
-                jsonBody.append("}");
+            loadDataSetIntoEs(
+                client,
+                true,
+                true,
+                false,
+                false,
+                true,
+                EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.isEnabled(),
+                (restClient, indexName, indexMapping, indexSettings) -> {
+                    // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
+                    StringBuilder jsonBody = new StringBuilder("{");
+                    if (indexSettings != null && indexSettings.isEmpty() == false) {
+                        jsonBody.append("\"settings\":");
+                        jsonBody.append(Strings.toString(indexSettings));
+                        jsonBody.append(",");
+                    }
+                    jsonBody.append("\"mappings\":");
+                    jsonBody.append(indexMapping);
+                    jsonBody.append("}");
 
-                Request request = new Request("PUT", "/" + indexName);
-                request.setJsonEntity(jsonBody.toString());
-                restClient.performRequest(request);
-            });
+                    Request request = new Request("PUT", "/" + indexName);
+                    request.setJsonEntity(jsonBody.toString());
+                    restClient.performRequest(request);
+                }
+            );
         }
     }
 
@@ -443,7 +452,6 @@ public class CsvTestsDataLoader {
         return false;
     }
 
-
     private static boolean isTimeSeries(TestDataset dataset) throws IOException {
         Settings settings = dataset.readSettingsFile();
         String mode = settings.get("index.mode");
@@ -474,7 +482,8 @@ public class CsvTestsDataLoader {
             inferenceEnabled,
             timeSeriesOnly,
             exponentialHistogramFieldSupported,
-            EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.isEnabled(), (restClient, indexName, indexMapping, indexSettings) -> {
+            EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.isEnabled(),
+            (restClient, indexName, indexMapping, indexSettings) -> {
                 ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
             }
         );
@@ -487,7 +496,8 @@ public class CsvTestsDataLoader {
         boolean inferenceEnabled,
         boolean timeSeriesOnly,
         boolean exponentialHistogramFieldSupported,
-        boolean tDigestFieldSupported, IndexCreator indexCreator
+        boolean tDigestFieldSupported,
+        IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 

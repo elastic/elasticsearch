@@ -38,23 +38,20 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
         assertInvariants();
     }
 
-
     private void assertInvariants() {
         for (Block b : getSubBlocks()) {
             assert b.isReleased() == false;
-            assert b.doesHaveMultivaluedFields() == false
-                : "TDigestArrayBlock sub-blocks can't have multi-values but [" + b + "] does";
+            assert b.doesHaveMultivaluedFields() == false : "TDigestArrayBlock sub-blocks can't have multi-values but [" + b + "] does";
             assert b.getPositionCount() == getPositionCount()
                 : "TDigestArrayBlock sub-blocks must have the same position count but ["
-                + b
-                + "] has "
-                + b.getPositionCount()
-                + " instead of "
-                + getPositionCount();
+                    + b
+                    + "] has "
+                    + b.getPositionCount()
+                    + " instead of "
+                    + getPositionCount();
             for (int i = 0; i < b.getPositionCount(); i++) {
                 if (isNull(i)) {
-                    assert b.isNull(i)
-                        : "TDigestArrayBlock sub-block [" + b + "] should be null at position " + i + ", but was not";
+                    assert b.isNull(i) : "TDigestArrayBlock sub-block [" + b + "] should be null at position " + i + ", but was not";
                 } else {
                     if (b == sums || b == minima || b == maxima) {
                         // sums / minima / maxima should be null exactly when value count is 0 or the histogram is null

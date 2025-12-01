@@ -482,8 +482,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec,
             org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec,
             org.elasticsearch.index.codec.ES93TSDBDefaultCompressionLucene103Codec,
-            org.elasticsearch.index.codec.ES93TSDBZSTDCompressionLucene103Codec,
-            org.elasticsearch.index.codec.ES93TSDBLuceneDefaultCodec;
+            org.elasticsearch.index.codec.ES93TSDBZSTDCompressionLucene103Codec;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 

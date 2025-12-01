@@ -71,29 +71,19 @@ public class CodecService implements CodecProvider {
             );
         }
 
-        codecs.put(
-            LEGACY_DEFAULT_CODEC,
-            useSyntheticId ? new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec, bigArrays) : legacyBestSpeedCodec
-        );
+        codecs.put(LEGACY_DEFAULT_CODEC, legacyBestSpeedCodec);
 
-        var bestCompressionCodec = new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays);
         codecs.put(
             BEST_COMPRESSION_CODEC,
-            useSyntheticId ? new ES93TSDBZSTDCompressionLucene103Codec(bestCompressionCodec, bigArrays) : bestCompressionCodec
+            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays)
         );
 
-        var legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays);
         codecs.put(
             LEGACY_BEST_COMPRESSION_CODEC,
-            useSyntheticId
-                ? new ES93TSDBDefaultCompressionLucene103Codec(legacyBestCompressionCodec, bigArrays)
-                : legacyBestCompressionCodec
+            new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays)
         );
 
-        codecs.put(
-            LUCENE_DEFAULT_CODEC,
-            useSyntheticId ? new ES93TSDBLuceneDefaultCodec(Codec.getDefault(), bigArrays) : Codec.getDefault()
-        );
+        codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));
         }

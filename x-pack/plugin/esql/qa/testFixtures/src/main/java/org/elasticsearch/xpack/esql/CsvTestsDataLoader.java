@@ -32,6 +32,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -341,7 +342,7 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, true, true, false, false, true, (restClient, indexName, indexMapping, indexSettings) -> {
+            loadDataSetIntoEs(client, true, true, false, false, true, EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.isEnabled(), (restClient, indexName, indexMapping, indexSettings) -> {
                 // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
                 StringBuilder jsonBody = new StringBuilder("{");
                 if (indexSettings != null && indexSettings.isEmpty() == false) {
@@ -365,7 +366,8 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled,
         boolean requiresTimeSeries,
-        boolean exponentialHistogramFieldSupported
+        boolean exponentialHistogramFieldSupported,
+        boolean tDigestFieldSupported
     ) throws IOException {
         Set<TestDataset> testDataSets = new HashSet<>();
 
@@ -374,7 +376,8 @@ public class CsvTestsDataLoader {
                 && (supportsIndexModeLookup || isLookupDataset(dataset) == false)
                 && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)
                 && (requiresTimeSeries == false || isTimeSeries(dataset))
-                && (exponentialHistogramFieldSupported || containsExponentialHistogramFields(dataset) == false)) {
+                && (exponentialHistogramFieldSupported || containsExponentialHistogramFields(dataset) == false)
+                && (tDigestFieldSupported || containsTDigestFields(dataset) == false)) {
                 testDataSets.add(dataset);
             }
         }
@@ -419,6 +422,28 @@ public class CsvTestsDataLoader {
         return false;
     }
 
+    private static boolean containsTDigestFields(TestDataset dataset) throws IOException {
+        if (dataset.mappingFileName() == null) {
+            return false;
+        }
+        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
+        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
+        JsonNode properties = mappingNode.get("properties");
+        if (properties != null) {
+            for (var fieldWithValue : properties.properties()) {
+                JsonNode fieldProperties = fieldWithValue.getValue();
+                if (fieldProperties != null) {
+                    JsonNode typeNode = fieldProperties.get("type");
+                    if (typeNode != null && typeNode.asText().equals("tdigest")) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+
     private static boolean isTimeSeries(TestDataset dataset) throws IOException {
         Settings settings = dataset.readSettingsFile();
         String mode = settings.get("index.mode");
@@ -449,7 +474,7 @@ public class CsvTestsDataLoader {
             inferenceEnabled,
             timeSeriesOnly,
             exponentialHistogramFieldSupported,
-            (restClient, indexName, indexMapping, indexSettings) -> {
+            EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.isEnabled(), (restClient, indexName, indexMapping, indexSettings) -> {
                 ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
             }
         );
@@ -462,7 +487,7 @@ public class CsvTestsDataLoader {
         boolean inferenceEnabled,
         boolean timeSeriesOnly,
         boolean exponentialHistogramFieldSupported,
-        IndexCreator indexCreator
+        boolean tDigestFieldSupported, IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
@@ -473,7 +498,8 @@ public class CsvTestsDataLoader {
             supportsSourceFieldMapping,
             inferenceEnabled,
             timeSeriesOnly,
-            exponentialHistogramFieldSupported
+            exponentialHistogramFieldSupported,
+            tDigestFieldSupported
         )) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);

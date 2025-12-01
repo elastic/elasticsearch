@@ -12,6 +12,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
@@ -267,10 +268,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), false).stream()
-            .filter(x -> x.requiresInferenceEndpoint() == false)
-            .map(x -> x.indexName())
-            .toList();
+        return availableDatasetsForEs(
+            true,
+            supportsSourceFieldMapping(),
+            false,
+            requiresTimeSeries(),
+            false,
+            EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.isEnabled()
+        ).stream().filter(x -> x.requiresInferenceEndpoint() == false).map(x -> x.indexName()).toList();
     }
 
     private List<LookupIdx> lookupIndices() {

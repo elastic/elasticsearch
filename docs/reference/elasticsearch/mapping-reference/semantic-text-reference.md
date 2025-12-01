@@ -76,6 +76,8 @@ until they are reindexed.  Defaults to the optimal chunking settings for [Elasti
     automatically truncate the input to fit within the model's limit.
      ::::
 
+### Customizing semantic_text indexing
+
 The following example shows how to configure `inference_id`, `index_options` and `chunking_settings` for a `semantic_text` field type:
 
 ```console

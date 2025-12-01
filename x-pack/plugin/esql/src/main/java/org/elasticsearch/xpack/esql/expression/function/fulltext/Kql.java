@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -32,8 +33,10 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.KqlQuery;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,8 +61,10 @@ import static org.elasticsearch.xpack.kql.query.KqlQueryBuilder.TIME_ZONE_FIELD;
 /**
  * Full text function that performs a {@link KqlQuery} .
  */
-public class Kql extends FullTextFunction implements OptionalArgument {
+public class Kql extends FullTextFunction implements OptionalArgument, ConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Kql", Kql::readFrom);
+
+    private final Configuration configuration;
 
     // Options for KQL function. They don't need to be serialized as the data nodes will retrieve them from the query builder
     private final transient Expression options;
@@ -123,13 +128,15 @@ public class Kql extends FullTextFunction implements OptionalArgument {
                     description = "Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0."
                 ) },
             optional = true
-        ) Expression options
+        ) Expression options,
+        Configuration configuration
     ) {
-        this(source, queryString, options, null);
+        this(source, queryString, options, null, configuration);
     }
 
-    public Kql(Source source, Expression queryString, Expression options, QueryBuilder queryBuilder) {
+    public Kql(Source source, Expression queryString, Expression options, QueryBuilder queryBuilder, Configuration configuration) {
         super(source, queryString, options == null ? List.of(queryString) : List.of(queryString, options), queryBuilder);
+        this.configuration = configuration;
         this.options = options;
     }
 
@@ -141,7 +148,7 @@ public class Kql extends FullTextFunction implements OptionalArgument {
             queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         }
         // Options are not serialized - they're embedded in the QueryBuilder
-        return new Kql(source, query, null, queryBuilder);
+        return new Kql(source, query, null, queryBuilder, ((PlanStreamInput) in).configuration());
     }
 
     @Override
@@ -183,23 +190,26 @@ public class Kql extends FullTextFunction implements OptionalArgument {
     }
 
     private Map<String, Object> kqlQueryOptions() throws InvalidArgumentException {
-        if (options() == null) {
+        if (options() == null && configuration.zoneId().equals(ZoneOffset.UTC)) {
             return null;
         }
 
         Map<String, Object> kqlOptions = new HashMap<>();
-        Options.populateMap((MapExpression) options(), kqlOptions, source(), SECOND, ALLOWED_OPTIONS);
+        if (options() != null) {
+            Options.populateMap((MapExpression) options(), kqlOptions, source(), SECOND, ALLOWED_OPTIONS);
+        }
+        kqlOptions.putIfAbsent(TIME_ZONE_FIELD.getPreferredName(), configuration.zoneId().getId());
         return kqlOptions;
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Kql(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null, queryBuilder());
+        return new Kql(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null, queryBuilder(), configuration);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Kql::new, query(), options(), queryBuilder());
+        return NodeInfo.create(this, Kql::new, query(), options(), queryBuilder(), configuration);
     }
 
     @Override
@@ -209,7 +219,7 @@ public class Kql extends FullTextFunction implements OptionalArgument {
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new Kql(source(), query(), options(), queryBuilder);
+        return new Kql(source(), query(), options(), queryBuilder, configuration);
     }
 
     @Override
@@ -218,12 +228,14 @@ public class Kql extends FullTextFunction implements OptionalArgument {
         // ignore options when comparing.
         if (o == null || getClass() != o.getClass()) return false;
         var kql = (Kql) o;
-        return Objects.equals(query(), kql.query()) && Objects.equals(queryBuilder(), kql.queryBuilder());
+        return Objects.equals(query(), kql.query())
+            && Objects.equals(queryBuilder(), kql.queryBuilder())
+            && Objects.equals(configuration, kql.configuration);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(query(), queryBuilder());
+        return Objects.hash(query(), queryBuilder(), configuration);
     }
 
     @Override

@@ -92,11 +92,11 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
         return new NamedWriteableRegistry(entries);
     }
 
-    private static Map<String, Expression> randomConvertExpressions(String name, boolean toString, DataType dataType) {
+    private Map<String, Expression> randomConvertExpressions(String name, boolean toString, DataType dataType) {
         Map<String, Expression> indexToConvertExpressions = new HashMap<>();
         if (toString) {
-            indexToConvertExpressions.put(randomAlphaOfLength(4), new ToString(Source.EMPTY, fieldAttribute(name, dataType)));
-            indexToConvertExpressions.put(randomAlphaOfLength(4), new ToString(Source.EMPTY, fieldAttribute(name, DataType.KEYWORD)));
+            indexToConvertExpressions.put(randomAlphaOfLength(4), new ToString(Source.EMPTY, fieldAttribute(name, dataType), config()));
+            indexToConvertExpressions.put(randomAlphaOfLength(4), new ToString(Source.EMPTY, fieldAttribute(name, DataType.KEYWORD), config()));
         } else {
             indexToConvertExpressions.put(randomAlphaOfLength(4), testConvertExpression(name, DataType.KEYWORD, dataType));
             indexToConvertExpressions.put(randomAlphaOfLength(4), testConvertExpression(name, dataType, dataType));
@@ -133,10 +133,10 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
         );
     }
 
-    private static Expression testConvertExpression(String name, DataType fromType, DataType toType) {
+    private Expression testConvertExpression(String name, DataType fromType, DataType toType) {
         FieldAttribute fromField = fieldAttribute(name, fromType);
         if (isString(toType)) {
-            return new ToString(Source.EMPTY, fromField);
+            return new ToString(Source.EMPTY, fromField, config());
         } else {
             return switch (toType) {
                 case BOOLEAN -> new ToBoolean(Source.EMPTY, fromField);
@@ -145,7 +145,7 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
                 case INTEGER -> new ToInteger(Source.EMPTY, fromField);
                 case LONG -> new ToLong(Source.EMPTY, fromField);
                 case IP -> new ToIpLeadingZerosRejected(Source.EMPTY, fromField);
-                case KEYWORD -> new ToString(Source.EMPTY, fromField);
+                case KEYWORD -> new ToString(Source.EMPTY, fromField, config());
                 case GEO_POINT -> new ToGeoPoint(Source.EMPTY, fromField);
                 case GEO_SHAPE -> new ToGeoShape(Source.EMPTY, fromField);
                 case CARTESIAN_POINT -> new ToCartesianPoint(Source.EMPTY, fromField);

@@ -112,6 +112,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
@@ -4194,13 +4195,14 @@ public class AnalyzerTests extends ESTestCase {
             "wildcard"
         );
 
+        Map<IndexPattern, IndexResolution> indexResolutions =
+            Map.of(new IndexPattern(Source.EMPTY, "books"), loadMapping("mapping-all-types.json", "books"));
         for (String fieldName : validFieldNames) {
-            LogicalPlan plan = analyze(
-                "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON `"
-                    + fieldName
-                    + "` WITH { \"inference_id\" : \"reranking-inference-id\" }",
-                "mapping-all-types.json"
-            );
+            String query = "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON `"
+                + fieldName
+                + "` WITH { \"inference_id\" : \"reranking-inference-id\" }";
+            Configuration configuration = configuration(query);
+            LogicalPlan plan = analyze(query, analyzer(indexResolutions, TEST_VERIFIER, configuration));
 
             Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
             EsRelation relation = as(rerank.child(), EsRelation.class);
@@ -4211,7 +4213,7 @@ public class AnalyzerTests extends ESTestCase {
             } else {
                 assertThat(
                     rerank.rerankFields(),
-                    equalToIgnoringIds(List.of(alias(fieldName, new ToString(fieldAttribute.source(), fieldAttribute))))
+                    equalToIgnoringIds(List.of(alias(fieldName, new ToString(fieldAttribute.source(), fieldAttribute, configuration))))
                 );
             }
         }

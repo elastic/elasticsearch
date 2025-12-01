@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -27,7 +28,7 @@ public class ToStringErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToString(source, args.get(0));
+        return new ToString(source, args.get(0), EsqlTestUtils.TEST_CFG);
     }
 
     @Override

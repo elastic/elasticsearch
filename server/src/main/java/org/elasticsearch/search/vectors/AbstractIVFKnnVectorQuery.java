@@ -75,7 +75,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.k = k;
         this.filter = filter;
         this.numCands = numCands;
-        this.postFilteringThreshold = 1f; // postFilteringThreshold;
+        this.postFilteringThreshold = postFilteringThreshold;
     }
 
     @Override

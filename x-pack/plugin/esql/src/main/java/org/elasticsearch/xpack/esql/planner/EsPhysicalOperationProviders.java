@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -568,11 +569,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                         IndexMetadata indexMetadata = ctx.getIndexSettings().getIndexMetadata();
                         List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
                         if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
-                            return new HashSet<>(dimensionFieldsFromSettings);
+                            return new LinkedHashSet<>(dimensionFieldsFromSettings);
                         }
 
+                        Set<String> dimensionFields = new LinkedHashSet<>();
                         MappingLookup mappingLookup = ctx.getMappingLookup();
-                        Set<String> dimensionFields = new HashSet<>();
                         for (Mapper mapper : mappingLookup.fieldMappers()) {
                             if (mapper instanceof FieldMapper fieldMapper) {
                                 MappedFieldType fieldType = fieldMapper.fieldType();

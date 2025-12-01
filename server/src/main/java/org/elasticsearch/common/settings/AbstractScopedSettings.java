@@ -566,7 +566,7 @@ public abstract class AbstractScopedSettings {
                         "%s [%s] did you mean %s?",
                         msgPrefix,
                         key,
-                        (keys.size() == 1 ? "[" + keys.getFirst() + "]" : "any of " + keys)
+                        (keys.size() == 1 ? "[" + keys.get(0) + "]" : "any of " + keys)
                     )
                 );
             } else {

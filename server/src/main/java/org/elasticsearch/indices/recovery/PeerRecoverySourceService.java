@@ -134,6 +134,10 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         }
     }
 
+    public void addEmptyListener(ActionListener<Void> listener) {
+        ongoingRecoveries.addEmptyListener(listener);
+    }
+
     private void recover(StartRecoveryRequest request, Task task, ActionListener<RecoveryResponse> listener) {
         PeerRecoverySourceClusterStateDelay.ensureClusterStateVersion(
             request.clusterStateVersion(),
@@ -305,6 +309,11 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 emptyListeners.add(future);
             }
             FutureUtils.get(future);
+        }
+
+        public void addEmptyListener(ActionListener<Void> listener) {
+            assert emptyListeners != null;
+            emptyListeners.add(listener);
         }
 
         private final class ShardRecoveryContext {

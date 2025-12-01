@@ -121,45 +121,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
     static final String TEST_INDEX = "test-index";
 
-    public void testShouldNotLogLongBalanceComputation() {
-        final var clusterSettings = new ClusterSettings(
-            Settings.builder().put(DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(5L)).build(),
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
-        );
-        final var timeInMillis = new AtomicLong(-1L);
-        final var desiredBalance = new AtomicReference<DesiredBalance>(DesiredBalance.BECOME_MASTER_INITIAL);
-
-        final var computer = new DesiredBalanceComputer(
-            clusterSettings,
-            TimeProviderUtils.create(timeInMillis::incrementAndGet),
-            new BalancedShardsAllocator(Settings.EMPTY),
-            TEST_ONLY_EXPLAINER
-        );
-
-        final var allocation = new RoutingAllocation(
-            randomAllocationDeciders(Settings.EMPTY, clusterSettings),
-            createInitialClusterState(1, 1, 0),
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            0L
-        );
-
-        computer.compute(desiredBalance.get(), DesiredBalanceInput.create(1, allocation), queue(), ignore -> true);
-
-        timeInMillis.set(60 * 60 * 1000L);
-
-        assertLoggerExpectationsFor(() -> {
-            computer.compute(desiredBalance.get(), DesiredBalanceInput.create(2, allocation), queue(), ignore -> true);
-        },
-            new MockLog.UnseenEventExpectation(
-                "should NOT log long balance computation",
-                DesiredBalanceComputer.class.getCanonicalName(),
-                Level.INFO,
-                "* still not converged after *"
-            )
-        );
-    }
-
     public void testComputeBalance() {
         var desiredBalanceComputer = createDesiredBalanceComputer();
         var clusterState = createInitialClusterState(3);
@@ -1432,6 +1393,45 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
     private static ShardId shardIdFrom(IndexMetadata indexMetadata, int shardId) {
         return new ShardId(indexMetadata.getIndex(), shardId);
+    }
+
+    public void testShouldNotLogLongBalanceComputation() {
+        final var clusterSettings = new ClusterSettings(
+            Settings.builder().put(DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(5L)).build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+        final var timeInMillis = new AtomicLong(-1L);
+        final var desiredBalance = new AtomicReference<DesiredBalance>(DesiredBalance.BECOME_MASTER_INITIAL);
+
+        final var computer = new DesiredBalanceComputer(
+            clusterSettings,
+            TimeProviderUtils.create(timeInMillis::incrementAndGet),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            TEST_ONLY_EXPLAINER
+        );
+
+        final var allocation = new RoutingAllocation(
+            randomAllocationDeciders(Settings.EMPTY, clusterSettings),
+            createInitialClusterState(1, 1, 0),
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            0L
+        );
+
+        computer.compute(desiredBalance.get(), DesiredBalanceInput.create(1, allocation), queue(), ignore -> true);
+
+        timeInMillis.set(60 * 60 * 1000L);
+
+        assertLoggerExpectationsFor(() -> {
+            computer.compute(desiredBalance.get(), DesiredBalanceInput.create(2, allocation), queue(), ignore -> true);
+        },
+            new MockLog.UnseenEventExpectation(
+                "should NOT log long balance computation",
+                DesiredBalanceComputer.class.getCanonicalName(),
+                Level.INFO,
+                "* still not converged after *"
+            )
+        );
     }
 
     public void testShouldLogComputationIteration() {

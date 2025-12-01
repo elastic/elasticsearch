@@ -1176,9 +1176,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
          */
         public List<Diagnosis> getDiagnosis(boolean verbose, int maxAffectedResourcesCount) {
             if (verbose) {
-                Map<Diagnosis.Definition, Set<ProjectIndexName>> diagnosisToAffectedIndices = new HashMap<>(
-                    primaries.diagnosisDefinitions
-                );
+                Map<Diagnosis.Definition, Set<ProjectIndexName>> diagnosisToAffectedIndices = new HashMap<>(primaries.diagnosisDefinitions);
                 replicas.diagnosisDefinitions.forEach((diagnosisDef, indicesWithReplicasUnassigned) -> {
                     Set<ProjectIndexName> indicesWithPrimariesUnassigned = diagnosisToAffectedIndices.get(diagnosisDef);
                     if (indicesWithPrimariesUnassigned == null) {

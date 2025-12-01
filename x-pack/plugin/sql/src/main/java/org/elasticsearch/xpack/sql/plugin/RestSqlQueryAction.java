@@ -16,7 +16,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 
@@ -34,10 +36,11 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_DELIMITER
 @ServerlessScope(Scope.PUBLIC)
 public class RestSqlQueryAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestSqlQueryAction.class);
-    private final Settings settings;
+
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     public RestSqlQueryAction(Settings settings) {
-        this.settings = settings;
+        crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -47,13 +50,19 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
-            // accept but drop project_routing param until fully supported
-            request.param("project_routing");
-        }
+
         SqlQueryRequest sqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             sqlRequest = SqlQueryRequest.fromXContent(parser);
+        }
+
+        String routingParam = request.param("project_routing");
+        if (routingParam != null) {
+            // takes precedence on the parameter in the body
+            sqlRequest.projectRouting(routingParam);
+        }
+        if (sqlRequest.projectRouting() != null && crossProjectModeDecider.crossProjectEnabled() == false) {
+            throw new InvalidArgumentException("[project_routing] is only allowed when cross-project search is enabled");
         }
 
         return channel -> {

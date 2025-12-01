@@ -104,7 +104,8 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             System.nanoTime(),
             randomBoolean(),
             in.resultTruncationMaxSize(true),
-            in.resultTruncationDefaultSize(true)
+            in.resultTruncationDefaultSize(true),
+            null
         );
     }
 }

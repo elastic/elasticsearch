@@ -12,8 +12,8 @@ highlight:
     index=false and doc_values=true.
 
     TSDB indexes now default to using skippers in place of indexes for their 
-    @timestamp and _tsid fields, greatly reducing their on-disk footprint.  
-    LogsDB indexes default to using skippers in places of indexes for their 
-    @timestamp and host.name fields.
+    @timestamp, dimension and  _tsid fields, greatly reducing their on-disk 
+    footprint.  LogsDB indexes default to using skippers in places of indexes 
+    for their @timestamp and host.name fields.
     
   notable: true

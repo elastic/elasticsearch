@@ -22,7 +22,9 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -165,7 +167,7 @@ public class SecurityActionFilter implements ActionFilter {
         final String securityAction = SecurityActionMapper.action(action, request);
         SubscribableListener
             // Step 1: authenticate the user
-            .<Authentication>newForked(
+            .<RequestContext>newForked(
                 /*
                     here we fall back on the system user. Internal system requests are requests that are triggered by the system itself
                     (e.g. pings, update mappings, share relocation, etc...) and were not originated by user interaction. Since these
@@ -175,13 +177,24 @@ public class SecurityActionFilter implements ActionFilter {
                     {@link Rest} filter and the {@link ServerTransport} filter respectively), it's safe to assume a system user here if a
                     request is not associated with any other user.
                 */
-                authcListener -> authcService.authenticate(securityAction, request, InternalUsers.SYSTEM_USER, authcListener)
+                authcListener -> authcService.authenticate(
+                    securityAction,
+                    request,
+                    InternalUsers.SYSTEM_USER,
+                    authcListener.map(authc -> new RequestContext(threadContext, authc))
+                )
             )
             // Step 2: check the authenticated user is authorized to proceed
-            .<RequestContext>andThen((authzListener, authc) -> {
-                if (authc != null) {
-                    final var responseContext = new RequestContext(AuditUtil.extractRequestId(threadContext), authc);
-                    authzService.authorize(authc, securityAction, request, authzListener.map(ignored -> responseContext));
+            .<RequestContext>andThen(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext, (authzListener, requestContext) -> {
+                if (requestContext.authc != null) {
+                    try (var ignored1 = requestContext.onAuthcSuccess()) {
+                        authzService.authorize(
+                            requestContext.authc,
+                            securityAction,
+                            request,
+                            authzListener.map(ignored2 -> requestContext.captureAuthzSuccessContext())
+                        );
+                    }
                 } else {
                     authzListener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
                 }
@@ -190,15 +203,19 @@ public class SecurityActionFilter implements ActionFilter {
             .addListener(
                 // NB the response is handled inline here rather than via more andThen() calls because it might be refcounted, in which case
                 // it must be kept alive until the outer listener is completed
-                listener.delegateFailureAndWrap(
-                    (delegate, requestContext) -> chain.proceed(task, action, request, delegate.map(response -> {
-                        // Step 4: log the response
-                        auditTrailService.get()
-                            .coordinatingActionResponse(requestContext.requestId, requestContext.authc, action, request, response);
-                        // Step 5: pass the response back up the chain
-                        return response;
-                    }))
-                )
+                listener.delegateFailureAndWrap((delegate, requestContext) -> {
+                    try (var ignored = threadContext.wrapRestorable(requestContext.storedContext).get()) {
+                        chain.proceed(task, action, request, delegate.map(response -> {
+                            // Step 4: log the response
+                            auditTrailService.get()
+                                .coordinatingActionResponse(requestContext.requestId, requestContext.authc, action, request, response);
+                            // Step 5: pass the response back up the chain
+                            return response;
+                        }));
+                    }
+                }),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                threadContext
             );
     }
 
@@ -206,14 +223,26 @@ public class SecurityActionFilter implements ActionFilter {
      * Carries the request ID and the {@link Authentication} along with the response, for eventual audit logging.
      */
     private static class RequestContext {
-        final String requestId;
+        private final ThreadContext threadContext;
+        ThreadContext.StoredContext storedContext;
         final Authentication authc;
+        String requestId;
 
-        RequestContext(String requestId, Authentication authc) {
-            assert Strings.hasText(requestId);
-            assert authc != null;
-            this.requestId = requestId;
+        RequestContext(ThreadContext threadContext, Authentication authc) {
+            this.threadContext = threadContext;
+            this.storedContext = threadContext.newStoredContext();
             this.authc = authc;
+        }
+
+        Releasable onAuthcSuccess() {
+            this.requestId = AuditUtil.extractRequestId(threadContext);
+            assert Strings.hasText(requestId);
+            return threadContext.wrapRestorable(storedContext).get();
+        }
+
+        RequestContext captureAuthzSuccessContext() {
+            storedContext = threadContext.newStoredContext();
+            return this;
         }
     }
 }

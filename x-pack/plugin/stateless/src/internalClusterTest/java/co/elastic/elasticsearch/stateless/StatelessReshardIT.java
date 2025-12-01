@@ -45,8 +45,10 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
@@ -182,8 +184,10 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 1).build());
         ensureGreen(indexName);
-
         checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        final Index index = resolveIndex(indexName);
+        final var sourceShard = new ShardId(index, 0);
 
         int[] shardDocs = new int[multiple];
         Consumer<Integer> indexShardDocs = (numDocs) -> {
@@ -196,15 +200,14 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         final int numDocs = randomIntBetween(10, 100);
         indexShardDocs.accept(numDocs);
         int totalNumberOfDocumentsInIndex = numDocs;
-
-        assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo((long) numDocs));
+        assertShardDocCountEquals(sourceShard, totalNumberOfDocumentsInIndex);
 
         // flushing here ensures that the initial copy phase does some work, rather than relying entirely on catching new commits after
         // resharding has begun.
         var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
         assertNoFailures(flushResponse);
 
-        var initialIndexMetadata = clusterService().state().projectState().metadata().index(indexName);
+        final var initialIndexMetadata = indexMetadata(clusterService().state(), index);
         // before resharding there should be no resharding metadata
         assertNull(initialIndexMetadata.getReshardingMetadata());
 
@@ -245,17 +248,13 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         });
 
         // there should be split metadata at some point during resharding
-        var splitState = waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() != null);
+        var splitState = waitForClusterState((state) -> indexMetadata(state, index).getReshardingMetadata() != null);
 
         logger.info("starting reshard");
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple)).actionGet();
 
         logger.info("getting reshard metadata");
-        var reshardingMetadata = splitState.actionGet(SAFE_AWAIT_TIMEOUT)
-            .projectState()
-            .metadata()
-            .index(indexName)
-            .getReshardingMetadata();
+        var reshardingMetadata = indexMetadata(splitState.actionGet(SAFE_AWAIT_TIMEOUT), index).getReshardingMetadata();
         assertNotNull(reshardingMetadata.getSplit());
         assert reshardingMetadata.shardCountBefore() == 1;
         assert reshardingMetadata.shardCountAfter() == multiple;
@@ -278,11 +277,10 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         waitForReshardCompletion(indexName);
 
         // resharding metadata should eventually be removed after split executes
-        var indexMetadata = waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null)
-            .actionGet(SAFE_AWAIT_TIMEOUT)
-            .projectState()
-            .metadata()
-            .index(indexName);
+        var indexMetadata = indexMetadata(
+            waitForClusterState((state) -> indexMetadata(state, index).getReshardingMetadata() == null).actionGet(SAFE_AWAIT_TIMEOUT),
+            index
+        );
 
         // index documents until all the new shards have received at least one document
         int docsPerRequest = randomIntBetween(10, 100);
@@ -293,15 +291,10 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         // Verify that each shard id contains the expected number of documents indexed into it.
         // Note that stats won't include data copied from the source shard since they didn't go through the "normal" indexing logic.
-        IndicesStatsResponse postReshardStatsResponse = client().admin().indices().prepareStats(indexName).execute().actionGet();
+        final var postReshardStatsResponse = client().admin().indices().prepareStats(indexName).execute().actionGet();
 
-        IntStream.range(0, multiple).forEach(shardId -> {
-            assertThat(
-                "Shard " + shardId + " has unexpected number of documents",
-                getIndexCount(postReshardStatsResponse, shardId),
-                equalTo((long) shardDocs[shardId])
-            );
-        });
+        IntStream.range(0, multiple)
+            .forEach(shardId -> assertShardDocCountEquals(postReshardStatsResponse, new ShardId(index, shardId), shardDocs[shardId]));
 
         // index more documents to verify that a search query returns all indexed documents thus far
         final int numDocsRound3 = randomIntBetween(10, 100);
@@ -311,20 +304,9 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         refresh(indexName);
 
         // verify that the index metadata returned matches the expected multiple of shards
-        GetSettingsResponse postReshardSettingsResponse = client().admin()
-            .indices()
-            .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
-            .get();
+        checkNumberOfShardsSetting(indexNode, index.getName(), multiple);
 
-        assertThat(
-            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
-            equalTo(multiple)
-        );
-
-        var search = prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery())
-            .setSize(totalNumberOfDocumentsInIndex)
-            .setTrackTotalHits(true)
-            .get();
+        var search = prepareSearchAll(indexName).get();
         assertHitCount(search, totalNumberOfDocumentsInIndex);
 
         // all documents should be on their owning shards
@@ -408,10 +390,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         Index index = resolveIndex(indexName);
 
-        awaitClusterState(
-            searchCoordinator,
-            clusterState -> clusterState.getMetadata().indexMetadata(index).getReshardingMetadata() != null
-        );
+        awaitClusterState(searchCoordinator, clusterState -> indexMetadata(clusterState, index).getReshardingMetadata() != null);
 
         // wait for all target shards to arrive at handoff point
         handOffStarted.await();
@@ -458,9 +437,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         awaitClusterState(
             searchCoordinator,
-            clusterState -> clusterState.getMetadata()
-                .indexMetadata(index)
-                .getReshardingMetadata()
+            clusterState -> indexMetadata(clusterState, index).getReshardingMetadata()
                 .getSplit()
                 .targetStates()
                 .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF)
@@ -583,7 +560,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         stateTransitionBlock.await();
 
         awaitClusterState(searchCoordinator, clusterState -> {
-            var metadata = clusterState.getMetadata().indexMetadata(index);
+            var metadata = indexMetadata(clusterState, index);
             if (metadata.getReshardingMetadata() == null) {
                 // all shards are DONE so resharding metadata is removed by master
                 return true;
@@ -656,13 +633,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         if (useEsql) {
             assertion.assertEsql(countDocsWithEsql(searchNode, indexName));
         } else {
-            var search = client(searchNode).prepareSearch(indexName)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .setSize(10000)
-                .setTrackTotalHits(true)
-                .setAllowPartialSearchResults(false);
-
-            assertResponse(search, assertion::assertSearch);
+            assertResponse(prepareSearchAll(searchNode, indexName), assertion::assertSearch);
         }
     }
 
@@ -691,7 +662,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         checkNumberOfShardsSetting(indexNode, indexName, 1);
 
         var index = resolveIndex(indexName);
-        var indexMetadata = internalCluster().clusterService(masterNode).state().getMetadata().indexMetadata(index);
+        var indexMetadata = indexMetadata(internalCluster().clusterService(masterNode).state(), index);
 
         // We re-create the metadata directly in test in order to have access to after-reshard routing.
         var wouldBeMetadata = IndexMetadata.builder(indexMetadata)
@@ -740,12 +711,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         refresh(indexName);
 
-        var preSplitSearch = client().prepareSearch(indexName)
-            .setQuery(QueryBuilders.matchAllQuery())
-            .setSize(1000)
-            .setTrackTotalHits(true)
-            .setAllowPartialSearchResults(false)
-            .setRouting(routingValuePerShard.get(1));
+        var preSplitSearch = prepareSearchAll(indexName).setRouting(routingValuePerShard.get(1));
 
         // There is only one shard so any routing value will get routed to shard 0.
         assertResponse(preSplitSearch, r -> {
@@ -774,7 +740,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             }
         });
 
-        awaitClusterState(searchNode, clusterState -> clusterState.getMetadata().indexMetadata(index).getReshardingMetadata() != null);
+        awaitClusterState(searchNode, clusterState -> indexMetadata(clusterState, index).getReshardingMetadata() != null);
 
         // wait for all target shards to arrive at handoff point
         handOffStarted.await();
@@ -782,12 +748,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         // Don't refresh since it is blocked anyway, covered in other tests.
 
         // Transition to HANDOFF is blocked, all target shards are in CLONE state.
-        var cloneSearch = client(searchNode).prepareSearch(indexName)
-            .setQuery(QueryBuilders.matchAllQuery())
-            .setSize(1000)
-            .setTrackTotalHits(true)
-            .setAllowPartialSearchResults(false)
-            .setRouting(routingValuePerShard.get(1));
+        var cloneSearch = prepareSearchAll(searchNode, indexName).setRouting(routingValuePerShard.get(1));
 
         // Since all target shards are in CLONE state they are not considered in routing logic at this point.
         // So even though the routing value used will eventually route to shard 1, right now this search
@@ -806,21 +767,14 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         awaitClusterState(
             searchNode,
-            clusterState -> clusterState.getMetadata()
-                .indexMetadata(index)
-                .getReshardingMetadata()
+            clusterState -> indexMetadata(clusterState, index).getReshardingMetadata()
                 .getSplit()
                 .targetStates()
                 .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF)
         );
 
         // Transition to SPLIT is blocked, all target shards are in HANDOFF state.
-        var handoffSearch = client(searchNode).prepareSearch(indexName)
-            .setQuery(QueryBuilders.matchAllQuery())
-            .setSize(1000)
-            .setTrackTotalHits(true)
-            .setAllowPartialSearchResults(false)
-            .setRouting(routingValuePerShard.get(2));
+        var handoffSearch = prepareSearchAll(searchNode, indexName).setRouting(routingValuePerShard.get(2));
 
         // Since all target shards are in HANDOFF state they are not considered in routing logic at this point.
         // So even though the routing value used will eventually route to shard 2, right now this search
@@ -859,21 +813,14 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         awaitClusterState(
             searchNode,
-            clusterState -> clusterState.getMetadata()
-                .indexMetadata(index)
-                .getReshardingMetadata()
+            clusterState -> indexMetadata(clusterState, index).getReshardingMetadata()
                 .getSplit()
                 .targetStates()
                 .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.SPLIT)
         );
 
         try {
-            var splitSearchShard0 = client(searchNode).prepareSearch(indexName)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .setSize(1000)
-                .setTrackTotalHits(true)
-                .setAllowPartialSearchResults(false)
-                .setRouting(routingValuePerShard.get(0));
+            var splitSearchShard0 = prepareSearchAll(searchNode, indexName).setRouting(routingValuePerShard.get(0));
 
             // Now that target shards are in SPLIT state they should be considered in routing calculation.
 
@@ -884,12 +831,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             });
 
             for (int targetShardId = 1; targetShardId < multiple; targetShardId++) {
-                var splitSearchTargetShard = client(searchNode).prepareSearch(indexName)
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .setSize(1000)
-                    .setTrackTotalHits(true)
-                    .setAllowPartialSearchResults(false)
-                    .setRouting(routingValuePerShard.get(targetShardId));
+                var splitSearchTargetShard = prepareSearchAll(searchNode, indexName).setRouting(routingValuePerShard.get(targetShardId));
 
                 // Search is correctly routed to the target shard based on the routing parameter in the search request.
                 // Search filter is correctly applied and only owned documents are returned.
@@ -916,7 +858,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         stateTransitionBlock.await();
 
         awaitClusterState(searchNode, clusterState -> {
-            var metadata = clusterState.getMetadata().indexMetadata(index);
+            var metadata = indexMetadata(clusterState, index);
             if (metadata.getReshardingMetadata() == null) {
                 // all shards are DONE so resharding metadata is removed by master
                 return true;
@@ -934,12 +876,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         });
 
         for (int shardId = 0; shardId < multiple; shardId++) {
-            var splitSearchTargetShard = client(searchNode).prepareSearch(indexName)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .setSize(1000)
-                .setTrackTotalHits(true)
-                .setAllowPartialSearchResults(false)
-                .setRouting(routingValuePerShard.get(shardId));
+            var splitSearchTargetShard = prepareSearchAll(searchNode, indexName).setRouting(routingValuePerShard.get(shardId));
 
             // Search is correctly routed to the shard based on the routing parameter in the search request.
             // All unowned documents are deleted and are not returned.
@@ -1091,12 +1028,9 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
                     .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.SPLIT)
             );
 
-            var sourceShardTermsAggregation = client(searchNode).prepareSearch(indexName)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .setSize(0)
+            var sourceShardTermsAggregation = prepareSearchAll(searchNode, indexName).setSize(0)
                 // note the minDocCount(0) - this is the specific edge case we are testing
                 .addAggregation(AggregationBuilders.terms("term").field("field").minDocCount(0))
-                .setAllowPartialSearchResults(false)
                 .setRouting(routingValuePerShard.get(0));
 
             assertResponse(sourceShardTermsAggregation, r -> {
@@ -1109,12 +1043,9 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
                 assertEquals(0, terms.getBuckets().get(1).getDocCount());
             });
 
-            var targetShardTermsAggregation = client(searchNode).prepareSearch(indexName)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .setSize(0)
+            var targetShardTermsAggregation = prepareSearchAll(searchNode, indexName).setSize(0)
                 // note the minDocCount(0) - this is the specific edge case we are testing
                 .addAggregation(AggregationBuilders.terms("term").field("field").minDocCount(0))
-                .setAllowPartialSearchResults(false)
                 .setRouting(routingValuePerShard.get(1));
 
             assertResponse(targetShardTermsAggregation, r -> {
@@ -1167,7 +1098,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         checkNumberOfShardsSetting(indexNode, indexName, multiple);
 
-        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 0);
+        assertHitCount(prepareSearchAll(indexName), 0);
 
         // All shards should be usable
         var shards = IntStream.range(0, multiple).boxed().collect(Collectors.toSet());
@@ -1182,7 +1113,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         refresh(indexName);
 
-        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), indexedDocs);
+        assertHitCount(prepareSearchAll(indexName), indexedDocs);
     }
 
     public void testReshardSearchShardWillNotBeAllocatedUntilIndexingShard() throws Exception {
@@ -1404,7 +1335,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
 
         // doc count should not have increased since both shards will have deleted unowned documents
-        assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
+        assertResponse(prepareSearchAll(indexName), searchResponse -> {
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) NUM_DOCS));
         });
@@ -2160,8 +2091,9 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         // Note that stats won't include data copied from the source shard to target shard,
         // since they didn't go through the "normal" indexing logic.
-        assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo((long) 1));
-        assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 1), equalTo((long) 0));
+        final var indexStats = client().admin().indices().prepareStats(indexName).execute().actionGet();
+        assertThat(getIndexCount(indexStats, 0), equalTo(1L));
+        assertThat(getIndexCount(indexStats, 1), equalTo(0L));
 
         // We have to clear the setting to prevent teardown issues with the cluster being red
         client().admin()
@@ -2201,7 +2133,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
                 }
             }
         );
-        var searchNode = startSearchNode();
+        startSearchNode();
         ensureStableCluster(2);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -2211,7 +2143,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         indexDocs(indexName, 100);
         refresh(indexName);
-        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 100);
+        assertHitCount(prepareSearchAll(indexName), 100);
 
         var indexTransportService = MockTransportService.getInstance(indexNode);
         indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
@@ -2235,7 +2167,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         waitForReshardCompletion(indexName);
         ensureGreen(indexName);
-        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 100);
+        assertHitCount(prepareSearchAll(indexName), 100);
     }
 
     public void testSourceRelocationDuringReshard() {
@@ -2247,9 +2179,9 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
     }
 
     private void testRelocationDuringReshard(int shardId) {
-        var masterNode = startMasterOnlyNode();
+        startMasterOnlyNode();
         var indexNodeA = startIndexNode();
-        var searchNode = startSearchNode();
+        startSearchNode();
         ensureStableCluster(3);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -2259,7 +2191,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         indexDocs(indexName, 100);
         refresh(indexName);
-        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 100);
+        assertHitCount(prepareSearchAll(indexName), 100);
 
         // spin up new index node
         var indexNodeB = startIndexNode();
@@ -2281,7 +2213,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         waitForReshardCompletion(indexName);
         ensureGreen(indexName);
-        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 100);
+        assertHitCount(prepareSearchAll(indexName), 100);
     }
 
     public void testMismatchedSourceAndTargetPrimaryTerm() {
@@ -2308,10 +2240,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         int docs = randomIntBetween(10, 100);
         indexDocs(indexName, docs);
         refresh(indexName);
-        assertHitCount(
-            prepareSearch(indexName).setAllowPartialSearchResults(false).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true),
-            docs
-        );
+        assertHitCount(prepareSearchAll(indexName), docs);
 
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
 
@@ -2329,10 +2258,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         // Split successfully completes.
         waitForReshardCompletion(indexName);
         ensureGreen(indexName);
-        assertHitCount(
-            prepareSearch(indexName).setAllowPartialSearchResults(false).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true),
-            docs
-        );
+        assertHitCount(prepareSearchAll(indexName), docs);
     }
 
     public void testRestartTargetWhileSourceIsCopying() throws Exception {
@@ -2358,12 +2284,12 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             }
         };
 
-        var masterNode = startMasterOnlyNode();
+        startMasterOnlyNode();
         var indexNodeA = startIndexNode(
             Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
         );
         setNodeRepositoryStrategy(indexNodeA, copyBlockStrategy);
-        var searchNode = startSearchNode();
+        startSearchNode();
         ensureStableCluster(3);
 
         // Disable rebalancing
@@ -2376,7 +2302,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         int numDocs = 100;
         indexDocs(indexName, numDocs);
         refresh(indexName);
-        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 100);
+        assertHitCount(prepareSearch(indexName), 100);
 
         // Spin up new index node
         var indexNodeB = startIndexNode(
@@ -2396,7 +2322,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         waitForReshardCompletion(indexName);
         ensureGreen(indexName);
-        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), numDocs);
+        assertHitCount(prepareSearch(indexName), numDocs);
     }
 
     public void testSourceRelocationAndTargetRestart() throws Exception {
@@ -2452,7 +2378,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         int numDocs = 100;
         indexDocs(indexName, numDocs);
         refresh(indexName);
-        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), numDocs);
+        assertHitCount(prepareSearch(indexName), numDocs);
 
         // Disable rebalancing
         updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"));
@@ -2518,7 +2444,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         // split requests to the new source shard instance.
         waitForReshardCompletion(indexName);
         ensureGreen(indexName);
-        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), numDocs);
+        assertHitCount(prepareSearch(indexName), numDocs);
         if (testFailure.get() != null) {
             fail(testFailure.get());
         }
@@ -2558,6 +2484,38 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             .findAny()
             .get();
         return primaryStats.getStats().indexing.getTotal().getIndexCount();
+    }
+
+    private static void assertShardDocCountEquals(ShardId shard, long expectedCount) {
+        assertShardDocCountEquals(
+            client().admin().indices().prepareStats(shard.getIndexName()).execute().actionGet(),
+            shard,
+            expectedCount
+        );
+    }
+
+    private static void assertShardDocCountEquals(IndicesStatsResponse statsResponse, ShardId shard, long expectedCount) {
+        assertThat(shard + " has unexpected number of documents", getIndexCount(statsResponse, shard.id()), equalTo(expectedCount));
+    }
+
+    private static IndexMetadata indexMetadata(ClusterState state, Index index) {
+        return state.metadata().indexMetadata(index);
+    }
+
+    private static SearchRequestBuilder prepareSearchAll(String indexName) {
+        return prepareSearchAll(client(), indexName);
+    }
+
+    private static SearchRequestBuilder prepareSearchAll(String searchNode, String indexName) {
+        return prepareSearchAll(client(searchNode), indexName);
+    }
+
+    private static SearchRequestBuilder prepareSearchAll(Client client, String indexName) {
+        return client.prepareSearch(indexName)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(10000)
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false);
     }
 
     private static void closeIndices(final String... indices) {

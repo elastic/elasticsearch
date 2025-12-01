@@ -30,8 +30,8 @@ import static com.google.cloud.BaseService.EXCEPTION_HANDLER;
 /**
  * Wrapper around reads from GCS that will retry blob downloads that fail part-way through, resuming from where the failure occurred.
  * <p>
- * We make use of the retry logic from {@link RetryingInputStream}, which is slightly more sophisticated and tailored to our needs than
- * the retry logic the GCS SDK provides by default.
+ * We wrap the default GCS SDK retry logic with the retry logic from {@link RetryingInputStream}, which is slightly more sophisticated
+ * and tailored to our needs.
  */
 class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
 

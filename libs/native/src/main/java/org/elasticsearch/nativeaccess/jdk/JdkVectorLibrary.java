@@ -50,63 +50,63 @@ public final class JdkVectorLibrary implements VectorLibrary {
             if (caps > 0) {
                 if (caps == 2) {
                     dot7u$mh = downcallHandle(
-                        "dot7u_2",
+                        "vec_dot7u_2",
                         FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                     dot7uBulk$mh = downcallHandle(
-                        "dot7u_bulk_2",
+                        "vec_dot7u_bulk_2",
                         FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS),
                         LinkerHelperUtil.critical()
                     );
                     sqr7u$mh = downcallHandle(
-                        "sqr7u_2",
+                        "vec_sqr7u_2",
                         FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                     cosf32$mh = downcallHandle(
-                        "cosf32_2",
+                        "vec_cosf32_2",
                         FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                     dotf32$mh = downcallHandle(
-                        "dotf32_2",
+                        "vec_dotf32_2",
                         FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                     sqrf32$mh = downcallHandle(
-                        "sqrf32_2",
+                        "vec_sqrf32_2",
                         FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                 } else {
                     dot7u$mh = downcallHandle(
-                        "dot7u",
+                        "vec_dot7u",
                         FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                     dot7uBulk$mh = downcallHandle(
-                        "dot7u_bulk",
+                        "vec_dot7u_bulk",
                         FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS),
                         LinkerHelperUtil.critical()
                     );
                     sqr7u$mh = downcallHandle(
-                        "sqr7u",
+                        "vec_sqr7u",
                         FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                     cosf32$mh = downcallHandle(
-                        "cosf32",
+                        "vec_cosf32",
                         FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                     dotf32$mh = downcallHandle(
-                        "dotf32",
+                        "vec_dotf32",
                         FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                     sqrf32$mh = downcallHandle(
-                        "sqrf32",
+                        "vec_sqrf32",
                         FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );

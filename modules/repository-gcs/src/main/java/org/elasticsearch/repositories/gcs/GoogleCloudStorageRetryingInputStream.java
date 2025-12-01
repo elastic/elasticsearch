@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.client.http.HttpResponse;
+import com.google.cloud.BaseService;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.StorageException;
 
@@ -24,8 +25,6 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
-
-import static com.google.cloud.BaseService.EXCEPTION_HANDLER;
 
 /**
  * Wrapper around reads from GCS that will retry blob downloads that fail part-way through, resuming from where the failure occurred.
@@ -151,7 +150,7 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
         @Override
         public boolean isRetryableException(StreamAction action, Exception e) {
             return switch (action) {
-                case OPEN -> EXCEPTION_HANDLER.shouldRetry(e, null);
+                case OPEN -> BaseService.EXCEPTION_HANDLER.shouldRetry(e, null);
                 case READ -> true;
             };
         }

@@ -96,7 +96,10 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
         Map<String, Expression> indexToConvertExpressions = new HashMap<>();
         if (toString) {
             indexToConvertExpressions.put(randomAlphaOfLength(4), new ToString(Source.EMPTY, fieldAttribute(name, dataType), config()));
-            indexToConvertExpressions.put(randomAlphaOfLength(4), new ToString(Source.EMPTY, fieldAttribute(name, DataType.KEYWORD), config()));
+            indexToConvertExpressions.put(
+                randomAlphaOfLength(4),
+                new ToString(Source.EMPTY, fieldAttribute(name, DataType.KEYWORD), config())
+            );
         } else {
             indexToConvertExpressions.put(randomAlphaOfLength(4), testConvertExpression(name, DataType.KEYWORD, dataType));
             indexToConvertExpressions.put(randomAlphaOfLength(4), testConvertExpression(name, dataType, dataType));

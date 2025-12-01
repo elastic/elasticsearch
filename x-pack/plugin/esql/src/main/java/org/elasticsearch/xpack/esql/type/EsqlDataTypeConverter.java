@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -43,6 +44,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
@@ -69,6 +72,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -80,8 +84,6 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -136,36 +138,53 @@ public class EsqlDataTypeConverter {
 
     public static final DateFormatter HOUR_MINUTE_SECOND = DateFormatter.forPattern("strict_hour_minute_second_fraction");
 
-    private static final Map<DataType, BiFunction<Source, Expression, AbstractConvertFunction>> TYPE_TO_CONVERTER_FUNCTION;
-
-    static {
-        Map<DataType, BiFunction<Source, Expression, AbstractConvertFunction>> typeToConverter = new HashMap<>();
-        typeToConverter.put(AGGREGATE_METRIC_DOUBLE, ToAggregateMetricDouble::new);
-        typeToConverter.put(BOOLEAN, ToBoolean::new);
-        typeToConverter.put(CARTESIAN_POINT, ToCartesianPoint::new);
-        typeToConverter.put(CARTESIAN_SHAPE, ToCartesianShape::new);
-        typeToConverter.put(DATETIME, ToDatetime::new);
-        typeToConverter.put(DATE_NANOS, ToDateNanos::new);
+    /**
+     * Converters that don't require a Configuration.
+     */
+    private static final Map<DataType, BiFunction<Source, Expression, AbstractConvertFunction>> TYPE_TO_CONVERTER_FUNCTION = Map.ofEntries(
+        Map.entry(AGGREGATE_METRIC_DOUBLE, ToAggregateMetricDouble::new),
+        Map.entry(BOOLEAN, ToBoolean::new),
+        Map.entry(CARTESIAN_POINT, ToCartesianPoint::new),
+        Map.entry(CARTESIAN_SHAPE, ToCartesianShape::new),
+        Map.entry(DATETIME, ToDatetime::new),
+        Map.entry(DATE_NANOS, ToDateNanos::new),
         // ToDegrees, typeless
-        typeToConverter.put(DENSE_VECTOR, ToDenseVector::new);
-        typeToConverter.put(DOUBLE, ToDouble::new);
-        typeToConverter.put(GEO_POINT, ToGeoPoint::new);
-        typeToConverter.put(GEO_SHAPE, ToGeoShape::new);
-        typeToConverter.put(GEOHASH, ToGeohash::new);
-        typeToConverter.put(GEOTILE, ToGeotile::new);
-        typeToConverter.put(GEOHEX, ToGeohex::new);
-        typeToConverter.put(INTEGER, ToInteger::new);
-        typeToConverter.put(IP, ToIpLeadingZerosRejected::new);
-        typeToConverter.put(LONG, ToLong::new);
+        Map.entry(DENSE_VECTOR, ToDenseVector::new),
+        Map.entry(DOUBLE, ToDouble::new),
+        Map.entry(GEO_POINT, ToGeoPoint::new),
+        Map.entry(GEO_SHAPE, ToGeoShape::new),
+        Map.entry(GEOHASH, ToGeohash::new),
+        Map.entry(GEOTILE, ToGeotile::new),
+        Map.entry(GEOHEX, ToGeohex::new),
+        Map.entry(INTEGER, ToInteger::new),
+        Map.entry(IP, ToIpLeadingZerosRejected::new),
+        Map.entry(LONG, ToLong::new),
         // ToRadians, typeless
-        typeToConverter.put(KEYWORD, ToString::new);
-        typeToConverter.put(UNSIGNED_LONG, ToUnsignedLong::new);
-        typeToConverter.put(VERSION, ToVersion::new);
-        typeToConverter.put(DATE_PERIOD, ToDatePeriod::new);
-        typeToConverter.put(TIME_DURATION, ToTimeDuration::new);
-        typeToConverter.put(DENSE_VECTOR, ToDenseVector::new);
-        TYPE_TO_CONVERTER_FUNCTION = Collections.unmodifiableMap(typeToConverter);
-    }
+        // Map.entry(KEYWORD, ToString::new),
+        Map.entry(UNSIGNED_LONG, ToUnsignedLong::new),
+        Map.entry(VERSION, ToVersion::new),
+        Map.entry(DATE_PERIOD, ToDatePeriod::new),
+        Map.entry(TIME_DURATION, ToTimeDuration::new)
+    );
+
+    /**
+     * Converters that need the configuration for resolution
+     */
+    private static final Map<
+        DataType,
+        TriFunction<Source, Expression, Configuration, AbstractConvertFunction>> TYPE_AND_CONFIG_TO_CONVERTER_FUNCTION = Map.ofEntries(
+            Map.entry(KEYWORD, ToString::new)
+        );
+
+    /**
+     * Converters that should be resolved after parsing
+     */
+    private static final Map<DataType, BiFunction<Source, Expression, UnresolvedFunction>> TYPE_TO_UNRESOLVED_FUNCTION = Map.ofEntries(
+        Map.entry(
+            KEYWORD,
+            (source, expression) -> new UnresolvedFunction(source, "to_string", FunctionResolutionStrategy.DEFAULT, List.of(expression))
+        )
+    );
 
     public enum INTERVALS {
         // TIME_DURATION,
@@ -909,7 +928,28 @@ public class EsqlDataTypeConverter {
         }
     }
 
-    public static BiFunction<Source, Expression, AbstractConvertFunction> converterFunctionFactory(DataType toType) {
-        return TYPE_TO_CONVERTER_FUNCTION.get(toType);
+    public static TriFunction<Source, Expression, Configuration, AbstractConvertFunction> converterFunctionFactory(DataType toType) {
+        var converter = TYPE_TO_CONVERTER_FUNCTION.get(toType);
+        if (converter != null) {
+            return (source, expression, configuration) -> converter.apply(source, expression);
+        }
+
+        return TYPE_AND_CONFIG_TO_CONVERTER_FUNCTION.get(toType);
+    }
+
+    public static
+        BiFunction<Source, Expression, org.elasticsearch.xpack.esql.core.expression.function.Function>
+        converterFunctionFactoryForParser(DataType toType) {
+        var converter = TYPE_TO_CONVERTER_FUNCTION.get(toType);
+        if (converter != null) {
+            return converter::apply;
+        }
+
+        var functionConverter = TYPE_TO_UNRESOLVED_FUNCTION.get(toType);
+        if (functionConverter != null) {
+            return functionConverter::apply;
+        }
+
+        return null;
     }
 }

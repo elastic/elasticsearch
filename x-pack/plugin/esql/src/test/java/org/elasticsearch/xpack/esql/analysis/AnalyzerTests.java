@@ -4195,8 +4195,10 @@ public class AnalyzerTests extends ESTestCase {
             "wildcard"
         );
 
-        Map<IndexPattern, IndexResolution> indexResolutions =
-            Map.of(new IndexPattern(Source.EMPTY, "books"), loadMapping("mapping-all-types.json", "books"));
+        Map<IndexPattern, IndexResolution> indexResolutions = Map.of(
+            new IndexPattern(Source.EMPTY, "books"),
+            loadMapping("mapping-all-types.json", "books")
+        );
         for (String fieldName : validFieldNames) {
             String query = "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON `"
                 + fieldName

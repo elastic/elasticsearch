@@ -943,7 +943,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (castRerankFieldsAsString
                         && rerank.isValidRerankField(resolved)
                         && DataType.isString(resolved.dataType()) == false) {
-                        resolved = resolved.replaceChild(new ToString(resolved.child().source(), resolved.child(), context.configuration()));
+                        resolved = resolved.replaceChild(
+                            new ToString(resolved.child().source(), resolved.child(), context.configuration())
+                        );
                     }
                 }
 
@@ -2347,10 +2349,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * 3. Implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only
      * 4. Update the attributes referencing the updated UnionAll output
      */
-    private static class ResolveUnionTypesInUnionAll extends Rule<LogicalPlan, LogicalPlan> {
+    private static class ResolveUnionTypesInUnionAll extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
         @Override
-        public LogicalPlan apply(LogicalPlan plan) {
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             // The mapping between explicit conversion functions and the corresponding attributes in the UnionAll output,
             // if the conversion functions in the main query are pushed down into the UnionAll branches, a new ReferenceAttribute
             // is created for the corresponding output of UnionAll, the value is the new ReferenceAttribute
@@ -2378,7 +2380,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             LogicalPlan planWithImplicitCasting = planWithConvertFunctionsReplaced.transformUp(
                 UnionAll.class,
                 unionAll -> unionAll.resolved()
-                    ? implicitCastingUnionAllOutput(unionAll, planWithConvertFunctionsReplaced, updatedUnionAllOutput)
+                    ? implicitCastingUnionAllOutput(
+                        unionAll,
+                        planWithConvertFunctionsReplaced,
+                        updatedUnionAllOutput,
+                        context.configuration()
+                    )
                     : unionAll
             );
 
@@ -2573,7 +2580,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static LogicalPlan implicitCastingUnionAllOutput(
             UnionAll unionAll,
             LogicalPlan plan,
-            List<Attribute> updatedUnionAllOutput
+            List<Attribute> updatedUnionAllOutput,
+            Configuration configuration
         ) {
             // build a map of UnionAll output to a list of LogicalPlan that reference this output
             Map<Attribute, List<LogicalPlan>> outputToPlans = outputToPlans(unionAll, plan);
@@ -2602,7 +2610,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         unionAll,
                         outputToPlans,
                         newAliases,
-                        indexToCommonType
+                        indexToCommonType,
+                        configuration
                     );
                     newChildOutput.add(resolved);
                     if (resolved != oldOutput) {
@@ -2678,7 +2687,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             UnionAll unionAll,
             Map<Attribute, List<LogicalPlan>> outputToPlans,
             List<Alias> newAliases,
-            Map<Integer, DataType> indexToCommonType
+            Map<Integer, DataType> indexToCommonType,
+            Configuration configuration
         ) {
             if (targetType == null) {
                 return createUnsupportedOrNull(oldAttr, columnIndex, outputs, unionAll, outputToPlans, newAliases, indexToCommonType);
@@ -2687,7 +2697,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (targetType != NULL && oldAttr.dataType() != targetType) {
                 var converterFactory = EsqlDataTypeConverter.converterFunctionFactory(targetType);
                 if (converterFactory != null) {
-                    var converter = converterFactory.apply(oldAttr.source(), oldAttr);
+                    var converter = converterFactory.apply(oldAttr.source(), oldAttr, configuration);
                     if (converter != null) {
                         Alias alias = new Alias(oldAttr.source(), oldAttr.name(), converter);
                         newAliases.add(alias);

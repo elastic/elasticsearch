@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -45,8 +46,12 @@ public class PlanTelemetry {
         }
     }
 
-    public void function(Class<? extends Function> clazz) {
-        add(functions, functionRegistry.snapshotRegistry().functionName(clazz));
+    public void function(Function function) {
+        if (function instanceof UnresolvedFunction uf) {
+            add(functions, uf.functionName());
+        } else {
+            add(functions, functionRegistry.snapshotRegistry().functionName(function.getClass()));
+        }
     }
 
     public Map<String, Integer> commands() {

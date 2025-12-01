@@ -22,12 +22,10 @@ import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -149,12 +147,26 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     protected Map<DataType, BuildFactory> factories() {
         if (lazyEvaluators == null) {
             Map<DataType, BuildFactory> evaluators = new HashMap<>(STATIC_EVALUATORS);
-            evaluators.putAll(Map.ofEntries(
-                Map.entry(DATETIME, (source, fieldEval) -> new ToStringFromDatetimeEvaluator.Factory(source, fieldEval,
-                    DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId()))),
-                Map.entry(DATE_NANOS, (source, fieldEval) -> new ToStringFromDateNanosEvaluator.Factory(source, fieldEval,
-                    DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())))
-            ));
+            evaluators.putAll(
+                Map.ofEntries(
+                    Map.entry(
+                        DATETIME,
+                        (source, fieldEval) -> new ToStringFromDatetimeEvaluator.Factory(
+                            source,
+                            fieldEval,
+                            DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
+                        )
+                    ),
+                    Map.entry(
+                        DATE_NANOS,
+                        (source, fieldEval) -> new ToStringFromDateNanosEvaluator.Factory(
+                            source,
+                            fieldEval,
+                            DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
+                        )
+                    )
+                )
+            );
             lazyEvaluators = evaluators;
         }
         return lazyEvaluators;

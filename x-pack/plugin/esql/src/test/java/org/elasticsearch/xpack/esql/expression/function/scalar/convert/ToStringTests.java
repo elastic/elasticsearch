@@ -176,11 +176,7 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
-    private static List<TestCaseSupplier> casesFor(
-        String date,
-        String zoneIdString,
-        String expectedString
-    ) {
+    private static List<TestCaseSupplier> casesFor(String date, String zoneIdString, String expectedString) {
         ZoneId zoneId = ZoneId.of(zoneIdString);
         long dateAsLong = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(date);
 

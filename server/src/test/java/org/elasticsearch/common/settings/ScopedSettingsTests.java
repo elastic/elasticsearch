@@ -335,6 +335,23 @@ public class ScopedSettingsTests extends ESTestCase {
         assertThat(e3.getMessage(), equalTo("too long"));
     }
 
+    public void testValidateArchivedSetting() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.validate(Settings.builder().put("archived.index.store.type", "boom").build(), false)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "unknown setting [archived.index.store.type] was archived after upgrading, and must be removed."
+                    + " See [https://www.elastic.co/docs/deploy-manage/upgrade/deployment-or-cluster/archived-settings?version=master] "
+                    + "for details."
+            )
+        );
+
+    }
+
     public void testTupleAffixUpdateConsumer() {
         String prefix = randomAlphaOfLength(3) + "foo.";
         String intSuffix = randomAlphaOfLength(3);

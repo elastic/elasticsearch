@@ -500,7 +500,7 @@ FROM cooking_blog METADATA _id, _index, _score
     | SORT _score DESC
     | LIMIT 5
 )
-| FUSE {"method": "linear", "weights": [0.7, 0.3]} <3>
+| FUSE LINEAR WITH { "weights": { "fork1": 0.7, "fork2": 0.3 } } <3>
 | KEEP title, description, rating, _score
 | SORT _score DESC
 | LIMIT 5

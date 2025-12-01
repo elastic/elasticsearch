@@ -162,12 +162,6 @@ When using `*`, all projects where the authenticated user is a member will be sy
 ::::
 
 
-`use_text_extraction_service`
-:   Requires a separate deployment of the [Elastic Text Extraction Service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local). Requires that pipeline settings disable text extraction. Default value is `False`.
-
-
-
-
 ### Deployment using Docker [es-connectors-gitlab-client-docker]
 
 You can deploy the GitLab connector as a self-managed connector using Docker. Follow these instructions.

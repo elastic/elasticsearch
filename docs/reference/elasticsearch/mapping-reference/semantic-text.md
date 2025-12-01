@@ -15,6 +15,8 @@ The `semantic_text` field type simplifies [semantic search](docs-content://solut
 - Generates embeddings during indexing: Automatically generates embeddings when you index documents, without requiring ingestion pipelines or inference processors.
 - Handles chunking: Automatically chunks long text documents during indexing.
 
+## Basic `semantic_text` mapping example
+
 The following example creates an index mapping with a `semantic_text` field:
 
 ```console

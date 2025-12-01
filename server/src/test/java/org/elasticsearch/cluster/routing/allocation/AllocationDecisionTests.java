@@ -9,9 +9,11 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -30,6 +32,48 @@ public class AllocationDecisionTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         allocationDecision.writeTo(output);
         assertEquals(allocationDecision, AllocationDecision.readFrom(output.bytes().streamInput()));
+    }
+
+    // Testing for ADD_NOT_PREFERRED_ALLOCATION_DECISION TransportVersion.
+    public void testSerializationBackwardsCompatibility() throws IOException {
+        {
+            // NOT_PREFERRED should be converted to YES on writeTo.
+            AllocationDecision allocationDecision = AllocationDecision.NOT_PREFERRED;
+            BytesStreamOutput output = new BytesStreamOutput();
+            output.setTransportVersion(TransportVersion.minimumCompatible());
+            allocationDecision.writeTo(output);
+            assertEquals(AllocationDecision.YES, AllocationDecision.readFrom(output.bytes().streamInput()));
+            StreamInput input = output.bytes().streamInput();
+            input.setTransportVersion(TransportVersion.minimumCompatible());
+            assertEquals(AllocationDecision.readFrom(input), AllocationDecision.YES);
+        }
+        {
+            // YES and THROTTLE are unaffected by writeTo or readFrom. The enum ID values did not change.
+            AllocationDecision allocationDecision = randomFrom(AllocationDecision.YES, AllocationDecision.THROTTLED);
+            BytesStreamOutput output = new BytesStreamOutput();
+            output.setTransportVersion(TransportVersion.minimumCompatible());
+            allocationDecision.writeTo(output);
+            assertEquals(allocationDecision.id, AllocationDecision.readFrom(output.bytes().streamInput()).id);
+            StreamInput input = output.bytes().streamInput();
+            input.setTransportVersion(TransportVersion.minimumCompatible());
+            assertEquals(allocationDecision, AllocationDecision.readFrom(input));
+        }
+        {
+            // The following enum values will get shifted -1 for backwards compatibility because NOT_PREFERRED was added and placed before
+            // them. writeTo should decrease the ID to match the old enum definition. readFrom will increase it for the new definition.
+            AllocationDecision allocationDecision = AllocationDecision.values()[randomByteBetween(
+                AllocationDecision.NO.id,
+                AllocationDecision.NO_ATTEMPT.id
+            )];
+            BytesStreamOutput output = new BytesStreamOutput();
+            output.setTransportVersion(TransportVersion.minimumCompatible());
+            allocationDecision.writeTo(output);
+            // Without the minimumCompatible version set on the input stream, we'll see the old enum ID, which is -1 compared to the new.
+            assertEquals(allocationDecision.id, AllocationDecision.readFrom(output.bytes().streamInput()).id + 1);
+            StreamInput input = output.bytes().streamInput();
+            input.setTransportVersion(TransportVersion.minimumCompatible());
+            assertEquals(allocationDecision, AllocationDecision.readFrom(input));
+        }
     }
 
     /**
@@ -65,9 +109,13 @@ public class AllocationDecisionTests extends ESTestCase {
     public void testFromDecisionType() {
         Type type = randomFrom(Type.values());
         AllocationDecision allocationDecision = AllocationDecision.fromDecisionType(type);
-        AllocationDecision expected = type == Type.NO ? AllocationDecision.NO
-            : type == Type.THROTTLE ? AllocationDecision.THROTTLED
-            : AllocationDecision.YES;
+        AllocationDecision expected = switch (type) {
+            case NO -> AllocationDecision.NO;
+            case NOT_PREFERRED -> AllocationDecision.NOT_PREFERRED;
+            case THROTTLE -> AllocationDecision.THROTTLED;
+            case YES -> AllocationDecision.YES;
+        };
+
         assertEquals(expected, allocationDecision);
     }
 
@@ -77,6 +125,11 @@ public class AllocationDecisionTests extends ESTestCase {
     public void testFromAllocationStatus() {
         AllocationStatus allocationStatus = rarely() ? null : randomFrom(AllocationStatus.values());
         AllocationDecision allocationDecision = AllocationDecision.fromAllocationStatus(allocationStatus);
+        assertNotEquals(
+            "Not-preferred should never be the reason for unassigned allocation status",
+            allocationDecision,
+            AllocationDecision.NOT_PREFERRED
+        );
         AllocationDecision expected;
         if (allocationStatus == null) {
             expected = AllocationDecision.YES;

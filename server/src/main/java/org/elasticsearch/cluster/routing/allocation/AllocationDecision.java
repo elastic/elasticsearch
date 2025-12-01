@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -69,7 +70,11 @@ public enum AllocationDecision implements Writeable {
      */
     NO_ATTEMPT((byte) 8);
 
-    private final byte id;
+    final byte id;
+
+    private static final TransportVersion ADD_NOT_PREFERRED_ALLOCATION_DECISION = TransportVersion.fromName(
+        "add_not_preferred_allocation_decision"
+    );
 
     AllocationDecision(byte id) {
         this.id = id;
@@ -77,11 +82,41 @@ public enum AllocationDecision implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeByte(id);
+        if (out.getTransportVersion().supports(ADD_NOT_PREFERRED_ALLOCATION_DECISION) == false) {
+            if (id == NOT_PREFERRED.id) {
+                // NOT_PREFERRED was originally hidden / unimplemented converted to YES. So for older versions continue to use YES.
+                out.write(YES.id);
+            }
+            if (id > THROTTLED.id) {
+                // NOT_PREFERRED was placed after THROTTLE in the enum list, so any subsequent values were pushed +1. Shift the enum value
+                // back for older versions.
+                out.write(id - 1);
+            } else {
+                assert id == YES.id || id == THROTTLED.id;
+                out.write(id);
+            }
+        } else {
+            out.writeByte(id);
+        }
     }
 
     public static AllocationDecision readFrom(StreamInput in) throws IOException {
         byte id = in.readByte();
+        if (in.getTransportVersion().supports(ADD_NOT_PREFERRED_ALLOCATION_DECISION) == false) {
+            // This is the old enum, without NOT_PREFERRED.
+            return switch (id) {
+                case 0 -> YES;
+                case 1 -> THROTTLED;
+                case 2 -> NO;
+                case 3 -> WORSE_BALANCE;
+                case 4 -> AWAITING_INFO;
+                case 5 -> ALLOCATION_DELAYED;
+                case 6 -> NO_VALID_SHARD_COPY;
+                case 7 -> NO_ATTEMPT;
+                default -> throw new IllegalArgumentException("Unknown value [" + id + "]");
+            };
+        }
+
         return switch (id) {
             case 0 -> YES;
             case 1 -> THROTTLED;

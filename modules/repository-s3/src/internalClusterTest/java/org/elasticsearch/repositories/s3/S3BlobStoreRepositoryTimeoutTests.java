@@ -130,6 +130,11 @@ public class S3BlobStoreRepositoryTimeoutTests extends ESMockAPIBasedRepositoryI
         }
     }
 
+    @Override
+    public void testRequestStats() throws Exception {
+        // Skip testing request stats since the S3StallingHttpHandler does not track request stats
+    }
+
     @SuppressForbidden(reason = "this test uses a HttpHandler to emulate an S3 endpoint")
     protected class S3StallingHttpHandler extends S3HttpHandler implements BlobStoreHttpHandler {
 

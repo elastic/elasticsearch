@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.Goog
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
@@ -178,6 +179,7 @@ public class InferenceNamedWriteablesProvider {
         addLlamaNamedWriteables(namedWriteables);
         addAi21NamedWriteables(namedWriteables);
         addOpenShiftAiNamedWriteables(namedWriteables);
+        addGroqNamedWriteables(namedWriteables);
 
         addUnifiedNamedWriteables(namedWriteables);
 
@@ -300,6 +302,17 @@ public class InferenceNamedWriteablesProvider {
             )
         );
         // no task settings for Llama
+    }
+
+    private static void addGroqNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                GroqChatCompletionServiceSettings.NAME,
+                GroqChatCompletionServiceSettings::new
+            )
+        );
+        // no task settings for Groq
     }
 
     private static void addAi21NamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {

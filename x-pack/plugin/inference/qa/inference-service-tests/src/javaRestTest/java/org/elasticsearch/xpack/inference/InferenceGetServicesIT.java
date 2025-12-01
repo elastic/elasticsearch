@@ -65,6 +65,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "elasticsearch",
                     "googleaistudio",
                     "googlevertexai",
+                    "groq",
                     "hugging_face",
                     "jinaai",
                     "llama",
@@ -169,6 +170,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "deepseek",
                     "googleaistudio",
                     "googlevertexai",
+                    "groq",
                     "openai",
                     "openshift_ai",
                     "streaming_completion_test_service",
@@ -197,6 +199,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "hugging_face",
                     "amazon_sagemaker",
                     "googlevertexai",
+                    "groq",
                     "mistral",
                     "watsonxai"
                 ).toArray()

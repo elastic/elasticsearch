@@ -35,13 +35,17 @@ PUT semantic-embeddings
 
 1. In this example, the `semantic_text` field uses a [default inference endpoint](./semantic-text-how-tos.md#default-and-preconfigured-endpoints) because the `inference_id` parameter isn't specified.
 
-For a complete example, refer to the [Semantic search with `semantic_text`](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md) tutorial. 
+:::{tip}
+For a complete example, refer to the [Semantic search with `semantic_text`](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md) tutorial.
+::: 
 
 ## Overview
 
 The `semantic_text` field type documentation is organized into reference content and how-to guides. 
 
-The [Reference](./semantic-text-reference.md) page provides parameter descriptions, inference endpoint configurations, chunking behavior, querying options, limitations, and other technical specifications, for instance:
+### Reference
+
+The [Reference](./semantic-text-reference.md) page provides technical reference content, for instance:
 
 - [Parameters](./semantic-text-reference.md#semantic-text-params): Parameter descriptions for `semantic_text` fields.
 
@@ -51,7 +55,9 @@ The [Reference](./semantic-text-reference.md) page provides parameter descriptio
 
 - [Querying](./semantic-text-reference.md#querying-semantic-text-fields): Supported query types for `semantic_text` fields.
 
-The [How-to guides](./semantic-text-how-tos.md) page contains procedure descriptions and examples for configuring inference endpoints, pre-chunking content, retrieving embeddings, highlighting fragments, cross-cluster search, and other common tasks, for instance:
+### How-to guides
+
+The [How-to guides](./semantic-text-how-tos.md) page contains procedure descriptions and examples for common tasks, for instance:
 
 - [Configuring inference endpoints](./semantic-text-how-tos.md#configure-inference-endpoints): Learn how to use [default and preconfigured endpoints](./semantic-text-how-tos.md#default-and-preconfigured-endpoints), [ELSER on EIS](./semantic-text-how-tos.md#using-elser-on-eis), and [custom inference endpoints](./semantic-text-how-tos.md#using-custom-endpoint).
 

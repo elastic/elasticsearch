@@ -72,6 +72,23 @@
           }
   - is_true: acknowledged
 
+  - do:
+      search:
+        index: test-downsample
+        body:
+          sort: [ "_tsid", "@timestamp" ]
+
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._source._doc_count: 2 }
+  - match: { hits.hits.0._source.dimension: pod }
+  - match: { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
+  - match: { hits.hits.0._source.label-dimension: "my other label" }
+  - match: { hits.hits.0._source.label-text: "my other text" }
+  - match: { hits.hits.0._source.metric.sum: 9 }
+  - match: { hits.hits.0._source.metric.value_count: 2 }
+  - match: { hits.hits.0._source.metric.min: 3 }
+  - match: { hits.hits.0._source.metric.max: 6 }
+
 ---
 "Downsampling index fails with metrics as multi-fields":
   - do:

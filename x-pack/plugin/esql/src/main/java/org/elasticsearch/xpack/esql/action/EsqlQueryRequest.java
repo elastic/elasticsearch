@@ -59,6 +59,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean onSnapshotBuild = Build.current().isSnapshot();
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
+    private String projectRouting;
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
@@ -316,5 +317,13 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     void acceptedPragmaRisks(boolean accepted) {
         this.acceptedPragmaRisks = accepted;
+    }
+
+    public void projectRouting(String projectRouting) {
+        this.projectRouting = projectRouting;
+    }
+
+    public String projectRouting() {
+        return projectRouting;
     }
 }

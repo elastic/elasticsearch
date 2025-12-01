@@ -69,7 +69,7 @@ public class AuthenticationTests extends ESTestCase {
     public static final TransportVersion[] AUTHENTICATION_TRANSPORT_VERSIONS = {
         VERSION_7_0_0,
         Authentication.VERSION_SYNTHETIC_ROLE_NAMES,
-        Authentication.VERSION_API_KEY_ROLES_AS_BYTES,
+        VERSION_API_KEY_ROLES_AS_BYTES,
         Authentication.VERSION_REALM_DOMAINS,
         Authentication.VERSION_METADATA_BEYOND_GENERIC_MAP,
         TransportVersion.current() };
@@ -1101,7 +1101,10 @@ public class AuthenticationTests extends ESTestCase {
             .build();
 
         // pick a version before that of the authentication instance to force a rewrite
-        final TransportVersion olderVersion = randomTransportVersion(VERSION_API_KEY_ROLES_AS_BYTES);
+        final TransportVersion olderVersion = randomTransportVersionBetween(
+            VERSION_API_KEY_ROLES_AS_BYTES,
+            original.getEffectiveSubject().getTransportVersion()
+        );
 
         final Map<String, Object> rewrittenMetadata = original.maybeRewriteForOlderVersion(olderVersion)
             .getEffectiveSubject()
@@ -1143,7 +1146,7 @@ public class AuthenticationTests extends ESTestCase {
 
         // pick a version before that of the authentication instance to force a rewrite
         final TransportVersion olderVersion = randomTransportVersionBetween(
-            Authentication.VERSION_API_KEY_ROLES_AS_BYTES,
+            VERSION_API_KEY_ROLES_AS_BYTES,
             original.getEffectiveSubject().getTransportVersion()
         );
 

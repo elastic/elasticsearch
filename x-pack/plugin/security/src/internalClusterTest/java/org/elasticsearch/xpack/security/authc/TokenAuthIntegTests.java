@@ -27,7 +27,6 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.TestSecurityClient.OAuth2Token;
 import org.elasticsearch.test.TestSecurityClient.TokenInvalidation;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;

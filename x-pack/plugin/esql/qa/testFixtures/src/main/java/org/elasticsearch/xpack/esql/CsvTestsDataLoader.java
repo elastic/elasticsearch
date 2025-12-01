@@ -342,31 +342,22 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(
-                client,
-                true,
-                true,
-                false,
-                false,
-                true,
-                true,
-                (restClient, indexName, indexMapping, indexSettings) -> {
-                    // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
-                    StringBuilder jsonBody = new StringBuilder("{");
-                    if (indexSettings != null && indexSettings.isEmpty() == false) {
-                        jsonBody.append("\"settings\":");
-                        jsonBody.append(Strings.toString(indexSettings));
-                        jsonBody.append(",");
-                    }
-                    jsonBody.append("\"mappings\":");
-                    jsonBody.append(indexMapping);
-                    jsonBody.append("}");
-
-                    Request request = new Request("PUT", "/" + indexName);
-                    request.setJsonEntity(jsonBody.toString());
-                    restClient.performRequest(request);
+            loadDataSetIntoEs(client, true, true, false, false, true, true, (restClient, indexName, indexMapping, indexSettings) -> {
+                // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
+                StringBuilder jsonBody = new StringBuilder("{");
+                if (indexSettings != null && indexSettings.isEmpty() == false) {
+                    jsonBody.append("\"settings\":");
+                    jsonBody.append(Strings.toString(indexSettings));
+                    jsonBody.append(",");
                 }
-            );
+                jsonBody.append("\"mappings\":");
+                jsonBody.append(indexMapping);
+                jsonBody.append("}");
+
+                Request request = new Request("PUT", "/" + indexName);
+                request.setJsonEntity(jsonBody.toString());
+                restClient.performRequest(request);
+            });
         }
     }
 

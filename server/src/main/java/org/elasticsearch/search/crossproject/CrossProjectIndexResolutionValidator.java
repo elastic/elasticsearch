@@ -204,7 +204,7 @@ public class CrossProjectIndexResolutionValidator {
         );
     }
 
-    private static String[] splitQualifiedResource(String resource) {
+    public static String[] splitQualifiedResource(String resource) {
         String[] splitResource = RemoteClusterAware.splitIndexName(resource);
         assert splitResource.length == 2
             : "Expected two strings (project and indexExpression) for a qualified resource ["

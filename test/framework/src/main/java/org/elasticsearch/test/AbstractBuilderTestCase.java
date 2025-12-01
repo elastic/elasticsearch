@@ -641,6 +641,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 null,
                 createMockQueryRewriteInterceptor(),
                 null,
+                false,
                 false
             );
         }

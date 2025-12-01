@@ -35,7 +35,6 @@ public class CrossProjectIndexExpressionsRewriter {
     public static TransportVersion NO_MATCHING_PROJECT_EXCEPTION_VERSION = TransportVersion.fromName("no_matching_project_exception");
 
     private static final Logger logger = LogManager.getLogger(CrossProjectIndexExpressionsRewriter.class);
-    private static final String ORIGIN_PROJECT_KEY = "_origin";
     private static final String[] MATCH_ALL = new String[] { Metadata.ALL };
     private static final String EXCLUSION = "-";
     private static final String DATE_MATH = "<";
@@ -73,7 +72,10 @@ public class CrossProjectIndexExpressionsRewriter {
             if (canonicalExpressionsMap.containsKey(indexExpression)) {
                 continue;
             }
-            canonicalExpressionsMap.put(indexExpression, rewriteIndexExpression(indexExpression, originProjectAlias, allProjectAliases));
+            canonicalExpressionsMap.put(
+                indexExpression,
+                rewriteIndexExpression(indexExpression, originProjectAlias, allProjectAliases, null)
+            );
         }
         return canonicalExpressionsMap;
     }
@@ -86,23 +88,30 @@ public class CrossProjectIndexExpressionsRewriter {
      *                           it can match on its actual alias and on the special alias "_origin". Any expression matched by the origin
      *                           project also cannot be qualified with its actual alias in the final rewritten expression.
      * @param allProjectAliases the list of all project aliases (linked and origin) consider for a request
+     * @param projectRouting the project routing that was applied to determine the origin and linked projects.
+     *                       {@code null} if no project routing was applied.
      * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
      * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
      */
     public static IndexRewriteResult rewriteIndexExpression(
         String indexExpression,
         @Nullable String originProjectAlias,
-        Set<String> allProjectAliases
+        Set<String> allProjectAliases,
+        @Nullable String projectRouting
     ) {
-        assert originProjectAlias != null || allProjectAliases.isEmpty() == false
-            : "either origin project or linked projects must be in project target set";
-
         maybeThrowOnUnsupportedResource(indexExpression);
+
+        // Always 404 when no project is available for index resolution. This is matching error handling behaviour for resolving
+        // projects with qualified index patterns such as "missing-*:index".
+        if (originProjectAlias == null && allProjectAliases.isEmpty()) {
+            assert projectRouting != null;
+            throw new NoMatchingProjectException("no matching project after applying project routing [" + projectRouting + "]");
+        }
 
         final boolean isQualified = RemoteClusterAware.isRemoteIndexName(indexExpression);
         final IndexRewriteResult rewrittenExpression;
         if (isQualified) {
-            rewrittenExpression = rewriteQualifiedExpression(indexExpression, originProjectAlias, allProjectAliases);
+            rewrittenExpression = rewriteQualifiedExpression(indexExpression, originProjectAlias, allProjectAliases, projectRouting);
             logger.debug("Rewrote qualified expression [{}] to [{}]", indexExpression, rewrittenExpression);
         } else {
             rewrittenExpression = rewriteUnqualifiedExpression(indexExpression, originProjectAlias, allProjectAliases);
@@ -143,7 +152,8 @@ public class CrossProjectIndexExpressionsRewriter {
     private static IndexRewriteResult rewriteQualifiedExpression(
         String resource,
         @Nullable String originProjectAlias,
-        Set<String> allProjectAliases
+        Set<String> allProjectAliases,
+        @Nullable String projectRouting
     ) {
         String[] splitResource = RemoteClusterAware.splitIndexName(resource);
         assert splitResource.length == 2
@@ -157,14 +167,14 @@ public class CrossProjectIndexExpressionsRewriter {
         String indexExpression = splitResource[1];
         maybeThrowOnUnsupportedResource(indexExpression);
 
-        if (originProjectAlias != null && ORIGIN_PROJECT_KEY.equals(requestedProjectAlias)) {
+        if (originProjectAlias != null && ProjectRoutingResolver.ORIGIN.equals(requestedProjectAlias)) {
             // handling case where we have a qualified expression like: _origin:indexName
             return new IndexRewriteResult(indexExpression);
         }
 
-        if (originProjectAlias == null && ORIGIN_PROJECT_KEY.equals(requestedProjectAlias)) {
+        if (originProjectAlias == null && ProjectRoutingResolver.ORIGIN.equals(requestedProjectAlias)) {
             // handling case where we have a qualified expression like: _origin:indexName but no _origin project is set
-            throw new NoMatchingProjectException(requestedProjectAlias);
+            throw new NoMatchingProjectException(requestedProjectAlias, projectRouting);
         }
 
         try {
@@ -174,7 +184,7 @@ public class CrossProjectIndexExpressionsRewriter {
             );
 
             if (allProjectsMatchingAlias.isEmpty()) {
-                throw new NoMatchingProjectException(requestedProjectAlias);
+                throw new NoMatchingProjectException(requestedProjectAlias, projectRouting);
             }
 
             String localExpression = null;
@@ -190,7 +200,7 @@ public class CrossProjectIndexExpressionsRewriter {
             return new IndexRewriteResult(localExpression, resourcesMatchingLinkedProjectAliases);
         } catch (NoSuchRemoteClusterException ex) {
             logger.debug(ex.getMessage(), ex);
-            throw new NoMatchingProjectException(requestedProjectAlias);
+            throw new NoMatchingProjectException(requestedProjectAlias, projectRouting);
         }
     }
 
@@ -198,9 +208,6 @@ public class CrossProjectIndexExpressionsRewriter {
         // TODO To be handled in future PR.
         if (resource.startsWith(EXCLUSION)) {
             throw new IllegalArgumentException("Exclusions are not currently supported but was found in the expression [" + resource + "]");
-        }
-        if (resource.startsWith(DATE_MATH)) {
-            throw new IllegalArgumentException("Date math are not currently supported but was found in the expression [" + resource + "]");
         }
         if (IndexNameExpressionResolver.hasSelectorSuffix(resource)) {
             throw new IllegalArgumentException("Selectors are not currently supported but was found in the expression [" + resource + "]");

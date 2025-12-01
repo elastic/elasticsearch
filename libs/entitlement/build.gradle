@@ -28,10 +28,10 @@ dependencies {
     exclude group: 'org.elasticsearch', module: 'entitlement'
   }
 
-  testImplementation 'org.ow2.asm:asm:9.8'
-  testImplementation 'org.ow2.asm:asm-util:9.8'
-  testImplementation 'org.ow2.asm:asm-tree:9.8'
-  testImplementation 'org.ow2.asm:asm-analysis:9.8'
+  testImplementation 'org.ow2.asm:asm:9.9'
+  testImplementation 'org.ow2.asm:asm-util:9.9'
+  testImplementation 'org.ow2.asm:asm-tree:9.9'
+  testImplementation 'org.ow2.asm:asm-analysis:9.9'
 
   // guarding for intellij
   if (sourceSets.findByName("main23")) {

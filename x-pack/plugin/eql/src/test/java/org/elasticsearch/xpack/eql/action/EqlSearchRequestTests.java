@@ -81,6 +81,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
                 .keepOnCompletion(randomBoolean())
                 .allowPartialSearchResults(randomBoolean())
                 .allowPartialSequenceResults(randomBoolean())
+                .projectRouting(randomAlphaOfLength(10))
                 .fetchFields(randomFetchFields)
                 .runtimeMappings(randomRuntimeMappings())
                 .resultPosition(randomFrom("tail", "head"))
@@ -143,6 +144,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         mutatedInstance.allowPartialSequenceResults(
             version.supports(TransportVersions.V_8_18_0) ? instance.allowPartialSequenceResults() : false
         );
+        mutatedInstance.projectRouting(instance.getProjectRouting());
 
         return mutatedInstance;
     }

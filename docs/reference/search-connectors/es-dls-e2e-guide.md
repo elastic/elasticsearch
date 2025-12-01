@@ -6,6 +6,10 @@ mapped_pages:
 
 # Leverage document-level security from connectors in Search Applications [es-dls-e2e-guide]
 
+:::{important}
+This page pertains to a specific implementation of DLS for Elastic content connectors.
+Refer to [controlling-access-at-document-field-level](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level.md) to learn about the {{es}} DLS feature.
+:::
 
 This guide explains how to ensure document-level security (DLS) for documents ingested by [Elastic connectors](/reference/search-connectors/index.md), when building a search application.
 
@@ -421,4 +425,5 @@ Learn how to use the Search Application client to query your Search Application.
 * [Elastic connectors](/reference/search-connectors/index.md)
 * [Document level security (DLS)](/reference/search-connectors/document-level-security.md)
 * [Search Applications](docs-content://solutions/search/search-applications.md)
+* [{{es}} DLS](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level.md) to learn about the {{es}}
 

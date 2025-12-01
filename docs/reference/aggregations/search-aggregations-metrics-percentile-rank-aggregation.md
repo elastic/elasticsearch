@@ -49,18 +49,18 @@ The response will look like this:
  "aggregations": {
     "load_time_ranks": {
       "values": {
-        "500.0": 55.0,
-        "600.0": 64.0
+        "500.0": 90.01,
+        "600.0": 100.0
       }
     }
   }
 }
 ```
-%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
-%  TESTRESPONSE[s/"500.0": 55.0/"500.0": 55.00000000000001/]
-%  TESTRESPONSE[s/"600.0": 64.0/"600.0": 64.0/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/"500.0": 55.0/"500.0": 55.00000000000001/]
+% TESTRESPONSE[s/"600.0": 64.0/"600.0": 64.0/]
 
-From this information you can determine you are hitting the 99% load time target but not quite hitting the 95% load time target
+From this information you can determine you are hitting the 99% load time target but not quite hitting the 95% load time target.
 
 ## Keyed Response [_keyed_response_5]
 
@@ -105,9 +105,9 @@ Response:
   }
 }
 ```
-%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
-%  TESTRESPONSE[s/"value": 55.0/"value": 55.00000000000001/]
-%  TESTRESPONSE[s/"value": 64.0/"value": 64.0/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/"value": 55.0/"value": 55.00000000000001/]
+% TESTRESPONSE[s/"value": 64.0/"value": 64.0/]
 
 ## Script [_script_9]
 
@@ -138,8 +138,8 @@ GET latency/_search
   }
 }
 ```
-%  TEST[setup:latency]
-%  TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[setup:latency]
+% TEST[s/_search/_search?filter_path=aggregations/]
 
 ## HDR Histogram [_hdr_histogram]
 

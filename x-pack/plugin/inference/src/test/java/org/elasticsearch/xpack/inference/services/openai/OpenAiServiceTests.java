@@ -628,7 +628,8 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
                 {"id":"12345","choices":[{"delta":{"content":"hello, world"},"finish_reason":"stop","index":0}],""" + """
                 "model":"gpt-4o-mini","object":"chat.completion.chunk",""" + """
-                "usage":{"completion_tokens":28,"prompt_tokens":16,"total_tokens":44}}""");
+                "usage":{"completion_tokens":28,"prompt_tokens":16,"total_tokens":44,""" + """
+                "prompt_tokens_details":{"cached_tokens":0}}}""");
         }
     }
 
@@ -993,6 +994,28 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
         var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", (ChunkingSettings) null);
 
         testChunkedInfer(model);
+    }
+
+    public void testChunkedInfer_noInputs() throws IOException {
+        var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", (ChunkingSettings) null);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                model,
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+            assertThat(webServer.requests(), empty());
+        }
     }
 
     private void testChunkedInfer(OpenAiEmbeddingsModel model) throws IOException {

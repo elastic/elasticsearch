@@ -15,6 +15,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -48,6 +49,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
@@ -82,10 +84,10 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     }
 
     private ShardSearchRequest createShardSearchRequest() throws IOException {
-        return createShardSearchReqest(createSearchRequest());
+        return createShardSearchRequest(createSearchRequest());
     }
 
-    private ShardSearchRequest createShardSearchReqest(SearchRequest searchRequest) {
+    private ShardSearchRequest createShardSearchRequest(SearchRequest searchRequest) {
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(2, 10), randomAlphaOfLengthBetween(2, 10), randomInt());
         final AliasFilter filteringAliases;
         if (randomBoolean()) {
@@ -114,7 +116,8 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             Math.abs(randomLong()),
             randomAlphaOfLengthBetween(3, 10),
             shardSearchContextId,
-            keepAlive
+            keepAlive,
+            SplitShardCountSummary.fromInt(randomIntBetween(0, numberOfShards))
         );
         req.canReturnNullResponseIfMatchNoDocs(randomBoolean());
         if (randomBoolean()) {
@@ -184,7 +187,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         assertEquals(orig.searchType(), copy.searchType());
         assertEquals(orig.shardId(), copy.shardId());
         assertEquals(orig.numberOfShards(), copy.numberOfShards());
-        assertEquals(orig.cacheKey(null), copy.cacheKey(null));
+        assertThat(copy.cacheKey(null), equalBytes(orig.cacheKey(null)));
         assertNotSame(orig, copy);
         assertEquals(orig.getAliasFilter(), copy.getAliasFilter());
         assertEquals(orig.indexBoost(), copy.indexBoost(), 0.0f);
@@ -270,7 +273,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             }
         }
         request.setForceSyntheticSource(true);
-        ShardSearchRequest shardRequest = createShardSearchReqest(request);
+        ShardSearchRequest shardRequest = createShardSearchRequest(request);
         StreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(TransportVersions.V_8_3_0);
         Exception e = expectThrows(IllegalArgumentException.class, () -> shardRequest.writeTo(out));

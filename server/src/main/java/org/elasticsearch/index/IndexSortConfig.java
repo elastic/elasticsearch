@@ -26,6 +26,7 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortOrder;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
@@ -106,19 +107,21 @@ public final class IndexSortConfig {
     );
 
     public static class IndexSortConfigDefaults {
-        public static final FieldSortSpec[] TIME_SERIES_SORT, TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_BWC_SORT;
+        public static final FieldSortSpec[] TIME_SERIES_SORT, HOSTNAME_TIMESTAMP_BWC_SORT;
+
+        private static final FieldSortSpec HOSTNAME_SPEC, MESSAGE_PATTERN_SPEC, TIMESTAMP_SPEC;
 
         static {
-            FieldSortSpec timeStampSpec = new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-            timeStampSpec.order = SortOrder.DESC;
-            TIME_SERIES_SORT = new FieldSortSpec[] { new FieldSortSpec(TimeSeriesIdFieldMapper.NAME), timeStampSpec };
-            TIMESTAMP_SORT = new FieldSortSpec[] { timeStampSpec };
+            TIMESTAMP_SPEC = new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+            TIMESTAMP_SPEC.order = SortOrder.DESC;
+            TIME_SERIES_SORT = new FieldSortSpec[] { new FieldSortSpec(TimeSeriesIdFieldMapper.NAME), TIMESTAMP_SPEC };
 
-            FieldSortSpec hostnameSpec = new FieldSortSpec(IndexMode.HOST_NAME);
-            hostnameSpec.order = SortOrder.ASC;
-            hostnameSpec.missingValue = "_last";
-            hostnameSpec.mode = MultiValueMode.MIN;
-            HOSTNAME_TIMESTAMP_SORT = new FieldSortSpec[] { hostnameSpec, timeStampSpec };
+            HOSTNAME_SPEC = new FieldSortSpec(IndexMode.HOST_NAME);
+            HOSTNAME_SPEC.order = SortOrder.ASC;
+            HOSTNAME_SPEC.missingValue = "_last";
+            HOSTNAME_SPEC.mode = MultiValueMode.MIN;
+
+            MESSAGE_PATTERN_SPEC = new FieldSortSpec("message.template_id");
 
             // Older indexes use ascending ordering for host name and timestamp.
             HOSTNAME_TIMESTAMP_BWC_SORT = new FieldSortSpec[] {
@@ -148,7 +151,17 @@ public final class IndexSortConfig {
                         IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT,
                         IndexVersions.UPGRADE_TO_LUCENE_10_0_0
                     )) {
-                    return (IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(settings)) ? HOSTNAME_TIMESTAMP_SORT : TIMESTAMP_SORT;
+
+                    List<FieldSortSpec> sortSpecs = new ArrayList<>(3);
+                    if (IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(settings)) {
+                        sortSpecs.add(HOSTNAME_SPEC);
+                    }
+                    if (IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE.get(settings)) {
+                        sortSpecs.add(MESSAGE_PATTERN_SPEC);
+                    }
+                    sortSpecs.add(TIMESTAMP_SPEC);
+
+                    return sortSpecs.toArray(FieldSortSpec[]::new);
                 } else {
                     return HOSTNAME_TIMESTAMP_BWC_SORT;
                 }
@@ -362,7 +375,7 @@ public final class IndexSortConfig {
             if (fieldData == null) {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]");
             }
-            sortFields[i] = fieldData.sortField(this.indexCreatedVersion, sortSpec.missingValue, mode, null, reverse);
+            sortFields[i] = fieldData.indexSort(this.indexCreatedVersion, sortSpec.missingValue, mode, reverse);
             validateIndexSortField(sortFields[i]);
         }
         return new Sort(sortFields);
@@ -417,6 +430,8 @@ public final class IndexSortConfig {
             return SortField.Type.STRING;
         } else if (sortField instanceof SortedNumericSortField) {
             return ((SortedNumericSortField) sortField).getNumericType();
+        } else if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource fcs) {
+            return fcs.sortType();
         } else {
             return sortField.getType();
         }

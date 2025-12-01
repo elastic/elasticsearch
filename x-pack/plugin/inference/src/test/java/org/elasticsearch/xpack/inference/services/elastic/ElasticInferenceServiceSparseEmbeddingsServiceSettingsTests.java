@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModelsTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -48,7 +50,13 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
     protected ElasticInferenceServiceSparseEmbeddingsServiceSettings mutateInstance(
         ElasticInferenceServiceSparseEmbeddingsServiceSettings instance
     ) throws IOException {
-        return randomValueOtherThan(instance, ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests::createRandom);
+        if (randomBoolean()) {
+            var modelId = randomValueOtherThan(instance.modelId(), ElserModelsTests::randomElserModel);
+            return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, instance.maxInputTokens());
+        } else {
+            var maxInputTokens = randomValueOtherThan(instance.maxInputTokens(), ESTestCase::randomNonNegativeIntOrNull);
+            return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(instance.modelId(), maxInputTokens);
+        }
     }
 
     public void testFromMap() {

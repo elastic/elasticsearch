@@ -89,6 +89,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.
 import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettingsTests.getServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -347,7 +348,8 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
                 {"id":"12345","choices":[{"delta":{"content":"hello, world"},"finish_reason":"stop","index":0}],""" + """
                 "model":"gpt-4o-mini","object":"chat.completion.chunk",""" + """
-                "usage":{"completion_tokens":28,"prompt_tokens":16,"total_tokens":44}}""");
+                "usage":{"completion_tokens":28,"prompt_tokens":16,"total_tokens":44,""" + """
+                "prompt_tokens_details":{"cached_tokens":0}}}""");
         }
     }
 
@@ -1285,6 +1287,28 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), Matchers.is(1));
             assertThat(requestMap.get("inputs"), Matchers.is(List.of("abc")));
+        }
+    }
+
+    public void testChunkedInfer_noInputs() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                model,
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+            assertThat(webServer.requests(), empty());
         }
     }
 

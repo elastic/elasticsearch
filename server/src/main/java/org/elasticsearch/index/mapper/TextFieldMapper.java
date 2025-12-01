@@ -238,7 +238,7 @@ public final class TextFieldMapper extends FieldMapper {
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
-    public static class Builder extends BuilderWithSyntheticSourceContext {
+    public static class Builder extends TextFamilyBuilder {
 
         private final Parameter<Boolean> store;
         private final Parameter<Boolean> norms;
@@ -301,7 +301,7 @@ public final class TextFieldMapper extends FieldMapper {
             boolean isSyntheticSourceEnabled,
             boolean isWithinMultiField
         ) {
-            super(name, indexCreatedVersion, isSyntheticSourceEnabled, isWithinMultiField);
+            super(name, indexCreatedVersion, isWithinMultiField);
 
             this.indexMode = indexMode;
             this.analyzers = new TextParams.Analyzers(
@@ -409,7 +409,7 @@ public final class TextFieldMapper extends FieldMapper {
                     index.getValue(),
                     store.getValue(),
                     tsi,
-                    isSyntheticSourceEnabled(),
+                    context.isSourceSynthetic(),
                     isWithinMultiField(),
                     SyntheticSourceHelper.syntheticSourceDelegate(fieldType.stored(), multiFields),
                     meta.getValue(),
@@ -582,7 +582,13 @@ public final class TextFieldMapper extends FieldMapper {
         final TextFieldType parentField;
 
         PrefixFieldType(TextFieldType parentField, int minChars, int maxChars) {
-            super(parentField.name() + FAST_PREFIX_SUFFIX, true, false, false, parentField.getTextSearchInfo(), Collections.emptyMap());
+            super(
+                parentField.name() + FAST_PREFIX_SUFFIX,
+                IndexType.terms(true, false),
+                false,
+                parentField.getTextSearchInfo(),
+                Collections.emptyMap()
+            );
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
@@ -707,7 +713,7 @@ public final class TextFieldMapper extends FieldMapper {
             boolean eagerGlobalOrdinals,
             boolean indexPhrases
         ) {
-            super(name, indexed, stored, false, tsi, meta, isSyntheticSource, isWithinMultiField);
+            super(name, indexed ? IndexType.terms(true, false) : IndexType.NONE, stored, tsi, meta, isSyntheticSource, isWithinMultiField);
             fielddata = false;
             // TODO block loader could use a "fast loading" delegate which isn't always the same - but frequently is.
             this.syntheticSourceDelegate = Optional.ofNullable(syntheticSourceDelegate);
@@ -718,9 +724,8 @@ public final class TextFieldMapper extends FieldMapper {
         public TextFieldType(String name, boolean indexed, boolean stored, Map<String, String> meta) {
             super(
                 name,
-                indexed,
+                IndexType.terms(indexed, false),
                 stored,
-                false,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
                 meta,
                 false,
@@ -1026,7 +1031,7 @@ public final class TextFieldMapper extends FieldMapper {
          * A delegate by definition must have doc_values or be stored so most of the time it can be used for loading.
          */
         public boolean canUseSyntheticSourceDelegateForLoading() {
-            return syntheticSourceDelegate.isPresent() && syntheticSourceDelegate.get().ignoreAbove().isSet() == false;
+            return syntheticSourceDelegate.isPresent() && syntheticSourceDelegate.get().ignoreAbove().valuesPotentiallyIgnored() == false;
         }
 
         /**
@@ -1034,7 +1039,7 @@ public final class TextFieldMapper extends FieldMapper {
          */
         public boolean canUseSyntheticSourceDelegateForQuerying() {
             return syntheticSourceDelegate.isPresent()
-                && syntheticSourceDelegate.get().ignoreAbove().isSet() == false
+                && syntheticSourceDelegate.get().ignoreAbove().valuesPotentiallyIgnored() == false
                 && syntheticSourceDelegate.get().isSearchable();
         }
 
@@ -1748,7 +1753,8 @@ public final class TextFieldMapper extends FieldMapper {
          */
         private static boolean keywordFieldSupportsSyntheticSource(final KeywordFieldMapper keyword) {
             // the field must be stored in some way, whether that be via store or doc values
-            return keyword.hasNormalizer() == false && (keyword.fieldType().hasDocValues()) || keyword.fieldType().isStored();
+            return (keyword.hasNormalizer() == false || keyword.isNormalizerSkipStoreOriginalValue())
+                && (keyword.fieldType().hasDocValues() || keyword.fieldType().isStored());
         }
     }
 }

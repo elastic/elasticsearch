@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -111,7 +112,20 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
 
     @Override
     protected CohereCompletionServiceSettings mutateInstance(CohereCompletionServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        URI uri = instance.uri();
+        var uriString = uri == null ? null : uri.toString();
+        var modelId = instance.modelId();
+        var rateLimitSettings = instance.rateLimitSettings();
+        var apiVersion = instance.apiVersion();
+        switch (randomInt(3)) {
+            case 0 -> uriString = randomValueOtherThan(uriString, () -> randomAlphaOfLengthOrNull(8));
+            case 1 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(8));
+            case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            case 3 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomFrom(CohereServiceSettings.CohereApiVersion.values()));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new CohereCompletionServiceSettings(uriString, modelId, rateLimitSettings, apiVersion);
     }
 
     @Override

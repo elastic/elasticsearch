@@ -1,6 +1,0 @@
-pr: 133897
-summary: "Runtime fields: pass down runtime field name as source filter when source\
-  \ mode is synthetic"
-area: "Mapping"
-type: enhancement
-issues: []

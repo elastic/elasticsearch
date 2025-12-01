@@ -27,7 +27,7 @@ public class GetConnectorSecretRequestBWCSerializingTests extends AbstractBWCWir
 
     @Override
     protected GetConnectorSecretRequest mutateInstance(GetConnectorSecretRequest instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new GetConnectorSecretRequest(randomValueOtherThan(instance.id(), () -> randomAlphaOfLengthBetween(1, 10)));
     }
 
     @Override

@@ -1,6 +1,0 @@
-pr: 136751
-summary: Adjust jinaai rerank response parser to handle document field as string or
-  object
-area: Machine Learning
-type: bug
-issues: []

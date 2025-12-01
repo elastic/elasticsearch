@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.containsString;
 public class CheckLicenseTests extends ESTestCase {
 
     private final EsqlParser parser = new EsqlParser();
-    private final String esql = "from tests | eval license() | LIMIT 10";
+    private final String esql = "from test | eval license() | LIMIT 10";
 
     public void testLicense() {
         for (License.OperationMode functionLicense : License.OperationMode.values()) {

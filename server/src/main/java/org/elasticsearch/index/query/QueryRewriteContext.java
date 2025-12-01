@@ -12,15 +12,18 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -36,11 +39,13 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +56,8 @@ import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.threadpool.ThreadPool.Names.SEARCH_COORDINATION;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
@@ -72,6 +79,8 @@ public class QueryRewriteContext {
     protected final Client client;
     protected final LongSupplier nowInMillis;
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
+    private final Map<String, List<TriConsumer<RemoteClusterClient, ThreadContext, ActionListener<?>>>> remoteAsyncActions =
+        new HashMap<>();
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
@@ -80,6 +89,7 @@ public class QueryRewriteContext {
     private QueryRewriteInterceptor queryRewriteInterceptor;
     private final Boolean ccsMinimizeRoundTrips;
     private final boolean isExplain;
+    private final boolean isProfile;
     private Long timeRangeFilterFromMillis;
     private boolean trackTimeRangeFilterFrom = true;
 
@@ -103,7 +113,8 @@ public class QueryRewriteContext {
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
         final Boolean ccsMinimizeRoundTrips,
-        final boolean isExplain
+        final boolean isExplain,
+        final boolean isProfile
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -127,6 +138,7 @@ public class QueryRewriteContext {
         this.queryRewriteInterceptor = queryRewriteInterceptor;
         this.ccsMinimizeRoundTrips = ccsMinimizeRoundTrips;
         this.isExplain = isExplain;
+        this.isProfile = isProfile;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -150,6 +162,7 @@ public class QueryRewriteContext {
             null,
             null,
             null,
+            false,
             false
         );
     }
@@ -175,6 +188,7 @@ public class QueryRewriteContext {
             pit,
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
+            false,
             false
         );
     }
@@ -189,7 +203,8 @@ public class QueryRewriteContext {
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
         final Boolean ccsMinimizeRoundTrips,
-        final boolean isExplain
+        final boolean isExplain,
+        final boolean isProfile
     ) {
         this(
             parserConfiguration,
@@ -211,7 +226,8 @@ public class QueryRewriteContext {
             pit,
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
-            isExplain
+            isExplain,
+            isProfile
         );
     }
 
@@ -324,6 +340,10 @@ public class QueryRewriteContext {
         return this.isExplain;
     }
 
+    public boolean isProfile() {
+        return this.isProfile;
+    }
+
     public NamedWriteableRegistry getWriteableRegistry() {
         return writeableRegistry;
     }
@@ -346,11 +366,22 @@ public class QueryRewriteContext {
         asyncActions.add(asyncAction);
     }
 
+    public void registerRemoteAsyncAction(
+        String clusterAlias,
+        TriConsumer<RemoteClusterClient, ThreadContext, ActionListener<?>> asyncAction
+    ) {
+        List<TriConsumer<RemoteClusterClient, ThreadContext, ActionListener<?>>> asyncActions = remoteAsyncActions.computeIfAbsent(
+            clusterAlias,
+            k -> new ArrayList<>()
+        );
+        asyncActions.add(asyncAction);
+    }
+
     /**
      * Returns <code>true</code> if there are any registered async actions.
      */
     public boolean hasAsyncActions() {
-        return asyncActions.isEmpty() == false;
+        return asyncActions.isEmpty() == false || remoteAsyncActions.isEmpty() == false;
     }
 
     /**
@@ -358,10 +389,15 @@ public class QueryRewriteContext {
      * <code>null</code>. The list of registered actions is cleared once this method returns.
      */
     public void executeAsyncActions(ActionListener<Void> listener) {
-        if (asyncActions.isEmpty()) {
+        if (asyncActions.isEmpty() && remoteAsyncActions.isEmpty()) {
             listener.onResponse(null);
         } else {
-            CountDown countDown = new CountDown(asyncActions.size());
+            int actionCount = asyncActions.size();
+            for (var actionList : remoteAsyncActions.values()) {
+                actionCount += actionList.size();
+            }
+
+            CountDown countDown = new CountDown(actionCount);
             ActionListener<?> internalListener = new ActionListener<>() {
                 @Override
                 public void onResponse(Object o) {
@@ -377,11 +413,29 @@ public class QueryRewriteContext {
                     }
                 }
             };
+
             // make a copy to prevent concurrent modification exception
             List<BiConsumer<Client, ActionListener<?>>> biConsumers = new ArrayList<>(asyncActions);
             asyncActions.clear();
             for (BiConsumer<Client, ActionListener<?>> action : biConsumers) {
                 action.accept(client, internalListener);
+            }
+
+            var remoteAsyncActionsCopy = new HashMap<>(remoteAsyncActions);
+            remoteAsyncActions.clear();
+            for (var entry : remoteAsyncActionsCopy.entrySet()) {
+                String clusterAlias = entry.getKey();
+                List<TriConsumer<RemoteClusterClient, ThreadContext, ActionListener<?>>> remoteTriConsumers = entry.getValue();
+
+                RemoteClusterClient remoteClient = client.getRemoteClusterClient(
+                    clusterAlias,
+                    client.threadPool().executor(SEARCH_COORDINATION),
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                );
+                ThreadContext threadContext = client.threadPool().getThreadContext();
+                for (var action : remoteTriConsumers) {
+                    action.apply(remoteClient, threadContext, internalListener);
+                }
             }
         }
     }

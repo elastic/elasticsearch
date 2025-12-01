@@ -1,6 +1,0 @@
-pr: 133860
-summary: Cache Inference Endpoints
-area: Machine Learning
-type: enhancement
-issues:
- - 133135

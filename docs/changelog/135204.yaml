@@ -1,6 +1,0 @@
-pr: 135204
-summary: Make `_tsid` available in metadata
-area: ES|QL
-type: enhancement
-issues:
- - 133205

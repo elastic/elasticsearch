@@ -141,17 +141,31 @@ public class BasicPageTests extends SerializationTestCase {
         };
 
         final EqualsHashCodeTestUtils.MutateFunction<Page> mutatePageFunction = page -> {
-            assert page.getPositionCount() > 0;
-            Block[] blocks = new Block[page.getBlockCount()];
-            int positions = randomInt(page.getPositionCount() - 1);
-            for (int blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
-                Block block = page.getBlock(blockIndex);
-                blocks[blockIndex] = block.elementType()
-                    .newBlockBuilder(positions, TestBlockFactory.getNonBreakingInstance())
-                    .copyFrom(block, 0, positions)
-                    .build();
+            if (page.getPositionCount() > 0) {
+                Block[] blocks = new Block[page.getBlockCount()];
+                int positions = randomInt(page.getPositionCount() - 1);
+                for (int blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+                    Block block = page.getBlock(blockIndex);
+                    blocks[blockIndex] = block.elementType()
+                        .newBlockBuilder(positions, TestBlockFactory.getNonBreakingInstance())
+                        .copyFrom(block, 0, positions)
+                        .build();
+                }
+                return new Page(positions, blocks);
+            } else {
+                Block[] blocks = new Block[page.getBlockCount() + 1];
+                for (int blockIndex = 0; blockIndex < page.getBlockCount(); blockIndex++) {
+                    blocks[blockIndex] = page.getBlock(blockIndex);
+                }
+
+                ElementType newBlockType = randomValueOtherThanMany(
+                    x -> x == ElementType.DOC || x == ElementType.COMPOSITE || x == ElementType.UNKNOWN,
+                    () -> randomFrom(ElementType.values())
+                );
+
+                blocks[blocks.length - 1] = newBlockType.newBlockBuilder(0, TestBlockFactory.getNonBreakingInstance()).build();
+                return new Page(0, blocks);
             }
-            return new Page(positions, blocks);
         };
 
         int positions = randomIntBetween(0, 512);

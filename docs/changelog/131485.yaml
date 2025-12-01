@@ -1,5 +1,0 @@
-pr: 131485
-summary: Run single phase aggregation when possible
-area: ES|QL
-type: enhancement
-issues: []

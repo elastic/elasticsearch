@@ -51,6 +51,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.geoGridToString;
@@ -162,7 +163,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                         (source, fieldEval) -> new ToStringFromDateNanosEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
+                            DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
                         )
                     )
                 )

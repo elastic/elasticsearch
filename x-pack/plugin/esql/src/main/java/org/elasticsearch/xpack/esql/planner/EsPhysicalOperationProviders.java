@@ -16,7 +16,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -42,12 +41,10 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -96,7 +93,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -564,27 +560,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 }
 
                 @Override
-                public Set<String> dimensionFields() {
-                    if (ctx.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-                        IndexMetadata indexMetadata = ctx.getIndexSettings().getIndexMetadata();
-                        List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
-                        if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
-                            return new LinkedHashSet<>(dimensionFieldsFromSettings);
-                        }
-
-                        Set<String> dimensionFields = new LinkedHashSet<>();
-                        MappingLookup mappingLookup = ctx.getMappingLookup();
-                        for (Mapper mapper : mappingLookup.fieldMappers()) {
-                            if (mapper instanceof FieldMapper fieldMapper) {
-                                MappedFieldType fieldType = fieldMapper.fieldType();
-                                if (fieldType.isDimension()) {
-                                    dimensionFields.add(fieldType.name());
-                                }
-                            }
-                        }
-                        return dimensionFields;
-                    }
-                    return null;
+                public MappingLookup mappingLookup() {
+                    return ctx.getMappingLookup();
                 }
             });
             if (loader == null) {

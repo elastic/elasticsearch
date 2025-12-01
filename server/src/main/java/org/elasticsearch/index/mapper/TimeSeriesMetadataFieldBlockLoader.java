@@ -11,10 +11,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -24,8 +27,8 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     private final Set<String> dimensions;
 
-    public TimeSeriesMetadataFieldBlockLoader(Set<String> dimensions) {
-        this.dimensions = Collections.unmodifiableSet(dimensions);
+    public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context) {
+        this.dimensions = dimensionFields(context);
     }
 
     @Override
@@ -69,5 +72,28 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         public String toString() {
             return "BlockStoredFieldsReader.TimeSeries";
         }
+    }
+
+    private static Set<String> dimensionFields(MappedFieldType.BlockLoaderContext ctx) {
+        if (ctx.indexSettings().getMode() == IndexMode.TIME_SERIES) {
+            IndexMetadata indexMetadata = ctx.indexSettings().getIndexMetadata();
+            List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
+            if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
+                return new LinkedHashSet<>(dimensionFieldsFromSettings);
+            }
+
+            Set<String> dimensionFields = new LinkedHashSet<>();
+            MappingLookup mappingLookup = ctx.mappingLookup();
+            for (Mapper mapper : mappingLookup.fieldMappers()) {
+                if (mapper instanceof FieldMapper fieldMapper) {
+                    MappedFieldType fieldType = fieldMapper.fieldType();
+                    if (fieldType.isDimension()) {
+                        dimensionFields.add(fieldType.name());
+                    }
+                }
+            }
+            return dimensionFields;
+        }
+        return null;
     }
 }

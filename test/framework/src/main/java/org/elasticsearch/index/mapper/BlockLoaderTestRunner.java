@@ -181,6 +181,11 @@ public class BlockLoaderTestRunner {
             public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
                 return (FieldNamesFieldMapper.FieldNamesFieldType) mapperService.fieldType(FieldNamesFieldMapper.NAME);
             }
+
+            @Override
+            public MappingLookup mappingLookup() {
+                return mapperService.mappingLookup();
+            }
         });
     }
 

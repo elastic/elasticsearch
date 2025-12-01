@@ -142,22 +142,23 @@ public class StSimplifyUnitTests extends ESTestCase {
     public void testTwoTouchingPolygons() {
         /* Two polygons with a touching edge
 
-         * * * *
-         *     * *
-         *     * *
-         *     *
-         * * * *
+             * * * *
+             *     * *
+             *     * *
+             *     *
+             * * * *
 
          */
         var wkb = process("POLYGON((0 0, 4 0, 4 4, 0 4, 0 0), (4 2, 5 2, 5 3, 4 3, 4 2))", 0.0);
         var result = UNSPECIFIED.wkbToWkt(wkb);
         /* It gets simplified to the biggest square
 
-         * * * *
-         *     *
-         *     *
-         *     *
-         * * * *
+             * * * *
+             *     *
+             *     *
+             *     *
+             * * * *
+
          */
         assertEquals("POLYGON ((0.0 0.0, 0.0 4.0, 4.0 4.0, 4.0 3.0, 4.0 2.0, 4.0 0.0, 0.0 0.0))", result);
     }
@@ -175,19 +176,9 @@ public class StSimplifyUnitTests extends ESTestCase {
     }
 
     public void testBigTolerance() {
-        /* Polygon with a hole outside the shell
-         * *
-         * *
-         * * * *
-         *     *
-         *     *
-         *     *
-         * * * *
-         */
         var wkb = process("POLYGON( (0 0, 4 0, 4 4, 0 4, 0 0), (5 5, 6 5, 6 6, 5 6, 5 5) )", 10.0);
         var result = UNSPECIFIED.wkbToWkt(wkb);
-        /* It gets simplified to an empty polygon
-         */
+        // It gets simplified to an empty polygon
         assertEquals("POLYGON EMPTY", result);
     }
 }

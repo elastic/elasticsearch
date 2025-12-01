@@ -679,7 +679,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         connectionListener.addTimeout(
                             TimeValue.timeValueSeconds(3L),
                             transportService.getThreadPool(),
-                            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION)
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE
                         );
                     }
 
@@ -698,7 +698,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                                     l.onFailure(failure);
                                 }).map(resolveIndexResponse -> Map.entry(clusterAlias, resolveIndexResponse)),
                                     Response::new,
-                                    transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION)
+                                    EsExecutors.DIRECT_EXECUTOR_SERVICE
                                 )
                             )
                         ));

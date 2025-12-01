@@ -219,7 +219,7 @@ public class Literal extends LeafExpression implements Accountable {
     }
 
     public static Literal dateTime(Source source, Instant literal) {
-        return new Literal(source, literal, DataType.DATETIME);
+        return new Literal(source, literal.toEpochMilli(), DataType.DATETIME);
     }
 
     public static Literal integer(Source source, Integer literal) {

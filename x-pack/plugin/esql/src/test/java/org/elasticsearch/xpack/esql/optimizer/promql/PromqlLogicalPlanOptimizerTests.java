@@ -305,6 +305,11 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
 
     }
 
+    public void testPromqlTrailingSpaces() {
+        planPromql("TS k8s | promql step 1h (max(network.bytes_in)) ");
+        planPromql("TS k8s | promql step 1h (max(network.bytes_in)) | SORT step");
+    }
+
     public void testPromqlMaxOfLongField() {
         var plan = planPromql("""
             TS k8s

@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.Arrays;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 
 public class MultipartUploadTests extends ESTestCase {
 
@@ -63,7 +64,7 @@ public class MultipartUploadTests extends ESTestCase {
             var delimitedContent = DelimitedContent.randomContent();
             var inputStream = delimitedContent.toBytesReference().streamInput();
             var readBytes = MultipartUpload.readUntilDelimiter(inputStream, delimitedContent.delimiter);
-            assertEquals(new BytesArray(delimitedContent.before), readBytes);
+            assertThat(readBytes, equalBytes(new BytesArray(delimitedContent.before)));
             var readRemaining = inputStream.readAllBytes();
             assertArrayEquals(delimitedContent.after, readRemaining);
         }

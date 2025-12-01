@@ -579,16 +579,17 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
-        SubscribableListener.<PreAnalysisResult>newForked(l -> preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l))
-            .andThenApply(r -> {
-                if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
-                    && executionInfo.isCrossClusterSearch()
-                    && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
-                    LOGGER.debug("No more clusters to search, ending analysis stage");
-                    throw new NoClustersToSearchException();
-                }
-                return r;
-            })
+        SubscribableListener.<PreAnalysisResult>newForked(
+            l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, result, requestFilter, l)
+        ).andThenApply(r -> {
+            if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
+                && executionInfo.isCrossClusterSearch()
+                && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
+                LOGGER.debug("No more clusters to search, ending analysis stage");
+                throw new NoClustersToSearchException();
+            }
+            return r;
+        })
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
             .<PreAnalysisResult>andThen((l, r) -> {
                 // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
@@ -840,6 +841,7 @@ public class EsqlSession {
      */
     private void preAnalyzeMainIndices(
         PreAnalyzer.PreAnalysis preAnalysis,
+        Configuration configuration,
         EsqlExecutionInfo executionInfo,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
@@ -869,7 +871,16 @@ public class EsqlSession {
             forAll(
                 preAnalysis.indexes().entrySet().iterator(),
                 result,
-                (e, r, l) -> preAnalyzeFlatMainIndices(e.getKey(), e.getValue(), preAnalysis, executionInfo, r, requestFilter, l),
+                (e, r, l) -> preAnalyzeFlatMainIndices(
+                    e.getKey(),
+                    e.getValue(),
+                    configuration.projectRouting(),
+                    preAnalysis,
+                    executionInfo,
+                    r,
+                    requestFilter,
+                    l
+                ),
                 listener
             );
         }
@@ -920,6 +931,7 @@ public class EsqlSession {
     private void preAnalyzeFlatMainIndices(
         IndexPattern indexPattern,
         IndexMode indexMode,
+        String projectRouting,
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         PreAnalysisResult result,
@@ -928,6 +940,7 @@ public class EsqlSession {
     ) {
         indexResolver.resolveFlatWorldIndicesVersioned(
             indexPattern.indexPattern(),
+            projectRouting,
             result.fieldNames,
             createQueryFilter(indexMode, requestFilter),
             indexMode == IndexMode.TIME_SERIES,

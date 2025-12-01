@@ -107,7 +107,7 @@ public class IndexResolver {
         ActionListener<IndexResolution> listener
     ) {
         doResolveIndices(
-            createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, fieldNames, null, false, false),
+            createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
             indexPattern,
             minimumVersion,
             false,
@@ -150,7 +150,7 @@ public class IndexResolver {
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
-            createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, fieldNames, requestFilter, includeAllDimensions, false),
+            createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, false),
             indexPattern,
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
@@ -169,6 +169,7 @@ public class IndexResolver {
      */
     public void resolveFlatWorldIndicesVersioned(
         String indexPattern,
+        String projectRouting,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
@@ -182,7 +183,7 @@ public class IndexResolver {
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
-            createFieldCapsRequest(FLAT_WORLD_OPTIONS, indexPattern, fieldNames, requestFilter, includeAllDimensions, true),
+            createFieldCapsRequest(FLAT_WORLD_OPTIONS, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
             indexPattern,
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
@@ -512,6 +513,7 @@ public class IndexResolver {
     private static FieldCapabilitiesRequest createFieldCapsRequest(
         IndicesOptions options,
         String index,
+        @Nullable String projectRouting,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
@@ -534,6 +536,7 @@ public class IndexResolver {
         }
         request.setMergeResults(false);
         request.includeResolvedTo(includeResolvedTo);
+        request.projectRouting(projectRouting);
         return request;
     }
 

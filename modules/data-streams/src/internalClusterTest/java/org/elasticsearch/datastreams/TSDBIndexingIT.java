@@ -596,9 +596,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName, reindexedDataStreamName))
-                .template(
-                    new Template(templateSettings.build(), new CompressedXContent(MAPPING_TEMPLATE), null)
-                )
+                .template(new Template(templateSettings.build(), new CompressedXContent(MAPPING_TEMPLATE), null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
@@ -741,37 +739,31 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName))
-                .template(
-                    new Template(
-                        templateSettings.build(),
-                        new CompressedXContent("""
-                                {
-                              "_doc": {
-                                "dynamic_templates": [
-                                  {
-                                    "labels": {
-                                      "match_mapping_type": "string",
-                                      "mapping": {
-                                        "type": "keyword",
-                                        "time_series_dimension": true
-                                      }
-                                    }
-                                  }
-                                ],
-                                "properties": {
-                                  "@timestamp": {
-                                    "type": "date"
-                                  },
-                                  "metricset": {
-                                    "type": "keyword",
-                                    "time_series_dimension": true
-                                  }
-                                }
+                .template(new Template(templateSettings.build(), new CompressedXContent("""
+                        {
+                      "_doc": {
+                        "dynamic_templates": [
+                          {
+                            "labels": {
+                              "match_mapping_type": "string",
+                              "mapping": {
+                                "type": "keyword",
+                                "time_series_dimension": true
                               }
-                            }"""),
-                        null
-                    )
-                )
+                            }
+                          }
+                        ],
+                        "properties": {
+                          "@timestamp": {
+                            "type": "date"
+                          },
+                          "metricset": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                          }
+                        }
+                      }
+                    }"""), null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
@@ -813,37 +805,31 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName))
-                .template(
-                    new Template(
-                        templateSettings.build(),
-                        new CompressedXContent("""
+                .template(new Template(templateSettings.build(), new CompressedXContent("""
 
-                                {
-                              "_doc": {
-                                "dynamic_templates": [
-                                  {
-                                    "label": {
-                                      "mapping": {
-                                        "type": "keyword",
-                                        "time_series_dimension": true
-                                      }
-                                    }
-                                  }
-                                ],
-                                "properties": {
-                                  "@timestamp": {
-                                    "type": "date"
-                                  },
-                                  "metricset": {
-                                    "type": "keyword",
-                                    "time_series_dimension": true
-                                  }
-                                }
+                        {
+                      "_doc": {
+                        "dynamic_templates": [
+                          {
+                            "label": {
+                              "mapping": {
+                                "type": "keyword",
+                                "time_series_dimension": true
                               }
-                            }"""),
-                        null
-                    )
-                )
+                            }
+                          }
+                        ],
+                        "properties": {
+                          "@timestamp": {
+                            "type": "date"
+                          },
+                          "metricset": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                          }
+                        }
+                      }
+                    }"""), null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );

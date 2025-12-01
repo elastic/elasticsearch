@@ -809,17 +809,17 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     private final class ExternalChangeTaskExecutor implements ClusterStateTaskExecutor<ExternalChangeTask> {
-        private final Collection<SnapshotsInProgress.Entry> finishedSnapshots = new ArrayList<>();
-
         @Override
         public ClusterState execute(BatchExecutionContext<ExternalChangeTask> batchExecutionContext) {
-            assert finishedSnapshots.isEmpty();
+            boolean changedNodes = false;
+            for (TaskContext<ExternalChangeTask> externalChangeTaskTaskContext : batchExecutionContext.taskContexts()) {
+                if (externalChangeTaskTaskContext.getTask().changedNodes()) {
+                    changedNodes = true;
+                    break;
+                }
+            }
 
-            boolean changedNodes = batchExecutionContext.taskContexts()
-                .stream()
-                .anyMatch(taskContext -> taskContext.getTask().changedNodes());
-
-            ClusterState currentState = batchExecutionContext.initialState();
+            final ClusterState currentState = batchExecutionContext.initialState();
             final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
             final SnapshotDeletionsInProgress deletesInProgress = SnapshotDeletionsInProgress.get(currentState);
             DiscoveryNodes nodes = currentState.nodes();
@@ -843,6 +843,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             // that encapsulate nodes leaving or indices having been deleted and passing them to the executor instead.
             SnapshotsInProgress updatedSnapshots = snapshotsInProgress;
 
+            Collection<SnapshotsInProgress.Entry> finishedSnapshots = new ArrayList<>();
             for (final List<SnapshotsInProgress.Entry> snapshotsInRepo : snapshotsInProgress.entriesByRepo()) {
                 boolean changed = false;
                 final List<SnapshotsInProgress.Entry> updatedEntriesForRepo = new ArrayList<>();
@@ -959,24 +960,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 null
             ).v1();
 
-            // If there are no updates to cluster state we still need to perform side effects of this task
-            // If cluster state has changed it will be called from clusterStatePublished
-            boolean clusterStateChanged = (res != batchExecutionContext.initialState());
-            Runnable successRunnable = (clusterStateChanged) ?
-                () -> {} :
-                new RunOnce(() -> clusterStateProcessed(res));
+            Runnable successRunnable = new RunOnce(() -> clusterStateProcessed(res, finishedSnapshots));
             for (TaskContext<ExternalChangeTask> taskContext : batchExecutionContext.taskContexts()) {
                 taskContext.success(successRunnable);
             }
             return res;
         }
 
-        @Override
-        public void clusterStatePublished(ClusterState newState) {
-            clusterStateProcessed(newState);
-        }
-
-        private void clusterStateProcessed(ClusterState newState) {
+        private void clusterStateProcessed(ClusterState newState, Collection<SnapshotsInProgress.Entry> finishedSnapshots) {
             final SnapshotDeletionsInProgress snapshotDeletionsInProgress = SnapshotDeletionsInProgress.get(newState);
             if (finishedSnapshots.isEmpty() == false) {
                 // If we found snapshots that should be finalized as a result of the CS update we try to initiate finalization for

@@ -172,7 +172,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             new InferenceService(client),
             blockFactoryProvider,
             new PlannerSettings(clusterService),
-            new CrossProjectModeDecider(clusterService.getSettings())
+            new CrossProjectModeDecider(clusterService.getSettings()),
+            new org.elasticsearch.xpack.esql.action.AsyncResultResolver(client, threadPool)
         );
 
         this.computeService = new ComputeService(

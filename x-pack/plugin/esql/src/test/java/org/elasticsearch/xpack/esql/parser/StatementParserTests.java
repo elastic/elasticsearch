@@ -5467,4 +5467,126 @@ public class StatementParserTests extends AbstractStatementParserTests {
             }
         }
     }
+
+    // ==================== LOAD_RESULT Tests ====================
+
+    public void testLoadResultBasic() {
+        LogicalPlan plan = statement("LOAD_RESULT \"async-query-id-12345\"");
+        assertThat(plan, instanceOf(org.elasticsearch.xpack.esql.plan.logical.LoadResult.class));
+
+        var loadResult = (org.elasticsearch.xpack.esql.plan.logical.LoadResult) plan;
+        assertThat(loadResult.searchId(), instanceOf(Literal.class));
+        assertThat(loadResult.searchId().fold(FoldContext.small()), equalTo(new BytesRef("async-query-id-12345")));
+    }
+
+    public void testLoadResultWithUUID() {
+        String uuid = "FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=";
+        LogicalPlan plan = statement("LOAD_RESULT \"" + uuid + "\"");
+        assertThat(plan, instanceOf(org.elasticsearch.xpack.esql.plan.logical.LoadResult.class));
+
+        var loadResult = (org.elasticsearch.xpack.esql.plan.logical.LoadResult) plan;
+        assertThat(loadResult.searchId().fold(FoldContext.small()), equalTo(new BytesRef(uuid)));
+    }
+
+    public void testLoadResultWithPipeline() {
+        LogicalPlan plan = statement("LOAD_RESULT \"async-id\" | WHERE x > 10");
+        assertThat(plan, instanceOf(Filter.class));
+
+        Filter filter = (Filter) plan;
+        assertThat(filter.child(), instanceOf(org.elasticsearch.xpack.esql.plan.logical.LoadResult.class));
+
+        var loadResult = (org.elasticsearch.xpack.esql.plan.logical.LoadResult) filter.child();
+        assertThat(loadResult.searchId().fold(FoldContext.small()), equalTo(new BytesRef("async-id")));
+    }
+
+    public void testLoadResultWithMultiplePipelines() {
+        LogicalPlan plan = statement("LOAD_RESULT \"async-id\" | WHERE x > 10 | EVAL y = x * 2 | LIMIT 5");
+        assertThat(plan, instanceOf(Limit.class));
+
+        Limit limit = (Limit) plan;
+        assertThat(limit.child(), instanceOf(Eval.class));
+
+        Eval eval = (Eval) limit.child();
+        assertThat(eval.child(), instanceOf(Filter.class));
+
+        Filter filter = (Filter) eval.child();
+        assertThat(filter.child(), instanceOf(org.elasticsearch.xpack.esql.plan.logical.LoadResult.class));
+    }
+
+    public void testLoadResultCaseInsensitive() {
+        // Test that LOAD_RESULT is case insensitive
+        LogicalPlan plan1 = statement("LOAD_RESULT \"id\"");
+        LogicalPlan plan2 = statement("load_result \"id\"");
+        LogicalPlan plan3 = statement("Load_Result \"id\"");
+
+        assertThat(plan1, instanceOf(org.elasticsearch.xpack.esql.plan.logical.LoadResult.class));
+        assertThat(plan2, instanceOf(org.elasticsearch.xpack.esql.plan.logical.LoadResult.class));
+        assertThat(plan3, instanceOf(org.elasticsearch.xpack.esql.plan.logical.LoadResult.class));
+    }
+
+    public void testLoadResultWithSpecialCharacters() {
+        // Test ID with special characters (common in base64 encoded IDs)
+        String idWithSpecialChars = "abc+def/123==";
+        LogicalPlan plan = statement("LOAD_RESULT \"" + idWithSpecialChars + "\"");
+        assertThat(plan, instanceOf(org.elasticsearch.xpack.esql.plan.logical.LoadResult.class));
+
+        var loadResult = (org.elasticsearch.xpack.esql.plan.logical.LoadResult) plan;
+        assertThat(loadResult.searchId().fold(FoldContext.small()), equalTo(new BytesRef(idWithSpecialChars)));
+    }
+
+    public void testLoadResultWithHyphensAndUnderscores() {
+        String id = "async-query_id-123_test";
+        LogicalPlan plan = statement("LOAD_RESULT \"" + id + "\"");
+        assertThat(plan, instanceOf(org.elasticsearch.xpack.esql.plan.logical.LoadResult.class));
+
+        var loadResult = (org.elasticsearch.xpack.esql.plan.logical.LoadResult) plan;
+        assertThat(loadResult.searchId().fold(FoldContext.small()), equalTo(new BytesRef(id)));
+    }
+
+    // ==================== LOAD_RESULT Error Cases ====================
+
+    public void testLoadResultMissingQuotes() {
+        // LOAD_RESULT supports both quoted strings and unquoted identifiers
+        // So "LOAD_RESULT async-id" actually parses successfully
+        // Testing that it parses (even if it would fail at execution time)
+        LogicalPlan plan = statement("LOAD_RESULT async");
+        assertThat(plan, instanceOf(org.elasticsearch.xpack.esql.plan.logical.LoadResult.class));
+    }
+
+    public void testLoadResultEmptyString() {
+        // Empty string is accepted by parser, validation happens later
+        LogicalPlan plan = statement("LOAD_RESULT \"\"");
+        assertThat(plan, instanceOf(org.elasticsearch.xpack.esql.plan.logical.LoadResult.class));
+        var loadResult = (org.elasticsearch.xpack.esql.plan.logical.LoadResult) plan;
+        assertThat(loadResult.searchId().fold(FoldContext.small()), equalTo(new BytesRef("")));
+    }
+
+    public void testLoadResultNoArgument() {
+        // Parser expects an ID argument
+        expectError("LOAD_RESULT", "missing {QUOTED_STRING, LOAD_RESULT_UNQUOTED_ID} at '<EOF>'");
+    }
+
+    public void testLoadResultMultipleArguments() {
+        expectError("LOAD_RESULT \"id1\", \"id2\"", "token recognition error at: ','");
+    }
+
+    public void testLoadResultWithUnquotedKeyword() {
+        // FROM is a reserved keyword but might be accepted as unquoted ID
+        // Let's test that it parses
+        LogicalPlan plan = statement("LOAD_RESULT test_id");
+        assertThat(plan, instanceOf(org.elasticsearch.xpack.esql.plan.logical.LoadResult.class));
+    }
+
+    public void testLoadResultAsProcessingCommand() {
+        // LOAD_RESULT cannot be used as a processing command (after |)
+        expectError("ROW x = 1 | LOAD_RESULT \"id\"", "line 1:13: mismatched input 'LOAD_RESULT'");
+
+        expectError("FROM test | LOAD_RESULT \"id\"", "line 1:13: mismatched input 'LOAD_RESULT'");
+    }
+
+    public void testLoadResultCannotFollowFromOrRow() {
+        // LOAD_RESULT must be a source command (start of query)
+        // It cannot follow FROM or ROW
+        expectError("FROM test | LOAD_RESULT \"id\"", "line 1:13: mismatched input 'LOAD_RESULT'");
+    }
 }

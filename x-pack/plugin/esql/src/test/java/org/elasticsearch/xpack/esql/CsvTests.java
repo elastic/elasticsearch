@@ -818,6 +818,7 @@ public class CsvTests extends ESTestCase {
             mock(EnrichLookupService.class),
             mock(LookupFromIndexService.class),
             mock(InferenceService.class),
+            null,
             physicalOperationProviders
         );
 

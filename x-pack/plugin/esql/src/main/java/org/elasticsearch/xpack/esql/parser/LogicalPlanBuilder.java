@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LoadResult;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -351,6 +352,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @SuppressWarnings("unchecked")
     public LogicalPlan visitRowCommand(EsqlBaseParser.RowCommandContext ctx) {
         return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
+    }
+
+    @Override
+    public LogicalPlan visitLoadResultCommand(EsqlBaseParser.LoadResultCommandContext ctx) {
+        Source source = source(ctx);
+        String searchIdText;
+        if (ctx.searchId.getType() == EsqlBaseLexer.QUOTED_STRING) {
+            searchIdText = AbstractBuilder.unquote(ctx.searchId.getText());
+        } else {
+            searchIdText = ctx.searchId.getText();
+        }
+        Literal searchId = Literal.keyword(source, searchIdText);
+        return new LoadResult(source, searchId);
     }
 
     private LogicalPlan visitRelation(Source source, IndexMode indexMode, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {

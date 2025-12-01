@@ -8196,6 +8196,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             new EsPhysicalOperationProviders(FoldContext.small(), EmptyIndexedByShardId.instance(), null, TEST_PLANNER_SETTINGS)
         );
 

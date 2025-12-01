@@ -42,6 +42,7 @@ sourceCommand
     | rowCommand
     | showCommand
     | timeSeriesCommand
+    | loadResultCommand
     // in development
     | {this.isDevVersion()}? explainCommand
     ;
@@ -369,5 +370,9 @@ setCommand
 
 setField
     : identifier ASSIGN constant
+    ;
+
+loadResultCommand
+    : LOAD_RESULT searchId=(LOAD_RESULT_UNQUOTED_ID | QUOTED_STRING)
     ;
 

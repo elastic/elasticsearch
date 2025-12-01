@@ -227,7 +227,7 @@ public class SecurityContextTests extends ESTestCase {
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
             assertSame(original.getAuthenticatingSubject().getMetadata(), authentication.getAuthenticatingSubject().getMetadata());
-        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.current()));
+        }, VERSION_API_KEY_ROLES_AS_BYTES);
     }
 
     public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteOldApiKeyMetadata() throws IOException {
@@ -270,7 +270,7 @@ public class SecurityContextTests extends ESTestCase {
                         equalTo(original.getAuthenticatingSubject().getMetadata().get(key))
                     );
                 });
-        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.current()));
+        }, VERSION_API_KEY_ROLES_AS_BYTES);
     }
 
     public void testExecuteAfterRemovingParentAuthorization() {

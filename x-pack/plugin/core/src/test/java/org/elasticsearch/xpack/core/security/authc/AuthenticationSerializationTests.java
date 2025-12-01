@@ -235,21 +235,16 @@ public class AuthenticationSerializationTests extends ESTestCase {
     }
 
     public void testRolesRemovedFromUserForLegacyApiKeys() throws IOException {
-        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            VERSION_7_0_0,
-            Authentication.VERSION_SYNTHETIC_ROLE_NAMES
-        );
         Subject authenticatingSubject = new Subject(
             new User("foo", "role"),
             new Authentication.RealmRef(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE, "node"),
-            transportVersion,
+            VERSION_7_0_0,
             Map.of(AuthenticationField.API_KEY_ID_KEY, "abc")
         );
         Subject effectiveSubject = new Subject(
             new User("bar", "role"),
             new Authentication.RealmRef("native", "native", "node"),
-            transportVersion,
+            VERSION_7_0_0,
             Map.of()
         );
 

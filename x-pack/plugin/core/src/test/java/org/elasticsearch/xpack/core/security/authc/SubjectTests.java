@@ -14,7 +14,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -308,11 +307,7 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             new User("joe"),
             new Authentication.RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, "node"),
-            TransportVersionUtils.randomVersionBetween(
-                random(),
-                VERSION_7_0_0,
-                TransportVersionUtils.getPreviousVersion(Authentication.VERSION_API_KEY_ROLES_AS_BYTES)
-            ),
+            VERSION_7_0_0,
             authMetadata
         );
 

@@ -9,7 +9,7 @@ applies_to:
 
 # Semantic text field type [semantic-text]
 
-The `semantic_text` field type simplifies [semantic search](docs-content://solutions/search/semantic-search.md) by providing defaults for the required infrastructure. Using `semantic_text`, you don't have to manually configure mappings, set up ingestion pipelines, or handle chunking. The field type automatically:
+The `semantic_text` field type simplifies [semantic search](docs-content://solutions/search/semantic-search.md) by providing sensible defaults that automate most of the manual work typically required for vector search. Using `semantic_text`, you don't have to manually configure mappings, set up ingestion pipelines, or handle chunking. The field type automatically:
 
 - Configures index mappings: Chooses the correct field type (`sparse_vector` or `dense_vector`), dimensions, similarity functions, and storage optimizations based on the inference endpoint.
 - Generates embeddings during indexing: Automatically generates embeddings when you index documents, without requiring ingestion pipelines or inference processors.

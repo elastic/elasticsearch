@@ -65,7 +65,6 @@ import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.action.ActionListener.run;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.common.regex.Regex.simpleMatch;
@@ -409,7 +408,15 @@ public class IndexResolver {
         String projectRouting,
         ActionListener<IndexResolution> listener
     ) {
-        resolveAsMergedMapping(indexWildcard, fieldNames, includeFrozen, runtimeMappings, projectRouting, listener, (fieldName, types) -> null);
+        resolveAsMergedMapping(
+            indexWildcard,
+            fieldNames,
+            includeFrozen,
+            runtimeMappings,
+            projectRouting,
+            listener,
+            (fieldName, types) -> null
+        );
     }
 
     /**
@@ -729,7 +736,7 @@ public class IndexResolver {
         Map<String, Object> runtimeMappings,
         ActionListener<List<EsIndex>> listener
     ) {
-        //TODO pass project routing
+        // TODO pass project routing
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, ALL_FIELDS, includeFrozen, runtimeMappings, null);
         client.fieldCaps(fieldRequest, listener.delegateFailureAndWrap((delegate, response) -> {
             client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases -> {

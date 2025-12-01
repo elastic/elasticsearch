@@ -10,6 +10,9 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.HdrHistogram.DoubleHistogram;
+import org.HdrHistogram.ShortCountsHistogram;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -26,16 +29,21 @@ import java.util.Map;
  */
 public class ShardWriteLoadDistributionMetrics {
 
-    public static final String METRIC_NAME = "es.allocator.shard_write_load.distribution";
+    private static final Logger logger = LogManager.getLogger(ShardWriteLoadDistributionMetrics.class);
+    public static final String METRIC_NAME = "es.allocator.shard_write_load.distribution.current";
 
     private final DoubleHistogram shardWeightHistogram;
     private final double[] percentiles;
     private final Map<String, Object>[] attributes;
     private final double[] lastValues;
 
+    public ShardWriteLoadDistributionMetrics(MeterRegistry meterRegistry) {
+        this(meterRegistry, 3, 50, 90, 95, 99, 100);
+    }
+
     @SuppressWarnings("unchecked")
-    public ShardWriteLoadDistributionMetrics(MeterRegistry meterRegistry, double... percentiles) {
-        this.shardWeightHistogram = new DoubleHistogram(4);
+    public ShardWriteLoadDistributionMetrics(MeterRegistry meterRegistry, int numberOfSignificantDigits, double... percentiles) {
+        this.shardWeightHistogram = new DoubleHistogram(numberOfSignificantDigits, ShortCountsHistogram.class);
         this.percentiles = percentiles;
         this.attributes = (Map<String, Object>[]) Array.newInstance(Map.class, percentiles.length);
         for (int i = 0; i < percentiles.length; i++) {
@@ -52,10 +60,16 @@ public class ShardWriteLoadDistributionMetrics {
     }
 
     public void onNewInfo(ClusterInfo clusterInfo) {
-        shardWeightHistogram.reset();
-        clusterInfo.getShardWriteLoads().forEach((shardId, shardWriteLoad) -> shardWeightHistogram.recordValue(shardWriteLoad));
-        for (int i = 0; i < percentiles.length; i++) {
-            lastValues[i] = shardWeightHistogram.getValueAtPercentile(percentiles[i]);
+        try {
+            shardWeightHistogram.reset();
+            clusterInfo.getShardWriteLoads().forEach((shardId, shardWriteLoad) -> shardWeightHistogram.recordValue(shardWriteLoad));
+            for (int i = 0; i < percentiles.length; i++) {
+                lastValues[i] = shardWeightHistogram.getValueAtPercentile(percentiles[i]);
+            }
+        } catch (ArrayIndexOutOfBoundsException e) {
+            // This shouldn't happen because our histogram should be auto-resizing, but just in case
+            logger.error("Failed to record shard write load distribution metrics", e);
+            Arrays.fill(lastValues, Double.NaN);
         }
     }
 

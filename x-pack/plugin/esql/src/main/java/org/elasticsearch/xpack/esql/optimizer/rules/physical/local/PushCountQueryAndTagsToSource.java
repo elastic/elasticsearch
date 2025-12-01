@@ -48,8 +48,10 @@ import java.util.Optional;
  *  </pre>
  *  Where the filter is needed since the original Aggregate would not produce buckets with count = 0.
  *
- *  If there's more than one query on the query builder, and both filter <b>are on the same field</b>, this rule will also attempt to merge
- *  them before pushing. If the queries cannot be merged, the rule will not be applied.
+ *  If there's more than one query on the query builder, and both filters <b>are on the same field</b>, this rule will also attempt to merge
+ *  them before pushing. This can happen due to an external ESFilter (i.e., outside the ES|QL query), or simply to a previously pushed down
+ *  WHERE clause.
+ *  If the queries cannot be merged, the rule will not be applied.
  */
 public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.OptimizerRule<AggregateExec> {
     @Override
@@ -59,7 +61,7 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
         aggregateExec.aggregates().size() == 2
             && aggregateExec.aggregates().getFirst() instanceof Alias alias
             && alias.child() instanceof Count count
-            && count.hasFilter() == false // FIXME explain
+            && count.hasFilter() == false // We don't support pushing down counts where the filter is *on the count itself*.
             && count.field() instanceof Literal // Ensures count(*) or equivalent.
             && aggregateExec.child() instanceof EvalExec evalExec
             && evalExec.child() instanceof EsQueryExec queryExec
@@ -221,7 +223,6 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
             return;
         }
 
-        @SuppressWarnings("unchecked")
         int compare = compare(bound1, bound2);
         boolean useFirst = switch (boundType) {
             case FROM -> compare > 0;

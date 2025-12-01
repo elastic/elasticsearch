@@ -677,12 +677,12 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting(
-        "index.mapping.use_doc_values_skipper",
-        true,
-        Property.IndexScope,
-        Property.Final
-    );
+    public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
+        if (DiscoveryNode.isStateless(s)) {
+            return SETTING_INDEX_VERSION_CREATED.get(s).onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_BY_DEFAULT) ? "true" : "false";
+        }
+        return "true";
+    }, Property.IndexScope, Property.Final);
 
     public static final boolean TSDB_SYNTHETIC_ID_FEATURE_FLAG = new FeatureFlag("tsdb_synthetic_id").isEnabled();
     public static final Setting<Boolean> USE_SYNTHETIC_ID = Setting.boolSetting(

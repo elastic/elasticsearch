@@ -1197,6 +1197,52 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
+    public void testOptionalColumnAtATimeReaderBinary() throws Exception {
+        final String binaryFieldOne = "binary_1";
+
+        var config = new IndexWriterConfig();
+        config.setMergePolicy(new LogByteSizeMergePolicy());
+        config.setCodec(getCodec());
+
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            Set<String> binaryValues = new HashSet<>();
+            int numDocs = 10_000 * randomIntBetween(2, 20);
+
+            int numValues = randomIntBetween(8, 256);
+            for (int i = 0; i < numValues; i++) {
+                binaryValues.add(randomAlphaOfLength(between(128, 256)));
+            }
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(new BinaryDocValuesField(binaryFieldOne, new BytesRef(randomFrom(binaryValues))));
+
+                iw.addDocument(d);
+                if (i % 1000 == 0) {
+                    iw.commit();
+                }
+            }
+            iw.commit();
+            var factory = TestBlock.factory();
+            try (var reader = DirectoryReader.open(iw)) {
+                for (var leaf : reader.leaves()) {
+                    int maxDoc = leaf.reader().maxDoc();
+                    var binaryFixedDV = getDenseBinaryValues(leaf.reader(), binaryFieldOne);
+                    // Randomize start doc, starting from a docid that is part of later blocks triggers:
+                    // https://github.com/elastic/elasticsearch/issues/138750
+                    var docs = TestBlock.docs(IntStream.range(between(0, maxDoc - 1), maxDoc).toArray());
+                    var block = (TestBlock) binaryFixedDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
+                    assertNotNull(block);
+                    assertTrue(block.size() > 0);
+                    for (int j = 0; j < block.size(); j++) {
+                        var actual = ((BytesRef) block.get(j)).utf8ToString();
+                        assertTrue("actual [" + actual + "] not in generated values", binaryValues.contains(actual));
+                    }
+                }
+            }
+        }
+    }
+
     public void testOptionalColumnAtATimeReaderWithSparseDocs() throws Exception {
         final String counterField = "counter";
         final String counterAsStringField = "counter_as_string";

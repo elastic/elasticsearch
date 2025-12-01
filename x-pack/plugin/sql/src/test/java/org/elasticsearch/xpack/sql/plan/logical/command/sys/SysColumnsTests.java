@@ -304,6 +304,7 @@ public class SysColumnsTests extends ESTestCase {
             null,
             null,
             false,
+            false,
             null
         );
         Tuple<Command, SqlSession> tuple = sql(sql, emptyList(), config, MAPPING1);
@@ -352,6 +353,7 @@ public class SysColumnsTests extends ESTestCase {
             null,
             null,
             false,
+            false,
             null
         );
         Tuple<Command, SqlSession> tuple = sql(sql, params, config, mapping);
@@ -385,7 +387,7 @@ public class SysColumnsTests extends ESTestCase {
         doAnswer(invocation -> {
             ((ActionListener<IndexResolution>) invocation.getArguments()[4]).onResponse(IndexResolution.valid(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsMergedMapping(any(), eq(IndexResolver.ALL_FIELDS), anyBoolean(), any(), any());
+        }).when(resolver).resolveAsMergedMapping(any(), eq(IndexResolver.ALL_FIELDS), anyBoolean(), null, any(), any());
         doAnswer(invocation -> {
             ((ActionListener<List<EsIndex>>) invocation.getArguments()[4]).onResponse(singletonList(test));
             return Void.TYPE;

@@ -65,6 +65,7 @@ import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.action.ActionListener.run;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.common.regex.Regex.simpleMatch;
@@ -405,9 +406,10 @@ public class IndexResolver {
         Set<String> fieldNames,
         boolean includeFrozen,
         Map<String, Object> runtimeMappings,
+        String projectRouting,
         ActionListener<IndexResolution> listener
     ) {
-        resolveAsMergedMapping(indexWildcard, fieldNames, includeFrozen, runtimeMappings, listener, (fieldName, types) -> null);
+        resolveAsMergedMapping(indexWildcard, fieldNames, includeFrozen, runtimeMappings, projectRouting, listener, (fieldName, types) -> null);
     }
 
     /**
@@ -418,10 +420,17 @@ public class IndexResolver {
         Set<String> fieldNames,
         boolean includeFrozen,
         Map<String, Object> runtimeMappings,
+        String projectRouting,
         ActionListener<IndexResolution> listener,
         BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> specificValidityVerifier
     ) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, includeFrozen, runtimeMappings);
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(
+            indexWildcard,
+            fieldNames,
+            includeFrozen,
+            runtimeMappings,
+            projectRouting
+        );
         client.fieldCaps(
             fieldRequest,
             listener.delegateFailureAndWrap(
@@ -440,7 +449,7 @@ public class IndexResolver {
         BiConsumer<EsField, InvalidMappedField> fieldUpdater,
         Set<String> allowedMetadataFields
     ) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, includeFrozen, runtimeMappings);
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, includeFrozen, runtimeMappings, null);
         client.fieldCaps(
             fieldRequest,
             listener.delegateFailureAndWrap(
@@ -676,23 +685,38 @@ public class IndexResolver {
         IndicesOptions indicesOptions,
         Map<String, Object> runtimeMappings
     ) {
-        return new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index))
+        return createFieldCapsRequest(index, fieldNames, indicesOptions, runtimeMappings, null);
+    }
+
+    private static FieldCapabilitiesRequest createFieldCapsRequest(
+        String index,
+        Set<String> fieldNames,
+        IndicesOptions indicesOptions,
+        Map<String, Object> runtimeMappings,
+        String projectRouting
+    ) {
+        FieldCapabilitiesRequest result = new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index))
             .fields(fieldNames.toArray(String[]::new))
             .includeUnmapped(true)
             .runtimeFields(runtimeMappings)
             // lenient because we throw our own errors looking at the response e.g. if something was not resolved
             // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
             .indicesOptions(indicesOptions);
+        if (projectRouting != null) {
+            result.projectRouting(projectRouting);
+        }
+        return result;
     }
 
     private static FieldCapabilitiesRequest createFieldCapsRequest(
         String index,
         Set<String> fieldNames,
         boolean includeFrozen,
-        Map<String, Object> runtimeMappings
+        Map<String, Object> runtimeMappings,
+        String projectRouting
     ) {
         IndicesOptions indicesOptions = includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS;
-        return createFieldCapsRequest(index, fieldNames, indicesOptions, runtimeMappings);
+        return createFieldCapsRequest(index, fieldNames, indicesOptions, runtimeMappings, projectRouting);
     }
 
     /**
@@ -705,7 +729,8 @@ public class IndexResolver {
         Map<String, Object> runtimeMappings,
         ActionListener<List<EsIndex>> listener
     ) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, ALL_FIELDS, includeFrozen, runtimeMappings);
+        //TODO pass project routing
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, ALL_FIELDS, includeFrozen, runtimeMappings, null);
         client.fieldCaps(fieldRequest, listener.delegateFailureAndWrap((delegate, response) -> {
             client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases -> {
                 delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases()));

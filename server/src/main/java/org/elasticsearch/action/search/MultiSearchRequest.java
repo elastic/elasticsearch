@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.action.search.SearchParamsParser;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -49,13 +51,16 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
 /**
  * A multi search API request.
  */
-public class MultiSearchRequest extends LegacyActionRequest implements CompositeIndicesRequest {
+public class MultiSearchRequest extends LegacyActionRequest implements CompositeIndicesRequest, IndicesRequest.CrossProjectCandidate {
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
 
     private int maxConcurrentSearchRequests = 0;
     private final List<SearchRequest> requests = new ArrayList<>();
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+
+    @Nullable
+    private String projectRouting;
 
     public MultiSearchRequest() {}
 
@@ -175,7 +180,8 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
          * Refer to RestSearchAction#parseSearchRequest()'s JavaDoc to understand why this is an Optional
          * and what its values mean with respect to an endpoint's Cross Project Search status/support.
          */
-        Optional<Boolean> crossProjectEnabled
+        Optional<Boolean> crossProjectEnabled,
+        @Nullable String projectRouting
     ) throws IOException {
         readMultiLineFormat(
             xContent,
@@ -189,7 +195,8 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
             ccsMinimizeRoundtrips,
             allowExplicitIndex,
             (s, o, r) -> false,
-            crossProjectEnabled
+            crossProjectEnabled,
+            projectRouting
         );
 
     }
@@ -210,7 +217,8 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
          * Refer to RestSearchAction#parseSearchRequest()'s JavaDoc to understand why this is an Optional
          * and what its values mean with respect to an endpoint's Cross Project Search status/support.
          */
-        Optional<Boolean> crossProjectEnabled
+        Optional<Boolean> crossProjectEnabled,
+        @Nullable String projectRouting
     ) throws IOException {
         int from = 0;
         byte marker = xContent.bulkSeparator();
@@ -262,7 +270,10 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
                     Object allowNoIndices = null;
                     for (Map.Entry<String, Object> entry : source.entrySet()) {
                         Object value = entry.getValue();
-                        if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
+                        if (crossProjectEnabled.orElse(false)
+                            && ("project_routing".equals(entry.getKey()) || "projectRouting".equals(entry.getKey()))) {
+                            searchRequest.setProjectRouting(nodeStringValue(value));
+                        } else if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
                             if (allowExplicitIndex == false) {
                                 throw new IllegalArgumentException("explicit index in multi search is not allowed");
                             }
@@ -307,6 +318,21 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
                 }
             }
             searchRequest.indicesOptions(defaultOptions);
+
+            /*
+             * There are 2 different places where project_routing can appear:
+             * 1. As a query parameter, i.e. top-level, and,
+             * 2. Within the request's body.
+             *
+             * When it appears within the request's body, we override the query parameter: this is how msearch options and params
+             * work.
+             *
+             * At this point, if search#getProjectRouting() returns `null`, it means that we did not see any specific value within
+             * the request's body. So we'll pick up whatever that was provided in the top-level.
+             */
+            if (crossProjectEnabled.orElse(false) && searchRequest.getProjectRouting() == null && projectRouting != null) {
+                searchRequest.setProjectRouting(projectRouting);
+            }
 
             // move pointers
             from = nextMarker + 1;
@@ -405,5 +431,18 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
                     + requests.stream().map(SearchRequest::buildDescription).collect(Collectors.joining(" | "));
             }
         };
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    public void setProjectRouting(String projectRouting) {
+        this.projectRouting = projectRouting;
+    }
+
+    public String getProjectRouting() {
+        return projectRouting;
     }
 }

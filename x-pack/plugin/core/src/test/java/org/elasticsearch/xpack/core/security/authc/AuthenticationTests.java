@@ -1142,7 +1142,10 @@ public class AuthenticationTests extends ESTestCase {
             .build();
 
         // pick a version before that of the authentication instance to force a rewrite
-        final TransportVersion olderVersion = randomTransportVersionBefore(original.getEffectiveSubject().getTransportVersion());
+        final TransportVersion olderVersion = randomTransportVersionBetween(
+            Authentication.VERSION_API_KEY_ROLES_AS_BYTES,
+            original.getEffectiveSubject().getTransportVersion()
+        );
 
         final Map<String, Object> rewrittenMetadata = original.maybeRewriteForOlderVersion(olderVersion)
             .getEffectiveSubject()
@@ -1336,6 +1339,18 @@ public class AuthenticationTests extends ESTestCase {
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId) {
         return randomApiKeyAuthentication(user, apiKeyId, randomTransportVersion());
+    }
+
+    /**
+     * @param minVersion minimum version, inclusive
+     * @param maxVersion maximum version, exclusive
+     */
+    public static TransportVersion randomTransportVersionBetween(TransportVersion minVersion, TransportVersion maxVersion) {
+        return randomFrom(
+            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS)
+                .filter(v -> v.onOrAfter(minVersion) && v.before(maxVersion))
+                .toArray(TransportVersion[]::new)
+        );
     }
 
     public static TransportVersion randomTransportVersionBefore(TransportVersion maxVersion) {

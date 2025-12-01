@@ -48,16 +48,22 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
     /**
      * Whether the feature flag to guard the work to make reindex more resilient while it is under development.
      */
-    static boolean REINDEX_RESILIENCE_ENABLED = new FeatureFlag("reindex_resilience").isEnabled();
+    public static boolean REINDEX_RESILIENCE_ENABLED = new FeatureFlag("reindex_resilience").isEnabled();
 
     @Override
     public List<ActionHandler> getActions() {
-        return Arrays.asList(
-            new ActionHandler(ReindexAction.INSTANCE, TransportReindexAction.class),
-            new ActionHandler(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
-            new ActionHandler(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
-            new ActionHandler(RETHROTTLE_ACTION, TransportRethrottleAction.class)
+        List<ActionHandler> actions = new ArrayList<>(
+            Arrays.asList(
+                new ActionHandler(ReindexAction.INSTANCE, TransportReindexAction.class),
+                new ActionHandler(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
+                new ActionHandler(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
+                new ActionHandler(RETHROTTLE_ACTION, TransportRethrottleAction.class)
+            )
         );
+        if (REINDEX_RESILIENCE_ENABLED) {
+            actions.add(new ActionHandler(TransportGetReindexAction.TYPE, TransportGetReindexAction.class));
+        }
+        return actions;
     }
 
     @Override
@@ -79,12 +85,18 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return Arrays.asList(
-            new RestReindexAction(clusterSupportsFeature),
-            new RestUpdateByQueryAction(clusterSupportsFeature),
-            new RestDeleteByQueryAction(clusterSupportsFeature),
-            new RestRethrottleAction(nodesInCluster)
+        List<RestHandler> handlers = new ArrayList<>(
+            Arrays.asList(
+                new RestReindexAction(clusterSupportsFeature),
+                new RestUpdateByQueryAction(clusterSupportsFeature),
+                new RestDeleteByQueryAction(clusterSupportsFeature),
+                new RestRethrottleAction(nodesInCluster)
+            )
         );
+        if (REINDEX_RESILIENCE_ENABLED) {
+            handlers.add(new RestGetReindexAction());
+        }
+        return handlers;
     }
 
     @Override

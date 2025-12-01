@@ -1,0 +1,100 @@
+---
+"Get reindex task - basic":
+
+  - do:
+      index:
+        index: source
+        id: 1
+        body:
+          foo: bar
+
+  - do:
+      index:
+        index: source
+        id: 2
+        body:
+          foo: baz
+
+  - do:
+      reindex:
+        wait_for_completion: false
+        body:
+          source:
+            index: source
+          dest:
+            index: dest
+
+  - set: {task_id: task}
+
+  - do:
+      reindex.get_task:
+        id: $task_id
+
+  - match: {completed: false}
+
+---
+"Get reindex task - wait for completion":
+
+  - do:
+      index:
+        index: source2
+        id: 1
+        body:
+          foo: bar
+
+  - do:
+      reindex:
+        wait_for_completion: false
+        body:
+          source:
+            index: source2
+          dest:
+            index: dest2
+
+  - set: {task_id: task}
+
+  - do:
+      reindex.get_task:
+        id: $task_id
+        wait_for_completion: true
+        timeout: 30s
+
+  - match: {completed: true}
+
+---
+"Get reindex task - not found":
+
+  - do:
+      catch: missing
+      reindex.get_task:
+        id: "nonexistent:99999"
+
+  - match: {status: 404}
+
+---
+"Get reindex task - completed task":
+
+  - do:
+      index:
+        index: source3
+        id: 1
+        body:
+          foo: bar
+
+  - do:
+      reindex:
+        wait_for_completion: true
+        body:
+          source:
+            index: source3
+          dest:
+            index: dest3
+
+  - set: {task_id: task}
+
+  - do:
+      reindex.get_task:
+        id: $task_id
+
+  - match: {completed: true}
+

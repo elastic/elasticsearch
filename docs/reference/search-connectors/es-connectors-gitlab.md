@@ -125,7 +125,7 @@ Follow these steps to generate a GitLab personal access token:
 
 ### Compatibility [es-connectors-gitlab-client-compatibility]
 
-Both GitLab Cloud (gitlab.com) and GitLab Self-Managed are supported.
+This connector supports GitLab Cloud (gitlab.com) only. GitLab Self-Managed instances are not currently supported.
 
 
 ### Configuration [es-connectors-gitlab-client-configuration]
@@ -157,7 +157,6 @@ In the examples provided here:
 * `elastic/elasticsearch` syncs the Elasticsearch project from the elastic group
 * `elastic/kibana` syncs the Kibana project from the elastic group
 
-When using `*`, all projects where the authenticated user is a member will be synced.
 
 ::::
 
@@ -254,13 +253,11 @@ Only the following file extensions are ingested for README files:
 
 ::::{note}
 * Content of files bigger than 10 MB won't be extracted.
-* The connector uses GitLab's Work Items API for Issues and Epics, which provides a unified interface for different work item types.
 * Epics are only available for Premium/Ultimate GitLab tiers and are synced at the group level.
 * **Epic syncing behavior**: Epics are fetched only for groups that contain synced projects.
 * Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elasticsearch Index.
 
 ::::
-
 
 
 #### Sync types [es-connectors-gitlab-client-sync-types]

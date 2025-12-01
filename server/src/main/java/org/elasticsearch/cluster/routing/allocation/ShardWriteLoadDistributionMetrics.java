@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -25,7 +26,7 @@ import java.util.Map;
  */
 public class ShardWriteLoadDistributionMetrics {
 
-    private static final String METRIC_NAME = "es.allocator.shard_write_load.distribution";
+    public static final String METRIC_NAME = "es.allocator.shard_write_load.distribution";
 
     private final DoubleHistogram shardWeightHistogram;
     private final double[] percentiles;
@@ -33,12 +34,12 @@ public class ShardWriteLoadDistributionMetrics {
     private final double[] lastValues;
 
     @SuppressWarnings("unchecked")
-    public ShardWriteLoadDistributionMetrics(MeterRegistry meterRegistry, double[] percentiles) {
+    public ShardWriteLoadDistributionMetrics(MeterRegistry meterRegistry, double... percentiles) {
         this.shardWeightHistogram = new DoubleHistogram(4);
         this.percentiles = percentiles;
-        this.attributes = new Map[percentiles.length];
+        this.attributes = (Map<String, Object>[]) Array.newInstance(Map.class, percentiles.length);
         for (int i = 0; i < percentiles.length; i++) {
-            attributes[i] = Map.of("percentile", percentiles[i]);
+            attributes[i] = Map.of("percentile", String.valueOf(percentiles[i]));
         }
         this.lastValues = new double[percentiles.length];
         Arrays.fill(lastValues, Double.NaN);
@@ -58,7 +59,7 @@ public class ShardWriteLoadDistributionMetrics {
         }
     }
 
-    public Collection<DoubleWithAttributes> getTrackedPercentiles() {
+    private Collection<DoubleWithAttributes> getTrackedPercentiles() {
         final List<DoubleWithAttributes> metricValues = new ArrayList<>();
         for (int i = 0; i < percentiles.length; i++) {
             double lastValue = lastValues[i];

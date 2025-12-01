@@ -294,13 +294,9 @@ public class LogsdbRestIT extends ESRestTestCase {
                 String level = randomBoolean() ? "info" : randomBoolean() ? "warning" : randomBoolean() ? "error" : "fatal";
                 String msg = randomAlphaOfLength(messageSize);
                 sb.append("{ \"create\": {} }").append('\n');
-                sb.append(
-                    """
-                        {"@timestamp":"$now","message":"$msg","log":{"level":"$level"}}
-                        """.replace("$now", formatInstant(now))
-                        .replace("$level", level)
-                        .replace("$msg", msg)
-                );
+                sb.append("""
+                    {"@timestamp":"$now","message":"$msg","log":{"level":"$level"}}
+                    """.replace("$now", formatInstant(now)).replace("$level", level).replace("$msg", msg));
                 sb.append('\n');
                 if (k != numDocs - 1) {
                     now = now.plusSeconds(1);

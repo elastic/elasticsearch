@@ -215,7 +215,8 @@ public interface BlockLoader {
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
             boolean toInt,
-            boolean asCustomBinary) throws IOException;
+            boolean asCustomBinary
+        ) throws IOException;
     }
 
     interface RowStrideReader extends Reader {

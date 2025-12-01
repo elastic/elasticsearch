@@ -954,7 +954,15 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                             var block = (TestBlock) counterDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false);
                             assertNotNull(block);
                             assertEquals(size, block.size());
-                            var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false);
+                            var stringBlock = (TestBlock) stringCounterDV.tryRead(
+                                factory,
+                                docs,
+                                0,
+                                random().nextBoolean(),
+                                null,
+                                false,
+                                false
+                            );
                             assertNotNull(stringBlock);
                             assertEquals(size, stringBlock.size());
                             for (int j = 0; j < block.size(); j++) {

@@ -23,8 +23,7 @@ public class CustomBinaryDocValuesReader {
     private final BytesRef scratch = new BytesRef();
     private final ByteArrayStreamInput in = new ByteArrayStreamInput();
 
-    public CustomBinaryDocValuesReader() {
-    }
+    public CustomBinaryDocValuesReader() {}
 
     public void read(BytesRef bytes, BlockLoader.BytesRefBuilder builder) throws IOException {
         assert bytes.length > 0;

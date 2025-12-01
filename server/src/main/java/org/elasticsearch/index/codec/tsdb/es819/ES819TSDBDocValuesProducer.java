@@ -243,7 +243,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         boolean nullsFiltered,
                         BlockDocValuesReader.ToDouble toDouble,
                         boolean toInt,
-                        boolean asCustomBinary) throws IOException {
+                        boolean asCustomBinary
+                    ) throws IOException {
                         int count = docs.count() - offset;
                         int firstDocId = docs.get(offset);
                         int lastDocId = docs.get(count - 1);
@@ -292,7 +293,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         boolean nullsFiltered,
                         BlockDocValuesReader.ToDouble toDouble,
                         boolean toInt,
-                        boolean asCustomBinary) throws IOException {
+                        boolean asCustomBinary
+                    ) throws IOException {
                         int count = docs.count() - offset;
                         int firstDocId = docs.get(offset);
                         int lastDocId = docs.get(count - 1);
@@ -404,7 +406,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     boolean nullsFiltered,
                     BlockDocValuesReader.ToDouble toDouble,
                     boolean toInt,
-                    boolean asCustomBinary) throws IOException {
+                    boolean asCustomBinary
+                ) throws IOException {
                     int count = docs.count() - offset;
                     int firstDocId = docs.get(offset);
                     int lastDocId = docs.get(count - 1);
@@ -720,7 +723,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
             boolean toInt,
-            boolean asCustomBinary) throws IOException {
+            boolean asCustomBinary
+        ) throws IOException {
             return null;
         }
     }
@@ -772,7 +776,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
             boolean toInt,
-            boolean asCustomBinary) throws IOException {
+            boolean asCustomBinary
+        ) throws IOException {
             return null;
         }
     }
@@ -834,7 +839,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 boolean nullsFiltered,
                 BlockDocValuesReader.ToDouble toDouble,
                 boolean toInt,
-                boolean asCustomBinary) throws IOException {
+                boolean asCustomBinary
+            ) throws IOException {
                 assert toDouble == null;
                 if (ords instanceof BaseDenseNumericValues denseOrds) {
                     var block = tryReadAHead(factory, docs, offset);
@@ -940,7 +946,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
             boolean toInt,
-            boolean asCustomBinary) throws IOException {
+            boolean asCustomBinary
+        ) throws IOException {
             return null;
         }
 
@@ -994,7 +1001,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
             boolean toInt,
-            boolean asCustomBinary) throws IOException {
+            boolean asCustomBinary
+        ) throws IOException {
             return null;
         }
 
@@ -1048,7 +1056,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
             boolean toInt,
-            boolean asCustomBinary) throws IOException {
+            boolean asCustomBinary
+        ) throws IOException {
             return null;
         }
     }
@@ -1890,7 +1899,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     boolean nullsFiltered,
                     BlockDocValuesReader.ToDouble toDouble,
                     boolean toInt,
-                    boolean asCustomBinary) throws IOException {
+                    boolean asCustomBinary
+                ) throws IOException {
                     try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, docs.count() - offset, toInt)) {
                         return tryRead(singletonLongBuilder, docs, offset);
                     }
@@ -2016,7 +2026,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     boolean nullsFiltered,
                     BlockDocValuesReader.ToDouble toDouble,
                     boolean toInt,
-                    boolean asCustomBinary) throws IOException {
+                    boolean asCustomBinary
+                ) throws IOException {
                     if (nullsFiltered == false) {
                         return null;
                     }

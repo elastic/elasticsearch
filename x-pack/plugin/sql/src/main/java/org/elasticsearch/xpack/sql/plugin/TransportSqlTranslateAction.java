@@ -78,7 +78,8 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
             Protocol.INDEX_INCLUDE_FROZEN,
             null,
             null,
-            Protocol.ALLOW_PARTIAL_SEARCH_RESULTS
+            Protocol.ALLOW_PARTIAL_SEARCH_RESULTS,
+            request.projectRouting()
         );
 
         planExecutor.searchSource(

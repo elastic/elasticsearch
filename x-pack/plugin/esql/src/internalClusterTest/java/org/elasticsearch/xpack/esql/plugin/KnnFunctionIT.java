@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -57,6 +58,9 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         List<Object[]> params = new ArrayList<>();
         for (String indexType : ALL_DENSE_VECTOR_INDEX_TYPES) {
             params.add(new Object[] { DenseVectorFieldMapper.ElementType.FLOAT, indexType });
+            if (ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()) {
+                params.add(new Object[] { DenseVectorFieldMapper.ElementType.BFLOAT16, indexType });
+            }
         }
         for (String indexType : NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES) {
             params.add(new Object[] { DenseVectorFieldMapper.ElementType.BYTE, indexType });
@@ -113,16 +117,16 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testKnnOptions() {
+    public void testKnnKOverridesLimit() {
         float[] queryVector = new float[numDims];
         Arrays.fill(queryVector, 0.0f);
 
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s)
+            | WHERE knn(vector, %s, {"k": 5, "min_candidates": 20})
             | KEEP id, _score, vector
             | SORT _score DESC
-            | LIMIT 5
+            | LIMIT 10
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
@@ -264,7 +268,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             List<Number> vector = new ArrayList<>(numDims);
             for (int j = 0; j < numDims; j++) {
                 switch (elementType) {
-                    case FLOAT -> vector.add(randomFloatBetween(0F, 1F, true));
+                    case FLOAT, BFLOAT16 -> vector.add(randomFloatBetween(0F, 1F, true));
                     case BYTE, BIT -> vector.add((byte) (randomFloatBetween(0F, 1F, true) * 127.0f));
                     default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
                 }

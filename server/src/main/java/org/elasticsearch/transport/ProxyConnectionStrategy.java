@@ -308,12 +308,18 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public String toString() {
-            return "ProxyModeInfo{" +
-                "address='" + address + '\'' +
-                ", serverName='" + serverName + '\'' +
-                ", maxSocketConnections=" + maxSocketConnections +
-                ", numSocketsConnected=" + numSocketsConnected +
-                '}';
+            return "ProxyModeInfo{"
+                + "address='"
+                + address
+                + '\''
+                + ", serverName='"
+                + serverName
+                + '\''
+                + ", maxSocketConnections="
+                + maxSocketConnections
+                + ", numSocketsConnected="
+                + numSocketsConnected
+                + '}';
         }
     }
 }

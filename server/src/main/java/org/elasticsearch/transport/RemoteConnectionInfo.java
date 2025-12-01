@@ -123,13 +123,19 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
 
     @Override
     public String toString() {
-        return "RemoteConnectionInfo{" +
-            "modeInfo=" + modeInfo +
-            ", initialConnectionTimeout=" + initialConnectionTimeout +
-            ", clusterAlias='" + clusterAlias + '\'' +
-            ", skipUnavailable=" + skipUnavailable +
-            ", hasClusterCredentials=" + hasClusterCredentials +
-            '}';
+        return "RemoteConnectionInfo{"
+            + "modeInfo="
+            + modeInfo
+            + ", initialConnectionTimeout="
+            + initialConnectionTimeout
+            + ", clusterAlias='"
+            + clusterAlias
+            + '\''
+            + ", skipUnavailable="
+            + skipUnavailable
+            + ", hasClusterCredentials="
+            + hasClusterCredentials
+            + '}';
     }
 
     public interface ModeInfo extends ToXContentFragment, Writeable {

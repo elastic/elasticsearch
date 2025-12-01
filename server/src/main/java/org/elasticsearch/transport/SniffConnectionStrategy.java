@@ -540,11 +540,14 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public String toString() {
-            return "SniffModeInfo{" +
-                "seedNodes=" + seedNodes +
-                ", maxConnectionsPerCluster=" + maxConnectionsPerCluster +
-                ", numNodesConnected=" + numNodesConnected +
-                '}';
+            return "SniffModeInfo{"
+                + "seedNodes="
+                + seedNodes
+                + ", maxConnectionsPerCluster="
+                + maxConnectionsPerCluster
+                + ", numNodesConnected="
+                + numNodesConnected
+                + '}';
         }
     }
 }

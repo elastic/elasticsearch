@@ -123,10 +123,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
     ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         float approximateDocsPerCentroid = approximateCost / numCentroids;
-        if (approximateDocsPerCentroid <= 1.25) {
-            // TODO: we need to make this call to build the iterator, otherwise accept docs breaks all together
-            approximateDocsPerCentroid = (float) acceptDocs.cost() / numCentroids;
-        }
+        // if (approximateDocsPerCentroid <= 1.25) {
+        // // TODO: we need to make this call to build the iterator, otherwise accept docs breaks all together
+        // approximateDocsPerCentroid = (float) acceptDocs.cost() / numCentroids;
+        // }
         final int bitsRequired = DirectWriter.bitsRequired(numCentroids);
         final long sizeLookup = directWriterSizeOnDisk(values.size(), bitsRequired);
         final long fp = centroids.getFilePointer();
@@ -749,7 +749,11 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 // we have taken advantage of not building the bitset + we wouldn't need any acceptDocs
                 int doc = docIdsScratch[count++];
                 if (postFilterIterator != null) {
-                    if (postFilterIterator.docID() != NO_MORE_DOCS && postFilterIterator.advance(doc) == doc) {
+                    if (postFilterIterator.docID() == NO_MORE_DOCS || postFilterIterator.docID() > doc) {
+                        indexInput.skipBytes(quantizedByteLength);
+                        continue;
+                    }
+                    if (postFilterIterator.docID() == doc || postFilterIterator.advance(doc) == doc) {
                         quantizeQueryIfNecessary();
                         float qcDist = osqVectorsScorer.quantizeScore(quantizedQueryScratch);
                         indexInput.readFloats(correctiveValues, 0, 3);
@@ -813,5 +817,4 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             }
         }
     }
-
 }

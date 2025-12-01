@@ -26,4 +26,7 @@ public interface ProjectRoutingResolver {
      * @return A new TargetProjects instance containing only the projects that match the project routing.
      */
     TargetProjects resolve(String projectRouting, TargetProjects targetProjects);
+
+    /** No-op router - just returns the provided target projects. */
+    ProjectRoutingResolver NOOP = (projectRouting, targetProjects) -> targetProjects;
 }

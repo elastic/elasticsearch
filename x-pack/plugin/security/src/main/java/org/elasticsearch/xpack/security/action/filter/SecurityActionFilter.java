@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
@@ -28,6 +29,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
@@ -160,33 +162,68 @@ public class SecurityActionFilter implements ActionFilter {
             }
         }
 
-        /*
-         here we fallback on the system user. Internal system requests are requests that are triggered by
-         the system itself (e.g. pings, update mappings, share relocation, etc...) and were not originated
-         by user interaction. Since these requests are triggered by es core modules, they are security
-         agnostic and therefore not associated with any user. When these requests execute locally, they
-         are executed directly on their relevant action. Since there is no other way a request can make
-         it to the action without an associated user (not via REST or transport - this is taken care of by
-         the {@link Rest} filter and the {@link ServerTransport} filter respectively), it's safe to assume a system user
-         here if a request is not associated with any other user.
-         */
         final String securityAction = SecurityActionMapper.action(action, request);
-        authcService.authenticate(securityAction, request, InternalUsers.SYSTEM_USER, listener.delegateFailureAndWrap((delegate, authc) -> {
-            if (authc != null) {
-                final String requestId = AuditUtil.extractRequestId(threadContext);
-                assert Strings.hasText(requestId);
-                authzService.authorize(
-                    authc,
-                    securityAction,
-                    request,
-                    delegate.delegateFailure((ll, aVoid) -> chain.proceed(task, action, request, ll.map(response -> {
-                        auditTrailService.get().coordinatingActionResponse(requestId, authc, action, request, response);
-                        return response;
-                    })))
-                );
-            } else {
-                delegate.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
-            }
-        }));
+        SubscribableListener
+            // Step 1: authenticate the user
+            .<Authentication>newForked(
+                /*
+                here we fallback on the system user. Internal system requests are requests that are triggered by
+                the system itself (e.g. pings, update mappings, share relocation, etc...) and were not originated
+                by user interaction. Since these requests are triggered by es core modules, they are security
+                agnostic and therefore not associated with any user. When these requests execute locally, they
+                are executed directly on their relevant action. Since there is no other way a request can make
+                it to the action without an associated user (not via REST or transport - this is taken care of by
+                the {@link Rest} filter and the {@link ServerTransport} filter respectively), it's safe to assume a system user
+                here if a request is not associated with any other user.
+                */
+                authcListener -> authcService.authenticate(securityAction, request, InternalUsers.SYSTEM_USER, authcListener)
+            )
+            // Step 2: check the authenticated user is authorized to proceed
+            .<ResponseContext<Response>>andThen((authzListener, authc) -> {
+                if (authc != null) {
+                    final var responseContext = new ResponseContext<Response>(AuditUtil.extractRequestId(threadContext), authc);
+                    authzService.authorize(authc, securityAction, request, authzListener.map(ignored -> responseContext));
+                } else {
+                    authzListener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
+                }
+            })
+            // Step 3: execute the action
+            .<ResponseContext<Response>>andThen(
+                (chainListener, responseContext) -> chain.proceed(task, action, request, chainListener.map(responseContext::setResponse))
+            )
+            // Step 4: record the response in the audit log
+            .andThenApply(responseContext -> {
+                auditTrailService.get()
+                    .coordinatingActionResponse(
+                        responseContext.requestId,
+                        responseContext.authc,
+                        action,
+                        request,
+                        responseContext.response
+                    );
+                return responseContext.response;
+            })
+            .addListener(listener);
+    }
+
+    /**
+     * Carries the request ID and the {@link Authentication} along with the response, for eventual audit logging.
+     */
+    private static class ResponseContext<Response> {
+        final String requestId;
+        final Authentication authc;
+        Response response;
+
+        ResponseContext(String requestId, Authentication authc) {
+            assert Strings.hasText(requestId);
+            assert authc != null;
+            this.requestId = requestId;
+            this.authc = authc;
+        }
+
+        ResponseContext<Response> setResponse(Response response) {
+            this.response = response;
+            return this;
+        }
     }
 }

@@ -46,14 +46,15 @@ public class SamlRestTestCase extends ESRestTestCase {
     protected static final String SAML_SIGNING_KEY = "/saml/signing.key";
 
     private static HttpsServer httpsServer;
-    private static Map<Integer, Boolean> metadataAvailable = new HashMap<>();
-
-    public static ElasticsearchCluster cluster = initTestCluster();
-
+    private static final Map<Integer, Boolean> metadataAvailable = new HashMap<>();
+    public static final ElasticsearchCluster cluster = initTestCluster();
     private static Path caPath;
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(new RunnableTestRuleAdapter(SamlRestTestCase::initWebserver)).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(new RunnableTestRuleAdapter(SamlRestTestCase::initWebserver))
+        .around(cluster)
+        // during the startup, the metadata remains unavailable to prevent caching. After cluster init, make metadata available.
+        .around(new RunnableTestRuleAdapter(() -> makeMetadataAvailable(1, 2, 3)));
 
     private static void initWebserver() {
         try {
@@ -120,7 +121,6 @@ public class SamlRestTestCase extends ESRestTestCase {
                     settings.put(prefix + ".sp.acs", acsHttps + "acs/" + realmNumber);
                     settings.put(prefix + ".attributes.principal", "urn:oid:2.5.4.3");
                     settings.put(prefix + ".ssl.certificate_authorities", "ca.crt");
-
                 }
                 return settings;
             })
@@ -135,13 +135,17 @@ public class SamlRestTestCase extends ESRestTestCase {
         return "https://idp" + realmNumber + ".example.org/";
     }
 
-    protected void makeMetadataAvailable(int... realms) {
+    protected static String getSamlRealmName(int realmNumber) {
+        return "saml" + realmNumber;
+    }
+
+    protected static void makeMetadataAvailable(int... realms) {
         for (int r : realms) {
             metadataAvailable.put(Integer.valueOf(r), true);
         }
     }
 
-    protected void makeAllMetadataUnavailable() {
+    protected static void makeAllMetadataUnavailable() {
         metadataAvailable.keySet().forEach(k -> metadataAvailable.put(k, false));
     }
 

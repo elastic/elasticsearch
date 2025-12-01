@@ -527,9 +527,9 @@ public final class SamlRealm extends Realm implements Releasable {
         return token instanceof SamlToken;
     }
 
-    private boolean isTokenForRealm(SamlToken samlToken) {
+    private boolean isTokenForRealm(SamlToken samlToken, boolean defaultValueWhenNull) {
         if (samlToken.getAuthenticatingRealm() == null) {
-            return true;
+            return defaultValueWhenNull;
         } else {
             return samlToken.getAuthenticatingRealm().equals(this.name());
         }
@@ -547,7 +547,7 @@ public final class SamlRealm extends Realm implements Releasable {
 
     @Override
     public void authenticate(AuthenticationToken authenticationToken, ActionListener<AuthenticationResult<User>> listener) {
-        if (authenticationToken instanceof SamlToken && isTokenForRealm((SamlToken) authenticationToken)) {
+        if (authenticationToken instanceof SamlToken samlToken && isTokenForRealm(samlToken, true)) {
             if (this.idpDescriptor.get() instanceof UnresolvedEntity) {
                 // This isn't an ideal check, but we don't have a better option right now
                 listener.onResponse(
@@ -564,10 +564,13 @@ public final class SamlRealm extends Realm implements Releasable {
                 logger.debug("Parsed token [{}] to attributes [{}]", token, attributes);
                 buildUser(attributes, ActionListener.releaseAfter(listener, attributes));
             } catch (ElasticsearchSecurityException e) {
-                if (SamlUtils.isSamlException(e)) {
-                    listener.onResponse(AuthenticationResult.unsuccessful("Provided SAML response is not valid for realm " + this, e));
-                } else {
+                if (isTokenForRealm(samlToken, false)) {
+                    // If this token is explicitly for this realm, then there is no need to try other realms.
                     listener.onFailure(e);
+                } else {
+                    // If this token's realm in not specified (null), then continue to try other realms.
+                    // Note that we can't make any assumptions about other realms, because then can be provided from a custom plugin.
+                    listener.onResponse(AuthenticationResult.unsuccessful("Provided SAML response is not valid for realm " + this, e));
                 }
             }
         } else {

@@ -28,43 +28,68 @@ import static org.hamcrest.Matchers.is;
 
 public class SamlInResponseToIT extends SamlRestTestCase {
 
-    public void testNoInResponseTo() throws Exception {
+    private static final int REALM_NUMBER = 1;
+
+    public void testInResponseTo_matchingValues() throws Exception {
+        final String username = randomAlphaOfLengthBetween(4, 12);
+        String requestId = generateRandomRequestId();
+        var response = authUser(username, requestId, requestId);
+        assertThat(response, hasKey("access_token"));
+    }
+
+    public void testInResponseTo_requestAndTokenHaveDifferentValues() throws Exception {
+        final String username = randomAlphaOfLengthBetween(4, 12);
+        String requestIdFromRequest = generateRandomRequestId();
+        String requestIdFromToken = generateDifferentRandomRequestId(requestIdFromRequest);
+
+        var exception = expectThrows(ResponseException.class, () -> authUser(username, requestIdFromRequest, requestIdFromToken));
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(401));
+        String errorEntity = EntityUtils.toString(exception.getResponse().getEntity());
+        assertThat(errorEntity, containsString("\"security.saml.unsolicited_in_response_to\":\"" + requestIdFromToken + "\""));
+    }
+
+    public void testInResponseTo_requestNullTokenNotNull() throws Exception {
+        final String username = randomAlphaOfLengthBetween(4, 12);
+        String requestIdFromToken = generateRandomRequestId();
+
+        var exception = expectThrows(ResponseException.class, () -> authUser(username, null, requestIdFromToken));
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(401));
+        String errorEntity = EntityUtils.toString(exception.getResponse().getEntity());
+        assertThat(errorEntity, containsString("\"security.saml.unsolicited_in_response_to\":\"" + requestIdFromToken + "\""));
+    }
+
+    public void testInResponseTo_requestNotNullTokenNull() throws Exception {
+        final String username = randomAlphaOfLengthBetween(4, 12);
+        String requestIdFromRequest = generateRandomRequestId();
+
+        var response = authUser(username, requestIdFromRequest, null);
+        assertThat(response, hasKey("access_token"));
+    }
+
+    public void testInResponseTo_requestNullTokenNull() throws Exception {
         final String username = randomAlphaOfLengthBetween(4, 12);
         var response = authUser(username, null, null);
         assertThat(response, hasKey("access_token"));
     }
 
-    public void testValidInResponseTo() throws Exception {
-        final String username = randomAlphaOfLengthBetween(4, 12);
-        var response = authUser(username, "some-request-id-54321", "some-request-id-54321");
-        assertThat(response, hasKey("access_token"));
+    private String generateRandomRequestId() {
+        return randomAlphaOfLength(1) + randomAlphanumericOfLength(random().nextInt(10));
     }
 
-    public void testInResponseToMismatch() throws Exception {
-        final String username = randomAlphaOfLengthBetween(4, 12);
-
-        var ex1 = expectThrows(ResponseException.class, () -> authUser(username, "r-54321", "r-12345"));
-        assertThat(ex1.getResponse().getStatusLine().getStatusCode(), is(401));
-        String errorEntity1 = EntityUtils.toString(ex1.getResponse().getEntity());
-        assertThat(errorEntity1, containsString("\"security.saml.unsolicited_in_response_to\":\"r-12345\""));
-
-        var ex2 = expectThrows(ResponseException.class, () -> authUser(username, null, "r-321"));
-        assertThat(ex2.getResponse().getStatusLine().getStatusCode(), is(401));
-        String errorEntity2 = EntityUtils.toString(ex2.getResponse().getEntity());
-        assertThat(errorEntity2, containsString("\"security.saml.unsolicited_in_response_to\":\"r-321\""));
-
-        var response = authUser(username, "54321", null);
-        assertThat(response, hasKey("access_token"));
+    private String generateDifferentRandomRequestId(String existingId) {
+        String newId;
+        do {
+            newId = generateRandomRequestId();
+        } while (newId.equals(existingId));
+        return newId;
     }
 
     private Map<String, Object> authUser(String username, String inResponseToFromHeader, String inResponseToInSamlToken) throws Exception {
-        final int realmNumber = 1;
 
-        makeMetadataAvailable(realmNumber);
         var httpsAddress = getAcsHttpsAddress();
-        var message = new SamlResponseBuilder().spEntityId("https://sp" + realmNumber + ".example.org/")
-            .idpEntityId(getIdpEntityId(realmNumber))
-            .acs(new URL("https://" + httpsAddress.getHostName() + ":" + httpsAddress.getPort() + "/acs/" + realmNumber))
+        var message = new SamlResponseBuilder().spEntityId("https://sp" + REALM_NUMBER + ".example.org/")
+            .idpEntityId(getIdpEntityId(REALM_NUMBER))
+            .acs(new URL("https://" + httpsAddress.getHostName() + ":" + httpsAddress.getPort() + "/acs/" + REALM_NUMBER))
             .attribute("urn:oid:2.5.4.3", username)
             .sign(getDataPath(SAML_SIGNING_CRT), getDataPath(SAML_SIGNING_KEY), new char[0])
             .inResponseTo(inResponseToInSamlToken)
@@ -72,7 +97,7 @@ public class SamlInResponseToIT extends SamlRestTestCase {
 
         final Map<String, Object> body = new HashMap<>();
         body.put("content", Base64.getEncoder().encodeToString(message.getBytes(StandardCharsets.UTF_8)));
-        body.put("realm", "saml" + realmNumber);
+        body.put("realm", getSamlRealmName(REALM_NUMBER));
         if (inResponseToFromHeader != null) {
             body.put("ids", inResponseToFromHeader);
         }
@@ -81,7 +106,7 @@ public class SamlInResponseToIT extends SamlRestTestCase {
         req.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().map(body)));
         var resp = entityAsMap(client().performRequest(req));
         assertThat(resp, hasEntry("username", username));
-        assertThat(ObjectPath.evaluate(resp, "authentication.authentication_realm.name"), equalTo("saml" + realmNumber));
+        assertThat(ObjectPath.evaluate(resp, "authentication.authentication_realm.name"), equalTo(getSamlRealmName(REALM_NUMBER)));
         return resp;
     }
 }

@@ -61,12 +61,12 @@ public class SamlServiceProviderMetadataIT extends SamlRestTestCase {
         body.put("content", Base64.getEncoder().encodeToString(message.getBytes(StandardCharsets.UTF_8)));
         if (randomBoolean()) {
             // If realm is not specified the action will infer it based on the ACS in the saml auth message
-            body.put("realm", "saml" + realmNumber);
+            body.put("realm", getSamlRealmName(realmNumber));
         }
         var req = new Request("POST", "_security/saml/authenticate");
         req.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().map(body)));
         var resp = entityAsMap(client().performRequest(req));
         assertThat(resp.get("username"), equalTo(username));
-        assertThat(ObjectPath.evaluate(resp, "authentication.authentication_realm.name"), equalTo("saml" + realmNumber));
+        assertThat(ObjectPath.evaluate(resp, "authentication.authentication_realm.name"), equalTo(getSamlRealmName(realmNumber)));
     }
 }

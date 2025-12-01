@@ -13,6 +13,7 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.XmlUtils;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
 import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
@@ -103,7 +104,7 @@ public class SamlUtils {
      * simple authentication failure (with a clear cause)
      */
     public static ElasticsearchSecurityException samlException(String msg, Object... args) {
-        final ElasticsearchSecurityException exception = new ElasticsearchSecurityException(msg, args);
+        final ElasticsearchSecurityException exception = new ElasticsearchSecurityException(msg, RestStatus.UNAUTHORIZED, args);
         exception.addMetadata(SAML_EXCEPTION_KEY);
         return exception;
     }
@@ -112,7 +113,7 @@ public class SamlUtils {
      * @see #samlException(String, Object...)
      */
     public static ElasticsearchSecurityException samlException(String msg, Exception cause, Object... args) {
-        final ElasticsearchSecurityException exception = new ElasticsearchSecurityException(msg, cause, args);
+        final ElasticsearchSecurityException exception = new ElasticsearchSecurityException(msg, RestStatus.UNAUTHORIZED, cause, args);
         exception.addMetadata(SAML_EXCEPTION_KEY);
         return exception;
     }

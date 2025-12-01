@@ -47,20 +47,12 @@ def supportedVersion = bwcVersion -> {
 buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
   def javaRestTest = tasks.register("v${bwcVersion}#javaRestTest", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
-    if (bwcVersion.before('9.3.0')) {
-      jvmArgs '-da:org.elasticsearch.index.mapper.MapperService'
-      jvmArgs '-da:org.elasticsearch.index.mapper.DocumentMapper'
-    }
     systemProperty("tests.old_cluster_version", bwcVersion)
     maxParallelForks = 1
   }
 
   def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
-    if (bwcVersion.before('9.3.0')) {
-      jvmArgs '-da:org.elasticsearch.index.mapper.MapperService'
-      jvmArgs '-da:org.elasticsearch.index.mapper.DocumentMapper'
-    }
     systemProperty("tests.old_cluster_version", bwcVersion)
     testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
     classpath = sourceSets.yamlRestTest.runtimeClasspath

@@ -687,6 +687,9 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
     }
 
     public void testSnapshotMountedIndexWithTimestampsRecordsTimestampRangeInIndexMetadata() throws Exception {
+
+        assumeTrue("Skipper feature flag disabled", IndexSettings.DOC_VALUES_SKIPPER);
+
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numShards = between(1, 3);
 
@@ -777,31 +780,27 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
         assertTrue(eventIngestedRange.isComplete());
 
-        if (indexed) {
-            assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
-            assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
-            if (docCount == 0) {
-                assertThat(timestampRange, sameInstance(IndexLongFieldRange.EMPTY));
-                assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.EMPTY));
-            } else {
-                assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-                assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-
-                // both @timestamp and event.ingested have the same resolution in this test
-                DateFieldMapper.Resolution resolution = dateType.equals("date")
-                    ? DateFieldMapper.Resolution.MILLISECONDS
-                    : DateFieldMapper.Resolution.NANOSECONDS;
-
-                assertThat(timestampRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
-                assertThat(timestampRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
-
-                assertThat(eventIngestedRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
-                assertThat(eventIngestedRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
-            }
+        assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+        assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+        if (docCount == 0) {
+            assertThat(timestampRange, sameInstance(IndexLongFieldRange.EMPTY));
+            assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.EMPTY));
         } else {
-            assertThat(timestampRange, sameInstance(IndexLongFieldRange.UNKNOWN));
-            assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.UNKNOWN));
+            assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+            assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+
+            // both @timestamp and event.ingested have the same resolution in this test
+            DateFieldMapper.Resolution resolution = dateType.equals("date")
+                ? DateFieldMapper.Resolution.MILLISECONDS
+                : DateFieldMapper.Resolution.NANOSECONDS;
+
+            assertThat(timestampRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
+            assertThat(timestampRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
+
+            assertThat(eventIngestedRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
+            assertThat(eventIngestedRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
         }
+
     }
 
     public void testSnapshotOfSearchableSnapshotIncludesNoDataButCanBeRestored() throws Exception {

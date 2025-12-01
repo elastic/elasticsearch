@@ -15,6 +15,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+
 public class BytesStreamOutputTests extends ESTestCase {
 
     private BytesStreamOutput stream;
@@ -28,7 +30,7 @@ public class BytesStreamOutputTests extends ESTestCase {
     public void testDefaultConstructor() {
         assertEquals(0, stream.size());
         assertEquals(0, stream.position());
-        assertEquals(BytesArray.EMPTY, stream.bytes());
+        assertThat(stream.bytes(), equalBytes(BytesArray.EMPTY));
     }
 
     public void testConstructorWithExpectedSize() {

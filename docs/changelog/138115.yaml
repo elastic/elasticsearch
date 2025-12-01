@@ -1,0 +1,7 @@
+pr: 138115
+summary: GET /_migration/deprecations doesn't check disk watermarks against correct
+  settings values
+area: Infra/Core
+type: bug
+issues:
+ - 137005

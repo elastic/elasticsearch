@@ -80,7 +80,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
      * will be picked for explanation. If no replicas are unassigned, the first assigned replica will
      * be explained.
      */
-    // Public for testing.
+    // Package private for testing.
     ClusterAllocationExplainRequest(TimeValue masterNodeTimeout, String index, int shard, boolean primary, @Nullable String currentNode) {
         super(masterNodeTimeout);
         this.index = index;

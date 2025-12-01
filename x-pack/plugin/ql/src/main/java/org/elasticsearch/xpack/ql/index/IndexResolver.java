@@ -409,7 +409,15 @@ public class IndexResolver {
         String projectRouting,
         ActionListener<IndexResolution> listener
     ) {
-        resolveAsMergedMapping(indexWildcard, fieldNames, includeFrozen, runtimeMappings, projectRouting, listener, (fieldName, types) -> null);
+        resolveAsMergedMapping(
+            indexWildcard,
+            fieldNames,
+            includeFrozen,
+            runtimeMappings,
+            projectRouting,
+            listener,
+            (fieldName, types) -> null
+        );
     }
 
     /**

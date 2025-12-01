@@ -688,8 +688,6 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
     public void testSnapshotMountedIndexWithTimestampsRecordsTimestampRangeInIndexMetadata() throws Exception {
 
-        assumeTrue("Skipper feature flag disabled", IndexSettings.DOC_VALUES_SKIPPER);
-
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numShards = between(1, 3);
 

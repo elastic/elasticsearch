@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -45,7 +47,12 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 class InferenceQueryUtils {
-    record InferenceInfo(int inferenceFieldCount, int indexCount, Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {}
+    record InferenceInfo(
+        int inferenceFieldCount,
+        int indexCount,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        TransportVersion minTransportVersion
+    ) {}
 
     private InferenceQueryUtils() {}
 
@@ -59,32 +66,107 @@ class InferenceQueryUtils {
         @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         @Nullable FullyQualifiedInferenceId inferenceIdOverride
     ) {
+        ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
+        if (resolvedIndices == null) {
+            throw new IllegalArgumentException("queryRewriteContext must provide resolved indices");
+        }
+
         SetOnce<InferenceInfo> localInferenceInfoSupplier = new SetOnce<>();
-        SetOnce<Map<String, GetInferenceFieldsAction.Response>> remoteInferenceInfoSupplier = new SetOnce<>();
+        SetOnce<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> remoteInferenceInfoSupplier = new SetOnce<>();
 
         PlainActionFuture<InferenceInfo> inferenceInfoFuture = new PlainActionFuture<>();
         try (var refs = new RefCountingListener(inferenceInfoFuture.delegateFailureAndWrap((l, v) -> {
             l.onResponse(combineLocalAndRemoteInferenceInfo(localInferenceInfoSupplier.get(), remoteInferenceInfoSupplier.get()));
         }))) {
-
+            ActionListener<InferenceInfo> localInferenceInfoListener = refs.acquire(localInferenceInfoSupplier::set);
+            getLocalInferenceInfo(
+                queryRewriteContext,
+                fields,
+                resolveWildcards,
+                useDefaultFields,
+                localInferenceInfoListener,
+                query,
+                inferenceResultsMap,
+                inferenceIdOverride
+            );
         }
 
         return inferenceInfoFuture;
     }
 
+    private static void getLocalInferenceInfo(
+        QueryRewriteContext queryRewriteContext,
+        Map<String, Float> fields,
+        boolean resolveWildcards,
+        boolean useDefaultFields,
+        ActionListener<InferenceInfo> localInferenceInfoListener,
+        @Nullable String query,
+        @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        @Nullable FullyQualifiedInferenceId inferenceIdOverride
+    ) {
+        Map<String, Set<InferenceFieldMetadata>> localInferenceFields = getLocalInferenceFields(
+            queryRewriteContext.getResolvedIndices(),
+            fields,
+            resolveWildcards,
+            useDefaultFields
+        );
+
+        int indexCount = localInferenceFields.size();
+        int inferenceFieldCount = 0;
+        for (var inferenceFieldMetadataSet : localInferenceFields.values()) {
+            inferenceFieldCount += inferenceFieldMetadataSet.size();
+        }
+
+        if (inferenceFieldCount == 0 || query == null) {
+            // Either no inference fields were queried, or no query was provided. Either way, there are no inference results to generate.
+            localInferenceInfoListener.onResponse(
+                new InferenceInfo(
+                    inferenceFieldCount,
+                    indexCount,
+                    inferenceResultsMap != null ? inferenceResultsMap : Map.of(),
+                    queryRewriteContext.getMinTransportVersion()
+                )
+            );
+            return;
+        }
+
+        Set<FullyQualifiedInferenceId> localInferenceIds = inferenceIdOverride != null
+            ? Set.of(inferenceIdOverride)
+            : getLocalInferenceIds(localInferenceFields, queryRewriteContext.getLocalClusterAlias());
+
+        final int finalInferenceFieldCount = inferenceFieldCount;
+        getLocalInferenceResults(
+            queryRewriteContext,
+            query,
+            localInferenceIds,
+            inferenceResultsMap,
+            localInferenceInfoListener.delegateFailureAndWrap((l, m) -> {
+                InferenceInfo inferenceInfo = new InferenceInfo(
+                    finalInferenceFieldCount,
+                    indexCount,
+                    m,
+                    queryRewriteContext.getMinTransportVersion()
+                );
+                l.onResponse(inferenceInfo);
+            })
+        );
+    }
+
     private static InferenceInfo combineLocalAndRemoteInferenceInfo(
         InferenceInfo localInferenceInfo,
-        Map<String, GetInferenceFieldsAction.Response> remoteInferenceInfo
+        Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>> remoteInferenceInfo
     ) {
         int totalInferenceFieldCount = localInferenceInfo.inferenceFieldCount;
         int totalIndexCount = localInferenceInfo.indexCount;
         Map<FullyQualifiedInferenceId, InferenceResults> completeInferenceResultsMap = new HashMap<>(
             localInferenceInfo.inferenceResultsMap
         );
+        TransportVersion minTransportVersion = localInferenceInfo.minTransportVersion;
 
         for (var entry : remoteInferenceInfo.entrySet()) {
             String clusterAlias = entry.getKey();
-            var response = entry.getValue();
+            TransportVersion transportVersion = entry.getValue().v2();
+            var response = entry.getValue().v1();
             var inferenceFieldsMap = response.getInferenceFieldsMap();
             var inferenceResultsMap = response.getInferenceResultsMap()
                 .entrySet()
@@ -97,9 +179,10 @@ class InferenceQueryUtils {
             }
 
             completeInferenceResultsMap.putAll(inferenceResultsMap);
+            minTransportVersion = TransportVersion.min(minTransportVersion, transportVersion);
         }
 
-        return new InferenceInfo(totalInferenceFieldCount, totalIndexCount, completeInferenceResultsMap);
+        return new InferenceInfo(totalInferenceFieldCount, totalIndexCount, completeInferenceResultsMap, minTransportVersion);
     }
 
     /**
@@ -206,6 +289,140 @@ class InferenceQueryUtils {
     static Map<String, Float> getDefaultFields(Settings settings) {
         List<String> defaultFieldsList = settings.getAsList(DEFAULT_FIELD_SETTING.getKey(), DEFAULT_FIELD_SETTING.getDefault(settings));
         return QueryParserHelper.parseFieldsAndWeights(defaultFieldsList);
+    }
+
+    private static Map<String, Set<InferenceFieldMetadata>> getLocalInferenceFields(
+        ResolvedIndices resolvedIndices,
+        Map<String, Float> fields,
+        boolean resolveWildcards,
+        boolean useDefaultFields
+    ) {
+        Map<String, Set<InferenceFieldMetadata>> inferenceFieldMap = new HashMap<>();
+
+        Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
+        for (IndexMetadata indexMetadata : indexMetadataCollection) {
+            final String indexName = indexMetadata.getIndex().getName();
+            final Map<InferenceFieldMetadata, Float> matchingInferenceFieldMap = indexMetadata.getMatchingInferenceFields(
+                fields,
+                resolveWildcards,
+                useDefaultFields
+            );
+
+            inferenceFieldMap.put(indexName, matchingInferenceFieldMap.keySet());
+        }
+
+        return inferenceFieldMap;
+    }
+
+    private static Set<FullyQualifiedInferenceId> getLocalInferenceIds(
+        Map<String, Set<InferenceFieldMetadata>> localInferenceFields,
+        String clusterAlias
+    ) {
+        return localInferenceFields.values()
+            .stream()
+            .flatMap(Collection::stream)
+            .map(ifm -> new FullyQualifiedInferenceId(clusterAlias, ifm.getSearchInferenceId()))
+            .collect(Collectors.toSet());
+    }
+
+    private static void getLocalInferenceResults(
+        QueryRewriteContext queryRewriteContext,
+        String query,
+        Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds,
+        @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        ActionListener<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapListener
+
+    ) {
+        List<String> inferenceIds = new ArrayList<>(fullyQualifiedInferenceIds.size());
+        for (FullyQualifiedInferenceId fullyQualifiedInferenceId : fullyQualifiedInferenceIds) {
+            if (inferenceResultsMap == null || inferenceResultsMap.containsKey(fullyQualifiedInferenceId) == false) {
+                if (fullyQualifiedInferenceId.clusterAlias().equals(queryRewriteContext.getLocalClusterAlias()) == false) {
+                    // Catch if we are missing inference results that should have been generated on another cluster
+                    throw new IllegalStateException(
+                        "Cannot get inference results for inference endpoint ["
+                            + fullyQualifiedInferenceId
+                            + "] on cluster ["
+                            + queryRewriteContext.getLocalClusterAlias()
+                            + "]"
+                    );
+                }
+
+                inferenceIds.add(fullyQualifiedInferenceId.inferenceId());
+            }
+        }
+
+        if (inferenceIds.isEmpty() == false) {
+            registerInferenceAsyncActions(queryRewriteContext, query, inferenceIds, inferenceResultsMapListener);
+        } else {
+            // Inference results map already contains all necessary inference results
+            inferenceResultsMapListener.onResponse(inferenceResultsMap != null ? inferenceResultsMap : Map.of());
+        }
+    }
+
+    private static void registerInferenceAsyncActions(
+        QueryRewriteContext queryRewriteContext,
+        String query,
+        List<String> inferenceIds,
+        ActionListener<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapListener
+    ) {
+        List<InferenceAction.Request> inferenceRequests = inferenceIds.stream()
+            .map(
+                i -> new InferenceAction.Request(
+                    TaskType.ANY,
+                    i,
+                    null,
+                    null,
+                    null,
+                    List.of(query),
+                    Map.of(),
+                    InputType.INTERNAL_SEARCH,
+                    null,
+                    false
+                )
+            )
+            .toList();
+
+        queryRewriteContext.registerAsyncAction((client, listener) -> {
+            ActionListener<Map<FullyQualifiedInferenceId, InferenceResults>> wrappedListener = listener.delegateFailureAndWrap((l, m) -> {
+                inferenceResultsMapListener.onResponse(m);
+                l.onResponse(null);
+            });
+
+            GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> gal = createGroupedActionListener(
+                wrappedListener,
+                inferenceRequests.size()
+            );
+            for (InferenceAction.Request inferenceRequest : inferenceRequests) {
+                FullyQualifiedInferenceId fullyQualifiedInferenceId = new FullyQualifiedInferenceId(
+                    queryRewriteContext.getLocalClusterAlias(),
+                    inferenceRequest.getInferenceEntityId()
+                );
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    InferenceAction.INSTANCE,
+                    inferenceRequest,
+                    gal.delegateFailureAndWrap((l, inferenceResponse) -> {
+                        InferenceResults inferenceResults = validateAndConvertInferenceResults(
+                            inferenceResponse.getResults(),
+                            fullyQualifiedInferenceId.inferenceId()
+                        );
+                        l.onResponse(Tuple.tuple(fullyQualifiedInferenceId, inferenceResults));
+                    })
+                );
+            }
+        });
+    }
+
+    private static GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> createGroupedActionListener(
+        ActionListener<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapListener,
+        int inferenceRequestCount
+    ) {
+        return new GroupedActionListener<>(inferenceRequestCount, inferenceResultsMapListener.delegateFailureAndWrap((l, responses) -> {
+            Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = new HashMap<>(responses.size());
+            responses.forEach(r -> inferenceResultsMap.put(r.v1(), r.v2()));
+            l.onResponse(inferenceResultsMap);
+        }));
     }
 
     private static Set<FullyQualifiedInferenceId> getInferenceIdsForFields(

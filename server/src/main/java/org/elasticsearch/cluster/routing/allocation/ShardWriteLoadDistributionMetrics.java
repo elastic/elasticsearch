@@ -25,7 +25,7 @@ import java.util.Map;
  */
 public class ShardWriteLoadDistributionMetrics {
 
-    private static final String METRIC_NAME = "es.allocator.shard_write_load.percentiles";
+    private static final String METRIC_NAME = "es.allocator.shard_write_load.distribution";
 
     private final DoubleHistogram shardWeightHistogram;
     private final double[] percentiles;
@@ -44,7 +44,7 @@ public class ShardWriteLoadDistributionMetrics {
         Arrays.fill(lastValues, Double.NaN);
         meterRegistry.registerDoublesGauge(
             METRIC_NAME,
-            "Percentile of values for shard write load",
+            "Distribution of values for shard write load",
             "write load",
             this::getTrackedPercentiles
         );

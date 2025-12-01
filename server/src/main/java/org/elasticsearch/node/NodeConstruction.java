@@ -828,7 +828,7 @@ class NodeConstruction {
         );
 
         clusterInfoService.addListener(
-            new ShardWriteLoadDistributionMetrics(telemetryProvider.getMeterRegistry(), new double[] { 0.5, 0.9, 0.99, 1.0 })::onNewInfo
+            new ShardWriteLoadDistributionMetrics(telemetryProvider.getMeterRegistry(), new double[] { 50, 90, 95, 99, 100 })::onNewInfo
         );
 
         IndicesModule indicesModule = new IndicesModule(

@@ -73,17 +73,22 @@ public final class TDigestBlockBuilder implements TDigestBlock.Builder {
 
     @Override
     public Block.Builder appendNull() {
-        throw new UnsupportedOperationException();
+        encodedDigestsBuilder.appendNull();
+        minimaBuilder.appendNull();
+        maximaBuilder.appendNull();
+        sumsBuilder.appendNull();
+        valueCountsBuilder.appendNull();
+        return this;
     }
 
     @Override
     public Block.Builder beginPositionEntry() {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("TDigest Blocks do not support multi-values");
     }
 
     @Override
     public Block.Builder endPositionEntry() {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("TDigest Blocks do not support multi-values");
     }
 
     @Override
@@ -122,27 +127,27 @@ public final class TDigestBlockBuilder implements TDigestBlock.Builder {
 
     @Override
     public BlockLoader.DoubleBuilder minima() {
-        throw new UnsupportedOperationException();
+        return minimaBuilder;
     }
 
     @Override
     public BlockLoader.DoubleBuilder maxima() {
-        throw new UnsupportedOperationException();
+        return maximaBuilder;
     }
 
     @Override
     public BlockLoader.DoubleBuilder sums() {
-        throw new UnsupportedOperationException();
+        return sumsBuilder;
     }
 
     @Override
     public BlockLoader.LongBuilder valueCounts() {
-        throw new UnsupportedOperationException();
+        return valueCountsBuilder;
     }
 
     @Override
     public BlockLoader.BytesRefBuilder encodedDigests() {
-        throw new UnsupportedOperationException();
+        return encodedDigestsBuilder;
     }
 
     @Override

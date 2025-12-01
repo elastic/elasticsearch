@@ -1,0 +1,5 @@
+pr: 138539
+summary: Handle serialization of null blocks in `AggregateMetricDoubleBlock`
+area: ES|QL
+type: bug
+issues: []

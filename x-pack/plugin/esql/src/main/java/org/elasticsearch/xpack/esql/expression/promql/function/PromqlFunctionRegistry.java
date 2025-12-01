@@ -71,10 +71,10 @@ public class PromqlFunctionRegistry {
             // Aggregation range functions
             new FunctionDefinition[] {
                 withinSeriesOverTimeWithWindow("avg_over_time", AvgOverTime::new),
-                withinSeriesOverTime("count_over_time", CountOverTime::new),
-                withinSeriesOverTime("max_over_time", MaxOverTime::new),
-                withinSeriesOverTime("min_over_time", MinOverTime::new),
-                withinSeriesOverTime("sum_over_time", SumOverTime::new),
+                withinSeriesOverTimeWithWindow("count_over_time", CountOverTime::new),
+                withinSeriesOverTimeWithWindow("max_over_time", MaxOverTime::new),
+                withinSeriesOverTimeWithWindow("min_over_time", MinOverTime::new),
+                withinSeriesOverTimeWithWindow("sum_over_time", SumOverTime::new),
                 withinSeriesOverTime("stddev_over_time", StdDevOverTime::new),
                 withinSeriesOverTime("stdvar_over_time", VarianceOverTime::new) },
             // Selection range functions (require timestamp)
@@ -358,8 +358,7 @@ public class PromqlFunctionRegistry {
 
     public FunctionDefinition functionMetadata(String name) {
         String normalized = normalize(name);
-        FunctionDefinition metadata = promqlFunctions.get(normalized);
-        return metadata;
+        return promqlFunctions.get(normalized);
     }
 
     public Function buildEsqlFunction(String name, Source source, List<Expression> params) {

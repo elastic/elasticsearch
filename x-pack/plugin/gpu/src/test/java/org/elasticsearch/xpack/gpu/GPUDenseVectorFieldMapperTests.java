@@ -34,7 +34,12 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
 
     @Override
     protected Collection<Plugin> getPlugins() {
-        var plugin = new GPUPlugin();
+        var plugin = new GPUPlugin() {
+            @Override
+            protected boolean isGpuIndexingFeatureAllowed() {
+                return true;
+            }
+        };
         return Collections.singletonList(plugin);
     }
 

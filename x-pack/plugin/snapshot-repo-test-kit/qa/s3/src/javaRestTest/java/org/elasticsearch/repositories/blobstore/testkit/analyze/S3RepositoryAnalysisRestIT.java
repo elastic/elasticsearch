@@ -8,7 +8,6 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import fixture.s3.S3HttpFixture;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -16,11 +15,9 @@ import org.junit.rules.TestRule;
 
 public class S3RepositoryAnalysisRestIT extends AbstractS3RepositoryAnalysisRestTestCase {
 
-    static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("tests.use.fixture", "true"));
+    public static final S3HttpFixture s3Fixture = new RepositoryAnalysisHttpFixture();
 
-    public static final S3HttpFixture s3Fixture = new RepositoryAnalysisHttpFixture(USE_FIXTURE);
-
-    public static final ElasticsearchCluster cluster = buildCluster(s3Fixture, USE_FIXTURE);
+    public static final ElasticsearchCluster cluster = buildCluster(s3Fixture);
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(s3Fixture).around(cluster);

@@ -6,5 +6,5 @@
 :   Expression of type `geo_point`, `geo_shape`, `cartesian_point` or `cartesian_shape`. If `null`, the function returns `null`.
 
 `tolerance`
-:   Tolerance for the geometry simplification
+:   Tolerance for the geometry simplification, in the units of the input SRS
 

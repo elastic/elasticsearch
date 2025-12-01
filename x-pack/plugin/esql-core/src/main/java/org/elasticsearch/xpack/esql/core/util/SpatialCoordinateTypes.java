@@ -138,7 +138,7 @@ public enum SpatialCoordinateTypes {
     public org.locationtech.jts.geom.Geometry wkbToJtsGeometry(BytesRef wkb) throws ParseException, IllegalArgumentException {
         String wkt = wkbToWkt(wkb);
         if (wkt.startsWith("BBOX")) {
-            Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, true, wkb.bytes);
+            Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, true, wkb.bytes, wkb.offset, wkb.length);
             if (geometry instanceof Rectangle rect) {
                 var bottomLeft = new Coordinate(rect.getMinX(), rect.getMinY());
                 var bottomRight = new Coordinate(rect.getMaxX(), rect.getMinY());

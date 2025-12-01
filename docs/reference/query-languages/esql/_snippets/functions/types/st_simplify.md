@@ -5,7 +5,5 @@
 | geometry | tolerance | result |
 | --- | --- | --- |
 | cartesian_point | double | cartesian_point |
-| cartesian_shape | double | cartesian_shape |
 | geo_point | double | geo_point |
-| geo_shape | double | geo_shape |
 

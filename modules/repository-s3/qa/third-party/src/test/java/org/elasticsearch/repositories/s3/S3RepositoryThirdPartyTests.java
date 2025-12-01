@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.blankOrNullString;
@@ -194,7 +195,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 assertTrue(testHarness.tryCompareAndSet(BytesArray.EMPTY, bytes1));
 
                 // show we're looking at the right blob
-                assertEquals(bytes1, testHarness.readRegister());
+                assertThat(testHarness.readRegister(), equalBytes(bytes1));
                 assertArrayEquals(
                     bytes1.array(),
                     client.getObject(GetObjectRequest.builder().bucket(bucketName).key(registerBlobPath).build()).readAllBytes()
@@ -217,7 +218,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 timeOffsetMillis.addAndGet(blobStore.getCompareAndExchangeTimeToLive().millis() - Math.min(0, age));
                 assertTrue(testHarness.tryCompareAndSet(bytes1, bytes2));
                 assertThat(testHarness.listMultipartUploads(), hasSize(0));
-                assertEquals(bytes2, testHarness.readRegister());
+                assertThat(testHarness.readRegister(), equalBytes(bytes2));
             } finally {
                 blobContainer.delete(randomPurpose());
             }

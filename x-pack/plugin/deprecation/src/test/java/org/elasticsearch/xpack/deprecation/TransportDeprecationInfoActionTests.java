@@ -8,26 +8,52 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.hamcrest.core.IsEqual;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -40,11 +66,14 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.elasticsearch.xpack.deprecation.DeprecationInfoAction.Response.RESERVED_NAMES;
 import static org.elasticsearch.xpack.deprecation.DeprecationInfoActionResponseTests.createTestDeprecationIssue;
+import static org.elasticsearch.xpack.deprecation.TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -107,7 +136,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         List<DeprecationIssue> nodeDeprecationIssues = nodeIssueFound ? List.of(foundIssue) : List.of();
 
         DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(randomTimeValue(), Strings.EMPTY_ARRAY);
-        TransportDeprecationInfoAction.PrecomputedData precomputedData = new TransportDeprecationInfoAction.PrecomputedData();
+        TransportDeprecationInfoAction.PrecomputedData precomputedData = new TransportDeprecationInfoAction.PrecomputedData(null);
         precomputedData.setOnceTransformConfigs(List.of());
         precomputedData.setOncePluginIssues(Map.of());
         precomputedData.setOnceNodeSettingsIssues(nodeDeprecationIssues);
@@ -215,7 +244,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
             });
             return Map.of();
         }));
-        TransportDeprecationInfoAction.PrecomputedData precomputedData = new TransportDeprecationInfoAction.PrecomputedData();
+        TransportDeprecationInfoAction.PrecomputedData precomputedData = new TransportDeprecationInfoAction.PrecomputedData(null);
         precomputedData.setOnceTransformConfigs(List.of());
         precomputedData.setOncePluginIssues(Map.of());
         precomputedData.setOnceNodeSettingsIssues(List.of());
@@ -314,6 +343,169 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         );
         Exception exception = expectThrows(Exception.class, future::actionGet);
         assertThat(exception.getCause().getMessage(), containsString("boom"));
+    }
+
+    public void testCheckDiskLowWatermark() {
+        Settings settingsWithLowWatermark = Settings.builder().put("cluster.routing.allocation.disk.watermark.low", "10%").build();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, BUILT_IN_CLUSTER_SETTINGS);
+        String nodeId1 = "123";
+        String nodeId2 = "124";
+        String nodeId3 = "125";
+        long totalBytesOnMachine = 100;
+        long totalBytesFree = 70;
+        ClusterInfo clusterInfo = ClusterInfo.builder()
+            .mostAvailableSpaceUsage(
+                Map.of(
+                    nodeId1,
+                    new DiskUsage(nodeId1, "", "", totalBytesOnMachine, totalBytesFree),
+                    nodeId2,
+                    new DiskUsage(nodeId2, "", "", totalBytesOnMachine, totalBytesFree),
+                    nodeId3,
+                    new DiskUsage(nodeId2, "", "", totalBytesOnMachine, totalBytesOnMachine)
+                )
+            )
+            .build();
+        DiscoveryNode node1 = mock(DiscoveryNode.class);
+        when(node1.getId()).thenReturn(nodeId1);
+        when(node1.getName()).thenReturn("node1");
+        DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        when(discoveryNodes.get(nodeId1)).thenReturn(node1);
+        DiscoveryNode node2 = mock(DiscoveryNode.class);
+        when(node2.getId()).thenReturn(nodeId2);
+        when(node2.getName()).thenReturn("node2");
+        when(discoveryNodes.get(nodeId2)).thenReturn(node2);
+        DiscoveryNode node3 = mock(DiscoveryNode.class);
+        when(node3.getId()).thenReturn(nodeId3);
+        when(node3.getName()).thenReturn("node3");
+        when(discoveryNodes.get(nodeId3)).thenReturn(node3);
+
+        clusterSettings.applySettings(settingsWithLowWatermark);
+        DeprecationIssue issue = TransportDeprecationInfoAction.checkDiskLowWatermark(clusterSettings, clusterInfo, discoveryNodes);
+        assertNotNull(issue);
+        assertEquals("Disk usage exceeds low watermark", issue.getMessage());
+
+        // Making sure there's no warning when we clear out the cluster settings:
+        clusterSettings.applySettings(Settings.EMPTY);
+        issue = TransportDeprecationInfoAction.checkDiskLowWatermark(clusterSettings, clusterInfo, discoveryNodes);
+        assertNull(issue);
+
+        // And make sure there is a warning when the setting is in the node settings but not the cluster settings:
+        clusterSettings = new ClusterSettings(settingsWithLowWatermark, BUILT_IN_CLUSTER_SETTINGS);
+        issue = TransportDeprecationInfoAction.checkDiskLowWatermark(clusterSettings, clusterInfo, discoveryNodes);
+        assertNotNull(issue);
+        assertEquals("Disk usage exceeds low watermark", issue.getMessage());
+        assertThat(issue.getDetails(), containsString("(nodes impacted: [node1, node2])"));
+    }
+
+    public void testMasterOperation() throws InterruptedException {
+        try (TestThreadPool threadPool = new TestThreadPool("TransportDeprecationInfoActionTests")) {
+            ClusterService clusterService = mock(ClusterService.class);
+
+            String nodeId = "node1";
+            DiscoveryNode node1 = mock(DiscoveryNode.class);
+            when(node1.getId()).thenReturn(nodeId);
+            when(node1.getName()).thenReturn(nodeId);
+            DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+            when(discoveryNodes.get(nodeId)).thenReturn(node1);
+
+            ClusterState state = mock(ClusterState.class);
+            when(state.nodes()).thenReturn(discoveryNodes);
+            when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
+            when(clusterService.state()).thenReturn(state);
+
+            ClusterInfoService clusterInfoService = mock(ClusterInfoService.class);
+
+            NodeClient client = new NoOpNodeClient(threadPool) {
+                @SuppressWarnings("unchecked")
+                @Override
+                public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    switch (action.name()) {
+                        case NodesDeprecationCheckAction.NAME:
+                            NodesDeprecationCheckAction.NodeResponse nodeResponse = new NodesDeprecationCheckAction.NodeResponse(
+                                node1,
+                                List.of(
+                                    new DeprecationIssue(DeprecationIssue.Level.WARNING, "Node issue", "http://url", "details", false, null)
+                                )
+                            );
+                            NodesDeprecationCheckResponse nodesResponse = new NodesDeprecationCheckResponse(
+                                ClusterName.DEFAULT,
+                                List.of(nodeResponse),
+                                Collections.emptyList()
+                            );
+                            listener.onResponse((Response) nodesResponse);
+                            break;
+                        case GetTransformAction.NAME:
+                            listener.onResponse((Response) new GetTransformAction.Response(List.of(), 0, List.of()));
+                            break;
+                        default:
+                    }
+                }
+            };
+            ProjectResolver projectResolver = DefaultProjectResolver.INSTANCE;
+
+            // Disable ML to avoid MlDeprecationChecker making calls
+            Settings settings = Settings.builder().put("xpack.ml.enabled", false).build();
+            ClusterSettings clusterSettings = new ClusterSettings(
+                settings,
+                Set.copyOf(CollectionUtils.appendToCopy(BUILT_IN_CLUSTER_SETTINGS, SKIP_DEPRECATIONS_SETTING))
+            );
+            when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+            when(clusterService.getClusterName()).thenReturn(ClusterName.DEFAULT);
+
+            IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+            when(indexNameExpressionResolver.concreteIndexNames(any(ProjectMetadata.class), any())).thenReturn(new String[0]);
+            TransportDeprecationInfoAction action = new TransportDeprecationInfoAction(
+                settings,
+                mock(TransportService.class),
+                clusterService,
+                threadPool,
+                mock(ActionFilters.class),
+                indexNameExpressionResolver,
+                client,
+                NamedXContentRegistry.EMPTY,
+                clusterInfoService,
+                projectResolver
+            );
+
+            DiskUsage diskUsage = new DiskUsage(nodeId, "node1", "/data", 100L, 0L);
+            ClusterInfo clusterInfo = mock(ClusterInfo.class);
+            when(clusterInfo.getNodeMostAvailableDiskUsages()).thenReturn(Map.of(nodeId, diskUsage));
+            when(clusterInfoService.getClusterInfo()).thenReturn(clusterInfo);
+
+            action.masterOperation(mock(Task.class), new DeprecationInfoAction.Request(TimeValue.MAX_VALUE), state, new ActionListener<>() {
+                @Override
+                public void onResponse(DeprecationInfoAction.Response response) {
+                    List<DeprecationIssue> nodeSettingsIssues = response.getNodeSettingsIssues();
+                    assertThat(nodeSettingsIssues, hasSize(2));
+
+                    DeprecationIssue nodeIssue = nodeSettingsIssues.stream()
+                        .filter(i -> i.getMessage().equals("Node issue"))
+                        .findFirst()
+                        .orElseThrow();
+
+                    DeprecationIssue diskIssue = nodeSettingsIssues.stream()
+                        .filter(i -> i.getMessage().equals("Disk usage exceeds low watermark"))
+                        .findFirst()
+                        .orElseThrow();
+
+                    assertThat(nodeIssue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
+                    assertThat(nodeIssue.getUrl(), equalTo("http://url"));
+                    assertThat(nodeIssue.getDetails(), containsString("(nodes impacted: [node1])"));
+
+                    assertThat(diskIssue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+                    assertThat(diskIssue.getDetails(), containsString("(nodes impacted: [node1])"));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("Test failed with exception: " + e.getMessage());
+                }
+            });
+        }
     }
 
     private static ResourceDeprecationChecker createResourceChecker(

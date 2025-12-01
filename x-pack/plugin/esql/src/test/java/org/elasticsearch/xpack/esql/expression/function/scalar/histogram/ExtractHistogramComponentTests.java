@@ -61,7 +61,7 @@ public class ExtractHistogramComponentTests extends AbstractScalarFunctionTestCa
                             return new TestCaseSupplier.TestCase(
                                 List.of(histogram, componentOrdinalSupplier.get()),
                                 "ExtractHistogramComponentEvaluator[field=Attribute[channel=0],component=" + component + "]",
-                                getExpectedDataTypeForComponent(component),
+                                DataType.DOUBLE,
                                 equalTo(getExpectedValue(histogram, component))
                             );
                         }
@@ -92,14 +92,7 @@ public class ExtractHistogramComponentTests extends AbstractScalarFunctionTestCa
                 yield Double.isNaN(max) ? null : max;
             }
             case SUM -> value.valueCount() > 0 ? value.sum() : null;
-            case COUNT -> value.valueCount();
-        };
-    }
-
-    private static DataType getExpectedDataTypeForComponent(ExponentialHistogramBlock.Component component) {
-        return switch (component) {
-            case MIN, MAX, SUM -> DataType.DOUBLE;
-            case COUNT -> DataType.LONG;
+            case COUNT -> (double) value.valueCount();
         };
     }
 

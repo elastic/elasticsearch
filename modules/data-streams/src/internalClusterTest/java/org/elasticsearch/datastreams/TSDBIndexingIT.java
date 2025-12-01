@@ -588,19 +588,16 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
     public void testReindexing() throws Exception {
         String dataStreamName = "my-ds";
         String reindexedDataStreamName = "my-reindexed-ds";
+        var templateSettings = Settings.builder().put("index.mode", "time_series");
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+            templateSettings.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+        }
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName, reindexedDataStreamName))
                 .template(
-                    new Template(
-                        Settings.builder()
-                            .put("index.mode", "time_series")
-                            .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean())
-                            .build(),
-                        new CompressedXContent(MAPPING_TEMPLATE),
-                        null
-                    )
+                    new Template(templateSettings.build(), new CompressedXContent(MAPPING_TEMPLATE), null)
                 )
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
@@ -650,20 +647,16 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         String dataStreamName = "my-ds";
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
         boolean indexDimensionsTsidStrategyEnabled = randomBoolean();
+        var templateSettings = Settings.builder()
+            .put("index.mode", "time_series")
+            .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabled);
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+            templateSettings.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+        }
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName))
-                .template(
-                    new Template(
-                        Settings.builder()
-                            .put("index.mode", "time_series")
-                            .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabled)
-                            .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean())
-                            .build(),
-                        new CompressedXContent(MAPPING_TEMPLATE),
-                        null
-                    )
-                )
+                .template(new Template(templateSettings.build(), new CompressedXContent(MAPPING_TEMPLATE), null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
@@ -740,16 +733,17 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
 
     public void testDynamicStringDimensions() throws Exception {
         String dataStreamName = "my-ds";
+        var templateSettings = Settings.builder().put("index.mode", "time_series");
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+            templateSettings.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+        }
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName))
                 .template(
                     new Template(
-                        Settings.builder()
-                            .put("index.mode", "time_series")
-                            .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean())
-                            .build(),
+                        templateSettings.build(),
                         new CompressedXContent("""
                                 {
                               "_doc": {
@@ -811,16 +805,17 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
 
     public void testDynamicDimensions() throws Exception {
         String dataStreamName = "my-ds";
+        var templateSettings = Settings.builder().put("index.mode", "time_series");
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+            templateSettings.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+        }
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName))
                 .template(
                     new Template(
-                        Settings.builder()
-                            .put("index.mode", "time_series")
-                            .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean())
-                            .build(),
+                        templateSettings.build(),
                         new CompressedXContent("""
 
                                 {

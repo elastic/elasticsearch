@@ -34,7 +34,8 @@ import java.io.IOException;
 public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeAction<
     IndicesSegmentsRequest,
     IndicesSegmentResponse,
-    ShardSegments> {
+    ShardSegments,
+    Void> {
 
     private final IndicesService indicesService;
 
@@ -105,6 +106,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
         IndicesSegmentsRequest request,
         ShardRouting shardRouting,
         Task task,
+        Void nodeContext,
         ActionListener<ShardSegments> listener
     ) {
         ActionListener.completeWith(listener, () -> {

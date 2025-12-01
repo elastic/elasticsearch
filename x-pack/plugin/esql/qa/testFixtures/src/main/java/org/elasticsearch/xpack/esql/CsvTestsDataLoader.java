@@ -32,7 +32,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.io.BufferedReader;
 import java.io.IOException;

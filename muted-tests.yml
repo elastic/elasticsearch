@@ -466,11 +466,11 @@ tests:
 - class: org.elasticsearch.index.mapper.LongSyntheticSourceNativeArrayIntegrationTests
   method: testSynthesizeArrayRandom
   issue: https://github.com/elastic/elasticsearch/issues/138819
-- class: org.elasticsearch.datastreams.TSDBIndexingIT
-  method: testDynamicDimensions
-  issue: https://github.com/elastic/elasticsearch/issues/138815
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   issue: https://github.com/elastic/elasticsearch/issues/138796
+- class: org.elasticsearch.xpack.ilm.actions.DownsampleActionIT
+  method: testILMWaitsForTimeSeriesEndTimeToLapse
+  issue: https://github.com/elastic/elasticsearch/issues/138843
 
 # Examples:
 #

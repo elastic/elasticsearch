@@ -19,6 +19,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ZeroBytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -32,8 +33,17 @@ public class Netty4UtilsTests extends ESTestCase {
     private static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
     private final BigArrays bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), CircuitBreaker.REQUEST);
 
-    public void testToChannelBufferWithEmptyRef() throws IOException {
-        ByteBuf buffer = Netty4Utils.toByteBuf(getRandomizedBytesReference(0));
+    public void testToByteBufEmptyArray() throws IOException {
+        var arrayBackedRef = getRandomizedBytesReference(0);
+        assertTrue(arrayBackedRef.hasArray());
+        var buffer = Netty4Utils.toByteBuf(arrayBackedRef);
+        assertSame(Unpooled.EMPTY_BUFFER, buffer);
+    }
+
+    public void testToByteBufEmptyIterator() {
+        var iterBackedRef = new ZeroBytesReference(0);
+        assertFalse(iterBackedRef.hasArray());
+        var buffer = Netty4Utils.toByteBuf(iterBackedRef);
         assertSame(Unpooled.EMPTY_BUFFER, buffer);
     }
 

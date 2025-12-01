@@ -406,6 +406,7 @@ timeseriesAllAggsLastOverTimeNoBucket
 required_capability: exponential_histogram_pre_tech_preview_v6
 required_capability: ts_command_v0
 
+
 TS exp_histo_sample 
  | WHERE instance == "instance-1"
  | STATS min = MIN(last_over_time(responseTime)),
@@ -446,7 +447,6 @@ instance-0       | 3.36E-4    | 3.252835   | 0.0355538     | 0.3688603   | 21.52
 instance-1       | 2.22E-4    | 0.003494   | 5.621E-4      | 0.0014898   | 0.021901   | 9.522E-4
 instance-2       | 2.59E-4    | 0.068249   | 5.209E-4      | 0.0014578   | 0.097412   | 0.0037466
 ;
-
 
 
 timeseriesAllAggsLastOverTimeEmptyBuckets
@@ -544,4 +544,78 @@ instance:keyword | min:double | max:double | median:double | p75:double | sum:do
 instance-0       | null       | null       | null          | null        | null       | null
 instance-1       | null       | null       | null          | null        | null       | null
 instance-2       | null       | null       | null          | null        | null       | null
+;
+
+
+timeseriesAllMathOverTimeAggsGrouped
+required_capability: exponential_histogram_pre_tech_preview_v6
+required_capability: ts_command_v0
+
+TS exp_histo_sample 
+ | WHERE NOT STARTS_WITH(instance, "dummy") 
+ | STATS 
+        min = SUM(min_over_time(responseTime)),
+        max = SUM(max_over_time(responseTime)),
+        p75 = SUM(percentile_over_time(responseTime,75)),
+        sum = SUM(sum_over_time(responseTime)),
+        avg = SUM(avg_over_time(responseTime))
+        BY instance
+ | EVAL p75 = ROUND(p75, 7), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
+ | KEEP instance, min, max, p75, sum, avg
+ | SORT instance
+;
+
+instance:keyword | min:double | max:double | p75:double | sum:double  | avg:double
+instance-0       | 2.4E-4     | 6.786232   | 0.2608237  | 1472.744209 | 0.1665812
+instance-1       | 2.17E-4    | 3.190723   | 0.0016068  | 36.198484   | 0.011138
+instance-2       | 2.2E-4     | 2.744054   | 0.0016068  | 27.706021   | 0.008197
+;
+
+
+timeseriesAllMathOverTimeAggsUngrouped
+required_capability: exponential_histogram_pre_tech_preview_v6
+required_capability: ts_command_v0
+
+TS exp_histo_sample 
+ | WHERE NOT STARTS_WITH(instance, "dummy") 
+ | STATS 
+        min = SUM(min_over_time(responseTime)),
+        max = SUM(max_over_time(responseTime)),
+        p75 = SUM(percentile_over_time(responseTime,75)),
+        sum = SUM(sum_over_time(responseTime)),
+        avg = SUM(avg_over_time(responseTime))
+ | EVAL p75 = ROUND(p75, 7), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
+ | KEEP min, max, p75, sum, avg
+;
+
+min:double | max:double | p75:double | sum:double  | avg:double
+6.77E-4    | 12.721009  | 0.2640373  | 1536.648714 | 0.1859162
+;
+
+
+timeseriesPresentAbsentOverTime
+required_capability: exponential_histogram_pre_tech_preview_v6
+required_capability: ts_command_v0
+
+TS exp_histo_sample 
+ | WHERE TRANGE(to_datetime("2025-09-25T00:30:00Z"), to_datetime("2025-09-25T00:33:00Z"))
+ | EVAL responseTime = CASE(@timestamp < "2025-09-25T00:32:00.000Z", NULL, responseTime)
+ | STATS 
+        present = MAX(present_over_time(responseTime)),
+        absent = MAX(absent_over_time(responseTime))
+        BY instance, time = TBUCKET(1m)
+ | KEEP instance, time, present,  absent
+ | SORT instance, time
+;
+
+instance:keyword | time:datetime            | present:boolean | absent:boolean
+instance-0       | 2025-09-25T00:31:00.000Z | false           | true
+instance-0       | 2025-09-25T00:32:00.000Z | true            | false
+instance-0       | 2025-09-25T00:33:00.000Z | true            | false
+instance-1       | 2025-09-25T00:31:00.000Z | false           | true
+instance-1       | 2025-09-25T00:32:00.000Z | true            | false
+instance-1       | 2025-09-25T00:33:00.000Z | true            | false
+instance-2       | 2025-09-25T00:31:00.000Z | false           | true
+instance-2       | 2025-09-25T00:32:00.000Z | true            | false
+instance-2       | 2025-09-25T00:33:00.000Z | true            | false
 ;

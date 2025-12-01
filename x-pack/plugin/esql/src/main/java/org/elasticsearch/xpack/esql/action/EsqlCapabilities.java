@@ -1314,6 +1314,11 @@ public class EsqlCapabilities {
         DATE_DIFF_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
 
         /**
+         * Support timezones in KQL and QSTR.
+         */
+        KQL_QSTR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+
+        /**
          * (Re)Added EXPLAIN command
          */
         EXPLAIN(Build.current().isSnapshot()),
@@ -1700,7 +1705,7 @@ public class EsqlCapabilities {
          * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          * At this point, we need to add new capabilities for any further changes.
          */
-        PROMQL_PRE_TECH_PREVIEW_V1(Build.current().isSnapshot()),
+        PROMQL_PRE_TECH_PREVIEW_V2(Build.current().isSnapshot()),
 
         /**
          * KNN function adds support for k and visit_percentage options

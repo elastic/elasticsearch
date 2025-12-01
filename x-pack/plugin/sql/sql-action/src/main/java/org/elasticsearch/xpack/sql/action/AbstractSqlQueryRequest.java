@@ -64,7 +64,10 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.PROJECT_ROUTING_NAM
 /**
  * Base class for requests that contain sql queries (Query and Translate)
  */
-public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest implements CompositeIndicesRequest, IndicesRequest.CrossProjectCandidate {
+public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest
+    implements
+        CompositeIndicesRequest,
+        IndicesRequest.CrossProjectCandidate {
 
     //
     // parser for sql-proto SqlTypedParamValue

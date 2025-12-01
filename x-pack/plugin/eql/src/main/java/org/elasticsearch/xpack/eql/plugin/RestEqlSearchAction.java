@@ -21,15 +21,19 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.search.SearchParamsParser;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -40,10 +44,10 @@ import static org.elasticsearch.xpack.ql.util.LoggingUtils.logOnFailure;
 public class RestEqlSearchAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestEqlSearchAction.class);
     private static final String SEARCH_PATH = "/{index}/_eql/search";
-    private final Settings settings;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     public RestEqlSearchAction(Settings settings) {
-        this.settings = settings;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -53,7 +57,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final boolean crossProjectEnabled = settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false);
+        boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
         EqlSearchRequest eqlRequest;
         String indices;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
@@ -77,13 +81,17 @@ public class RestEqlSearchAction extends BaseRestHandler {
                 eqlRequest.keepAlive(request.paramAsTime("keep_alive", eqlRequest.keepAlive()));
             }
             eqlRequest.keepOnCompletion(request.paramAsBoolean("keep_on_completion", eqlRequest.keepOnCompletion()));
-            eqlRequest.ccsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", eqlRequest.ccsMinimizeRoundtrips()));
+            eqlRequest.ccsMinimizeRoundtrips(SearchParamsParser.parseCcsMinimizeRoundtrips(Optional.of(crossProjectEnabled), request));
             eqlRequest.allowPartialSearchResults(
                 request.paramAsBoolean("allow_partial_search_results", eqlRequest.allowPartialSearchResults())
             );
             eqlRequest.allowPartialSequenceResults(
                 request.paramAsBoolean("allow_partial_sequence_results", eqlRequest.allowPartialSequenceResults())
             );
+            eqlRequest.projectRouting(request.param("project_routing", eqlRequest.getProjectRouting()));
+            if (crossProjectEnabled == false && eqlRequest.getProjectRouting() != null) {
+                throw new InvalidArgumentException("[project_routing] is only allowed when cross-project search is enabled");
+            }
         }
 
         return channel -> {

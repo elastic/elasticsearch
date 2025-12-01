@@ -14,6 +14,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -39,8 +40,8 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
     }
 
     @Override
-    protected QueryRewriteInterceptor createQueryRewriteInterceptor() {
-        return new SemanticMatchQueryRewriteInterceptor();
+    protected List<QueryRewriteInterceptor> createQueryRewriteInterceptors() {
+        return List.of(new SemanticMatchQueryRewriteInterceptor());
     }
 
     @Override

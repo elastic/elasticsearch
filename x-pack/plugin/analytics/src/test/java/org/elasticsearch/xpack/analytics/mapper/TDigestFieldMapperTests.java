@@ -450,7 +450,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(expected), syntheticSource);
     }
 
-    private static Map<String, Object> generateRandomFieldValues(int maxVals) {
+    static Map<String, Object> generateRandomFieldValues(int maxVals) {
         Map<String, Object> value = new LinkedHashMap<>();
         int size = between(1, maxVals);
         TDigestState digest = TDigestState.createWithoutCircuitBreaking(100);
@@ -509,5 +509,10 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     @Override
     public void testSyntheticSourceKeepArrays() {
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

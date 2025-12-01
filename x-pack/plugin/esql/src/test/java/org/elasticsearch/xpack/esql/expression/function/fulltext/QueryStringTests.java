@@ -64,7 +64,7 @@ public class QueryStringTests extends NoneFieldFullTextFunctionTestCase {
                     ).forceLiteral()
                 );
 
-                return new TestCaseSupplier.TestCase(values, equalTo("MatchEvaluator"), BOOLEAN, equalTo(true));
+                return new TestCaseSupplier.TestCase(values, equalTo(""), BOOLEAN, equalTo(true));
             }));
         }
         return result;
@@ -72,7 +72,7 @@ public class QueryStringTests extends NoneFieldFullTextFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        var qstr = new QueryString(source, args.get(0), args.size() > 1 ? args.get(1) : null);
+        var qstr = new QueryString(source, args.get(0), args.size() > 1 ? args.get(1) : null, testCase.getConfiguration());
         // We need to add the QueryBuilder to the match expression, as it is used to implement equals() and hashCode() and
         // thus test the serialization methods. But we can only do this if the parameters make sense .
         if (args.get(0).foldable()) {

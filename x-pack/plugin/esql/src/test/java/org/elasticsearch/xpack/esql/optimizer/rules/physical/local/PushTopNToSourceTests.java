@@ -604,7 +604,6 @@ public class PushTopNToSourceTests extends ESTestCase {
                 Source.EMPTY,
                 this.index,
                 indexMode,
-                Map.of(),
                 attributes,
                 null,
                 List.of(),

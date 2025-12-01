@@ -445,6 +445,7 @@ module org.elasticsearch.server {
 
     provides org.apache.lucene.codecs.PostingsFormat
         with
+            org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat,
             org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.postings.ES812PostingsFormat;

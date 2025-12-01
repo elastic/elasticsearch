@@ -46,7 +46,7 @@ public class SimpleLinearRegressionWithTimeseries implements AggregatorState {
         this.sumTsSq = 0;
         this.maxTs = Long.MIN_VALUE;
         this.valueAtMaxTs = Double.NaN;
-        this.dateFactor = dateNanos ? 1_000_000.0 : 1_000.0;
+        this.dateFactor = dateNanos ? 1_000_000_000.0 : 1_000.0;
         this.fn = fn;
     }
 

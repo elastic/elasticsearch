@@ -18,14 +18,13 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
@@ -38,8 +37,6 @@ import org.junit.rules.TestRule;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -83,8 +80,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     private static TestFeatureService remoteFeaturesService;
     private static RestClient remoteClusterClient;
     private static DataLocation dataLocation = null;
-
-    private static final Logger LOGGER = LogManager.getLogger(MultiClusterSpecIT.class);
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -301,43 +296,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             return convertSubqueryToRemoteIndices(testCase);
         }
         String query = testCase.query;
-        String[] commands = query.split("\\|");
-        String first = commands[0].trim();
         // If true, we're using *:index, otherwise we're using *:index,index
         boolean onlyRemotes = canUseRemoteIndicesOnly() && randomBoolean();
-
-        // Split "SET a=b; FROM x" into "SET a=b" and "FROM x"
-        int lastSetDelimiterPosition = first.lastIndexOf(';');
-        String setStatements = lastSetDelimiterPosition == -1 ? "" : first.substring(0, lastSetDelimiterPosition + 1);
-        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition + 1);
-
-        // Split "FROM a, b, c" into "FROM" and "a, b, c"
-        String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
-
-        String command = commandParts[0].trim();
-        if (command.equalsIgnoreCase("from") || command.equalsIgnoreCase("ts")) {
-            String[] indexMetadataParts = commandParts[1].split("(?i)\\bmetadata\\b", 2);
-            String indicesString = indexMetadataParts[0];
-            String[] indices = indicesString.split(",");
-            // This method may be called multiple times on the same testcase when using @Repeat
-            boolean alreadyConverted = Arrays.stream(indices).anyMatch(i -> i.trim().startsWith("*:"));
-            if (alreadyConverted == false) {
-                if (Arrays.stream(indices).anyMatch(i -> LOOKUP_INDICES.contains(i.trim().toLowerCase(Locale.ROOT)))) {
-                    // If the query contains lookup indices, use only remotes to avoid duplication
-                    onlyRemotes = true;
-                }
-                final boolean onlyRemotesFinal = onlyRemotes;
-                final String remoteIndices = Arrays.stream(indices)
-                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), onlyRemotesFinal))
-                    .collect(Collectors.joining(","));
-                String newFirstCommand = command
-                    + " "
-                    + remoteIndices
-                    + " "
-                    + (indexMetadataParts.length == 1 ? "" : "metadata " + indexMetadataParts[1]);
-                testCase.query = setStatements + newFirstCommand + query.substring(first.length());
-            }
-        }
+        testCase.query = EsqlTestUtils.addRemoteIndices(testCase.query, LOOKUP_INDICES, onlyRemotes);
 
         int offset = testCase.query.length() - query.length();
         if (offset != 0) {
@@ -365,150 +326,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             return parts.length > 1 && parts[1].contains("_index");
         }
         return false;
-    }
-
-    /**
-     * Since partial quoting is prohibited, we need to take the index name, unquote it,
-     * convert it to a remote index, and then requote it. For example, "employees" is unquoted,
-     * turned into the remote index *:employees, and then requoted to get "*:employees".
-     * @param index Name of the index.
-     * @param asRemoteIndexOnly If the return needs to be in the form of "*:idx,idx" or "*:idx".
-     * @return A remote index pattern that's requoted.
-     */
-    private static String unquoteAndRequoteAsRemote(String index, boolean asRemoteIndexOnly) {
-        index = index.trim();
-
-        int numOfQuotes = 0;
-        for (; numOfQuotes < index.length(); numOfQuotes++) {
-            if (index.charAt(numOfQuotes) != '"') {
-                break;
-            }
-        }
-
-        String unquoted = unquote(index, numOfQuotes);
-        if (asRemoteIndexOnly) {
-            return quote("*:" + unquoted, numOfQuotes);
-        } else {
-            return quote("*:" + unquoted + "," + unquoted, numOfQuotes);
-        }
-    }
-
-    private static String quote(String index, int numOfQuotes) {
-        return "\"".repeat(numOfQuotes) + index + "\"".repeat(numOfQuotes);
-    }
-
-    private static String unquote(String index, int numOfQuotes) {
-        return index.substring(numOfQuotes, index.length() - numOfQuotes);
-    }
-
-    /**
-     * Convert index patterns and subqueries in FROM commands to use remote indices for a given test case.
-     */
-    private static CsvSpecReader.CsvTestCase convertSubqueryToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
-        if (dataLocation == null) {
-            dataLocation = randomFrom(DataLocation.values());
-        }
-        String query = testCase.query;
-        testCase.query = convertSubqueryToRemoteIndices(query);
-        return testCase;
-    }
-
-    /**
-     * Convert index patterns and subqueries in FROM commands to use remote indices.
-     */
-    private static String convertSubqueryToRemoteIndices(String testQuery) {
-        String query = testQuery;
-        // find the main from command, ignoring pipes inside subqueries
-        List<String> mainFromCommandAndTheRest = splitIgnoringParentheses(query, "|");
-        String mainFrom = mainFromCommandAndTheRest.get(0).strip();
-        List<String> theRest = mainFromCommandAndTheRest.size() > 1
-            ? mainFromCommandAndTheRest.subList(1, mainFromCommandAndTheRest.size())
-            : List.of();
-        // check for metadata in the main from command
-        List<String> mainFromCommandWithMetadata = splitIgnoringParentheses(mainFrom, "metadata");
-        mainFrom = mainFromCommandWithMetadata.get(0).strip();
-        // if there is metadata, we need to add it back later
-        String metadata = mainFromCommandWithMetadata.size() > 1 ? " metadata " + mainFromCommandWithMetadata.get(1) : "";
-        // the main from command could be a comma separated list of index patterns, and subqueries
-        List<String> indexPatternsAndSubqueries = splitIgnoringParentheses(mainFrom, ",");
-        List<String> transformed = new ArrayList<>();
-        for (String indexPatternOrSubquery : indexPatternsAndSubqueries) {
-            // remove the from keyword if it's there
-            indexPatternOrSubquery = indexPatternOrSubquery.strip();
-            if (indexPatternOrSubquery.toLowerCase(Locale.ROOT).startsWith("from ")) {
-                indexPatternOrSubquery = indexPatternOrSubquery.strip().substring(5);
-            }
-            // substitute the index patterns or subquery with remote index patterns
-            if (isSubquery(indexPatternOrSubquery)) {
-                // it's a subquery, we need to process it recursively
-                String subquery = indexPatternOrSubquery.strip().substring(1, indexPatternOrSubquery.length() - 1);
-                String transformedSubquery = convertSubqueryToRemoteIndices(subquery);
-                transformed.add("(" + transformedSubquery + ")");
-            } else {
-                // It's an index pattern, we need to convert it to remote index pattern.
-                String remoteIndex = unquoteAndRequoteAsRemote(indexPatternOrSubquery, false);
-                transformed.add(remoteIndex);
-            }
-        }
-        // rebuild from command from transformed index patterns and subqueries
-        String transformedFrom = "FROM " + String.join(", ", transformed) + metadata;
-        // rebuild the whole query
-        // testQuery = transformedFrom + (theRest.isEmpty() ? "" : " | " + String.join(" | ", theRest));
-        mainFromCommandAndTheRest.set(0, transformedFrom);
-        testQuery = String.join(" | ", mainFromCommandAndTheRest);
-
-        LOGGER.trace("Transform query: \nFROM: {}\nTO:   {}", query, testQuery);
-        return testQuery;
-    }
-
-    /**
-     * Checks if the given string is a subquery (enclosed in parentheses).
-     */
-    private static boolean isSubquery(String indexPatternOrSubquery) {
-        String trimmed = indexPatternOrSubquery.strip();
-        return trimmed.startsWith("(") && trimmed.endsWith(")");
-    }
-
-    /**
-     * Splits the input string by the given delimiter, ignoring delimiters inside parentheses.
-     */
-    public static List<String> splitIgnoringParentheses(String input, String delimiter) {
-        List<String> results = new ArrayList<>();
-        if (input == null || input.isEmpty()) return results;
-
-        int depth = 0; // parentheses nesting
-        int lastSplit = 0;
-        int delimiterLength = delimiter.length();
-
-        for (int i = 0; i <= input.length() - delimiterLength; i++) {
-            char c = input.charAt(i);
-
-            if (c == '(') {
-                depth++;
-            } else if (c == ')') {
-                if (depth > 0) depth--;
-            }
-
-            // check delimiter only outside parentheses
-            if (depth == 0) {
-                boolean match;
-                if (delimiter.length() == 1) {
-                    match = c == delimiter.charAt(0);
-                } else {
-                    match = input.regionMatches(true, i, delimiter, 0, delimiterLength);
-                }
-
-                if (match) {
-                    results.add(input.substring(lastSplit, i).trim());
-                    lastSplit = i + delimiterLength;
-                    i += delimiterLength - 1; // skip the delimiter
-                }
-            }
-        }
-        // add remaining part
-        results.add(input.substring(lastSplit).trim());
-
-        return results;
     }
 
     @Override
@@ -542,14 +359,23 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         try {
             return RestEsqlTestCase.hasCapabilities(
                 client(),
-                List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V4.capabilityName())
+                List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V7.capabilityName())
             )
                 && RestEsqlTestCase.hasCapabilities(
                     remoteClusterClient(),
-                    List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V4.capabilityName())
+                    List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V7.capabilityName())
                 );
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Convert index patterns and subqueries in FROM commands to use remote indices for a given test case.
+     */
+    private static CsvSpecReader.CsvTestCase convertSubqueryToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
+        String query = testCase.query;
+        testCase.query = EsqlTestUtils.convertSubqueryToRemoteIndices(query);
+        return testCase;
     }
 }

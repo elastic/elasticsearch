@@ -61,6 +61,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC;
@@ -594,7 +595,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
                         contendedRegisterValue = updatedValue;
                     }
                 } else {
-                    assertEquals(expected, witness); // uncontended writes always succeed
+                    assertThat(witness, equalBytes(expected)); // uncontended writes always succeed
                     assertNotEquals(expected, updated); // uncontended register sees only updates
                     if (updated.length() != 0) {
                         final var updatedValue = longFromBytes(updated);

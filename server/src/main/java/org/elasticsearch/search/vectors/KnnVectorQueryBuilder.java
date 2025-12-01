@@ -357,6 +357,13 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return this;
     }
 
+    public KnnVectorQueryBuilder setFilterQueries(List<QueryBuilder> filterQueries) {
+        Objects.requireNonNull(filterQueries);
+        this.filterQueries.clear();
+        this.filterQueries.addAll(filterQueries);
+        return this;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         if (queryVectorSupplier != null) {

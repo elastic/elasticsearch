@@ -202,7 +202,8 @@ public class EsqlSession {
             System.nanoTime(),
             request.allowPartialResults(),
             clusterSettings.timeseriesResultTruncationMaxSize(),
-            clusterSettings.timeseriesResultTruncationDefaultSize()
+            clusterSettings.timeseriesResultTruncationDefaultSize(),
+            projectRouting(request, statement)
         );
         FoldContext foldContext = configuration.newFoldContext();
 
@@ -256,6 +257,18 @@ public class EsqlSession {
                 }
             }
         );
+    }
+
+    private String projectRouting(EsqlQueryRequest request, EsqlStatement statement) {
+        String projectRouting = statement.setting(QuerySettings.PROJECT_ROUTING);
+        if (projectRouting == null) {
+            projectRouting = request.projectRouting();
+        }
+
+        if (projectRouting != null && crossProjectModeDecider.crossProjectEnabled() == false) {
+            throw new VerificationException("[project_routing] is only allowed when cross-project search is enabled");
+        }
+        return projectRouting;
     }
 
     /**
@@ -553,53 +566,54 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
-        SubscribableListener.<PreAnalysisResult>newForked(l -> preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l))
-            .andThenApply(r -> {
-                if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
-                    && executionInfo.isCrossClusterSearch()
-                    && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
-                    LOGGER.debug("No more clusters to search, ending analysis stage");
-                    throw new NoClustersToSearchException();
+        SubscribableListener.<PreAnalysisResult>newForked(
+            l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, result, requestFilter, l)
+        ).andThenApply(r -> {
+            if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
+                && executionInfo.isCrossClusterSearch()
+                && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
+                LOGGER.debug("No more clusters to search, ending analysis stage");
+                throw new NoClustersToSearchException();
+            }
+            // Check if a subquery need to be pruned. If some but not all the subqueries has invalid index resolution,
+            // try to prune it by setting IndexResolution to EMPTY_SUBQUERY. Analyzer.PruneEmptyUnionAllBranch will
+            // take care of removing the subquery during analysis.
+            // If all subqueries have invalid index resolution, we should fail in Analyzer's verifier.
+            if (r.indexResolution.isEmpty() == false // it is not a row
+                && r.indexResolution.size() > 1 // there is a subquery
+                && executionInfo.isCrossClusterSearch()) {
+                Collection<IndexResolution> indexResolutions = r.indexResolution.values();
+                boolean hasInvalid = indexResolutions.stream().anyMatch(ir -> ir.isValid() == false);
+                boolean hasValid = indexResolutions.stream().anyMatch(IndexResolution::isValid);
+                // Only if there is partial invalid index resolutions in subqueries
+                if (hasInvalid && hasValid) {
+                    // iterate the index resolution and replace it with EMPTY_SUBQUERY if the index resolution is invalid
+                    r.indexResolution.forEach((indexPattern, indexResolution) -> {
+                        if (indexResolution.isValid() == false) {
+                            LOGGER.debug("Index pattern [{}] does not match valid indices, pruning the subquery", indexPattern);
+                            r.withIndices(indexPattern, IndexResolution.EMPTY_SUBQUERY);
+                        }
+                    });
+                    // check if there is a cluster that does not have any valid index resolution, if so mark it as skipped
+                    executionInfo.getRunningClusterAliases().forEach(clusterAlias -> {
+                        boolean clusterHasValidIndex = r.indexResolution.values()
+                            .stream()
+                            .anyMatch(ir -> ir.isValid() && ir.get().originalIndices().get(clusterAlias) != null);
+                        if (clusterHasValidIndex == false) {
+                            String errorMsg = "no valid indices found in any subquery " + EsqlCCSUtils.inClusterName(clusterAlias);
+                            LOGGER.debug(errorMsg);
+                            EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
+                                executionInfo,
+                                clusterAlias,
+                                EsqlExecutionInfo.Cluster.Status.SKIPPED,
+                                new VerificationException(errorMsg)
+                            );
+                        }
+                    });
                 }
-                // Check if a subquery need to be pruned. If some but not all the subqueries has invalid index resolution,
-                // try to prune it by setting IndexResolution to EMPTY_SUBQUERY. Analyzer.PruneEmptyUnionAllBranch will
-                // take care of removing the subquery during analysis.
-                // If all subqueries have invalid index resolution, we should fail in Analyzer's verifier.
-                if (r.indexResolution.isEmpty() == false // it is not a row
-                    && r.indexResolution.size() > 1 // there is a subquery
-                    && executionInfo.isCrossClusterSearch()) {
-                    Collection<IndexResolution> indexResolutions = r.indexResolution.values();
-                    boolean hasInvalid = indexResolutions.stream().anyMatch(ir -> ir.isValid() == false);
-                    boolean hasValid = indexResolutions.stream().anyMatch(IndexResolution::isValid);
-                    // Only if there is partial invalid index resolutions in subqueries
-                    if (hasInvalid && hasValid) {
-                        // iterate the index resolution and replace it with EMPTY_SUBQUERY if the index resolution is invalid
-                        r.indexResolution.forEach((indexPattern, indexResolution) -> {
-                            if (indexResolution.isValid() == false) {
-                                LOGGER.debug("Index pattern [{}] does not match valid indices, pruning the subquery", indexPattern);
-                                r.withIndices(indexPattern, IndexResolution.EMPTY_SUBQUERY);
-                            }
-                        });
-                        // check if there is a cluster that does not have any valid index resolution, if so mark it as skipped
-                        executionInfo.getRunningClusterAliases().forEach(clusterAlias -> {
-                            boolean clusterHasValidIndex = r.indexResolution.values()
-                                .stream()
-                                .anyMatch(ir -> ir.isValid() && ir.get().originalIndices().get(clusterAlias) != null);
-                            if (clusterHasValidIndex == false) {
-                                String errorMsg = "no valid indices found in any subquery " + EsqlCCSUtils.inClusterName(clusterAlias);
-                                LOGGER.debug(errorMsg);
-                                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
-                                    executionInfo,
-                                    clusterAlias,
-                                    EsqlExecutionInfo.Cluster.Status.SKIPPED,
-                                    new VerificationException(errorMsg)
-                                );
-                            }
-                        });
-                    }
-                }
-                return r;
-            })
+            }
+            return r;
+        })
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
             .<PreAnalysisResult>andThen((l, r) -> {
                 enrichPolicyResolver.resolvePolicies(preAnalysis.enriches(), executionInfo, l.map(r::withEnrichResolution));
@@ -642,11 +656,6 @@ public class EsqlSession {
         indexResolver.resolveIndices(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
-            null,
-            false,
-            // Disable aggregate_metric_double and dense_vector until we get version checks in planning
-            false,
-            false,
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
     }
@@ -842,25 +851,49 @@ public class EsqlSession {
      */
     private void preAnalyzeMainIndices(
         PreAnalyzer.PreAnalysis preAnalysis,
+        Configuration configuration,
         EsqlExecutionInfo executionInfo,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        EsqlCCSUtils.initCrossClusterState(
-            indicesExpressionGrouper,
-            verifier.licenseState(),
-            preAnalysis.indexes().keySet(),
-            executionInfo
+        assert ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_COORDINATION,
+            ThreadPool.Names.SYSTEM_READ
         );
-        // The main index pattern dictates on which nodes the query can be executed,
-        // so we use the minimum transport version from this field caps request.
-        forAll(
-            preAnalysis.indexes().entrySet().iterator(),
-            result,
-            (entry, r, l) -> preAnalyzeMainIndices(entry.getKey(), entry.getValue(), preAnalysis, executionInfo, r, requestFilter, l),
-            listener
-        );
+        if (crossProjectModeDecider.crossProjectEnabled() == false) {
+            EsqlCCSUtils.initCrossClusterState(
+                indicesExpressionGrouper,
+                verifier.licenseState(),
+                preAnalysis.indexes().keySet(),
+                executionInfo
+            );
+            // The main index pattern dictates on which nodes the query can be executed,
+            // so we use the minimum transport version from this field caps request.
+            forAll(
+                preAnalysis.indexes().entrySet().iterator(),
+                result,
+                (e, r, l) -> preAnalyzeMainIndices(e.getKey(), e.getValue(), preAnalysis, executionInfo, r, requestFilter, l),
+                listener
+            );
+        } else {
+            forAll(
+                preAnalysis.indexes().entrySet().iterator(),
+                result,
+                (e, r, l) -> preAnalyzeFlatMainIndices(
+                    e.getKey(),
+                    e.getValue(),
+                    configuration.projectRouting(),
+                    preAnalysis,
+                    executionInfo,
+                    r,
+                    requestFilter,
+                    l
+                ),
+                listener
+            );
+        }
     }
 
     private void preAnalyzeMainIndices(
@@ -872,11 +905,6 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        assert ThreadPool.assertCurrentThreadPool(
-            ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_COORDINATION,
-            ThreadPool.Names.SYSTEM_READ
-        );
         if (executionInfo.clusterAliases().isEmpty()) {
             // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
             listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
@@ -884,16 +912,7 @@ public class EsqlSession {
             indexResolver.resolveIndicesVersioned(
                 indexPattern.indexPattern(),
                 result.fieldNames,
-                // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
-                switch (indexMode) {
-                    case IndexMode.TIME_SERIES -> {
-                        var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
-                        yield requestFilter != null
-                            ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter)
-                            : indexModeFilter;
-                    }
-                    default -> requestFilter;
-                },
+                createQueryFilter(indexMode, requestFilter),
                 indexMode == IndexMode.TIME_SERIES,
                 preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                 preAnalysis.useDenseVectorWhenNotSupported(),
@@ -907,6 +926,45 @@ public class EsqlSession {
                 })
             );
         }
+    }
+
+    private void preAnalyzeFlatMainIndices(
+        IndexPattern indexPattern,
+        IndexMode indexMode,
+        String projectRouting,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        EsqlExecutionInfo executionInfo,
+        PreAnalysisResult result,
+        QueryBuilder requestFilter,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        indexResolver.resolveFlatWorldIndicesVersioned(
+            indexPattern.indexPattern(),
+            projectRouting,
+            result.fieldNames,
+            createQueryFilter(indexMode, requestFilter),
+            indexMode == IndexMode.TIME_SERIES,
+            preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+            preAnalysis.useDenseVectorWhenNotSupported(),
+            listener.delegateFailureAndWrap((l, indexResolution) -> {
+                EsqlCCSUtils.initCrossClusterState(indexResolution.inner().get(), executionInfo);
+                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                l.onResponse(
+                    result.withIndices(indexPattern, indexResolution.inner()).withMinimumTransportVersion(indexResolution.minimumVersion())
+                );
+            })
+        );
+    }
+
+    private static QueryBuilder createQueryFilter(IndexMode indexMode, QueryBuilder requestFilter) {
+        // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
+        return switch (indexMode) {
+            case IndexMode.TIME_SERIES -> {
+                var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+                yield requestFilter != null ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter) : indexModeFilter;
+            }
+            default -> requestFilter;
+        };
     }
 
     private void analyzeWithRetry(

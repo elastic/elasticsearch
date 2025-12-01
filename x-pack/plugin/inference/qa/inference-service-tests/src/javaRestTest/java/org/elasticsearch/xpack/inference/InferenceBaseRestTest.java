@@ -541,7 +541,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     private String jsonBodyEmbedding(List<InferenceString> inputs) {
         final StringBuilder bodyBuilder = new StringBuilder("{\"input\": [");
         String contents = inputs.stream().map(s -> Strings.format("""
-            {"content": {"type": "%s", "format": "%s" "value": "%s"}}
+            {"content": {"type": "%s", "format": "%s", "value": "%s"}}
             """, s.dataType(), s.dataFormat(), s.value())).collect(Collectors.joining(","));
         bodyBuilder.append(contents);
         bodyBuilder.append("]}");

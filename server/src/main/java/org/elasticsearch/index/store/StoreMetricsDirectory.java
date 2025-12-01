@@ -9,17 +9,15 @@
 
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 
 import java.io.IOException;
 
-public class StoreMetricsDirectory extends FilterDirectory {
+public class StoreMetricsDirectory extends ByteSizeDirectory {
     private final MetricHolder<StoreMetrics> metricHandler;
 
-    public StoreMetricsDirectory(Directory in, MetricHolder<StoreMetrics> metricHandler) {
+    public StoreMetricsDirectory(ByteSizeDirectory in, MetricHolder<StoreMetrics> metricHandler) {
         super(in);
         this.metricHandler = metricHandler;
     }
@@ -29,4 +27,13 @@ public class StoreMetricsDirectory extends FilterDirectory {
         return new StoreMetricIndexInput(name, super.openInput(name, context), metricHandler.singleThreaded());
     }
 
+    @Override
+    public long estimateSizeInBytes() throws IOException {
+        return ((ByteSizeDirectory) getDelegate()).estimateSizeInBytes();
+    }
+
+    @Override
+    public long estimateDataSetSizeInBytes() throws IOException {
+        return ((ByteSizeDirectory) getDelegate()).estimateDataSetSizeInBytes();
+    }
 }

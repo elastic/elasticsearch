@@ -198,7 +198,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     ) {
         super(shardId, indexSettings);
         this.directory = new StoreDirectory(
-            byteSizeDirectory(new StoreMetricsDirectory(directory, metricHolder), indexSettings, logger),
+            new StoreMetricsDirectory(byteSizeDirectory(directory, indexSettings, logger), metricHolder),
             Loggers.getLogger("index.store.deletes", shardId)
         );
         this.shardLock = shardLock;

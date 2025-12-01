@@ -68,6 +68,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
+    public static final TransportVersion V7_0_0 = TransportVersion.fromId(7_00_00_99);
     public static final TransportVersion MINIMUM_TRANSPORT_VERSION = TransportVersion.fromId(7_03_02_99);
 
     @Override
@@ -762,22 +763,13 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertUnauthorizedToken(randomAlphaOfLengthBetween(0, 128));
         // Now attempt to authenticate with an invalid access token with valid structure (pre 7.2)
         assertUnauthorizedToken(
-            tokenService.prependVersionAndEncodeAccessToken(
-                TransportVersionUtils.getPreviousVersion(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS),
-                tokenService.getRandomTokenBytes(
-                    TransportVersionUtils.getPreviousVersion(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS),
-                    randomBoolean()
-                ).v1()
-            )
+            tokenService.prependVersionAndEncodeAccessToken(V7_0_0, tokenService.getRandomTokenBytes(V7_0_0, randomBoolean()).v1())
         );
         // Now attempt to authenticate with an invalid access token with valid structure (after 7.2 pre 8.10)
         assertUnauthorizedToken(
             tokenService.prependVersionAndEncodeAccessToken(
-                TransportVersionUtils.getNextVersion(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS),
-                tokenService.getRandomTokenBytes(
-                    TransportVersionUtils.getNextVersion(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS),
-                    randomBoolean()
-                ).v1()
+                MINIMUM_TRANSPORT_VERSION,
+                tokenService.getRandomTokenBytes(MINIMUM_TRANSPORT_VERSION, randomBoolean()).v1()
             )
         );
         // Now attempt to authenticate with an invalid access token with valid structure (current version)

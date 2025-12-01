@@ -620,7 +620,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 }
             }
         } else {
-            logger.warn("Cannot get merged raw vectors from scorer.");
+            logger.warn("Cannot get merged raw vectors from scorer. Performances will be degraded.");
             var byteVectorValues = getMergedByteVectorValues(fieldInfo, mergeState);
 
             // TODO: revert to CuVSMatrix.deviceBuilder when cuvs has fixed the multiple copies problem

@@ -1853,6 +1853,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public void testDocValuesSkippers() throws IOException {
         assumeTrue("Mapper does not support doc values skippers", supportsDocValuesSkippers());
+        assumeTrue("FeatureFlag disabled", IndexSettings.DOC_VALUES_SKIPPER);
 
         IndexVersion preSkipperVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
             random(),

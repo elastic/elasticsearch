@@ -1713,7 +1713,8 @@ public class EsqlCapabilities {
         KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,
 
         /**
-         * Enables automatically grouping by all dimension fields in TS mode queries
+         * Enables automatically grouping by all dimension fields in TS mode queries and outputs the _timeseries column
+         * with all the dimensions.
          */
         METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS,
 

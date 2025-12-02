@@ -657,12 +657,12 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
 
     private static double computeRateWithoutExtrapolate(ReducedState state, boolean isRateOverTime) {
         assert state.samples >= 2 : "rate requires at least two samples; got " + state.samples;
-        final double firstTS = state.intervals[state.intervals.length - 1].t2;
-        final double lastTS = state.intervals[0].t1;
+        final long firstTS = state.intervals[state.intervals.length - 1].t2;
+        final long lastTS = state.intervals[0].t1;
         double firstValue = state.intervals[state.intervals.length - 1].v2;
         double lastValue = state.intervals[0].v1 + state.resets;
         if (isRateOverTime) {
-            return (lastValue - firstValue) / (lastTS - firstTS);
+            return (lastValue - firstValue) * 1000.0 / (lastTS - firstTS);
         } else {
             return lastValue - firstValue;
         }

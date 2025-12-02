@@ -42,7 +42,9 @@ public class AmazonBedrockStreamingProcessor<T> {
         }
     }
 
-    protected AmazonBedrockStreamingProcessor(ThreadPool threadPool) {this.threadPool = threadPool;}
+    protected AmazonBedrockStreamingProcessor(ThreadPool threadPool) {
+        this.threadPool = threadPool;
+    }
 
     void runOnUtilityThreadPool(Runnable runnable) {
         try {

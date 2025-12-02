@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
-import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequestEntity;
-
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseOutput;
@@ -22,10 +18,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequestEntity;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockCompletionRequestEntity;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.embeddings.AmazonBedrockEmbeddingsRequest;
@@ -161,8 +160,16 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
         );
         var message = new UnifiedCompletionRequest.Message(content, "user", "tooluse_Z7IP83_eTt2y_TECni1ULw", List.of(toolCall));
 
-        var requestEntity = new AmazonBedrockChatCompletionRequestEntity(List.of(message), model.model(),
-            512L, null, null, null, null, null);
+        var requestEntity = new AmazonBedrockChatCompletionRequestEntity(
+            List.of(message),
+            model.model(),
+            512L,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         var request = new AmazonBedrockChatCompletionRequest(model, requestEntity, null, false);
         var responseHandler = new AmazonBedrockChatCompletionResponseHandler();
 
@@ -177,14 +184,7 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
     }
 
     public void testExecute_ChatCompletionFailsProperly_WithElasticsearchException() {
-        var model = AmazonBedrockChatCompletionModelTests.createModel(
-            "id",
-            "region",
-            "model",
-            ANTHROPIC,
-            "accesskey",
-            "secretkey"
-        );
+        var model = AmazonBedrockChatCompletionModelTests.createModel("id", "region", "model", ANTHROPIC, "accesskey", "secretkey");
         var content = new UnifiedCompletionRequest.ContentString("content");
         var toolCall = new UnifiedCompletionRequest.ToolCall(
             "id",
@@ -193,8 +193,16 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
         );
         var message = new UnifiedCompletionRequest.Message(content, "user", "tooluse_Z7IP83_eTt2y_TECni1ULw", List.of(toolCall));
 
-        var requestEntity = new AmazonBedrockChatCompletionRequestEntity(List.of(message), model.model(),
-            512L, null, null, null, null, null);
+        var requestEntity = new AmazonBedrockChatCompletionRequestEntity(
+            List.of(message),
+            model.model(),
+            512L,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         var request = new AmazonBedrockChatCompletionRequest(model, requestEntity, null, false);
         var responseHandler = new AmazonBedrockChatCompletionResponseHandler();
 

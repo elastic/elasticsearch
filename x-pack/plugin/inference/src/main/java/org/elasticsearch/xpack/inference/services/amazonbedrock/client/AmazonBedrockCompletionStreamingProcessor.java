@@ -23,7 +23,8 @@ import java.util.ArrayDeque;
 import java.util.concurrent.Flow;
 
 class AmazonBedrockCompletionStreamingProcessor extends AmazonBedrockStreamingProcessor<StreamingChatCompletionResults.Results>
-    implements Flow.Processor<ConverseStreamOutput, StreamingChatCompletionResults.Results> {
+    implements
+        Flow.Processor<ConverseStreamOutput, StreamingChatCompletionResults.Results> {
     private static final Logger logger = LogManager.getLogger(AmazonBedrockCompletionStreamingProcessor.class);
 
     protected AmazonBedrockCompletionStreamingProcessor(ThreadPool threadPool) {

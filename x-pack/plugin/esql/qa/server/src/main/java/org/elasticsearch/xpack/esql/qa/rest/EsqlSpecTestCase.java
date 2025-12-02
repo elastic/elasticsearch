@@ -341,10 +341,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void doTest() throws Throwable {
-        doTest(testCase.query);
+        doTest(testCase.query, testCase.approximate);
     }
 
-    protected final void doTest(String query) throws Throwable {
+    protected final void doTest(String query, boolean approximate) throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
         if (query.toUpperCase(Locale.ROOT).contains("LOOKUP_\uD83D\uDC14")) {
@@ -355,7 +355,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
         Map<?, ?> prevTooks = checkTook ? tooks() : null;
         Map<String, Object> answer = RestEsqlTestCase.runEsql(
-            builder.query(query),
+            builder.query(query).approximate(approximate),
             testCase.assertWarnings(deduplicateExactWarnings()),
             profileLogger,
             mode

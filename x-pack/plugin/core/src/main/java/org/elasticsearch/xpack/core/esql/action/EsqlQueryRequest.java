@@ -25,5 +25,6 @@ public abstract class EsqlQueryRequest extends LegacyActionRequest {
 
     public abstract QueryBuilder filter();
 
+    // TODO: determine/implement final API, probably using "SET ..." in the ES|QL query itself.
     public abstract boolean approximate();
 }

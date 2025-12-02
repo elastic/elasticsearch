@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -205,10 +204,6 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
     private static LogicalPlan pruneColumnsInFork(Fork fork, AttributeSet.Builder used) {
         // prune the output attributes of fork based on usage from the rest of the plan
-        // should exit early for UnionAll
-        if (fork instanceof UnionAll) {
-            return fork;
-        }
         boolean forkOutputChanged = false;
         AttributeSet.Builder builder = AttributeSet.builder();
         // if any of the fork outputs are used, keep them
@@ -257,10 +252,8 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             }
             newChildren.add(newSubPlan);
         }
-        if (subPlanChanged) {
-            return new Fork(fork.source(), newChildren, prunedForkAttrs);
-        } else if (forkOutputChanged) {
-            return new Fork(fork.source(), fork.children(), prunedForkAttrs);
+        if (subPlanChanged || forkOutputChanged) {
+            fork.replaceSubPlansAndOutput(newChildren, prunedForkAttrs);
         }
         return fork;
     }

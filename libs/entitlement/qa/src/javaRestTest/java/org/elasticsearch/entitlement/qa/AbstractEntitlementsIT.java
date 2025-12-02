@@ -46,7 +46,11 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
                     Map.of("path", tempDir.resolve("read_dir"), "mode", "read"),
                     Map.of("path", tempDir.resolve("read_write_dir"), "mode", "read_write"),
                     Map.of("path", tempDir.resolve("read_file"), "mode", "read"),
-                    Map.of("path", tempDir.resolve("read_write_file"), "mode", "read_write")
+                    Map.of("path", tempDir.resolve("read_write_file"), "mode", "read_write"),
+                    // Try to grant explicit access to forbidden files (and test this is not possible in any case)
+                    Map.of("relative_path", "jvm.options.d", "relative_to", "config", "mode", "read_write"),
+                    Map.of("relative_path", "jvm.options", "relative_to", "config", "mode", "read_write"),
+                    Map.of("relative_path", "elasticsearch.yml", "relative_to", "config", "mode", "read_write")
                 )
             )
         );

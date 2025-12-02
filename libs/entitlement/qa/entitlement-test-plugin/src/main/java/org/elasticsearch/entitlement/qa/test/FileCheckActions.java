@@ -591,6 +591,42 @@ class FileCheckActions {
         Files.createFile(file);
     }
 
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void readAccessForbiddenJvmOptionsFile(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("jvm.options");
+        Files.readAllBytes(file);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void readAccessForbiddenElasticsearchYmlFile(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("elasticsearch.yml");
+        Files.readAllBytes(file);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void readAccessForbiddenJvmOptionsDirectory(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("jvm.options.d");
+        Files.isDirectory(file);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void writeAccessForbiddenJvmOptionsFile(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("jvm.options");
+        Files.newBufferedWriter(file).close();
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void writeAccessForbiddenElasticsearchYmlFile(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("elasticsearch.yml");
+        Files.newBufferedWriter(file).close();
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void writerAccessForbiddenJvmOptionsDirectory(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("jvm.options.d").resolve("foo");
+        Files.newBufferedWriter(file).close();
+    }
+
     @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)
     static void readAccessSourcePath() throws URISyntaxException {
         var sourcePath = Paths.get(EntitlementTestPlugin.class.getProtectionDomain().getCodeSource().getLocation().toURI());

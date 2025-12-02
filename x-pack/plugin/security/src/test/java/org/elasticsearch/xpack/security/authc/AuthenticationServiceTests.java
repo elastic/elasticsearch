@@ -122,6 +122,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -1940,6 +1941,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
         when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         when(projectIndex.indexExists()).thenReturn(true);
+        CountDownLatch latch = new CountDownLatch(1);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + token);
             boolean requestIdAlreadyPresent = randomBoolean();
@@ -1962,8 +1964,10 @@ public class AuthenticationServiceTests extends ESTestCase {
                 verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result), eq(threadContext));
                 setCompletedToTrue(completed);
                 verify(auditTrail).authenticationSuccess(eq(reqId.get()), eq(result), eq("_action"), same(transportRequest));
+                latch.countDown();
             }, this::logAndFail));
         }
+        latch.await(1, TimeUnit.SECONDS);
         assertTrue(completed.get());
         verifyNoMoreInteractions(auditTrail);
     }

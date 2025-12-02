@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -94,7 +95,6 @@ import org.elasticsearch.xpack.esql.view.RestPutViewAction;
 import org.elasticsearch.xpack.esql.view.TransportDeleteViewAction;
 import org.elasticsearch.xpack.esql.view.TransportGetViewAction;
 import org.elasticsearch.xpack.esql.view.TransportPutViewAction;
-import org.elasticsearch.xpack.esql.view.ViewMetadata;
 import org.elasticsearch.xpack.esql.view.ViewService;
 
 import java.util.ArrayList;

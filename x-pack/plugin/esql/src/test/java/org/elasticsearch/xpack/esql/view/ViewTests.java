@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;

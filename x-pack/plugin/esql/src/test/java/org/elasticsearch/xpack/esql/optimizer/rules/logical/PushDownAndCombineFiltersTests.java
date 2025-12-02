@@ -326,7 +326,8 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
                 new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
                 completion.inferenceId(),
                 completion.prompt(),
-                completion.targetField()
+                completion.targetField(),
+                completion.rowLimit()
             ),
             conditionCompletion
         );
@@ -359,7 +360,8 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
                 rerank.inferenceId(),
                 rerank.queryText(),
                 rerank.rerankFields(),
-                rerank.scoreAttribute()
+                rerank.scoreAttribute(),
+                rerank.rowLimit()
             ),
             scoreCondition
         );
@@ -373,7 +375,8 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             child,
             randomLiteral(DataType.KEYWORD),
             randomLiteral(randomBoolean() ? DataType.TEXT : DataType.KEYWORD),
-            referenceAttribute(randomIdentifier(), DataType.KEYWORD)
+            referenceAttribute(randomIdentifier(), DataType.KEYWORD),
+            randomLiteral(DataType.INTEGER)
         );
     }
 
@@ -382,9 +385,9 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             EMPTY,
             child,
             randomLiteral(DataType.KEYWORD),
-            randomLiteral(randomBoolean() ? DataType.TEXT : DataType.KEYWORD),
             randomList(1, 10, () -> new Alias(EMPTY, randomIdentifier(), randomLiteral(DataType.KEYWORD))),
-            referenceAttribute(randomBoolean() ? MetadataAttribute.SCORE : randomIdentifier(), DataType.DOUBLE)
+            referenceAttribute(randomBoolean() ? MetadataAttribute.SCORE : randomIdentifier(), DataType.DOUBLE),
+            randomLiteral(DataType.INTEGER)
         );
     }
 

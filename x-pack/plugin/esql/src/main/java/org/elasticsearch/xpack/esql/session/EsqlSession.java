@@ -96,6 +96,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
@@ -140,6 +141,7 @@ public class EsqlSession {
     private boolean explainMode;
     private String parsedPlanString;
     private String optimizedLogicalPlanString;
+    private Supplier<EsqlParser> parserSupplier;
 
     public EsqlSession(
         String sessionId,
@@ -171,6 +173,7 @@ public class EsqlSession {
         this.intermediateLocalRelationMaxSize = services.plannerSettings().intermediateLocalRelationMaxSize();
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
+        this.parserSupplier = () -> new EsqlParser(services.clusterService().getSettings());
     }
 
     public String sessionId() {
@@ -464,7 +467,7 @@ public class EsqlSession {
     }
 
     private EsqlStatement parse(String query, QueryParams params) {
-        var parsed = new EsqlParser().createQuery(query, params, planTelemetry);
+        var parsed = parserSupplier.get().createQuery(query, params, planTelemetry);
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug("Parsed logical plan:\n{}", parsed.plan());
             LOGGER.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));

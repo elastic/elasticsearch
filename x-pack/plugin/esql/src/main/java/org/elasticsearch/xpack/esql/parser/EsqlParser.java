@@ -16,6 +16,7 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenSource;
 import org.antlr.v4.runtime.VocabularyImpl;
 import org.antlr.v4.runtime.atn.PredictionMode;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -88,14 +89,19 @@ public class EsqlParser {
         replaceSymbolWithLiteral(symbolReplacements, lexerVocab.getLiteralNames(), lexerVocab.getSymbolicNames());
     }
 
-    private EsqlConfig config = new EsqlConfig();
+    private final EsqlConfig config;
+
+    public EsqlParser() {
+        config = new EsqlConfig(Settings.EMPTY);
+    }
+
+    public EsqlParser(Settings settings) {
+        config = new EsqlConfig(settings);
+
+    }
 
     public EsqlConfig config() {
         return config;
-    }
-
-    public void setEsqlConfig(EsqlConfig config) {
-        this.config = config;
     }
 
     // testing utility
@@ -169,7 +175,10 @@ public class EsqlParser {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
 
-            return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics)), tree);
+            return result.apply(
+                new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics, config::inferenceCommandConfig)),
+                tree
+            );
         } catch (StackOverflowError e) {
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
             // likely thrown by an invalid popMode (such as extra closing parenthesis)

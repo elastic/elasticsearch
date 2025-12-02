@@ -11,17 +11,27 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+
 public class CompletionSerializationTests extends AbstractLogicalPlanSerializationTests<Completion> {
 
     @Override
     protected Completion createTestInstance() {
-        return new Completion(randomSource(), randomChild(0), randomInferenceId(), randomPrompt(), randomAttribute());
+        return new Completion(
+            randomSource(),
+            randomChild(0),
+            randomInferenceId(),
+            randomPrompt(),
+            randomAttribute(),
+            randomLiteral(DataType.INTEGER)
+        );
     }
 
     @Override
@@ -30,14 +40,16 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
         Expression inferenceId = instance.inferenceId();
         Expression prompt = instance.prompt();
         Attribute targetField = instance.targetField();
+        Expression rowLimit = instance.rowLimit();
 
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inferenceId = randomValueOtherThan(inferenceId, this::randomInferenceId);
             case 2 -> prompt = randomValueOtherThan(prompt, this::randomPrompt);
             case 3 -> targetField = randomValueOtherThan(targetField, this::randomAttribute);
+            case 4 -> rowLimit = randomValueOtherThan(rowLimit, () -> randomLiteral(DataType.INTEGER));
         }
-        return new Completion(instance.source(), child, inferenceId, prompt, targetField);
+        return new Completion(instance.source(), child, inferenceId, prompt, targetField, rowLimit);
     }
 
     private Literal randomInferenceId() {

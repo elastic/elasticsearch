@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.AggregateMapper;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -110,7 +111,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                                     DataType.KEYWORD,
                                     new BlockLoaderFunctionConfig.TimeSeriesDimensionsWithExcludes(
                                         BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS,
-                                        oldAgg.tsdimWithout().excludedFieldNames()
+                                        oldAgg.tsdimWithout() != null ? oldAgg.tsdimWithout().excludedFieldNames() : Collections.emptySet()
                                     )
                                 ),
                                 true

@@ -128,9 +128,9 @@ public final class MustacheScriptEngine implements ScriptEngine {
      * */
     private class MustacheExecutableScript extends TemplateScript {
         /** Factory template. */
-        private Mustache template;
+        private final Mustache template;
 
-        private Map<String, Object> params;
+        private final Map<String, Object> params;
 
         /**
          * @param template the compiled template object wrapper

@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialGridFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
@@ -207,6 +208,7 @@ import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSI
 import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.elasticsearch.xpack.esql.planner.mapper.MapperUtils.hasScoreAttribute;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -216,6 +218,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -3851,6 +3854,157 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 // below the exchange (in data node) the aggregation is using doc-values
                 assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, fieldExtractPreference);
                 assertChildIsGeoPointExtract(withDocValues ? agg : as(agg.child(), FilterExec.class), fieldExtractPreference);
+            }
+        }
+    }
+
+    /**
+     * Before local optimizations:
+     * <code>
+     * TopNExec[[Order[abbrev{f}#7,ASC,LAST]],1000[INTEGER],null]
+     * \_ExchangeExec[[],false]
+     *   \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     * TopN[[Order[abbrev{f}#7,ASC,LAST]],1000[INTEGER],false]
+     * \_Eval[[STGEOHASH(location{f}#11,2[INTEGER]) AS grid#5]]
+     *   \_EsRelation[airports-no-doc-values][abbrev{f}#7, city{f}#13, city_location{f}#14, count..]]]
+     * </code>
+     * After local optimizations:
+     * <code>
+     * TopNExec[[Order[abbrev{f}#7,ASC,LAST]],1000[INTEGER],1278]
+     * \_ExchangeExec[[abbrev{f}#7, city{f}#13, city_location{f}#14, country{f}#12, location{f}#11, name{f}#8, scalerank{f}#9,
+     *     type{f}#10, grid{r}#5],false]
+     *   \_ProjectExec[[abbrev{f}#7, city{f}#13, city_location{f}#14, country{f}#12, location{f}#11, name{f}#8, scalerank{f}#9,
+     *       type{f}#10, grid{r}#5]]
+     *     \_FieldExtractExec[abbrev{f}#7, city{f}#13, city_location{f}#14, count..][],[]
+     *       \_EvalExec[[STGEOHASH(location{f}#11,2[INTEGER]) AS grid#5]]
+     *         \_FieldExtractExec[location{f}#11][],[]
+     *           \_EsQueryExec[airports-no-doc-values], indexMode[standard], [_doc{f}#15], limit[1000],
+     *               sort[[FieldSort[field=abbrev{f}#7, direction=ASC, nulls=LAST]]]
+     *               estimatedRowSize[1294] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
+     * </code>
+     * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
+     * <p>
+     * Also note that the type converting function is removed when it does not actually convert the type,
+     * ensuring that ReferenceAttributes are not created for the same field, and the optimization can still work.
+     */
+    public void testSpatialTypesAndSortGeoGridUseDocValues() {
+        for (String grid : new String[] { "geohash", "geotile", "geohex" }) {
+            for (String query : new String[] { "FROM airports | EVAL grid = st_" + grid + "(location, 2) | SORT abbrev" }) {
+                for (boolean withDocValues : new boolean[] { false, true }) {
+                    var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                    var testData = withDocValues ? airports : airportsNoDocValues;
+                    var plan = physicalPlan(query.replace("airports", testData.index.name()), testData);
+
+                    var topN = as(plan, TopNExec.class);
+                    var exchange = as(topN.child(), ExchangeExec.class);
+                    var fragment = as(exchange.child(), FragmentExec.class);
+                    var innerTopN = as(fragment.fragment(), TopN.class);
+                    var eval = as(innerTopN.child(), Eval.class);
+                    as(eval.child(), EsRelation.class);
+
+                    // Now optimize the plan and assert the aggregation uses doc-values
+                    var optimized = optimizedPlan(plan, testData.stats);
+                    var topNExec = as(optimized, TopNExec.class);
+                    exchange = as(topNExec.child(), ExchangeExec.class);
+                    var project = as(exchange.child(), ProjectExec.class);
+                    assertThat(Expressions.names(project.projections()), hasItems("abbrev", "location", "grid"));
+                    var fieldExtract = as(project.child(), FieldExtractExec.class);
+                    assertThat(Expressions.names(fieldExtract.attributesToExtract()), allOf(hasItems("abbrev"), not(hasItems("location"))));
+                    var evalExec = as(fieldExtract.child(), EvalExec.class);
+                    var alias = as(evalExec.fields().getLast(), Alias.class);
+                    assertThat(alias.name(), equalTo("grid"));
+                    var gridFunction = as(alias.child(), SpatialGridFunction.class);
+                    var spatialField = as(gridFunction.spatialField(), FieldAttribute.class);
+                    assertThat(spatialField.name(), equalTo("location"));
+                    assertThat(spatialField.dataType(), equalTo(GEO_POINT));
+                    fieldExtract = as(evalExec.child(), FieldExtractExec.class);
+                    assertThat(Expressions.names(fieldExtract.attributesToExtract()), is(List.of("location")));
+                    assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+                }
+            }
+        }
+    }
+
+    /**
+     * Before local optimizations:
+     * <code>
+     * LimitExec[1000[INTEGER],null]
+     * \_AggregateExec[[grid{r}#5],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count#8, grid{r}#5],FINAL,[grid{r}#5, $$count
+     * $count{r}#17, $$count$seen{r}#18],null]
+     *   \_ExchangeExec[[grid{r}#5, $$count$count{r}#17, $$count$seen{r}#18],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     * Aggregate[[grid{r}#5],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count#8, grid{r}#5]]
+     * \_Eval[[STGEOHASH(location{f}#13,2[INTEGER]) AS grid#5]]
+     *   \_EsRelation[airports-no-doc-values][abbrev{f}#9, city{f}#15, city_location{f}#16, count..]]]
+     * </code>
+     * After local optimizations:
+     * <code>
+     * EvalExec[[STGEOHASH(location{f}#10,2[INTEGER]) AS grid#5]]
+     * \_LimitExec[1000[INTEGER],1270]
+     *   \_ExchangeExec[
+     *       [abbrev{f}#6, city{f}#12, city_location{f}#13, country{f}#11, location{f}#10, name{f}#7, scalerank{f}#8,type{f}#9],false]
+     *     \_ProjectExec[
+     *         [abbrev{f}#6, city{f}#12, city_location{f}#13, country{f}#11, location{f}#10, name{f}#7, scalerank{f}#8, type{f}#9]]
+     *       \_FieldExtractExec[abbrev{f}#6, city{f}#12, city_location{f}#13, count..][],[]
+     *         \_EsQueryExec[airports-no-doc-values],
+     *             indexMode[standard], [_doc{f}#14], limit[1000], sort[] estimatedRowSize[1282]
+     *             queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]] _doc{f}#79], limit[], sort[] estimatedRowSize[25]
+     * </code>
+     * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
+     * <p>
+     * Also note that the type converting function is removed when it does not actually convert the type,
+     * ensuring that ReferenceAttributes are not created for the same field, and the optimization can still work.
+     */
+    public void testSpatialTypesAndStatsGeoGridUseDocValues() {
+        for (String grid : new String[] { "geohash" }) {
+            var dataType = DataType.fromEs(grid);
+            for (String query : new String[] { "FROM airports | EVAL grid = st_" + grid + "(location, 2) | STATS count=COUNT() BY grid" }) {
+                for (boolean withDocValues : new boolean[] { true, false, true }) {
+                    var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                    var testData = withDocValues ? airports : airportsNoDocValues;
+                    var plan = physicalPlan(query.replace("airports", testData.index.name()), testData);
+
+                    var limit = as(plan, LimitExec.class);
+                    var agg = as(limit.child(), AggregateExec.class);
+                    assertAggregation(agg, "count", Count.class);
+                    assertThat(agg.groupings().size(), equalTo(1));
+                    var grouping = agg.groupings().getFirst();
+                    var attribute = as(grouping, ReferenceAttribute.class);
+                    var nameId = attribute.id();
+                    assertThat(attribute.name(), equalTo("grid"));
+                    assertThat(grouping.dataType(), equalTo(dataType));
+
+                    var exchange = as(agg.child(), ExchangeExec.class);
+                    var fragment = as(exchange.child(), FragmentExec.class);
+                    var fAgg = as(fragment.fragment(), Aggregate.class);
+                    var eval = as(fAgg.child(), Eval.class);
+                    assertThat(eval.fields().size(), equalTo(1));
+                    var alias = as(eval.fields().getFirst(), Alias.class);
+                    assertThat(alias.name(), equalTo("grid"));
+                    assertThat(alias.id(), equalTo(nameId));
+                    var gridFunction = as(alias.child(), SpatialGridFunction.class);
+                    var spatialField = as(gridFunction.spatialField(), FieldAttribute.class);
+                    assertThat(spatialField.name(), equalTo("location"));
+                    assertThat(spatialField.dataType(), equalTo(GEO_POINT));
+                    var spatialNameId = spatialField.id();
+                    as(eval.child(), EsRelation.class);
+
+                    // Now optimize the plan and assert the aggregation uses doc-values
+                    var optimized = optimizedPlan(plan, testData.stats);
+                    limit = as(optimized, LimitExec.class);
+                    agg = as(limit.child(), AggregateExec.class);
+                    assertAggregation(agg, "count", Count.class);
+                    assertThat(agg.groupings().size(), equalTo(1));
+                    grouping = agg.groupings().getFirst();
+                    attribute = as(grouping, ReferenceAttribute.class);
+                    assertThat(attribute.name(), equalTo("grid"));
+                    assertThat(grouping.dataType(), equalTo(dataType));
+                    exchange = as(agg.child(), ExchangeExec.class);
+                    agg = as(exchange.child(), AggregateExec.class);
+                    assertAggregation(agg, "count", Count.class);
+                    var evalExec = as(agg.child(), EvalExec.class);
+                    assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+                }
             }
         }
     }
@@ -8434,16 +8588,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(parent.child(), FieldExtractExec.class);
         switch (fieldExtractPreference) {
             case NONE -> {
-                assertThat(extract.docValuesAttributes(), is(empty()));
-                assertThat(extract.boundsAttributes(), is(empty()));
+                assertThat("Extracting without doc-values", extract.docValuesAttributes(), is(empty()));
+                assertThat("Extracting without doc-values", extract.boundsAttributes(), is(empty()));
             }
             case DOC_VALUES -> {
-                assertThat(extract.docValuesAttributes(), is(not(empty())));
-                assertThat(extract.boundsAttributes(), is(empty()));
+                assertThat("Extracting from doc-values", extract.docValuesAttributes(), is(not(empty())));
+                assertThat("Extracting from doc-values", extract.boundsAttributes(), is(empty()));
             }
             case EXTRACT_SPATIAL_BOUNDS -> {
-                assertThat(extract.docValuesAttributes(), is(empty()));
-                assertThat(extract.boundsAttributes(), is(not(empty())));
+                assertThat("Extracting spatial bounds from doc-values", extract.docValuesAttributes(), is(empty()));
+                assertThat("Extracting spatial bounds from doc-values", extract.boundsAttributes(), is(not(empty())));
             }
         }
         assertTrue(

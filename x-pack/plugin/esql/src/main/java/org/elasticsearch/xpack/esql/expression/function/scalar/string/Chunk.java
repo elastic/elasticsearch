@@ -47,6 +47,8 @@ import java.util.stream.Collectors;
 import static java.util.Map.entry;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.emitChunks;
 
 public class Chunk extends EsqlScalarFunction implements OptionalArgument {
 
@@ -223,25 +225,8 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     @Evaluator(extraName = "BytesRef")
     static void process(BytesRefBlock.Builder builder, BytesRef str, @Fixed ChunkingSettings chunkingSettings) {
         String content = str.utf8ToString();
-
         List<String> chunks = chunkText(content, chunkingSettings);
-
-        boolean multivalued = chunks.size() > 1;
-        if (multivalued) {
-            builder.beginPositionEntry();
-        }
-        for (String chunk : chunks) {
-            builder.appendBytesRef(new BytesRef(chunk.trim()));
-        }
-
-        if (multivalued) {
-            builder.endPositionEntry();
-        }
-    }
-
-    public static List<String> chunkText(String content, ChunkingSettings chunkingSettings) {
-        Chunker chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
-        return chunker.chunk(content, chunkingSettings).stream().map(offset -> content.substring(offset.start(), offset.end())).toList();
+        emitChunks(builder, chunks);
     }
 
     @Override

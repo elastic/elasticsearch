@@ -206,6 +206,13 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     }
 
     /**
+     * Perform any custom post-inference coordinator node validation.
+     *
+     * @param inferenceInfo The inference information
+     */
+    protected void postInferenceCoordinatorNodeValidate(InferenceQueryUtils.InferenceInfo inferenceInfo) {}
+
+    /**
      * A hook for subclasses to do additional rewriting and inference result fetching while we are on the coordinator node.
      * An example usage is {@link InterceptedInferenceKnnVectorQueryBuilder} which needs to rewrite the knn queries filters.
      */
@@ -323,8 +330,8 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             }
 
             ccsMinimizeRoundTripsFalseSupportCheck(queryRewriteContext, inferenceInfo, originalQuery.getName());
+            postInferenceCoordinatorNodeValidate(inferenceInfo);
 
-            // TODO: Integrate custom post-inference coordinator node validation here
             QueryBuilder rewritten = this;
             int inferenceFieldCount = inferenceInfo.inferenceFieldCount();
             var newInferenceResultsMap = inferenceInfo.inferenceResultsMap();

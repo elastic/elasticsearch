@@ -97,14 +97,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(getField());
             if (inferenceFieldMetadata == null) {
-                if (originalQuery.getQuery() != null && originalQuery.getInferenceId() == null) {
-                    // We are querying a non-inference field and need to generate inference results for a query string, but the inference ID
-                    // was not specified
-                    throw new IllegalArgumentException(
-                        SparseVectorQueryBuilder.INFERENCE_ID_FIELD.getPreferredName()
-                            + " required to perform vector search on query string"
-                    );
-                }
+                missingInferenceIdOverrideCheck();
             } else {
                 inferenceFieldsQueried++;
             }
@@ -114,6 +107,16 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
         // - Inference fields are queried locally, guaranteeing that the query will be intercepted
         // - The inference ID override or query vector is set. In either case, remote cluster inference results are not required.
         return inferenceFieldsQueried > 0 && (getInferenceIdOverride() != null || originalQuery.getQueryVectors() != null);
+    }
+
+    @Override
+    protected void postInferenceCoordinatorNodeValidate(InferenceQueryUtils.InferenceInfo inferenceInfo) {
+        // Detect if we are querying any non-inference fields locally or remotely. We can do this by comparing the inference field count to
+        // the index count. Since the sparse vector query is a single-field query, they should match if we are querying only inference
+        // fields.
+        if (inferenceInfo.inferenceFieldCount() < inferenceInfo.indexCount()) {
+            missingInferenceIdOverrideCheck();
+        }
     }
 
     @Override
@@ -243,5 +246,13 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
 
         TextExpansionResults textExpansionResults = (TextExpansionResults) inferenceResults;
         return textExpansionResults.getWeightedTokens();
+    }
+
+    private void missingInferenceIdOverrideCheck() {
+        if (originalQuery.getQuery() != null && originalQuery.getInferenceId() == null) {
+            throw new IllegalArgumentException(
+                SparseVectorQueryBuilder.INFERENCE_ID_FIELD.getPreferredName() + " required to perform vector search on query string"
+            );
+        }
     }
 }

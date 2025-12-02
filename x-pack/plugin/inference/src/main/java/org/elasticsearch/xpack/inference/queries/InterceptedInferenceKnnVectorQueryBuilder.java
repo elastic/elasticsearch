@@ -139,11 +139,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(getField());
             if (inferenceFieldMetadata == null) {
-                QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
-                if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder
-                    && textEmbeddingQueryVectorBuilder.getModelId() == null) {
-                    throw new IllegalArgumentException("[model_id] must not be null.");
-                }
+                missingInferenceIdOverrideCheck();
             } else {
                 inferenceFieldsQueried++;
             }
@@ -153,6 +149,15 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         // - Inference fields are queried locally, guaranteeing that the query will be intercepted
         // - The inference ID override or query vector is set. In either case, remote cluster inference results are not required.
         return inferenceFieldsQueried > 0 && (getInferenceIdOverride() != null || originalQuery.queryVector() != null);
+    }
+
+    @Override
+    protected void postInferenceCoordinatorNodeValidate(InferenceQueryUtils.InferenceInfo inferenceInfo) {
+        // Detect if we are querying any non-inference fields locally or remotely. We can do this by comparing the inference field count to
+        // the index count. Since the knn query is a single-field query, they should match if we are querying only inference fields.
+        if (inferenceInfo.inferenceFieldCount() < inferenceInfo.indexCount()) {
+            missingInferenceIdOverrideCheck();
+        }
     }
 
     @Override
@@ -302,5 +307,13 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         }
 
         return (MlDenseEmbeddingResults) inferenceResults;
+    }
+
+    private void missingInferenceIdOverrideCheck() {
+        QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
+        if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder
+            && textEmbeddingQueryVectorBuilder.getModelId() == null) {
+            throw new IllegalArgumentException("[model_id] must not be null.");
+        }
     }
 }

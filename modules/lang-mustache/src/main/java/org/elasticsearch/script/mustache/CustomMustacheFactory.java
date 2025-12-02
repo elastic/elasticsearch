@@ -137,6 +137,15 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
                 list.add(new IterableCode(templateContext, df, mustache, variable));
             }
         }
+
+        @Override
+        public void dynamicPartial(TemplateContext tc, final String variable, String indent) {
+            // throwing a mustache exception here is important because this gets caught, handled (closing readers, etc),
+            // and re-thrown in the mustache parser itself
+            throw new MustacheException(
+                Strings.format("Template %s not found, because dynamic partial templates are not supported", variable)
+            );
+        }
     }
 
     /**

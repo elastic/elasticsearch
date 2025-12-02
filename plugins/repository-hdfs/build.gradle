@@ -137,7 +137,7 @@ tasks.register("javaRestTestHdfs2", RestIntegTestTask) {
 }
 
 tasks.named('yamlRestTest').configure {
-  classpath = sourceSets.yamlRestTest.runtimeClasspath + configurations.hdfsFixture2
+  classpath = sourceSets.yamlRestTest.runtimeClasspath + configurations.hdfsFixture3
 }
 
 tasks.register("yamlRestTestHdfs2", RestIntegTestTask) {

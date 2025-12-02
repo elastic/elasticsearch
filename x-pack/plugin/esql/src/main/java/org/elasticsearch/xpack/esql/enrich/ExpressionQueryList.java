@@ -324,7 +324,6 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         private final AliasFilter aliasFilter;
         private final Map<String, Integer> fieldCount = new HashMap<>();
         private final SearchExecutionContext context;
-        private Set<String> fieldsWithMultipleQueries; // Cached, invalidated when sources are added
 
         QuerySources(SearchExecutionContext context, AliasFilter aliasFilter) {
             this.context = context;
@@ -345,7 +344,6 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             if (fieldName != null) {
                 fieldCount.merge(fieldName, 1, Integer::sum);
             }
-            invalidateCache();
         }
 
         void addLucenePushableFilter(QueryBuilder queryBuilder, List<String> fieldNames) {
@@ -358,7 +356,6 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                         for (String fieldName : fieldNames) {
                             fieldCount.merge(fieldName, 1, Integer::sum);
                         }
-                        invalidateCache();
                     }
                 }
             } catch (IOException e) {
@@ -367,19 +364,12 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         }
 
         Set<String> getFieldsWithMultipleQueries() {
-            if (fieldsWithMultipleQueries == null) {
-                // Compute fields that appear more than once
-                fieldsWithMultipleQueries = fieldCount.entrySet()
-                    .stream()
-                    .filter(entry -> entry.getValue() > 1)
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toSet());
-            }
-            return fieldsWithMultipleQueries;
-        }
-
-        private void invalidateCache() {
-            fieldsWithMultipleQueries = null;
+            // Compute fields that appear more than once on demand
+            return fieldCount.entrySet()
+                .stream()
+                .filter(entry -> entry.getValue() > 1)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
         }
 
         List<QueryList> getQueryLists() {

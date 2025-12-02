@@ -71,3 +71,48 @@ return shardTotal;
 
 **Reduce phase (merges all shard results):**  
 Finally, the `reduce_script` merges results from all shards by iterating through each shard's total, and adds the results together to get the grand total of products sold across the entire dataset.
+
+```java
+int grandTotal = 0;
+ 
+for (shardTotal in states) {
+  grandTotal += shardTotal;
+}
+ 
+return grandTotal;
+```
+
+The complete request looks like this:
+
+```json
+GET kibana_sample_data_ecommerce/_search
+{
+  "size": 0,
+  "aggs": {
+	"total_quantity_sold": {
+  	"scripted_metric": {
+    	"init_script": "state.quantities = []",
+    	"map_script": "state.quantities.add(doc['total_quantity'].value)",
+    	"combine_script": """
+          int shardTotal = 0;
+ 
+          for (qty in state.quantities) {
+            shardTotal += qty;
+          }
+ 
+          return shardTotal;
+        """,
+    	"reduce_script": """
+          int grandTotal = 0;
+ 
+          for (shardTotal in states) {
+            grandTotal += shardTotal;
+          }
+          
+          return grandTotal;
+        """
+      }
+    }
+  }
+}
+```

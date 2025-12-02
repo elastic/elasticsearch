@@ -57,6 +57,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected int vectorOpsCount;
     protected final float postFilteringThreshold;
 
+    protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter){
+        this(field, visitRatio, k, numCands, filter, .75f);
+    }
+
     protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, float postFilteringThreshold) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);

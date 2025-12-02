@@ -222,68 +222,47 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 forkOutputChanged = true;
             }
         }
-
         var prunedForkAttrs = forkOutputChanged ? builder.build().stream().toList() : fork.output();
         // now that we have the pruned fork output attributes, we can proceed to apply pruning all children plan
-        var usedFork = AttributeSet.forkBuilder();
-        usedFork.addAll(prunedForkAttrs);
         var forkOutputNames = prunedForkAttrs.stream().map(NamedExpression::name).collect(Collectors.toSet());
-        boolean childrenChanged = false;
+        boolean subPlanChanged = false;
         List<LogicalPlan> newChildren = new ArrayList<>();
-        for (var child : fork.children()) {
-            var clonedUsed = AttributeSet.forkBuilder().addAll(usedFork);
-            var newChild = pruneSubPlan(child, clonedUsed, forkOutputNames);
-            newChildren.add(newChild);
-            if (false == newChild.equals(child)) {
-                childrenChanged = true;
+        for (var subPlan : fork.children()) {
+            var usedAttrs = AttributeSet.builder();
+            LogicalPlan newSubPlan;
+            // if it's a local relation, just update the output attributes
+            // and return early
+            if (subPlan instanceof LocalRelation localRelation) {
+                var outputAttrs = localRelation.output().stream().filter(x -> forkOutputNames.contains(x.name())).toList();
+                newSubPlan = new LocalRelation(localRelation.source(), outputAttrs, localRelation.supplier());
+            } else {
+                // otherwise, we first prune the projections of the top-level Project of each subplan
+                Holder<Boolean> projectVisited = new Holder<>(false);
+                newSubPlan = subPlan.transformDown(Project.class, p -> {
+                    if (projectVisited.get()) {
+                        return p;
+                    }
+                    projectVisited.set(true);
+                    // filter projections based on fork output attributes
+                    var prunedAttrs = p.projections().stream().filter(x -> forkOutputNames.contains(x.name())).toList();
+                    p = new Project(p.source(), p.child(), prunedAttrs);
+                    // add all output attributes to used set
+                    usedAttrs.addAll(p.output());
+                    return p;
+                });
+                newSubPlan = pruneColumns(newSubPlan, usedAttrs, false);
             }
+            if (false == newSubPlan.equals(subPlan)) {
+                subPlanChanged = true;
+            }
+            newChildren.add(newSubPlan);
         }
-        if (childrenChanged) {
+        if (subPlanChanged) {
             return new Fork(fork.source(), newChildren, prunedForkAttrs);
         } else if (forkOutputChanged) {
             return new Fork(fork.source(), fork.children(), prunedForkAttrs);
         }
         return fork;
-    }
-
-    private static LogicalPlan pruneSubPlan(LogicalPlan plan, AttributeSet.Builder usedAttrs, Set<String> forkOutput) {
-        if (plan instanceof LocalRelation localRelation) {
-            var outputAttrs = localRelation.output().stream().filter(usedAttrs::contains).collect(Collectors.toList());
-            return new LocalRelation(localRelation.source(), outputAttrs, localRelation.supplier());
-        }
-
-        var projectHolder = new Holder<>(false);
-        return plan.transformDown(p -> {
-            if (p instanceof Limit || p instanceof Sample) {
-                return p;
-            }
-
-            var recheck = new Holder<Boolean>();
-            do {
-                // we operate using the names of the fields, rather than comparing the attributes directly,
-                // as attributes may have been recreated during the transformations of fork branches.
-                recheck.set(false);
-                p = switch (p) {
-                    case Aggregate agg -> pruneColumnsInAggregate(agg, usedAttrs, false);
-                    case InlineJoin inj -> pruneColumnsInInlineJoinRight(inj, usedAttrs, recheck);
-                    case Eval eval -> pruneColumnsInEval(eval, usedAttrs, recheck);
-                    case Project project -> {
-                        // process only the direct Project after Fork, but skip any subsequent instances
-                        if (projectHolder.get()) {
-                            yield p;
-                        } else {
-                            projectHolder.set(true);
-                            var prunedAttrs = project.projections().stream().filter(x -> forkOutput.contains(x.name())).toList();
-                            yield new Project(project.source(), project.child(), prunedAttrs);
-                        }
-                    }
-                    case EsRelation esr -> pruneColumnsInEsRelation(esr, usedAttrs);
-                    default -> p;
-                };
-            } while (recheck.get());
-            usedAttrs.addAll(p.references());
-            return p;
-        });
     }
 
     private static LogicalPlan emptyLocalRelation(UnaryPlan plan) {

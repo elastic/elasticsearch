@@ -212,10 +212,6 @@ public class AttributeSet implements Set<Attribute> {
         return new Builder(AttributeMap.builder(expectedSize));
     }
 
-    public static Builder forkBuilder() {
-        return new ForkBuilder(AttributeMap.builder());
-    }
-
     public static class Builder {
 
         protected final AttributeMap.Builder<Object> mapBuilder;
@@ -268,27 +264,6 @@ public class AttributeSet implements Set<Attribute> {
 
         public void clear() {
             mapBuilder.keySet().clear();
-        }
-    }
-
-    /**
-     * This class extends {@code Builder}, but its {@code contains} method also matches {@code NamedExpression} instances by their name.
-     * This is useful for Fork plans, where branches may have different Attribute IDs but share a common output schema,
-     * allowing equality checks of used attributes based on their names.
-     */
-    public static class ForkBuilder extends Builder {
-
-        private ForkBuilder(AttributeMap.Builder<Object> mapBuilder) {
-            super(mapBuilder);
-        }
-
-        @Override
-        public boolean contains(Object o) {
-            if (super.contains(o)) {
-                return true;
-            }
-            return o instanceof NamedExpression
-                && mapBuilder.keySet().stream().anyMatch(x -> x.name().equals(((NamedExpression) o).name()));
         }
     }
 }

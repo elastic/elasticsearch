@@ -193,6 +193,10 @@ public class SecurityActionFilter implements ActionFilter {
             })
         );
 
+        // Break the sequence of potentially-async actions with a SubscribableListener after authentication & authorization so that in the
+        // (common) case that these things completed on the current thread we unwind the massive stack of function calls before proceeding
+        // down the rest of the ActionFilterChain and into the action itself.
+
         authListener.addListener(listener.delegateFailure((ll, authResult) -> {
             try (var ignored = authResult.inAuthenticatedContext()) {
                 chain.proceed(task, action, request, ll.map(response -> {

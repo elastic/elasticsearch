@@ -117,7 +117,7 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessIntegTe
             0.0f,
             BalancerSettings.DEFAULT.getDiskUsageBalanceFactor()
         );
-        int totalNumShards = 18;    // 3 indices * 3 shards * 2 tiers
+        int totalNumShards = 36;    // 3 indices * 6 shards * 2 tiers
         int totalNumberNodes = 4;
         double expectedWeight = weightFunction.calculateNodeWeight((int) shardCount, (float) totalNumShards / totalNumberNodes, 0, 0, 0, 0);
         assertThat(weight, equalTo(expectedWeight));

@@ -16,6 +16,7 @@ import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -62,12 +63,12 @@ public final class EsqlQueryLog {
         this.additionalFields = slowLogFieldProvider.create();
     }
 
-    public void onQueryPhase(Result esqlResult, String query) {
-        if (esqlResult == null) {
+    public void onQueryPhase(Versioned<Result> esqlResult, String query) {
+        if (esqlResult.inner() == null) {
             return; // TODO review, it happens in some tests, not sure if it's a thing also in prod
         }
-        long tookInNanos = esqlResult.executionInfo().overallTook().nanos();
-        log(() -> Message.of(esqlResult, query, includeUser ? additionalFields.queryFields() : Map.of()), tookInNanos);
+        long tookInNanos = esqlResult.inner().executionInfo().overallTook().nanos();
+        log(() -> Message.of(esqlResult.inner(), query, includeUser ? additionalFields.queryFields() : Map.of()), tookInNanos);
     }
 
     public void onQueryFailure(String query, Exception ex, long tookInNanos) {

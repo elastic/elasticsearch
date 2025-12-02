@@ -1,0 +1,5 @@
+pr: 138595
+summary: GROUP BY ALL with the dimensions output
+area: TSDB
+type: enhancement
+issues: []

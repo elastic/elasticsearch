@@ -608,6 +608,12 @@ public class Ordinator64 extends Ordinator implements Releasable {
         }
     }
 
+    // These methods were added in order to be compliant with the random-key-access pattern provided by AbstractHash / LongHash.
+    // The key difference is that those classes support random-access-by-ID, which remains stable across resizing / rehashing.
+    // Access by (bucket) slot is not. At least for ESQL, we don't ever resize during the code that relies on random access, so using
+    // access-by-slot has the equivalent behavior. If this ever changes, we'll likely need to look into unpairing keys:ids in the slots in
+    // favour of accessing slot -> id -> key lookup array via id.
+
     public long key(int slot) {
         if (this.bigCore == null) {
             return this.smallCore.key(slot);

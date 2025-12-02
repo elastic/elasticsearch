@@ -20,6 +20,6 @@ interface PgpSignatureVerifier {
      * @see BcPgpSignatureVerifier
      * @see IsolatedBcPgpSignatureVerifier
      */
-    void verifySignature(Path libDir, Path zip, String urlString, InputStream ascInputStream) throws IOException;
+    void verifySignature(Path zip, String urlString, InputStream ascInputStream) throws IOException;
 
 }

@@ -654,8 +654,7 @@ public class InstallPluginAction implements Closeable {
             throw new IOException("Plugin signature missing: " + ascUrl);
         }
         try (InputStream ascInputStream = urlOpenStream(url)) {
-            Path libPath = env.libDir().resolve("tools").resolve("plugin-cli");
-            pgpSignatureVerifier(terminal).verifySignature(libPath, zip, urlString, ascInputStream);
+            pgpSignatureVerifier(terminal).verifySignature(zip, urlString, ascInputStream);
         }
     }
 

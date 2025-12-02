@@ -53,7 +53,7 @@ public class BcPgpSignatureVerifier implements PgpSignatureVerifier {
      * internal exception during verification
      */
     @Override
-    public void verifySignature(final Path libDir, final Path zip, final String urlString, final InputStream ascInputStream)
+    public void verifySignature(final Path zip, final String urlString, final InputStream ascInputStream)
         throws IOException {
 
         try (

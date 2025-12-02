@@ -106,7 +106,9 @@ public class TimeSeriesAggregate extends Aggregate {
 
     @Override
     public boolean expressionsResolved() {
-        return super.expressionsResolved() && (timeBucket == null || timeBucket.resolved());
+        return super.expressionsResolved()
+            && (timeBucket == null || timeBucket.resolved())
+            && (tsdimWithout == null || tsdimWithout.resolved());
     }
 
     @Nullable

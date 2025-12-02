@@ -1718,6 +1718,11 @@ public class EsqlCapabilities {
          */
         METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS,
 
+        /**
+         * Support for function {@code TSDIM_WITHOUT}.
+         */
+        TSDIM_WITHOUT_FUNCTION,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

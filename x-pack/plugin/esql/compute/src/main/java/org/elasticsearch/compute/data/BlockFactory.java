@@ -504,6 +504,9 @@ public class BlockFactory {
         return ExponentialHistogramArrayBlock.createConstant(value, positionCount, this);
     }
 
+    public final TDigestBlock newConstantTDigestBlock(TDigestHolder value, int positions) {
+        return TDigestArrayBlock.createConstant(value, positions, this);
+    }
     public BlockLoader.Block newExponentialHistogramBlockFromDocValues(
         DoubleBlock minima,
         DoubleBlock maxima,

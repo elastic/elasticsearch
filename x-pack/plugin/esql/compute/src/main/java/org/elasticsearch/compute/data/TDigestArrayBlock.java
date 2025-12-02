@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.io.IOException;
 import java.util.List;
@@ -297,5 +298,65 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
             sums.getDouble(offset),
             valueCounts.getLong(offset)
         );
+    }
+
+    public static TDigestBlock createConstant(TDigestHolder histogram, int positionCount, BlockFactory blockFactory) {
+        // ExponentialHistogramArrayBlock.EncodedHistogramData data = encode(histogram);
+        DoubleBlock minBlock = null;
+        DoubleBlock maxBlock = null;
+        DoubleBlock sumBlock = null;
+        LongBlock countBlock = null;
+        BytesRefBlock encodedDigestsBlock = null;
+        boolean success = false;
+        try {
+            countBlock = blockFactory.newConstantLongBlockWith(histogram.getValueCount(), positionCount);
+            if (Double.isNaN(histogram.getMin())) {
+                minBlock = (DoubleBlock) blockFactory.newConstantNullBlock(positionCount);
+            } else {
+                minBlock = blockFactory.newConstantDoubleBlockWith(histogram.getMin(), positionCount);
+            }
+            if (Double.isNaN(histogram.getMax())) {
+                maxBlock = (DoubleBlock) blockFactory.newConstantNullBlock(positionCount);
+            } else {
+                maxBlock = blockFactory.newConstantDoubleBlockWith(histogram.getMax(), positionCount);
+            }
+            if (Double.isNaN(histogram.getSum())) {
+                sumBlock = (DoubleBlock) blockFactory.newConstantNullBlock(positionCount);
+            } else {
+                sumBlock = blockFactory.newConstantDoubleBlockWith(histogram.getSum(), positionCount);
+            }
+            encodedDigestsBlock = blockFactory.newConstantBytesRefBlockWith(histogram.getEncodedDigest(), positionCount);
+            success = true;
+            return new TDigestArrayBlock(encodedDigestsBlock, minBlock, maxBlock, sumBlock, countBlock);
+        } finally {
+            if (success == false) {
+                Releasables.close(minBlock, maxBlock, sumBlock, countBlock, encodedDigestsBlock);
+            }
+        }
+    }
+    @Override
+    public boolean equals(Object o) {
+        if (o instanceof TDigestBlock block) {
+            return TDigestBlock.equals(this, block);
+        }
+        return false;
+    }
+
+    boolean equalsAfterTypeCheck(TDigestArrayBlock that) {
+        return minima.equals(that.minima)
+            && maxima.equals(that.maxima)
+            && sums.equals(that.sums)
+            && valueCounts.equals(that.valueCounts)
+            && encodedDigests.equals(that.encodedDigests);
+    }
+
+    @Override
+    public int hashCode() {
+        /*
+         for now we use just the hash of encodedDigests
+         this ensures proper equality with null blocks and should be unique enough for practical purposes.
+         This mirrors the behavior in Exponential Histogram
+        */
+        return encodedDigests.hashCode();
     }
 }

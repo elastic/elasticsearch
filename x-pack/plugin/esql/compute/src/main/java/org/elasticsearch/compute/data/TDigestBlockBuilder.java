@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.operator.topn.ResultBuilderForTDigest;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 
@@ -17,6 +19,8 @@ public final class TDigestBlockBuilder implements TDigestBlock.Builder {
     private final DoubleBlock.Builder maximaBuilder;
     private final DoubleBlock.Builder sumsBuilder;
     private final LongBlock.Builder valueCountsBuilder;
+
+    private final BytesRef scratch = new BytesRef();
 
     public TDigestBlockBuilder(int size, BlockFactory blockFactory) {
         BytesRefBlock.Builder encodedDigestsBuilder = null;
@@ -161,5 +165,20 @@ public final class TDigestBlockBuilder implements TDigestBlock.Builder {
         maximaBuilder.appendDouble(val.getMax());
         sumsBuilder.appendDouble(val.getSum());
         valueCountsBuilder.appendLong(val.getValueCount());
+    }
+
+    public void deserializeAndAppend(TDigestBlock.SerializedTDigestInput input) {
+        long valueCount = input.readLong();
+        valueCountsBuilder.appendLong(valueCount);
+        if (valueCount > 0) {
+            sumsBuilder.appendDouble(input.readDouble());
+            minimaBuilder.appendDouble(input.readDouble());
+            maximaBuilder.appendDouble(input.readDouble());
+        } else {
+            sumsBuilder.appendNull();
+            minimaBuilder.appendNull();
+            maximaBuilder.appendNull();
+        }
+        encodedDigestsBuilder.appendBytesRef(input.readBytesRef(scratch));
     }
 }

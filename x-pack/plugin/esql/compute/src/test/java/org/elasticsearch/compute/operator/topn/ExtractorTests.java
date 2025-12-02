@@ -211,7 +211,8 @@ public class ExtractorTests extends ESTestCase {
         result.decodeValue(values);
         assertThat(values.length, equalTo(0));
 
-        assertThat(result.build(), equalTo(value));
+        Block resultBlock = result.build();
+        assertThat(resultBlock, equalTo(value));
     }
 
     public void testInKey() {

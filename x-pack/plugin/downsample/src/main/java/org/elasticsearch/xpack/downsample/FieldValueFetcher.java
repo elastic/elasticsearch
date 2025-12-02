@@ -81,10 +81,12 @@ class FieldValueFetcher {
             return switch (fieldType.getMetricType()) {
                 case GAUGE -> NumericMetricFieldProducer.createFieldProducerForGauge(name(), samplingMethod);
                 case COUNTER -> LastValueFieldProducer.createForMetric(name());
-                case HISTOGRAM -> ExponentialHistogramMetricFieldProducer.createMetricProducerForExponentialHistogram(
-                    name(),
-                    samplingMethod
-                );
+                case HISTOGRAM -> {
+                    if ("exponential_histogram".equals(fieldType.typeName())) {
+                        yield ExponentialHistogramMetricFieldProducer.createMetricProducerForExponentialHistogram(name(), samplingMethod);
+                    }
+                    throw new IllegalArgumentException("Time series metrics supports only exponential histogram");
+                }
                 // TODO: Support POSITION in downsampling
                 case POSITION -> throw new IllegalArgumentException("Unsupported metric type [position] for down-sampling");
             };

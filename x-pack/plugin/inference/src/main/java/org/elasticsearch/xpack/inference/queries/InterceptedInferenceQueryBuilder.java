@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.getMatchingInferenceFields;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
+import static org.elasticsearch.xpack.inference.queries.InferenceQueryUtils.ccsMinimizeRoundTripsFalseSupportCheck;
 import static org.elasticsearch.xpack.inference.queries.InferenceQueryUtils.getDefaultFields;
 import static org.elasticsearch.xpack.inference.queries.InferenceQueryUtils.getInferenceInfo;
 import static org.elasticsearch.xpack.inference.queries.InferenceQueryUtils.getResultFromFuture;
@@ -322,20 +322,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
                 return this;
             }
 
-            // TODO: Refactor into common util method
-            if (inferenceInfo.minTransportVersion().supports(GET_INFERENCE_FIELDS_ACTION_TV) == false
-                && inferenceInfo.inferenceFieldCount() > 0
-                && resolvedIndices.getRemoteClusterIndices().isEmpty() == false
-                && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
-
-                throw new IllegalArgumentException(
-                    "One or more remote clusters does not support "
-                        + originalQuery.getName()
-                        + " query cross-cluster search when"
-                        + " [ccs_minimize_roundtrips] is false. Please update all clusters to at least "
-                        + GET_INFERENCE_FIELDS_ACTION_TV.toReleaseVersion()
-                );
-            }
+            ccsMinimizeRoundTripsFalseSupportCheck(queryRewriteContext, inferenceInfo, originalQuery.getName());
 
             // TODO: Integrate custom post-inference coordinator node validation here
             QueryBuilder rewritten = this;

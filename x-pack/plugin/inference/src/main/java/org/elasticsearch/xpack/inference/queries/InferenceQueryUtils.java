@@ -129,6 +129,27 @@ public class InferenceQueryUtils {
         return QueryParserHelper.parseFieldsAndWeights(defaultFieldsList);
     }
 
+    public static void ccsMinimizeRoundTripsFalseSupportCheck(
+        QueryRewriteContext queryRewriteContext,
+        InferenceInfo inferenceInfo,
+        String queryName
+    ) {
+        ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
+        if (inferenceInfo.minTransportVersion().supports(GET_INFERENCE_FIELDS_ACTION_TV) == false
+            && inferenceInfo.inferenceFieldCount() > 0
+            && resolvedIndices.getRemoteClusterIndices().isEmpty() == false
+            && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
+
+            throw new IllegalArgumentException(
+                "One or more remote clusters does not support "
+                    + queryName
+                    + " query cross-cluster search when"
+                    + " [ccs_minimize_roundtrips] is false. Please update all clusters to at least "
+                    + GET_INFERENCE_FIELDS_ACTION_TV.toReleaseVersion()
+            );
+        }
+    }
+
     private static void getLocalInferenceInfo(
         QueryRewriteContext queryRewriteContext,
         Map<String, Float> fields,

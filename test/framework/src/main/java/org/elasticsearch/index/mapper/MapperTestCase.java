@@ -74,6 +74,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -1844,5 +1845,50 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }
         }
         assertParseMinimalWarnings();
+    }
+
+    protected boolean supportsDocValuesSkippers() {
+        return true;
+    }
+
+    public void testDocValuesSkippers() throws IOException {
+        assumeTrue("Mapper does not support doc values skippers", supportsDocValuesSkippers());
+        assumeTrue("FeatureFlag disabled", IndexSettings.DOC_VALUES_SKIPPER);
+
+        IndexVersion preSkipperVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
+            random(),
+            IndexVersions.STANDARD_INDEXES_USE_SKIPPERS
+        );
+        IndexVersion withSkipperVersion = IndexVersions.STANDARD_INDEXES_USE_SKIPPERS;
+
+        Settings skippersDisabled = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false).build();
+        Settings skippersEnabled = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+
+        {
+            MapperService mapperService = createMapperService(preSkipperVersion, fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("doc_values", true);
+                b.field("index", false);
+            }));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.docValuesOnly()));
+        }
+
+        {
+            MapperService mapperService = createMapperService(withSkipperVersion, skippersEnabled, fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("doc_values", true);
+                b.field("index", false);
+            }));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
+        }
+
+        {
+            MapperService mapperService = createMapperService(withSkipperVersion, skippersDisabled, fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("doc_values", true);
+                b.field("index", false);
+            }));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.docValuesOnly()));
+        }
     }
 }

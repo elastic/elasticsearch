@@ -1,0 +1,5 @@
+pr: 138559
+summary: Accept `project_routing` as query parameter
+area: EQL
+type: enhancement
+issues: []

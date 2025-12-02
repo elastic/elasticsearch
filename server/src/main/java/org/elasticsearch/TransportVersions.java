@@ -97,7 +97,6 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_3 = def(8_797_0_03);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_4 = def(8_797_0_04);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_5 = def(8_797_0_05);
-    public static final TransportVersion V_8_18_0 = def(8_840_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

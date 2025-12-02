@@ -19,7 +19,6 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
@@ -53,11 +52,11 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -604,12 +603,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ThreadPool threadPool,
         Lifecycle lifecycle
     ) {
-        final boolean header;
-        if (version.supports(TransportVersions.V_8_18_0) && threadPool.getThreadContext() != null) {
-            header = getErrorTraceHeader(threadPool);
-        } else {
-            header = true;
-        }
+        final boolean header = threadPool.getThreadContext() == null || getErrorTraceHeader(threadPool);
         return listener.delegateResponse((l, e) -> {
             org.apache.logging.log4j.util.Supplier<String> messageSupplier = () -> format(
                 "[%s]%s: failed to execute search request for task [%d]",
@@ -639,11 +633,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         });
     }
 
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     private static boolean getErrorTraceHeader(ThreadPool threadPool) {
-        return Boolean.parseBoolean(threadPool.getThreadContext().getHeaderOrDefault("error_trace", "false"));
+        return Booleans.parseBoolean(threadPool.getThreadContext().getHeaderOrDefault("error_trace", "false"));
     }
 
     public void executeDfsPhase(ShardSearchRequest request, SearchShardTask task, ActionListener<SearchPhaseResult> listener) {

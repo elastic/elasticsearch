@@ -52,7 +52,6 @@ public class ConvertEvaluatorImplementer {
     private final boolean canProcessOrdinals;
     private final ClassName implementation;
     private final StandardArgument argument;
-    private final boolean vectorsUnsupported;
     private final List<TypeMirror> warnExceptions;
 
     public ConvertEvaluatorImplementer(
@@ -81,7 +80,6 @@ public class ConvertEvaluatorImplementer {
         }
 
         this.warnExceptions = warnExceptions;
-        this.vectorsUnsupported = this.processFunction.args.stream().anyMatch(a -> a.supportsVectorReadAccess() == false);
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -113,7 +111,7 @@ public class ConvertEvaluatorImplementer {
         builder.addMethod(ctor());
         builder.addMethod(next());
         builder.addMethod(evalVector());
-        if (vectorsUnsupported == false) {
+        if (argument.supportsVectorReadAccess()) {
             builder.addMethod(evalValue(true));
         }
         builder.addMethod(evalBlock());
@@ -150,7 +148,7 @@ public class ConvertEvaluatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("evalVector").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(VECTOR, "v").returns(BLOCK);
 
-        if (vectorsUnsupported) {
+        if (argument.supportsVectorReadAccess() == false) {
             builder.addStatement("throw new UnsupportedOperationException(\"vectors are unsupported for this evaluator\")");
             return builder.build();
         }

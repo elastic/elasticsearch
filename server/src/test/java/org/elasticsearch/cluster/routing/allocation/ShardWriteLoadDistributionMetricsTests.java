@@ -9,13 +9,26 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -24,16 +37,25 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
 
     public void testShardWriteLoadDistributionMetrics() {
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
+        final var indexName = randomIdentifier();
+        final var clusterState = balanceShardsByCount(ClusterStateCreationUtils.state(indexName, 2, 200));
+        when(clusterService.state()).thenReturn(clusterState);
         final int numberOfSignificantDigits = randomIntBetween(2, 3);
         final ShardWriteLoadDistributionMetrics shardWriteLoadDistributionMetrics = new ShardWriteLoadDistributionMetrics(
             meterRegistry,
+            clusterService,
             numberOfSignificantDigits,
             0,
             50,
@@ -44,20 +66,78 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         final double maxp90 = randomDoubleBetween(maxp50, 30, true);
         final double maxp100 = randomDoubleBetween(maxp90, 50, true);
 
-        final var clusterInfo = ClusterInfo.builder().shardWriteLoads(randomWriteLoads(maxp50, maxp90, maxp100)).build();
+        final var clusterInfo = ClusterInfo.builder().shardWriteLoads(randomWriteLoads(clusterState, maxp50, maxp90, maxp100)).build();
         shardWriteLoadDistributionMetrics.onNewInfo(clusterInfo);
 
         meterRegistry.getRecorder().collect();
 
-        final var measurements = meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.METRIC_NAME);
+        final var writeLoadDistributionMeasurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_DISTRIBUTION_METRIC_NAME);
+        final var writeLoadPrioritisationThresholdMeasurements = meterRegistry.getRecorder()
+            .getMeasurements(
+                InstrumentType.DOUBLE_GAUGE,
+                ShardWriteLoadDistributionMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME
+            );
+        final var countAboveThresholdMeasurements = meterRegistry.getRecorder()
+            .getMeasurements(
+                InstrumentType.LONG_GAUGE,
+                ShardWriteLoadDistributionMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME
+            );
 
         logger.info("Generated maximums p50={}/p90={}/p100={}", maxp50, maxp90, maxp100);
-        assertEquals(4, measurements.size());
-        assertThat(measurementForPercentile(measurements, 0.0), greaterThanOrEqualTo(0.0));
-        assertRoughlyInRange(numberOfSignificantDigits, measurementForPercentile(measurements, 50.0), 0.0, maxp50);
-        assertRoughlyInRange(numberOfSignificantDigits, measurementForPercentile(measurements, 90.0), maxp50, maxp90);
-        assertRoughlyInRange(numberOfSignificantDigits, measurementForPercentile(measurements, 100.0), maxp90, maxp100);
+        assertEquals(8, writeLoadDistributionMeasurements.size());
+        for (String nodeId : List.of("node_0", "node_1")) {
+            assertThat(measurementForPercentile(writeLoadDistributionMeasurements, nodeId, 0.0), greaterThanOrEqualTo(0.0));
+            assertRoughlyInRange(
+                numberOfSignificantDigits,
+                measurementForPercentile(writeLoadDistributionMeasurements, nodeId, 50.0),
+                0.0,
+                maxp50
+            );
+            assertRoughlyInRange(
+                numberOfSignificantDigits,
+                measurementForPercentile(writeLoadDistributionMeasurements, nodeId, 90.0),
+                maxp50,
+                maxp90
+            );
+            assertRoughlyInRange(
+                numberOfSignificantDigits,
+                measurementForPercentile(writeLoadDistributionMeasurements, nodeId, 100.0),
+                maxp90,
+                maxp100
+            );
+
+            assertThat(
+                measurementForNode(writeLoadPrioritisationThresholdMeasurements, nodeId).getDouble(),
+                Matchers.allOf(greaterThan(0.5 * maxp90), lessThanOrEqualTo(0.5 * maxp100))
+            );
+            assertThat(measurementForNode(countAboveThresholdMeasurements, nodeId).getLong(), greaterThan(0L));
+        }
+    }
+
+    private ClusterState balanceShardsByCount(ClusterState state) {
+        AllocationDeciders allocationDeciders = new AllocationDeciders(List.of());
+        RoutingAllocation routingAllocation = new RoutingAllocation(
+            allocationDeciders,
+            state.getRoutingNodes().mutableCopy(),
+            state,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+        final var shardsAllocator = new BalancedShardsAllocator(
+            Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), ClusterModule.BALANCED_ALLOCATOR).build()
+        );
+        shardsAllocator.allocate(routingAllocation);
+        final var initializingShards = routingAllocation.routingNodes()
+            .stream()
+            .flatMap(rn -> rn.shardsWithState(ShardRoutingState.INITIALIZING))
+            .toList();
+        initializingShards.forEach(shardRouting -> routingAllocation.routingNodes().startShard(shardRouting, new RoutingChangesObserver() {
+        }, randomNonNegativeLong()));
+        return ClusterState.builder(state)
+            .routingTable(state.globalRoutingTable().rebuild(routingAllocation.routingNodes(), routingAllocation.metadata()))
+            .build();
     }
 
     /**
@@ -82,28 +162,49 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         return BigDecimal.valueOf(value).multiply(BigDecimal.ONE, new MathContext(significantDigits, RoundingMode.FLOOR)).doubleValue();
     }
 
-    private double measurementForPercentile(List<Measurement> measurements, double percentile) {
+    private Measurement measurementForNode(List<Measurement> measurements, String nodeId) {
+        return measurements.stream().filter(m -> m.attributes().get("node_id").equals(nodeId)).findFirst().orElseThrow();
+    }
+
+    private double measurementForPercentile(List<Measurement> measurements, String nodeId, double percentile) {
         return measurements.stream()
-            .filter(m -> m.attributes().get("percentile").equals(String.valueOf(percentile)))
+            .filter(
+                m -> m.attributes().get("percentile").equals(String.valueOf(percentile)) && m.attributes().get("node_id").equals(nodeId)
+            )
             .findFirst()
             .orElseThrow()
             .getDouble();
     }
 
-    private Map<ShardId, Double> randomWriteLoads(double p50, double p90, double p100) {
+    private Map<ShardId, Double> randomWriteLoads(ClusterState clusterState, double p50, double p90, double p100) {
+        final var node1Shards = shardsOnNode(clusterState, "node_0");
+        final var node2Shards = shardsOnNode(clusterState, "node_1");
+        assertEquals(100, node1Shards.size());
+        assertEquals(100, node2Shards.size());
+
         final Map<ShardId, Double> shardWriteLoads = new HashMap<>();
-        final Index index = new Index(randomIdentifier(), randomUUID());
-        int shardId = 0;
-        for (int i = 0; i < 50; i++) {
-            shardWriteLoads.put(new ShardId(index, shardId++), randomDoubleBetween(0, p50, true));
+        for (List<ShardId> shardIds : List.of(node1Shards, node2Shards)) {
+            final var shardIterator = shardIds.iterator();
+            for (int i = 0; i < 50; i++) {
+                shardWriteLoads.put(shardIterator.next(), randomDoubleBetween(0, p50, true));
+            }
+            for (int i = 0; i < 40; i++) {
+                shardWriteLoads.put(shardIterator.next(), randomDoubleBetween(p50, p90, true));
+            }
+            for (int i = 0; i < 10; i++) {
+                shardWriteLoads.put(shardIterator.next(), randomDoubleBetween(p90, p100, true));
+            }
         }
-        for (int i = 0; i < 40; i++) {
-            shardWriteLoads.put(new ShardId(index, shardId++), randomDoubleBetween(p50, p90, true));
-        }
-        for (int i = 0; i < 10; i++) {
-            shardWriteLoads.put(new ShardId(index, shardId++), randomDoubleBetween(p90, p100, true));
-        }
-        assert shardWriteLoads.size() == 100;
+
+        assertEquals(200, shardWriteLoads.size());
         return shardWriteLoads;
+    }
+
+    private List<ShardId> shardsOnNode(ClusterState clusterState, String nodeId) {
+        return clusterState.routingTable(ProjectId.DEFAULT)
+            .allShards()
+            .filter(shardRouting -> nodeId.equals(shardRouting.currentNodeId()))
+            .map(ShardRouting::shardId)
+            .toList();
     }
 }

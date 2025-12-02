@@ -10,19 +10,25 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.HdrHistogram.DoubleHistogram;
-import org.HdrHistogram.IntCountsHistogram;
+import org.HdrHistogram.ShortCountsHistogram;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Publishes metrics about the distribution of shard write loads in the cluster
@@ -30,60 +36,131 @@ import java.util.Map;
 public class ShardWriteLoadDistributionMetrics {
 
     private static final Logger logger = LogManager.getLogger(ShardWriteLoadDistributionMetrics.class);
-    public static final String METRIC_NAME = "es.allocator.shard_write_load.distribution.current";
+    public static final String WRITE_LOAD_DISTRIBUTION_METRIC_NAME = "es.allocator.shard_write_load.distribution.current";
+    public static final String WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME =
+        "es.allocator.shard_write_load.prioritisation_threshold.current";
+    public static final String WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME =
+        "es.allocator.shard_write_load.prioritisation_threshold.shard_count_exceeding.current";
 
     private final DoubleHistogram shardWeightHistogram;
     private final double[] percentiles;
-    private final Map<String, Object>[] attributes;
-    private final double[] lastValues;
+    private final ClusterService clusterService;
+    private final AtomicReference<List<DoubleWithAttributes>> lastWriteLoadDistributionValues = new AtomicReference<>();
+    private final AtomicReference<List<DoubleWithAttributes>> lastWriteLoadPrioritisationThresholdValues = new AtomicReference<>();
+    private final AtomicReference<List<LongWithAttributes>> lastShardCountExceedingPrioritisationThresholdValues = new AtomicReference<>();
 
-    public ShardWriteLoadDistributionMetrics(MeterRegistry meterRegistry) {
+    public ShardWriteLoadDistributionMetrics(MeterRegistry meterRegistry, ClusterService clusterService) {
         // 2 significant digits means error < 1% of any value in the range
-        this(meterRegistry, 2, 50, 90, 95, 99, 100);
+        this(meterRegistry, clusterService, 2, 50, 90, 95, 99, 100);
     }
 
-    @SuppressWarnings("unchecked")
-    public ShardWriteLoadDistributionMetrics(MeterRegistry meterRegistry, int numberOfSignificantDigits, double... percentiles) {
-        this.shardWeightHistogram = new DoubleHistogram(numberOfSignificantDigits, IntCountsHistogram.class);
+    public ShardWriteLoadDistributionMetrics(
+        MeterRegistry meterRegistry,
+        ClusterService clusterService,
+        int numberOfSignificantDigits,
+        double... percentiles
+    ) {
+        this.clusterService = clusterService;
+        // We can use ShortCountsHistogram because we don't expect any count to exceed Short.MAX_VALUE on a single node
+        this.shardWeightHistogram = new DoubleHistogram(numberOfSignificantDigits, ShortCountsHistogram.class);
         this.percentiles = percentiles;
-        this.attributes = (Map<String, Object>[]) Array.newInstance(Map.class, percentiles.length);
-        for (int i = 0; i < percentiles.length; i++) {
-            attributes[i] = Map.of("percentile", String.valueOf(percentiles[i]));
-        }
-        this.lastValues = new double[percentiles.length];
-        Arrays.fill(lastValues, Double.NaN);
         meterRegistry.registerDoublesGauge(
-            METRIC_NAME,
-            "Distribution of values for shard write load",
+            WRITE_LOAD_DISTRIBUTION_METRIC_NAME,
+            "Distribution of shard write-load values, broken down by node",
             "write load",
-            this::getTrackedPercentiles
+            this::getWriteLoadDistributionMetrics
+        );
+        meterRegistry.registerDoublesGauge(
+            WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME,
+            "The write-load threshold over which shards are prioritised for movement when hot-spotting, per node",
+            "write load",
+            this::getWriteLoadPrioritisationThresholdMetrics
+        );
+        meterRegistry.registerLongsGauge(
+            WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME,
+            "The number of shards whose write-load exceeds the prioritisation threshold, per node",
+            "unit",
+            this::getWriteLoadPrioritisationThresholdPercentileRankMetrics
         );
     }
 
     public void onNewInfo(ClusterInfo clusterInfo) {
-        try {
-            shardWeightHistogram.reset();
-            clusterInfo.getShardWriteLoads().forEach((shardId, shardWriteLoad) -> shardWeightHistogram.recordValue(shardWriteLoad));
-            for (int i = 0; i < percentiles.length; i++) {
-                lastValues[i] = shardWeightHistogram.getValueAtPercentile(percentiles[i]);
-            }
-        } catch (ArrayIndexOutOfBoundsException e) {
-            // This shouldn't happen because our histogram should be auto-resizing, but just in case
-            logger.error("Failed to record shard write load distribution metrics", e);
-            Arrays.fill(lastValues, Double.NaN);
+        // We need a cluster state and shard write loads to compute these metrics
+        if (clusterService.lifecycleState() != Lifecycle.State.STARTED || clusterInfo.getShardWriteLoads().isEmpty()) {
+            return;
         }
+
+        final var clusterState = clusterService.state();
+        final var shardWriteLoads = clusterInfo.getShardWriteLoads();
+        final var ingestNodeCount = (int) clusterState.nodes().stream().filter(DiscoveryNode::isIngestNode).count();
+        final var writeLoadDistributionValues = new ArrayList<DoubleWithAttributes>(percentiles.length * ingestNodeCount);
+        final var writeLoadPrioritisationThresholdValues = new ArrayList<DoubleWithAttributes>(ingestNodeCount);
+        final var shardCountsExceedingPrioritisationThresholdValues = new ArrayList<LongWithAttributes>(ingestNodeCount);
+        for (RoutingNode routingNode : clusterState.getRoutingNodes()) {
+            final var node = routingNode.node();
+            if (node == null || node.isIngestNode() == false) {
+                continue;
+            }
+
+            double maxShardWriteLoad = Double.NEGATIVE_INFINITY;
+
+            shardWeightHistogram.reset();
+            try {
+                for (ShardRouting shardRouting : routingNode) {
+                    Double writeLoad = shardWriteLoads.get(shardRouting.shardId());
+                    if (writeLoad != null) {
+                        shardWeightHistogram.recordValue(writeLoad);
+                        maxShardWriteLoad = Math.max(maxShardWriteLoad, writeLoad);
+                    }
+                }
+            } catch (ArrayIndexOutOfBoundsException e) {
+                // This shouldn't happen because our histogram should be auto-resizing, but just in case
+                logger.error("Failed to record shard write load distribution metrics for node " + node.getName(), e);
+                continue;
+            }
+
+            for (double percentile : percentiles) {
+                writeLoadDistributionValues.add(
+                    new DoubleWithAttributes(
+                        shardWeightHistogram.getValueAtPercentile(percentile),
+                        getAttributesForPercentile(node, percentile)
+                    )
+                );
+            }
+            final var nodeAttrs = getAttributesForNode(node);
+            final double prioritisationThreshold = BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO
+                * maxShardWriteLoad;
+            writeLoadPrioritisationThresholdValues.add(new DoubleWithAttributes(prioritisationThreshold, nodeAttrs));
+
+            final long shardsExceedingThreshold = (long) shardWeightHistogram.getCountBetweenValues(
+                prioritisationThreshold,
+                Double.MAX_VALUE
+            );
+            shardCountsExceedingPrioritisationThresholdValues.add(new LongWithAttributes(shardsExceedingThreshold, nodeAttrs));
+        }
+
+        lastWriteLoadDistributionValues.set(writeLoadDistributionValues);
+        lastWriteLoadPrioritisationThresholdValues.set(writeLoadPrioritisationThresholdValues);
+        lastShardCountExceedingPrioritisationThresholdValues.set(shardCountsExceedingPrioritisationThresholdValues);
     }
 
-    private Collection<DoubleWithAttributes> getTrackedPercentiles() {
-        final List<DoubleWithAttributes> metricValues = new ArrayList<>();
-        for (int i = 0; i < percentiles.length; i++) {
-            double lastValue = lastValues[i];
-            if (Double.isNaN(lastValue) == false) {
-                Map<String, Object> attributes = this.attributes[i];
-                metricValues.add(new DoubleWithAttributes(lastValue, attributes));
-                lastValues[i] = Double.NaN;
-            }
-        }
-        return metricValues;
+    private Map<String, Object> getAttributesForPercentile(DiscoveryNode node, double percentile) {
+        return Map.of("node_id", node.getId(), "node_name", node.getName(), "percentile", String.valueOf(percentile));
+    }
+
+    private Map<String, Object> getAttributesForNode(DiscoveryNode node) {
+        return Map.of("node_id", node.getId(), "node_name", node.getName());
+    }
+
+    private Collection<DoubleWithAttributes> getWriteLoadDistributionMetrics() {
+        return lastWriteLoadDistributionValues.getAndSet(null);
+    }
+
+    private Collection<DoubleWithAttributes> getWriteLoadPrioritisationThresholdMetrics() {
+        return lastWriteLoadPrioritisationThresholdValues.getAndSet(null);
+    }
+
+    private Collection<LongWithAttributes> getWriteLoadPrioritisationThresholdPercentileRankMetrics() {
+        return lastShardCountExceedingPrioritisationThresholdValues.getAndSet(null);
     }
 }

@@ -827,7 +827,9 @@ class NodeConstruction {
             )::onNewInfo
         );
 
-        clusterInfoService.addListener(new ShardWriteLoadDistributionMetrics(telemetryProvider.getMeterRegistry())::onNewInfo);
+        clusterInfoService.addListener(
+            new ShardWriteLoadDistributionMetrics(telemetryProvider.getMeterRegistry(), clusterService)::onNewInfo
+        );
 
         IndicesModule indicesModule = new IndicesModule(
             pluginsService.filterPlugins(MapperPlugin.class).toList(),

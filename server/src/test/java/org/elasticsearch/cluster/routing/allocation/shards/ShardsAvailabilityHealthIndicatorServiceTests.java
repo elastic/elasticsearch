@@ -2367,20 +2367,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     public void testDeterministicShardAvailabilityKeyOrder() {
         final ProjectId projectId = randomProjectIdOrDefault();
-        final ClusterState clusterState = createClusterStateWith(
-            projectId,
-            List.of(),
-            List.of()
-        );
+        final ClusterState clusterState = createClusterStateWith(projectId, List.of(), List.of());
         final ShardsAvailabilityHealthIndicatorService service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         final HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         final String detailsJson = Strings.toString(result.details());
-        final Map<String, Object> details = XContentHelper.convertToMap(
-            new BytesArray(detailsJson),
-            true,
-            XContentType.JSON
-        ).v2();
+        final Map<String, Object> details = XContentHelper.convertToMap(new BytesArray(detailsJson), true, XContentType.JSON).v2();
 
         final List<String> actualKeys = details.entrySet().stream().map(Map.Entry::getKey).toList();
         final List<String> expectedKeys = List.of(

@@ -189,11 +189,11 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     }
 
     private ActionRequestValidationException validateMMRDiversification(ActionRequestValidationException validationException) {
-        if (this.size < 0) {
+        if (this.size <= 0) {
             validationException = addValidationError(
                 String.format(
                     Locale.ROOT,
-                    "[%s] MMR result diversification [%s] of %d must be greater than or equal to zero",
+                    "[%s] MMR result diversification [%s] of %d must be greater than zero",
                     getName(),
                     SIZE_FIELD.getPreferredName(),
                     this.size

@@ -57,6 +57,22 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
     public void testValidate() {
         SearchSourceBuilder source = new SearchSourceBuilder();
 
+        var retrieverWithZeroSize = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "test_field",
+            10,
+            0,
+            getRandomQueryVector(),
+            0.3f
+        );
+        var validationZeroSize = retrieverWithZeroSize.validate(source, null, false, false);
+        assertEquals(1, validationZeroSize.validationErrors().size());
+        assertEquals(
+            "[diversify] MMR result diversification [size] of 0 must be greater than zero",
+            validationZeroSize.validationErrors().getFirst()
+        );
+
         var retrieverWithNegativeSize = new DiversifyRetrieverBuilder(
             getInnerRetriever(),
             ResultDiversificationType.MMR,
@@ -69,7 +85,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         var validationNegativeSize = retrieverWithNegativeSize.validate(source, null, false, false);
         assertEquals(1, validationNegativeSize.validationErrors().size());
         assertEquals(
-            "[diversify] MMR result diversification [size] of -1 must be greater than or equal to zero",
+            "[diversify] MMR result diversification [size] of -1 must be greater than zero",
             validationNegativeSize.validationErrors().getFirst()
         );
 

@@ -439,6 +439,10 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
     }
 
     public void setProjectRouting(String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing is already set to [" + this.projectRouting + "]");
+        }
+
         this.projectRouting = projectRouting;
     }
 

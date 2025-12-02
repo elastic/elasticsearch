@@ -375,6 +375,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 return this;
             }
 
+            // TODO: Refactor into common util method
             if (inferenceInfo.minTransportVersion().supports(GET_INFERENCE_FIELDS_ACTION_TV) == false
                 && inferenceInfo.inferenceFieldCount() > 0
                 && resolvedIndices.getRemoteClusterIndices().isEmpty() == false
@@ -402,7 +403,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         boolean ccsRequest = resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
-        PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture = new PlainActionFuture<>();
+        PlainActionFuture<InferenceQueryUtils.InferenceInfo> newInferenceInfoFuture = new PlainActionFuture<>();
         getInferenceInfo(
             queryRewriteContext,
             Map.of(fieldName, 1.0f),
@@ -412,10 +413,10 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             query,
             inferenceResultsMap,
             null,
-            inferenceInfoFuture
+            newInferenceInfoFuture
         );
 
-        return new SemanticQueryBuilder(this, inferenceResultsMap, inferenceInfoFuture, ccsRequest);
+        return new SemanticQueryBuilder(this, inferenceResultsMap, newInferenceInfoFuture, ccsRequest);
     }
 
     private void inferenceResultsErrorCheck(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {

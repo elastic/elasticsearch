@@ -29,6 +29,12 @@ import static org.elasticsearch.xpack.core.security.support.Exceptions.authentic
  * response headers like 'WWW-Authenticate'
  */
 public class DefaultAuthenticationFailureHandler implements AuthenticationFailureHandler {
+    /**
+     * Metadata key to mark ElasticsearchSecurityException instances as explicit authorization errors
+     * that should be allowed during authentication processing with 403 status.
+     */
+    public static final String AUTHORIZATION_ERROR_METADATA_KEY = "es.security.authorization_error";
+
     private volatile Map<String, List<String>> defaultFailureResponseHeaders;
 
     /**
@@ -115,7 +121,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
         }
         if (e instanceof ElasticsearchSecurityException ese) {
             if (ese.status() == RestStatus.FORBIDDEN &&
-                ese.getMetadata("es.security.authorization_error") != null) {
+                ese.getMetadata(AUTHORIZATION_ERROR_METADATA_KEY) != null) {
                 return ese;
             }
         }

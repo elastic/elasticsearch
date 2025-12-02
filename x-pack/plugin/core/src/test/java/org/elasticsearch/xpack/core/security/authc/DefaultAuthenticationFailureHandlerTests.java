@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler.AUTHORIZATION_ERROR_METADATA_KEY;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -168,7 +169,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
             null,
             (Object[]) null
         );
-        authorizationError.addMetadata("es.security.authorization_error", "true");
+        authorizationError.addMetadata(AUTHORIZATION_ERROR_METADATA_KEY, "true");
 
         ElasticsearchSecurityException result = failureHandler.exceptionProcessingRequest(request, authorizationError, threadContext);
         assertThat(result, is(sameInstance(authorizationError)));

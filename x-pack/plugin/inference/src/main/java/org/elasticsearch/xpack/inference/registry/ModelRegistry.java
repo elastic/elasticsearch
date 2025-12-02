@@ -799,7 +799,7 @@ public class ModelRegistry implements ClusterStateListener {
 
             if (updateClusterState) {
                 updateClusterState(
-                    responseInfo.successfullyStoredModels(),
+                    responseInfo,
                     cleanupListener.delegateFailureIgnoreResponseAndWrap(delegate -> delegate.onResponse(responseInfo.responses())),
                     timeout
                 );
@@ -917,43 +917,137 @@ public class ModelRegistry implements ClusterStateListener {
         return null;
     }
 
-    private void updateClusterState(List<Model> models, ActionListener<AcknowledgedResponse> listener, TimeValue timeout) {
-        var inferenceIdsSet = models.stream().map(Model::getInferenceEntityId).collect(Collectors.toSet());
-        var storeListener = listener.delegateResponse((delegate, exc) -> {
-            logger.warn(format("Failed to add minimal service settings to cluster state for inference endpoints %s", inferenceIdsSet), exc);
-            deleteModels(
-                inferenceIdsSet,
-                ActionListener.running(
-                    () -> delegate.onFailure(
-                        new ElasticsearchStatusException(
-                            format(
-                                "Failed to add the inference endpoints %s. The service may be in an "
-                                    + "inconsistent state. Please try deleting and re-adding the endpoints.",
-                                inferenceIdsSet
-                            ),
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            exc
-                        )
-                    )
-                )
-            );
-        });
+    private void updateClusterState(ResponseInfo responseInfo, ActionListener<AcknowledgedResponse> listener, TimeValue timeout) {
+        var inferenceIdsSet = responseInfo.successfullyStoredModels().stream().map(Model::getInferenceEntityId).collect(Collectors.toSet());
 
-        try {
+        SubscribableListener.<Void>newForked(outOfSyncListener -> handleOutOfSyncEndpoints(responseInfo, outOfSyncListener))
+            .<AcknowledgedResponse>andThen(addModelMetadataTaskListener -> {
+                var cleanupListener = addModelMetadataTaskListener.delegateResponse((delegate, exc) -> {
+                    logger.atWarn()
+                        .withThrowable(exc)
+                        .log("Failed to add minimal service settings to cluster state for inference endpoints {}", inferenceIdsSet);
+                    deleteModels(
+                        inferenceIdsSet,
+                        ActionListener.running(
+                            () -> delegate.onFailure(
+                                new ElasticsearchStatusException(
+                                    format(
+                                        "Failed to add the inference endpoints %s. The service may be in an "
+                                            + "inconsistent state. Please try deleting and re-adding the endpoints.",
+                                        inferenceIdsSet
+                                    ),
+                                    RestStatus.INTERNAL_SERVER_ERROR,
+                                    exc
+                                )
+                            )
+                        )
+                    );
+                });
+
+                metadataTaskQueue.submitTask(
+                    format("add model metadata for %s", inferenceIdsSet),
+                    new AddModelMetadataTask(
+                        ProjectId.DEFAULT,
+                        responseInfo.successfullyStoredModels()
+                            .stream()
+                            .map(model -> new ModelAndSettings(model.getInferenceEntityId(), new MinimalServiceSettings(model)))
+                            .toList(),
+                        cleanupListener
+                    ),
+                    timeout
+                );
+            })
+            .addListener(listener);
+    }
+
+    private void handleOutOfSyncEndpoints(ResponseInfo responseInfo, ActionListener<Void> listener) {
+        // This set of inference ids represents the endpoints that exist in the index but not in the cluster state.
+        // This should only occur for EIS preconfigured endpoints
+        var outOfSyncEndpointsExist = responseInfo.responses.stream()
+            .anyMatch(
+                response -> response.modelStoreResponse().failed()
+                    && response.modelStoreResponse().failureCause() instanceof VersionConflictEngineException
+                    // Technically this can only happen for EIS preconfigured endpoints, but checking generally
+                    && containsInferenceEndpointId(response.modelStoreResponse().inferenceId()) == false
+            );
+
+        if (outOfSyncEndpointsExist == false) {
+            listener.onResponse(null);
+            return;
+        }
+
+        var fixOutOfSyncListener = ActionListener.<GetInferenceModelAction.Response>wrap((response) -> {
+            var endpointsToFix = new ArrayList<ModelAndSettings>();
+
+            for (var model : response.getEndpoints()) {
+                // If the inference id can't be found in the in memory hash map or the cluster state, then it is out of sync
+                if (containsInferenceEndpointId(model.getInferenceEntityId()) == false) {
+                    endpointsToFix.add(
+                        new ModelAndSettings(
+                            model.getInferenceEntityId(),
+                            new MinimalServiceSettings(
+                                model.getService(),
+                                model.getTaskType(),
+                                model.getServiceSettings().dimensions(),
+                                model.getServiceSettings().similarity(),
+                                model.getServiceSettings().elementType()
+                            )
+                        )
+                    );
+                }
+            }
+
+            if (endpointsToFix.isEmpty()) {
+                listener.onResponse(null);
+                return;
+            }
+
             metadataTaskQueue.submitTask(
-                format("add model metadata for %s", inferenceIdsSet),
+                format(
+                    "adding out of sync endpoint metadata for %s",
+                    endpointsToFix.stream().map(ModelAndSettings::inferenceEntityId).toList()
+                ),
                 new AddModelMetadataTask(
                     ProjectId.DEFAULT,
-                    models.stream()
-                        .map(model -> new ModelAndSettings(model.getInferenceEntityId(), new MinimalServiceSettings(model)))
-                        .toList(),
-                    storeListener
+                    endpointsToFix,
+                    ActionListener.wrap((result) -> listener.onResponse(null), e -> {
+                        logger.atWarn().withThrowable(e).log("Failed while submitting task to fix out of sync endpoints");
+                        listener.onResponse(null);
+                    })
                 ),
-                timeout
+                null
             );
-        } catch (Exception exc) {
-            storeListener.onFailure(exc);
+        }, e -> {
+            logger.atWarn().withThrowable(e).log("Failed to retrieve all endpoints to fix out of sync ones");
+            listener.onResponse(null);
+        });
+
+        client.execute(
+            GetInferenceModelAction.INSTANCE,
+            new GetInferenceModelAction.Request("*", TaskType.ANY, false),
+            fixOutOfSyncListener
+        );
+    }
+
+    /**
+     * Returns true if the model registry contains the provided inference entity id. This includes both preconfigured and user created
+     * inference endpoints.
+     * @param inferenceEntityId the id to search for
+     * @return true if we find a match and false if not
+     */
+    private boolean containsInferenceEndpointId(String inferenceEntityId) {
+        if (defaultConfigIds.containsKey(inferenceEntityId)) {
+            return true;
         }
+
+        if (lastMetadata.get() != null) {
+            var project = lastMetadata.get().getProject(ProjectId.DEFAULT);
+            var state = ModelRegistryMetadata.fromState(project);
+            var allInferenceIds = state.getInferenceIds();
+            return allInferenceIds.contains(inferenceEntityId);
+        }
+
+        return false;
     }
 
     public boolean isReady() {

@@ -32,7 +32,7 @@ import org.elasticsearch.script.TemplateScript;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
-import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -87,7 +87,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
             TemplateScript.Factory compiled = params -> new MustacheExecutableScript(template, params);
             return context.factoryClazz.cast(compiled);
         } catch (MustacheException ex) {
-            throw new ScriptException(ex.getMessage(), ex, Collections.emptyList(), templateSource, NAME);
+            throw new ScriptException(ex.getMessage(), ex, List.of(), templateSource, NAME);
         }
 
     }

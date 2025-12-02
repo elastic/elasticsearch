@@ -30,7 +30,6 @@ import java.io.StringWriter;
 import java.io.Writer;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -183,7 +182,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
             try (StringWriter capture = new StringWriter()) {
                 // Variable name is in plain text and has type WriteCode
                 if (codes[0] instanceof WriteCode) {
-                    codes[0].execute(capture, Collections.emptyList());
+                    codes[0].execute(capture, List.of());
                     return capture.toString();
                 } else {
                     codes[0].identity(capture);

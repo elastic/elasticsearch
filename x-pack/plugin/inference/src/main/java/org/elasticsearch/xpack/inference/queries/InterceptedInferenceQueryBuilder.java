@@ -196,11 +196,14 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     }
 
     /**
-     * Perform any custom coordinator node validation. This is executed prior to generating inference results.
+     * Perform any custom pre-inference coordinator node validation.
      *
      * @param resolvedIndices The resolved indices
+     * @return A boolean flag indicating if remote cluster inference info gathering can be skipped
      */
-    protected void coordinatorNodeValidate(ResolvedIndices resolvedIndices) {}
+    protected boolean preInferenceCoordinatorNodeValidate(ResolvedIndices resolvedIndices) {
+        return false;
+    }
 
     /**
      * A hook for subclasses to do additional rewriting and inference result fetching while we are on the coordinator node.
@@ -306,15 +309,12 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             return rewrittenBwC;
         }
 
-        // Validate early to prevent partial failures
-        // TODO: Rework pre-inference coordinator node validation
-        coordinatorNodeValidate(queryRewriteContext.getResolvedIndices());
-
+        boolean alwaysSkipRemotes = preInferenceCoordinatorNodeValidate(queryRewriteContext.getResolvedIndices());
         InterceptedInferenceQueryBuilder<T> rewritten = customDoRewriteGetInferenceResults(queryRewriteContext);
-        return rewritten.doRewriteWaitForInferenceResults(queryRewriteContext);
+        return rewritten.doRewriteWaitForInferenceResults(queryRewriteContext, alwaysSkipRemotes);
     }
 
-    private QueryBuilder doRewriteWaitForInferenceResults(QueryRewriteContext queryRewriteContext) {
+    private QueryBuilder doRewriteWaitForInferenceResults(QueryRewriteContext queryRewriteContext, boolean alwaysSkipRemotes) {
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
         if (inferenceInfoFuture != null) {
             InferenceQueryUtils.InferenceInfo inferenceInfo = getResultFromFuture(inferenceInfoFuture);
@@ -341,7 +341,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             return rewritten;
         }
 
-        // TODO: Don't hard-code alwaysSkipRemotes
         boolean ccsRequest = this.ccsRequest || resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> newInferenceInfoFuture = new PlainActionFuture<>();
         getInferenceInfo(
@@ -349,7 +348,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             getFields(),
             resolveWildcards(),
             useDefaultFields(),
-            false,
+            alwaysSkipRemotes,
             getQuery(),
             inferenceResultsMap,
             getInferenceIdOverride(),

@@ -121,7 +121,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     @Override
-    protected void coordinatorNodeValidate(ResolvedIndices resolvedIndices) {
+    protected boolean preInferenceCoordinatorNodeValidate(ResolvedIndices resolvedIndices) {
         if (originalQuery.queryVector() == null && originalQuery.queryVectorBuilder() instanceof TextEmbeddingQueryVectorBuilder == false) {
             // This should never happen because either query vector or query vector builder must be non-null, which is enforced by the
             // KnnVectorQueryBuilder constructor. The only query vector builder used in production is TextEmbeddingQueryVectorBuilder,
@@ -133,7 +133,8 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
             );
         }
 
-        // Check if we are querying any non-inference fields
+        // Check if we are querying any non-inference fields locally
+        int inferenceFieldsQueried = 0;
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(getField());
@@ -143,8 +144,15 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
                     && textEmbeddingQueryVectorBuilder.getModelId() == null) {
                     throw new IllegalArgumentException("[model_id] must not be null.");
                 }
+            } else {
+                inferenceFieldsQueried++;
             }
         }
+
+        // We can skip remote cluster inference info gathering if:
+        // - Inference fields are queried locally, guaranteeing that the query will be intercepted
+        // - The inference ID override or query vector is set. In either case, remote cluster inference results are not required.
+        return inferenceFieldsQueried > 0 && (getInferenceIdOverride() != null || originalQuery.queryVector() != null);
     }
 
     @Override

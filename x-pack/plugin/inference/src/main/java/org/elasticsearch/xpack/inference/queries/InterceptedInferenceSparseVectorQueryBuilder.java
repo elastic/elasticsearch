@@ -90,19 +90,30 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     }
 
     @Override
-    protected void coordinatorNodeValidate(ResolvedIndices resolvedIndices) {
+    protected boolean preInferenceCoordinatorNodeValidate(ResolvedIndices resolvedIndices) {
         // Check if we are querying any non-inference fields
+        int inferenceFieldsQueried = 0;
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(getField());
-            if (inferenceFieldMetadata == null && originalQuery.getQuery() != null && originalQuery.getInferenceId() == null) {
-                // We are querying a non-inference field and need to generate inference results for a query string, but the inference ID
-                // was not specified
-                throw new IllegalArgumentException(
-                    SparseVectorQueryBuilder.INFERENCE_ID_FIELD.getPreferredName() + " required to perform vector search on query string"
-                );
+            if (inferenceFieldMetadata == null) {
+                if (originalQuery.getQuery() != null && originalQuery.getInferenceId() == null) {
+                    // We are querying a non-inference field and need to generate inference results for a query string, but the inference ID
+                    // was not specified
+                    throw new IllegalArgumentException(
+                        SparseVectorQueryBuilder.INFERENCE_ID_FIELD.getPreferredName()
+                            + " required to perform vector search on query string"
+                    );
+                }
+            } else {
+                inferenceFieldsQueried++;
             }
         }
+
+        // We can skip remote cluster inference info gathering if:
+        // - Inference fields are queried locally, guaranteeing that the query will be intercepted
+        // - The inference ID override or query vector is set. In either case, remote cluster inference results are not required.
+        return inferenceFieldsQueried > 0 && (getInferenceIdOverride() != null || originalQuery.getQueryVectors() != null);
     }
 
     @Override

@@ -88,6 +88,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rlike;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.wildcardLike;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
 import static org.elasticsearch.xpack.esql.session.EsqlSession.newMainPlan;
 import static org.hamcrest.Matchers.contains;
@@ -325,6 +326,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
                 EMPTY,
                 new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
                 completion.inferenceId(),
+                completion.rowLimit(),
                 completion.prompt(),
                 completion.targetField()
             ),
@@ -357,6 +359,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
                 EMPTY,
                 new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
                 rerank.inferenceId(),
+                rerank.rowLimit(),
                 rerank.queryText(),
                 rerank.rerankFields(),
                 rerank.scoreAttribute()
@@ -372,6 +375,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             EMPTY,
             child,
             randomLiteral(DataType.KEYWORD),
+            randomLiteral(INTEGER),
             randomLiteral(randomBoolean() ? DataType.TEXT : DataType.KEYWORD),
             referenceAttribute(randomIdentifier(), DataType.KEYWORD)
         );
@@ -382,6 +386,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             EMPTY,
             child,
             randomLiteral(DataType.KEYWORD),
+            randomLiteral(DataType.INTEGER),
             randomLiteral(randomBoolean() ? DataType.TEXT : DataType.KEYWORD),
             randomList(1, 10, () -> new Alias(EMPTY, randomIdentifier(), randomLiteral(DataType.KEYWORD))),
             referenceAttribute(randomBoolean() ? MetadataAttribute.SCORE : randomIdentifier(), DataType.DOUBLE)

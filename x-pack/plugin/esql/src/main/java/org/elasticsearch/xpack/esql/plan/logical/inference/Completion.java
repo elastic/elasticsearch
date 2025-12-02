@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.RowLimited;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,6 +37,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 public class Completion extends InferencePlan<Completion> implements TelemetryAware, PostAnalysisVerificationAware {
 
     public static final String DEFAULT_OUTPUT_FIELD_NAME = "completion";
+    public static final int DEFAULT_MAX_ROW_LIMIT = 100;
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -47,11 +49,18 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     private List<Attribute> lazyOutput;
 
     public Completion(Source source, LogicalPlan p, Expression prompt, Attribute targetField) {
-        this(source, p, Literal.keyword(Source.EMPTY, DEFAULT_OUTPUT_FIELD_NAME), prompt, targetField);
+        this(source, p, Literal.NULL, Literal.integer(Source.EMPTY, DEFAULT_MAX_ROW_LIMIT), prompt, targetField);
     }
 
-    public Completion(Source source, LogicalPlan child, Expression inferenceId, Expression prompt, Attribute targetField) {
-        super(source, child, inferenceId);
+    public Completion(
+        Source source,
+        LogicalPlan child,
+        Expression inferenceId,
+        Expression rowLimit,
+        Expression prompt,
+        Attribute targetField
+    ) {
+        super(source, child, inferenceId, rowLimit);
         this.prompt = prompt;
         this.targetField = targetField;
     }
@@ -61,6 +70,9 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().supports(ESQL_INFERENCE_USAGE_LIMIT)
+                ? in.readNamedWriteable(Expression.class)
+                : Literal.integer(Source.EMPTY, DEFAULT_MAX_ROW_LIMIT),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Attribute.class)
         );
@@ -82,17 +94,22 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     }
 
     @Override
+    public RowLimited withMaxRows(Expression rowLimit) {
+        return new Completion(source(), child(), inferenceId(), rowLimit, prompt, targetField);
+    }
+
+    @Override
     public Completion withInferenceId(Expression newInferenceId) {
         if (inferenceId().equals(newInferenceId)) {
             return this;
         }
 
-        return new Completion(source(), child(), newInferenceId, prompt, targetField);
+        return new Completion(source(), child(), newInferenceId, rowLimit(), prompt, targetField);
     }
 
     @Override
     public Completion replaceChild(LogicalPlan newChild) {
-        return new Completion(source(), newChild, inferenceId(), prompt, targetField);
+        return new Completion(source(), newChild, inferenceId(), rowLimit(), prompt, targetField);
     }
 
     @Override
@@ -122,7 +139,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     @Override
     public Completion withGeneratedNames(List<String> newNames) {
         checkNumberOfNewNames(newNames);
-        return new Completion(source(), child(), inferenceId(), prompt, this.renameTargetField(newNames.get(0)));
+        return new Completion(source(), child(), inferenceId(), rowLimit(), prompt, this.renameTargetField(newNames.get(0)));
     }
 
     private Attribute renameTargetField(String newName) {
@@ -157,7 +174,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Completion::new, child(), inferenceId(), prompt, targetField);
+        return NodeInfo.create(this, Completion::new, child(), inferenceId(), rowLimit(), prompt, targetField);
     }
 
     @Override

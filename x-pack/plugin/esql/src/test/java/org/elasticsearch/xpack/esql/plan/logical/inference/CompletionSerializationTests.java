@@ -21,23 +21,33 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
 
     @Override
     protected Completion createTestInstance() {
-        return new Completion(randomSource(), randomChild(0), randomInferenceId(), randomPrompt(), randomAttribute());
+        return new Completion(
+            randomSource(),
+            randomChild(0),
+            randomInferenceId(),
+            Literal.integer(Source.EMPTY, between(1, 10000)),
+            randomPrompt(),
+            randomAttribute()
+
+        );
     }
 
     @Override
     protected Completion mutateInstance(Completion instance) throws IOException {
         LogicalPlan child = instance.child();
         Expression inferenceId = instance.inferenceId();
+        Expression rowLimit = instance.rowLimit();
         Expression prompt = instance.prompt();
         Attribute targetField = instance.targetField();
 
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inferenceId = randomValueOtherThan(inferenceId, this::randomInferenceId);
-            case 2 -> prompt = randomValueOtherThan(prompt, this::randomPrompt);
-            case 3 -> targetField = randomValueOtherThan(targetField, this::randomAttribute);
+            case 2 -> rowLimit = randomValueOtherThan(rowLimit, () -> Literal.integer(Source.EMPTY, between(1, 10000)));
+            case 3 -> prompt = randomValueOtherThan(prompt, this::randomPrompt);
+            case 4 -> targetField = randomValueOtherThan(targetField, this::randomAttribute);
         }
-        return new Completion(instance.source(), child, inferenceId, prompt, targetField);
+        return new Completion(instance.source(), child, inferenceId, rowLimit, prompt, targetField);
     }
 
     private Literal randomInferenceId() {

@@ -5383,6 +5383,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 EMPTY,
                 plan,
                 randomLiteral(TEXT),
+                randomLiteral(INTEGER),
                 new Concat(EMPTY, randomLiteral(TEXT), List.of(attr)),
                 new ReferenceAttribute(EMPTY, "y", KEYWORD)
             ),
@@ -5394,6 +5395,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 EMPTY,
                 plan,
                 randomLiteral(TEXT),
+                randomLiteral(INTEGER),
                 randomLiteral(TEXT),
                 List.of(new Alias(EMPTY, attr.name(), attr)),
                 new ReferenceAttribute(EMPTY, "y", KEYWORD)

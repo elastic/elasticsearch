@@ -12,7 +12,6 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
@@ -543,8 +542,7 @@ public class MetadataIndexStateService {
                                             task.request,
                                             blockedIndices,
                                             verifyResults,
-                                            task.request().markVerified()
-                                                && clusterService.state().getMinTransportVersion().supports(TransportVersions.V_8_18_0),
+                                            task.request().markVerified(),
                                             delegate2
                                         ),
                                         null

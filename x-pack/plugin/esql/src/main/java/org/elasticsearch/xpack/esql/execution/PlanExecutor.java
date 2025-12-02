@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.execution;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
@@ -67,17 +69,19 @@ public class PlanExecutor {
     public void esql(
         EsqlQueryRequest request,
         String sessionId,
+        TransportVersion localClusterMinimumVersion,
         AnalyzerSettings analyzerSettings,
         EnrichPolicyResolver enrichPolicyResolver,
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
         TransportActionServices services,
-        ActionListener<Result> listener
+        ActionListener<Versioned<Result>> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
         final var session = new EsqlSession(
             sessionId,
+            localClusterMinimumVersion,
             analyzerSettings,
             indexResolver,
             enrichPolicyResolver,
@@ -93,7 +97,7 @@ public class PlanExecutor {
         metrics.total(clientId);
 
         var begin = System.nanoTime();
-        ActionListener<Result> executeListener = wrap(
+        ActionListener<Versioned<Result>> executeListener = wrap(
             x -> onQuerySuccess(request, listener, x, planTelemetry),
             ex -> onQueryFailure(request, listener, ex, clientId, planTelemetry, begin)
         );
@@ -102,7 +106,12 @@ public class PlanExecutor {
         ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, l));
     }
 
-    private void onQuerySuccess(EsqlQueryRequest request, ActionListener<Result> listener, Result x, PlanTelemetry planTelemetry) {
+    private void onQuerySuccess(
+        EsqlQueryRequest request,
+        ActionListener<Versioned<Result>> listener,
+        Versioned<Result> x,
+        PlanTelemetry planTelemetry
+    ) {
         planTelemetryManager.publish(planTelemetry, true);
         queryLog.onQueryPhase(x, request.query());
         listener.onResponse(x);
@@ -110,7 +119,7 @@ public class PlanExecutor {
 
     private void onQueryFailure(
         EsqlQueryRequest request,
-        ActionListener<Result> listener,
+        ActionListener<Versioned<Result>> listener,
         Exception ex,
         QueryMetric clientId,
         PlanTelemetry planTelemetry,

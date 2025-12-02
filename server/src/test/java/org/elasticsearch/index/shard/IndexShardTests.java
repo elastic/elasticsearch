@@ -1626,7 +1626,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardStats stats = new ShardStats(
             shard.routingEntry(),
             shard.shardPath(),
-            CommonStats.getShardLevelStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()),
+            CommonStats.getShardLevelStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags(), () -> 0L),
             shard.commitStats(),
             shard.seqNoStats(),
             shard.getRetentionLeaseStats(),
@@ -4571,7 +4571,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testSupplyTombstoneDoc() throws Exception {
         IndexShard shard = newStartedShard();
         String id = randomRealisticUnicodeOfLengthBetween(1, 10);
-        ParsedDocument deleteTombstone = ParsedDocument.deleteTombstone(shard.indexSettings.seqNoIndexOptions(), randomBoolean(), id);
+        ParsedDocument deleteTombstone = ParsedDocument.deleteTombstone(shard.indexSettings.seqNoIndexOptions(), id);
         assertThat(deleteTombstone.docs(), hasSize(1));
         LuceneDocument deleteDoc = deleteTombstone.docs().get(0);
         assertThat(

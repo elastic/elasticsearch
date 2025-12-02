@@ -576,37 +576,37 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 List<DriverProfile> dataProfiles = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
                 assertThat(dataProfiles, hasSize(1));
                 List<OperatorStatus> ops = dataProfiles.get(0).operators();
-                assertThat(ops, hasSize(8));
+                assertThat(ops, hasSize(9));
                 assertThat(ops.get(0).operator(), containsString("LuceneSourceOperator"));
                 assertThat(ops.get(0).status(), Matchers.instanceOf(LuceneSourceOperator.Status.class));
                 LuceneSourceOperator.Status status = (LuceneSourceOperator.Status) ops.get(0).status();
                 assertThat(status.processedShards().size(), Matchers.lessThanOrEqualTo(3));
-                assertThat(ops.get(1).operator(), containsString("EvalOperator"));
+                // read _timestamp
+                assertThat(ops.get(1).operator(), containsString("ValuesSourceReaderOperator"));
+                // round _timestamp
+                assertThat(ops.get(2).operator(), containsString("EvalOperator"));
                 // read _tisd, cpu
-                assertThat(ops.get(2).operator(), containsString("ValuesSourceReaderOperator"));
-                var readMetrics = (ValuesSourceReaderOperatorStatus) ops.get(2).status();
+                assertThat(ops.get(3).operator(), containsString("ValuesSourceReaderOperator"));
+                var readMetrics = (ValuesSourceReaderOperatorStatus) ops.get(3).status();
                 assertThat(
                     readMetrics.readersBuilt().keySet(),
                     equalTo(
-                        Set.of(
-                            "_tsid:column_at_a_time:BlockDocValuesReader.SingletonOrdinals",
-                            "cpu:column_at_a_time:BlockDocValuesReader.SingletonDoubles"
-                        )
+                        Set.of("_tsid:column_at_a_time:BytesRefsFromOrds.Singleton", "cpu:column_at_a_time:DoublesFromDocValues.Singleton")
                     )
                 );
-                assertThat(ops.get(3).operator(), containsString("TimeSeriesAggregationOperator"));
-                assertThat(ops.get(4).operator(), containsString("ValuesSourceReaderOperator"));
-                var readDimensions = (ValuesSourceReaderOperatorStatus) ops.get(4).status();
+                assertThat(ops.get(4).operator(), containsString("TimeSeriesAggregationOperator"));
+                assertThat(ops.get(5).operator(), containsString("ValuesSourceReaderOperator"));
+                var readDimensions = (ValuesSourceReaderOperatorStatus) ops.get(5).status();
                 assertThat(readDimensions.readersBuilt(), aMapWithSize(1));
                 assertThat(
                     Iterables.get(readDimensions.readersBuilt().keySet(), 0),
-                    either(equalTo("cluster:row_stride:BlockDocValuesReader.SingletonOrdinals")).or(
-                        equalTo("cluster:column_at_a_time:BlockDocValuesReader.SingletonOrdinals")
+                    either(equalTo("cluster:row_stride:BytesRefsFromOrds.Singleton")).or(
+                        equalTo("cluster:column_at_a_time:BytesRefsFromOrds.Singleton")
                     )
                 );
-                assertThat(ops.get(5).operator(), containsString("EvalOperator"));
-                assertThat(ops.get(6).operator(), containsString("ProjectOperator"));
-                assertThat(ops.get(7).operator(), containsString("ExchangeSinkOperator"));
+                assertThat(ops.get(6).operator(), containsString("EvalOperator"));
+                assertThat(ops.get(7).operator(), containsString("ProjectOperator"));
+                assertThat(ops.get(8).operator(), containsString("ExchangeSinkOperator"));
             }
         }
     }

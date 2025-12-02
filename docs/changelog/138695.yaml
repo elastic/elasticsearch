@@ -1,0 +1,5 @@
+pr: 138695
+summary: Add `time_zone` request param support to KQL and QSTR functions
+area: ES|QL
+type: feature
+issues: []

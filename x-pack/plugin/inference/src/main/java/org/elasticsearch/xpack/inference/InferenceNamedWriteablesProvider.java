@@ -21,6 +21,8 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
@@ -72,6 +74,7 @@ import org.elasticsearch.xpack.inference.services.custom.response.RerankResponse
 import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandInternalServiceSettings;
@@ -91,6 +94,8 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.Goog
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
@@ -113,6 +118,10 @@ import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCo
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -153,6 +162,7 @@ public class InferenceNamedWriteablesProvider {
         addHuggingFaceNamedWriteables(namedWriteables);
         addOpenAiNamedWriteables(namedWriteables);
         addCohereNamedWriteables(namedWriteables);
+        addGroqNamedWriteables(namedWriteables);
         addAzureOpenAiNamedWriteables(namedWriteables);
         addAzureAiStudioNamedWriteables(namedWriteables);
         addGoogleAiStudioNamedWritables(namedWriteables);
@@ -170,6 +180,7 @@ public class InferenceNamedWriteablesProvider {
         addCustomNamedWriteables(namedWriteables);
         addLlamaNamedWriteables(namedWriteables);
         addAi21NamedWriteables(namedWriteables);
+        addOpenShiftAiNamedWriteables(namedWriteables);
 
         addUnifiedNamedWriteables(namedWriteables);
 
@@ -179,6 +190,19 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.addAll(SageMakerSchemas.namedWriteables());
 
         return namedWriteables;
+    }
+
+    private static void addGroqNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                GroqChatCompletionServiceSettings.NAME,
+                GroqChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, GroqChatCompletionTaskSettings.NAME, GroqChatCompletionTaskSettings::new)
+        );
     }
 
     private static void addCustomNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
@@ -444,6 +468,33 @@ public class InferenceNamedWriteablesProvider {
         );
     }
 
+    private static void addOpenShiftAiNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                OpenShiftAiEmbeddingsServiceSettings.NAME,
+                OpenShiftAiEmbeddingsServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                OpenShiftAiChatCompletionServiceSettings.NAME,
+                OpenShiftAiChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                OpenShiftAiRerankServiceSettings.NAME,
+                OpenShiftAiRerankServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, OpenShiftAiRerankTaskSettings.NAME, OpenShiftAiRerankTaskSettings::new)
+        );
+    }
+
     private static void addHuggingFaceNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
@@ -634,7 +685,21 @@ public class InferenceNamedWriteablesProvider {
             )
         );
         namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.class,
+                GenericDenseEmbeddingFloatResults.NAME,
+                GenericDenseEmbeddingFloatResults::new
+            )
+        );
+        namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, DenseEmbeddingByteResults.NAME, DenseEmbeddingByteResults::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.class,
+                GenericDenseEmbeddingByteResults.NAME,
+                GenericDenseEmbeddingByteResults::new
+            )
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, ChatCompletionResults.NAME, ChatCompletionResults::new)
@@ -829,6 +894,15 @@ public class InferenceNamedWriteablesProvider {
                 ServiceSettings.class,
                 ElasticInferenceServiceRerankServiceSettings.NAME,
                 ElasticInferenceServiceRerankServiceSettings::new
+            )
+        );
+
+        // Dense Text Embeddings
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.NAME,
+                ElasticInferenceServiceDenseTextEmbeddingsServiceSettings::new
             )
         );
     }

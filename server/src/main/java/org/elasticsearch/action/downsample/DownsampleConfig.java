@@ -104,17 +104,6 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
     /**
      * Create a new {@link DownsampleConfig} using the given configuration parameters.
      * @param fixedInterval the fixed interval to use for computing the date histogram for the rolled up documents (required).
-     * @deprecated please use {@link DownsampleConfig#DownsampleConfig(DateHistogramInterval, SamplingMethod)}, this method is being kept
-     * until the sampling method is completely integrated with ILM and DLM.
-     */
-    @Deprecated
-    public DownsampleConfig(final DateHistogramInterval fixedInterval) {
-        this(fixedInterval, null);
-    }
-
-    /**
-     * Create a new {@link DownsampleConfig} using the given configuration parameters.
-     * @param fixedInterval the fixed interval to use for computing the date histogram for the rolled up documents (required).
      * @param samplingMethod the method used to downsample metrics, when null it default to {@link SamplingMethod#AGGREGATE}.
      */
     public DownsampleConfig(final DateHistogramInterval fixedInterval, @Nullable SamplingMethod samplingMethod) {
@@ -144,25 +133,28 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
      * - The target interval needs to be a multiple of the source interval
      * throws an IllegalArgumentException to signal that the target interval is not acceptable
      */
-    public static void validateSourceAndTargetIntervals(DownsampleConfig source, DownsampleConfig target) {
-        long sourceMillis = source.fixedInterval.estimateMillis();
-        long targetMillis = target.fixedInterval.estimateMillis();
+    public static void validateSourceAndTargetIntervals(
+        DateHistogramInterval sourceFxedInterval,
+        DateHistogramInterval targetFixedInterval
+    ) {
+        long sourceMillis = sourceFxedInterval.estimateMillis();
+        long targetMillis = targetFixedInterval.estimateMillis();
         if (sourceMillis >= targetMillis) {
             // Downsampling interval must be greater than source interval
             throw new IllegalArgumentException(
                 "Downsampling interval ["
-                    + target.fixedInterval
+                    + targetFixedInterval
                     + "] must be greater than the source index interval ["
-                    + source.fixedInterval
+                    + sourceFxedInterval
                     + "]."
             );
         } else if (targetMillis % sourceMillis != 0) {
             // Downsampling interval must be a multiple of the source interval
             throw new IllegalArgumentException(
                 "Downsampling interval ["
-                    + target.fixedInterval
+                    + targetFixedInterval
                     + "] must be a multiple of the source index interval ["
-                    + source.fixedInterval
+                    + sourceFxedInterval
                     + "]."
             );
         }

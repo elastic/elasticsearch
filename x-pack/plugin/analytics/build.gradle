@@ -27,7 +27,9 @@ dependencies {
   implementation(project(":libs:exponential-histogram"))
   compileOnly project(path: xpackModule('core'))
   compileOnly project(":server")
+
   testImplementation project(path: ':modules:aggregations')
+  testImplementation project(xpackModule('otel-data')) // for coerce compatibility tests
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(":libs:exponential-histogram")))
 }

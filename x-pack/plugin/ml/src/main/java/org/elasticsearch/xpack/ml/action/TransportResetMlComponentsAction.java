@@ -7,17 +7,20 @@
 
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.ResetMlComponentsAction;
+import org.elasticsearch.xpack.ml.MachineLearningFeatures;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
@@ -37,6 +40,7 @@ public class TransportResetMlComponentsAction extends TransportNodesAction<
     private final DataFrameAnalyticsAuditor dfaAuditor;
     private final InferenceAuditor inferenceAuditor;
     private final TrainedModelStatsService trainedModelStatsService;
+    private final FeatureService featureService;
 
     @Inject
     public TransportResetMlComponentsAction(
@@ -47,7 +51,8 @@ public class TransportResetMlComponentsAction extends TransportNodesAction<
         AnomalyDetectionAuditor anomalyDetectionAuditor,
         DataFrameAnalyticsAuditor dfaAuditor,
         InferenceAuditor inferenceAuditor,
-        TrainedModelStatsService trainedModelStatsService
+        TrainedModelStatsService trainedModelStatsService,
+        FeatureService featureService
     ) {
         super(
             ResetMlComponentsAction.NAME,
@@ -61,6 +66,20 @@ public class TransportResetMlComponentsAction extends TransportNodesAction<
         this.dfaAuditor = dfaAuditor;
         this.inferenceAuditor = inferenceAuditor;
         this.trainedModelStatsService = trainedModelStatsService;
+        this.featureService = featureService;
+    }
+
+    @Override
+    protected void doExecute(
+        Task task,
+        ResetMlComponentsAction.Request request,
+        ActionListener<ResetMlComponentsAction.Response> listener
+    ) {
+        if (featureService.clusterHasFeature(clusterService.state(), MachineLearningFeatures.COMPONENTS_RESET_ACTION) == false) {
+            listener.onResponse(new ResetMlComponentsAction.Response(clusterService.getClusterName(), List.of(), List.of()));
+        } else {
+            super.doExecute(task, request, listener);
+        }
     }
 
     @Override

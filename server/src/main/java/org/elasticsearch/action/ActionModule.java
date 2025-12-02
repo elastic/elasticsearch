@@ -151,7 +151,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.TransportGetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
-import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -705,7 +704,7 @@ public class ActionModule extends AbstractModule {
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
         actions.register(TransportIndicesShardStoresAction.TYPE, TransportIndicesShardStoresAction.class);
         actions.register(TransportCreateIndexAction.TYPE, TransportCreateIndexAction.class);
-        actions.register(ResizeAction.INSTANCE, TransportResizeAction.class);
+        actions.register(TransportResizeAction.TYPE, TransportResizeAction.class);
         actions.register(RolloverAction.INSTANCE, TransportRolloverAction.class);
         actions.register(LazyRolloverAction.INSTANCE, LazyRolloverAction.TransportLazyRolloverAction.class);
         actions.register(TransportDeleteIndexAction.TYPE, TransportDeleteIndexAction.class);

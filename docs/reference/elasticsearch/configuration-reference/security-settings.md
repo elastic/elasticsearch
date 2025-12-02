@@ -769,6 +769,18 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 `username_pattern`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The regular expression pattern used to extract the username from the certificate DN. The username is used for auditing and logging. The username can also be used with the [role mapping API](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/mapping-users-groups-to-roles.md) and [authorization delegation](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/authorization-delegation.md). The first match group is the used as the username. Defaults to `CN=(.*?)(?:,|$)`.
 
+    This setting is ignored if either `username_rdn_oid` or `username_rdn_name` is set.
+
+`username_rdn_oid`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The relative distinguished name (RDN) attribute OID used to extract the username from the certificate DN. The username is used for auditing and logging. The username can also be used with the [role mapping API](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/mapping-users-groups-to-roles.md) and [authorization delegation](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/authorization-delegation.md). The value of the most specific RDN matching this attribute OID is used as the username.
+
+    This setting takes precedent over `username_pattern`. You cannot use this setting and `username_rdn_name` at the same time.
+
+`username_rdn_name`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The relative distinguished name (RDN) attribute name used to extract the username from the certificate DN. The username is used for auditing and logging. The username can also be used with the [role mapping API](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/mapping-users-groups-to-roles.md) and [authorization delegation](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/authorization-delegation.md). The value of the most specific RDN matching this attribute name is used as the username.
+
+    This setting takes precedent over `username_pattern`. You cannot use this setting and `username_rdn_oid` at the same time.
+
 `certificate_authorities`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) List of paths to the PEM certificate files that should be used to authenticate a user’s certificate as trusted. Defaults to the trusted certificates configured for SSL. This setting cannot be used with `truststore.path`.
 
@@ -1523,7 +1535,19 @@ $$$jwt-claim-pattern-principal$$$
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the time-to-live for the period of time to cache JWT entries. JWTs can only be cached if client authentication is successful (or disabled). Uses the standard {{es}} [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). If clients use a different JWT for every request, set to `0` to disable the JWT cache. Defaults to `20m`.
 
 `pkc_jwkset_path` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The file name or URL to a JSON Web Key Set (JWKS) with the public key material that the JWT Realm uses for verifying token signatures. A value is considered a file name if it does not begin with `https`. The file name is resolved relative to the {{es}} configuration directory. If a URL is provided, then it must begin with `https://` (`http://` is not supported). {{es}} automatically caches the JWK set and will attempt to refresh the JWK set upon signature verification failure, as this might indicate that the JWT Provider has rotated the signing keys.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The file name or URL to a JSON Web Key Set (JWKS) with the public key material that the JWT Realm uses for verifying token signatures. A value is considered a file name if it does not begin with `https`. The file name is resolved relative to the {{es}} configuration directory. If a URL is provided, then it must begin with `https://` (`http://` is not supported). {{es}} automatically caches the JWK set and will attempt to refresh the JWK set upon signature verification failure, as this might indicate that the JWT Provider has rotated the signing keys. Background JWKS reloading can also be configured with the setting `pkc_jwkset_reload.enabled`. This ensures that rotated keys are automatically discovered and used to verify JWT signatures.
+
+`pkc_jwkset_reload.enabled` {applies_to}`stack: ga 9.3` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Indicates whether JWKS background reloading is enabled. Defaults to `false`.
+
+`pkc_jwkset_reload.file_interval` {applies_to}`stack: ga 9.3` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the reload interval for file-based JWKS. Defaults to `5m`.
+
+`pkc_jwkset_reload.url_interval_min` {applies_to}`stack: ga 9.3` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the minimum reload interval for URL-based JWKS. The `Expires` and `Cache-Control` HTTP response headers inform the reload interval. This configuration setting is the lower bound of what is considered, and it is also the default interval in the absence of useful response headers. Defaults to `1h`.
+
+`pkc_jwkset_reload.url_interval_max` {applies_to}`stack: ga 9.3` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the maximum reload interval for URL-based JWKS. This configuration setting is the upper bound of what is considered from header responses (`5d`).
 
 `hmac_jwkset` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) Contents of a JSON Web Key Set (JWKS), including the secret key that the JWT realm uses to verify token signatures. This format supports multiple keys and optional attributes, and is preferred over the `hmac_key` setting. Cannot be used in conjunction with the `hmac_key` setting. Refer to [Configure {{es}} to use a JWT realm](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/jwt.md).

@@ -50,10 +50,12 @@ import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.IntConsumer;
 
 class TopHitsAggregator extends MetricsAggregator {
 
@@ -114,14 +116,20 @@ class TopHitsAggregator extends MetricsAggregator {
         leafCollectors = new LongObjectPagedHashMap<>(1, bigArrays);
         return new LeafBucketCollectorBase(sub, null) {
 
-            Scorable scorer;
+            // use the same Scorable for the leaf collectors
+            ResettableScorable scorer = null;
 
             @Override
             public void setScorer(Scorable scorer) throws IOException {
-                this.scorer = scorer;
-                super.setScorer(scorer);
-                for (Cursor<LeafCollector> leafCollector : leafCollectors) {
-                    leafCollector.value.setScorer(scorer);
+                if (this.scorer != null) {
+                    this.scorer.reset(scorer);
+                    super.setScorer(scorer);
+                } else {
+                    this.scorer = new ResettableScorable(scorer);
+                    super.setScorer(scorer);
+                    for (Cursor<LeafCollector> leafCollector : leafCollectors) {
+                        leafCollector.value.setScorer(scorer);
+                    }
                 }
             }
 
@@ -198,7 +206,7 @@ class TopHitsAggregator extends MetricsAggregator {
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
         }
-        FetchSearchResult fetchResult = runFetchPhase(subSearchContext, docIdsToLoad);
+        FetchSearchResult fetchResult = runFetchPhase(subSearchContext, docIdsToLoad, this::addRequestCircuitBreakerBytes);
         if (fetchProfiles != null) {
             fetchProfiles.add(fetchResult.profileResult());
         }
@@ -222,7 +230,7 @@ class TopHitsAggregator extends MetricsAggregator {
         );
     }
 
-    private static FetchSearchResult runFetchPhase(SubSearchContext subSearchContext, int[] docIdsToLoad) {
+    private static FetchSearchResult runFetchPhase(SubSearchContext subSearchContext, int[] docIdsToLoad, IntConsumer memoryChecker) {
         // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
         // InnerHitSubContext is not thread-safe, so we fork it as well to support concurrent execution
@@ -242,7 +250,7 @@ class TopHitsAggregator extends MetricsAggregator {
             }
         };
 
-        fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad, null);
+        fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad, null, memoryChecker);
         return fetchSubSearchContext.fetchResult();
     }
 
@@ -293,5 +301,38 @@ class TopHitsAggregator extends MetricsAggregator {
     @Override
     protected void doClose() {
         Releasables.close(topDocsCollectors, leafCollectors);
+    }
+
+    private static class ResettableScorable extends Scorable {
+
+        private Scorable scorable;
+
+        private ResettableScorable(Scorable scorable) {
+            this.scorable = scorable;
+        }
+
+        private void reset(Scorable scorable) {
+            this.scorable = scorable;
+        }
+
+        @Override
+        public float score() throws IOException {
+            return scorable.score();
+        }
+
+        @Override
+        public float smoothingScore(int docId) throws IOException {
+            return scorable.smoothingScore(docId);
+        }
+
+        @Override
+        public void setMinCompetitiveScore(float minScore) throws IOException {
+            scorable.setMinCompetitiveScore(minScore);
+        }
+
+        @Override
+        public Collection<ChildScorable> getChildren() throws IOException {
+            return scorable.getChildren();
+        }
     }
 }

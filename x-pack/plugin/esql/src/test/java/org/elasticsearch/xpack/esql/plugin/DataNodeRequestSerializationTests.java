@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
@@ -81,7 +83,14 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             | eval c = first_name
             | stats x = avg(salary)
             """);
-        List<ShardId> shardIds = randomList(1, 10, () -> new ShardId("index-" + between(1, 10), "n/a", between(1, 10)));
+        List<DataNodeRequest.Shard> shards = randomList(
+            1,
+            10,
+            () -> new DataNodeRequest.Shard(
+                new ShardId("index-" + between(1, 10), "n/a", between(1, 10)),
+                SplitShardCountSummary.fromInt(randomIntBetween(0, 1024))
+            )
+        );
         PhysicalPlan physicalPlan = mapAndMaybeOptimize(parse(query));
         Map<Index, AliasFilter> aliasFilters = Map.of(
             new Index("concrete-index", "n/a"),
@@ -91,7 +100,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             sessionId,
             randomConfiguration(query, randomTables()),
             randomAlphaOfLength(10),
-            shardIds,
+            shards,
             aliasFilters,
             physicalPlan,
             generateRandomStringArray(10, 10, false, false),
@@ -111,7 +120,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     randomAlphaOfLength(20),
                     in.configuration(),
                     in.clusterAlias(),
-                    in.shardIds(),
+                    in.shards(),
                     in.aliasFilters(),
                     in.plan(),
                     in.indices(),
@@ -127,7 +136,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.sessionId(),
                     randomConfiguration(),
                     in.clusterAlias(),
-                    in.shardIds(),
+                    in.shards(),
                     in.aliasFilters(),
                     in.plan(),
                     in.indices(),
@@ -139,12 +148,19 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                 yield request;
             }
             case 2 -> {
-                List<ShardId> shardIds = randomList(1, 10, () -> new ShardId("new-index-" + between(1, 10), "n/a", between(1, 10)));
+                List<DataNodeRequest.Shard> shards = randomList(
+                    1,
+                    10,
+                    () -> new DataNodeRequest.Shard(
+                        new ShardId("new-index-" + between(1, 10), "n/a", between(1, 10)),
+                        SplitShardCountSummary.fromInt(randomIntBetween(0, 1024))
+                    )
+                );
                 var request = new DataNodeRequest(
                     in.sessionId(),
                     in.configuration(),
                     in.clusterAlias(),
-                    shardIds,
+                    shards,
                     in.aliasFilters(),
                     in.plan(),
                     in.indices(),
@@ -173,7 +189,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.sessionId(),
                     in.configuration(),
                     in.clusterAlias(),
-                    in.shardIds(),
+                    in.shards(),
                     in.aliasFilters(),
                     mapAndMaybeOptimize(parse(newQuery)),
                     in.indices(),
@@ -195,7 +211,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.sessionId(),
                     in.configuration(),
                     in.clusterAlias(),
-                    in.shardIds(),
+                    in.shards(),
                     aliasFilters,
                     in.plan(),
                     in.indices(),
@@ -211,7 +227,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.sessionId(),
                     in.configuration(),
                     in.clusterAlias(),
-                    in.shardIds(),
+                    in.shards(),
                     in.aliasFilters(),
                     in.plan(),
                     in.indices(),
@@ -231,7 +247,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.sessionId(),
                     in.configuration(),
                     clusterAlias,
-                    in.shardIds(),
+                    in.shards(),
                     in.aliasFilters(),
                     in.plan(),
                     in.indices(),
@@ -248,7 +264,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.sessionId(),
                     in.configuration(),
                     in.clusterAlias(),
-                    in.shardIds(),
+                    in.shards(),
                     in.aliasFilters(),
                     in.plan(),
                     indices,
@@ -268,7 +284,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.sessionId(),
                     in.configuration(),
                     in.clusterAlias(),
-                    in.shardIds(),
+                    in.shards(),
                     in.aliasFilters(),
                     in.plan(),
                     in.indices(),
@@ -284,7 +300,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.sessionId(),
                     in.configuration(),
                     in.clusterAlias(),
-                    in.shardIds(),
+                    in.shards(),
                     in.aliasFilters(),
                     in.plan(),
                     in.indices(),
@@ -301,7 +317,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
 
     static Versioned<LogicalPlan> parse(String query) {
         Map<String, EsField> mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
+        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         var analyzer = new Analyzer(
             testAnalyzerContext(
                 TEST_CFG,

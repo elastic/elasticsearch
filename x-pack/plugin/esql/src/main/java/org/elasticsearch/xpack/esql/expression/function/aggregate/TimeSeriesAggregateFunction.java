@@ -26,8 +26,14 @@ import java.util.function.Supplier;
  */
 public abstract class TimeSeriesAggregateFunction extends AggregateFunction {
 
-    protected TimeSeriesAggregateFunction(Source source, Expression field, Expression filter, List<? extends Expression> parameters) {
-        super(source, field, filter, parameters);
+    protected TimeSeriesAggregateFunction(
+        Source source,
+        Expression field,
+        Expression filter,
+        Expression window,
+        List<? extends Expression> parameters
+    ) {
+        super(source, field, filter, window, parameters);
     }
 
     protected TimeSeriesAggregateFunction(StreamInput in) throws IOException {

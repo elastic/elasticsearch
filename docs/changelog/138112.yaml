@@ -1,0 +1,6 @@
+pr: 138112
+summary: ES|QL completion command constant folding
+area: ES|QL
+type: enhancement
+issues:
+ - 136863

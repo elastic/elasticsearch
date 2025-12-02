@@ -16,6 +16,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -45,17 +46,23 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingPathFields;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -100,11 +107,11 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -114,6 +121,8 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -164,6 +173,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.jar.JarInputStream;
+import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.zip.ZipEntry;
 
@@ -179,6 +190,7 @@ import static org.elasticsearch.test.ESTestCase.randomByte;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomIp;
@@ -318,7 +330,7 @@ public final class EsqlTestUtils {
     }
 
     public static EsRelation relation(IndexMode mode) {
-        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), mode);
+        return new EsRelation(EMPTY, randomIdentifier(), mode, Map.of(), Map.of(), Map.of(), List.of());
     }
 
     /**
@@ -345,6 +357,15 @@ public final class EsqlTestUtils {
         @Override
         public boolean hasExactSubfield(FieldName field) {
             return exists(field);
+        }
+
+        @Override
+        public boolean supportsLoaderConfig(
+            FieldName name,
+            BlockLoaderFunctionConfig config,
+            MappedFieldType.FieldExtractPreference preference
+        ) {
+            return true;
         }
 
         @Override
@@ -380,6 +401,11 @@ public final class EsqlTestUtils {
         @Override
         public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
             return false;
+        }
+
+        @Override
+        public Map<ShardId, IndexMetadata> targetShards() {
+            return Map.of();
         }
     }
 
@@ -541,7 +567,8 @@ public final class EsqlTestUtils {
         null,
         new InferenceService(mock(Client.class)),
         new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
-        TEST_PLANNER_SETTINGS
+        TEST_PLANNER_SETTINGS,
+        new CrossProjectModeDecider(Settings.EMPTY)
     );
 
     private static ClusterService createMockClusterService() {
@@ -579,7 +606,8 @@ public final class EsqlTestUtils {
             System.nanoTime(),
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
+            null
         );
     }
 
@@ -1033,16 +1061,17 @@ public final class EsqlTestUtils {
             }
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
-            case EXPONENTIAL_HISTOGRAM -> new WriteableExponentialHistogram(EsqlTestUtils.randomExponentialHistogram());
+            case EXPONENTIAL_HISTOGRAM -> EsqlTestUtils.randomExponentialHistogram();
             case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );
         }, type);
     }
 
-    private static ExponentialHistogram randomExponentialHistogram() {
+    public static ExponentialHistogram randomExponentialHistogram() {
         // TODO(b/133393): allow (index,scale) based zero thresholds as soon as we support them in the block
         // ideally Replace this with the shared random generation in ExponentialHistogramTestUtils
+        int numBuckets = randomIntBetween(4, 300);
         boolean hasNegativeValues = randomBoolean();
         boolean hasPositiveValues = randomBoolean();
         boolean hasZeroValues = randomBoolean();
@@ -1054,13 +1083,24 @@ public final class EsqlTestUtils {
             hasZeroValues ? IntStream.range(0, randomIntBetween(1, 100)).map(i1 -> 0) : IntStream.empty()
         ).mapToDouble(sign -> sign * (Math.pow(1_000_000, randomDouble()))).toArray();
 
-        int numBuckets = randomIntBetween(4, 300);
         ReleasableExponentialHistogram histo = ExponentialHistogram.create(
             numBuckets,
             ExponentialHistogramCircuitBreaker.noop(),
             rawValues
         );
-        return histo;
+        // Setup a proper zeroThreshold based on a random chance
+        if (histo.zeroBucket().count() > 0 && randomBoolean()) {
+            double smallestNonZeroValue = DoubleStream.of(rawValues).map(Math::abs).filter(val -> val != 0).min().orElse(0.0);
+            double zeroThreshold = smallestNonZeroValue * randomDouble();
+            try (ReleasableExponentialHistogram releaseAfterCopy = histo) {
+                ZeroBucket zeroBucket = ZeroBucket.create(zeroThreshold, histo.zeroBucket().count());
+                ExponentialHistogramBuilder builder = ExponentialHistogram.builder(histo, ExponentialHistogramCircuitBreaker.noop())
+                    .zeroBucket(zeroBucket);
+                histo = builder.build();
+            }
+        }
+        // Make the result histogram writeable to allow usage in Literals for testing
+        return new WriteableExponentialHistogram(histo);
     }
 
     static Version randomVersion() {
@@ -1250,4 +1290,93 @@ public final class EsqlTestUtils {
             return fragmentExec.withFragment(ignoredInFragment);
         });
     }
+
+    public static String addRemoteIndices(String query, Set<String> lookupIndices, boolean onlyRemotes) {
+        String[] commands = query.split("\\|");
+        // remove subqueries
+        String first = commands[0].split(",\\s+\\(")[0].trim();
+
+        // Split "SET a=b; FROM x" into "SET a=b" and "FROM x"
+        int lastSetDelimiterPosition = first.lastIndexOf(';');
+        String setStatements = lastSetDelimiterPosition == -1 ? "" : first.substring(0, lastSetDelimiterPosition + 1);
+        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition + 1);
+
+        // Split "FROM a, b, c" into "FROM" and "a, b, c"
+        String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
+
+        String command = commandParts[0].trim();
+        if (SourceCommand.isSourceCommand(command)) {
+            String commandArgs = commandParts[1].trim();
+            String[] indices = new EsqlParser().createStatement(afterSetStatements)
+                .collect(UnresolvedRelation.class)
+                .getFirst()
+                .indexPattern()
+                .indexPattern()
+                .split(",");
+            // This method may be called multiple times on the same testcase when using @Repeat
+            boolean alreadyConverted = Arrays.stream(indices).anyMatch(i -> i.trim().startsWith("*:"));
+            if (alreadyConverted == false) {
+                String stuffAfterIndices = getStuffAfterIndices(commandArgs, indices[indices.length - 1]);
+                if (Arrays.stream(indices).anyMatch(i -> lookupIndices.contains(i.trim().toLowerCase(Locale.ROOT)))) {
+                    // If the query contains lookup indices, use only remotes to avoid duplication
+                    onlyRemotes = true;
+                }
+                final boolean onlyRemotesFinal = onlyRemotes;
+                final String remoteIndices = Arrays.stream(indices)
+                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), onlyRemotesFinal))
+                    .collect(Collectors.joining(","));
+                String newFirstCommand = command + " " + remoteIndices + " " + stuffAfterIndices;
+                return (setStatements + " " + newFirstCommand.trim() + query.substring(first.length())).trim();
+            }
+        }
+        return query;
+    }
+
+    private static String getStuffAfterIndices(String commandArgs, String lastIndex) {
+        String stuffAfterIndices;
+        if (commandArgs.contains(lastIndex)) {
+            stuffAfterIndices = commandArgs.substring(commandArgs.lastIndexOf(lastIndex) + lastIndex.length()).trim();
+        } else {
+            stuffAfterIndices = commandArgs.trim();
+        }
+        while (stuffAfterIndices.startsWith("\"")) {
+            stuffAfterIndices = stuffAfterIndices.substring(1).trim();
+        }
+        return stuffAfterIndices;
+    }
+
+    /**
+     * Since partial quoting is prohibited, we need to take the index name, unquote it,
+     * convert it to a remote index, and then requote it. For example, "employees" is unquoted,
+     * turned into the remote index *:employees, and then requoted to get "*:employees".
+     * @param index Name of the index.
+     * @param asRemoteIndexOnly If the return needs to be in the form of "*:idx,idx" or "*:idx".
+     * @return A remote index pattern that's requoted.
+     */
+    private static String unquoteAndRequoteAsRemote(String index, boolean asRemoteIndexOnly) {
+        index = index.trim();
+
+        int numOfQuotes = 0;
+        for (; numOfQuotes < index.length(); numOfQuotes++) {
+            if (index.charAt(numOfQuotes) != '"') {
+                break;
+            }
+        }
+
+        String unquoted = unquote(index, numOfQuotes);
+        if (asRemoteIndexOnly) {
+            return quote("*:" + unquoted, numOfQuotes);
+        } else {
+            return quote("*:" + unquoted + "," + unquoted, numOfQuotes);
+        }
+    }
+
+    private static String quote(String index, int numOfQuotes) {
+        return "\"".repeat(numOfQuotes) + index + "\"".repeat(numOfQuotes);
+    }
+
+    private static String unquote(String index, int numOfQuotes) {
+        return index.substring(numOfQuotes, index.length() - numOfQuotes);
+    }
+
 }

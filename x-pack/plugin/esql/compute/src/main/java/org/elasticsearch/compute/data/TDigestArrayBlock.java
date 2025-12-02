@@ -315,7 +315,6 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
     }
 
     public static TDigestBlock createConstant(TDigestHolder histogram, int positionCount, BlockFactory blockFactory) {
-        // ExponentialHistogramArrayBlock.EncodedHistogramData data = encode(histogram);
         DoubleBlock minBlock = null;
         DoubleBlock maxBlock = null;
         DoubleBlock sumBlock = null;

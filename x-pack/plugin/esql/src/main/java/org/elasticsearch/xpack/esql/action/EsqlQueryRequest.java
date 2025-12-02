@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest.CrossProjectCandidate;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -36,7 +37,10 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest implements CompositeIndicesRequest {
+public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest
+    implements
+        CompositeIndicesRequest,
+        CrossProjectCandidate {
 
     public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
     public static TimeValue DEFAULT_WAIT_FOR_COMPLETION = TimeValue.timeValueSeconds(1);
@@ -79,6 +83,8 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.query = query;
     }
 
+    public EsqlQueryRequest() {}
+
     public EsqlQueryRequest(StreamInput in) throws IOException {
         super(in);
     }
@@ -112,8 +118,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         }
         return validationException;
     }
-
-    public EsqlQueryRequest() {}
 
     public EsqlQueryRequest query(String query) {
         this.query = query;
@@ -319,11 +323,17 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.acceptedPragmaRisks = accepted;
     }
 
-    public void projectRouting(String projectRouting) {
+    public EsqlQueryRequest projectRouting(String projectRouting) {
         this.projectRouting = projectRouting;
+        return this;
     }
 
     public String projectRouting() {
         return projectRouting;
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
     }
 }

@@ -1,0 +1,5 @@
+pr: 138869
+summary: Fix multi fields in downsampling
+area: Downsampling
+type: bug
+issues: []

@@ -72,7 +72,7 @@ public class ShardWriteLoadDistributionMetrics {
         );
         meterRegistry.registerDoublesGauge(
             WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME,
-            "The write-load threshold over which shards are prioritised for movement when hot-spotting, per node",
+            "The threshold over which shards will be prioritised for movement when hot-spotting, per node",
             "write load",
             this::getWriteLoadPrioritisationThresholdMetrics
         );

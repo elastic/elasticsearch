@@ -9,7 +9,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.DriverContext;
 
-class SimpleLinearRegressionWithTimeseries implements AggregatorState {
+public class SimpleLinearRegressionWithTimeseries implements AggregatorState {
     @Override
     public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
         blocks[offset + 0] = driverContext.blockFactory().newConstantLongBlockWith(count, 1);
@@ -29,24 +29,49 @@ class SimpleLinearRegressionWithTimeseries implements AggregatorState {
     long sumTs;
     double sumTsVal;
     long sumTsSq;
+    long maxTs;
+    double valueAtMaxTs;
+    double dateFactor;
+    final SimpleLinearModelFunction fn;
 
-    SimpleLinearRegressionWithTimeseries() {
+    public interface SimpleLinearModelFunction {
+        double predict(SimpleLinearRegressionWithTimeseries model);
+    }
+
+    SimpleLinearRegressionWithTimeseries(SimpleLinearModelFunction fn, boolean dateNanos) {
         this.count = 0;
         this.sumVal = 0.0;
         this.sumTs = 0;
         this.sumTsVal = 0.0;
         this.sumTsSq = 0;
+        this.maxTs = Long.MIN_VALUE;
+        this.valueAtMaxTs = Double.NaN;
+        this.dateFactor = dateNanos ? 1_000_000_000.0 : 1_000.0;
+        this.fn = fn;
     }
 
     void add(long ts, double val) {
+        ts = ts / (long) dateFactor;
         count++;
         sumVal += val;
         sumTs += ts;
         sumTsVal += ts * val;
         sumTsSq += ts * ts;
+        if (ts > maxTs) {
+            maxTs = ts;
+            valueAtMaxTs = val;
+        }
     }
 
-    double slope() {
+    public double lastTimestamp() {
+        return maxTs;
+    }
+
+    public double valueAtLastTimestamp() {
+        return valueAtMaxTs;
+    }
+
+    public double slope() {
         if (count <= 1) {
             return Double.NaN;
         }
@@ -55,10 +80,10 @@ class SimpleLinearRegressionWithTimeseries implements AggregatorState {
         if (denominator == 0) {
             return Double.NaN;
         }
-        return numerator / denominator * 1000.0; // per second
+        return numerator / denominator;
     }
 
-    double intercept() {
+    public double intercept() {
         if (count == 0) {
             return 0.0; // or handle as needed
         }
@@ -68,5 +93,4 @@ class SimpleLinearRegressionWithTimeseries implements AggregatorState {
         }
         return (sumVal - slp * sumTs) / count;
     }
-
 }

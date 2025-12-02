@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PredictLinear;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
@@ -540,6 +541,7 @@ public class EsqlFunctionRegistry {
                 defTS(Delta.class, bi(Delta::new), "delta"),
                 defTS(Increase.class, bi(Increase::new), "increase"),
                 defTS(Deriv.class, bi(Deriv::new), "deriv"),
+                defTS3(PredictLinear.class, tri(PredictLinear::new), "predict_linear"),
                 def(MaxOverTime.class, bi(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, bi(MinOverTime::new), "min_over_time"),
                 def(SumOverTime.class, bi(SumOverTime::new), "sum_over_time"),

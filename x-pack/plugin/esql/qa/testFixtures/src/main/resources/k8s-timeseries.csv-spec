@@ -781,18 +781,18 @@ required_capability: TS_LINREG_DERIVATIVE
 
 TS k8s
 | STATS max_deriv = max(deriv(to_long(network.total_bytes_in))), max_rate = max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
-| EVAL max_deriv = ROUND(max_deriv,6), max_rate = ROUND(max_rate,6)
+| EVAL max_deriv = ROUND(max_deriv,5), max_rate = ROUND(max_rate,5)
 | KEEP max_deriv, max_rate, time_bucket, cluster
 | SORT cluster, time_bucket
 | LIMIT 5
 ;
 
 max_deriv:double | max_rate:double | time_bucket:datetime     | cluster:keyword
-85.5             | 8.120833        | 2024-05-10T00:00:00.000Z | prod
-4.933168         | 6.451737        | 2024-05-10T00:05:00.000Z | prod
-8.922491         | 11.56274        | 2024-05-10T00:10:00.000Z | prod
+85.5             | 8.12083         | 2024-05-10T00:00:00.000Z | prod
+4.93317          | 6.45174         | 2024-05-10T00:05:00.000Z | prod
+8.92249          | 11.56274        | 2024-05-10T00:10:00.000Z | prod
 16.62316         | 11.86081        | 2024-05-10T00:15:00.000Z | prod
-9.026268         | 6.980661        | 2024-05-10T00:20:00.000Z | prod
+9.02627          | 6.98066         | 2024-05-10T00:20:00.000Z | prod
 ;
 
 bare_count_over_time_outputs_dimensions
@@ -990,4 +990,70 @@ TS k8s
 
 max_rate:double 
 13.17372515125324
+;
+
+predict_linear_with_long
+required_capability: ts_command_v0
+required_capability: ts_linreg_predict
+
+TS k8s
+| STATS 
+    predicted_cost = max(round(predict_linear(to_double(network.total_cost), 10), 5)),
+    hand_extrap_v2=max(round(last_over_time(to_double(network.total_cost)) + deriv(to_double(network.total_cost))*10, 5))
+BY time_bucket = bucket(@timestamp,5minute), cluster
+| KEEP predicted_cost, hand_extrap_v2, time_bucket, cluster
+| SORT cluster, time_bucket
+| LIMIT 5
+;
+
+predicted_cost:double | hand_extrap_v2:double | time_bucket:datetime     | cluster:keyword
+24.59085              | 24.59085              | 2024-05-10T00:00:00.000Z | prod
+55.61696              | 55.61696              | 2024-05-10T00:05:00.000Z | prod
+97.49373              | 97.49373              | 2024-05-10T00:10:00.000Z | prod
+61.0174               | 61.0174               | 2024-05-10T00:15:00.000Z | prod
+74.66924              | 74.66924              | 2024-05-10T00:20:00.000Z | prod
+
+;
+
+predict_linear_with_timedelta
+required_capability: ts_command_v0
+required_capability: ts_linreg_predict
+
+TS k8s
+| STATS predicted_cost = max(round(predict_linear(to_double(network.total_cost), 10 minutes), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
+| KEEP predicted_cost, time_bucket, cluster
+| SORT cluster, time_bucket
+| LIMIT 5
+;
+
+predicted_cost:double | time_bucket:datetime     | cluster:keyword
+592.375               | 2024-05-10T00:00:00.000Z | prod
+128.89239             | 2024-05-10T00:05:00.000Z | prod
+215.12355             | 2024-05-10T00:10:00.000Z | prod
+150.54425             | 2024-05-10T00:15:00.000Z | prod
+128.90425             | 2024-05-10T00:20:00.000Z | prod
+
+;
+
+predict_linear_with_int_and_timedelta
+required_capability: ts_command_v0
+required_capability: ts_linreg_predict
+
+// tag::predict_linear[]
+TS k8s
+| STATS predicted_cost_int = MAX(ROUND(PREDICT_LINEAR(TO_LONG(network.total_bytes_in), 10), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
+// end::predict_linear[]
+| KEEP predicted_cost_int, time_bucket, cluster
+| SORT cluster, time_bucket
+| LIMIT 5
+;
+
+// tag::predict_linear-result[]
+predicted_cost_int:double | time_bucket:datetime     | cluster:keyword
+3105.0                    | 2024-05-10T00:00:00.000Z | prod
+4218.33168                | 2024-05-10T00:05:00.000Z | prod
+6029.22491                | 2024-05-10T00:10:00.000Z | prod
+// end::predict_linear-result[]
+9420.23165                | 2024-05-10T00:15:00.000Z | prod
+10367.26268               | 2024-05-10T00:20:00.000Z | prod
 ;

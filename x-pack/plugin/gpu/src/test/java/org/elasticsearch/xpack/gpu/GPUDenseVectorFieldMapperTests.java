@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.gpu;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.codec.CodecService;
@@ -34,7 +35,12 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
 
     @Override
     protected Collection<Plugin> getPlugins() {
-        var plugin = new GPUPlugin();
+        var plugin = new GPUPlugin(Settings.EMPTY) {
+            @Override
+            protected boolean isGpuIndexingFeatureAllowed() {
+                return true;
+            }
+        };
         return Collections.singletonList(plugin);
     }
 

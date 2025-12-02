@@ -505,11 +505,7 @@ public class OsStats implements Writeable, ToXContentFragment {
 
         Cgroup(final StreamInput in) throws IOException {
             cpuAcctControlGroup = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                cpuAcctUsageNanos = in.readBigInteger();
-            } else {
-                cpuAcctUsageNanos = BigInteger.valueOf(in.readLong());
-            }
+            cpuAcctUsageNanos = in.readBigInteger();
             cpuControlGroup = in.readString();
             cpuCfsPeriodMicros = in.readLong();
             cpuCfsQuotaMicros = in.readLong();
@@ -522,11 +518,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             out.writeString(cpuAcctControlGroup);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                out.writeBigInteger(cpuAcctUsageNanos);
-            } else {
-                out.writeLong(cpuAcctUsageNanos.longValue());
-            }
+            out.writeBigInteger(cpuAcctUsageNanos);
             out.writeString(cpuControlGroup);
             out.writeLong(cpuCfsPeriodMicros);
             out.writeLong(cpuCfsQuotaMicros);
@@ -622,28 +614,16 @@ public class OsStats implements Writeable, ToXContentFragment {
             }
 
             CpuStat(final StreamInput in) throws IOException {
-                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                    numberOfElapsedPeriods = in.readBigInteger();
-                    numberOfTimesThrottled = in.readBigInteger();
-                    timeThrottledNanos = in.readBigInteger();
-                } else {
-                    numberOfElapsedPeriods = BigInteger.valueOf(in.readLong());
-                    numberOfTimesThrottled = BigInteger.valueOf(in.readLong());
-                    timeThrottledNanos = BigInteger.valueOf(in.readLong());
-                }
+                numberOfElapsedPeriods = in.readBigInteger();
+                numberOfTimesThrottled = in.readBigInteger();
+                timeThrottledNanos = in.readBigInteger();
             }
 
             @Override
             public void writeTo(final StreamOutput out) throws IOException {
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                    out.writeBigInteger(numberOfElapsedPeriods);
-                    out.writeBigInteger(numberOfTimesThrottled);
-                    out.writeBigInteger(timeThrottledNanos);
-                } else {
-                    out.writeLong(numberOfElapsedPeriods.longValue());
-                    out.writeLong(numberOfTimesThrottled.longValue());
-                    out.writeLong(timeThrottledNanos.longValue());
-                }
+                out.writeBigInteger(numberOfElapsedPeriods);
+                out.writeBigInteger(numberOfTimesThrottled);
+                out.writeBigInteger(timeThrottledNanos);
             }
 
             @Override

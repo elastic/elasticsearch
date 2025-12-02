@@ -118,7 +118,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
         return new Builder();
     }
 
-    class CustomMustacheVisitor extends DefaultMustacheVisitor {
+    static class CustomMustacheVisitor extends DefaultMustacheVisitor {
 
         CustomMustacheVisitor(DefaultMustacheFactory df) {
             super(df);

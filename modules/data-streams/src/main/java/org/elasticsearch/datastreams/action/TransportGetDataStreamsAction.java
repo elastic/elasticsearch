@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -278,12 +279,16 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
             } else {
                 indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
                 if (indexTemplate != null) {
-                    final Settings settings;
-                    try {
-                        settings = metadataDataStreamsService.getEffectiveSettings(state.metadata(), dataStream);
-                    } catch (IOException e) {
-                        throw new RuntimeException("Failed to get effective settings for data stream: " + dataStream.getName(), e);
-                    }
+                    /*
+                     * Here we intentionally avoid the full MetadataDataStreamService::getEffectiveSettings and instead do a shortcut that
+                     * does not merge all mappings together in order to fetch the settings from additional settings providers. The reason
+                     * is that this code can be called fairly frequently, and we do not need that information here -- we only need the
+                     * settings so that we can get some ilm information and the index mode, neither of which come from additional settings
+                     * providers.
+                     */
+                    ComposableIndexTemplate template = MetadataCreateDataStreamService.lookupTemplateForDataStream(dataStream.getName(), state.metadata());
+                    Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, state.metadata().componentTemplates());
+                    final Settings settings = templateSettings.merge(dataStream.getSettings());
                     ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
                     if (indexMode == null && state.metadata().templatesV2().get(indexTemplate) != null) {
                         try {

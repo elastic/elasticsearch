@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
+import org.elasticsearch.xpack.inference.InferenceException;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -41,6 +42,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
@@ -58,7 +60,7 @@ class InferenceQueryUtils {
 
     private InferenceQueryUtils() {}
 
-    static PlainActionFuture<InferenceInfo> getInferenceInfo(
+    static void getInferenceInfo(
         QueryRewriteContext queryRewriteContext,
         Map<String, Float> fields,
         boolean resolveWildcards,
@@ -66,7 +68,8 @@ class InferenceQueryUtils {
         boolean alwaysSkipRemotes,
         @Nullable String query,
         @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        @Nullable FullyQualifiedInferenceId inferenceIdOverride
+        @Nullable FullyQualifiedInferenceId inferenceIdOverride,
+        ActionListener<InferenceInfo> inferenceInfoListener
     ) {
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
         if (resolvedIndices == null) {
@@ -76,8 +79,7 @@ class InferenceQueryUtils {
         SetOnce<InferenceInfo> localInferenceInfoSupplier = new SetOnce<>();
         SetOnce<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> remoteInferenceInfoSupplier = new SetOnce<>();
 
-        PlainActionFuture<InferenceInfo> inferenceInfoFuture = new PlainActionFuture<>();
-        try (var refs = new RefCountingListener(inferenceInfoFuture.delegateFailureAndWrap((l, v) -> {
+        try (var refs = new RefCountingListener(inferenceInfoListener.delegateFailureAndWrap((l, v) -> {
             l.onResponse(combineLocalAndRemoteInferenceInfo(localInferenceInfoSupplier.get(), remoteInferenceInfoSupplier.get()));
         }))) {
             ActionListener<InferenceInfo> localInferenceInfoListener = refs.acquire(localInferenceInfoSupplier::set);
@@ -109,8 +111,18 @@ class InferenceQueryUtils {
                 );
             }
         }
+    }
 
-        return inferenceInfoFuture;
+    static InferenceInfo getResultFromFuture(PlainActionFuture<InferenceInfo> future) {
+        if (future.isDone() == false) {
+            return null;
+        }
+
+        try {
+            return future.result();
+        } catch (ExecutionException e) {
+            throw new InferenceException("Unable to get inference information", e.getCause());
+        }
     }
 
     private static void getLocalInferenceInfo(

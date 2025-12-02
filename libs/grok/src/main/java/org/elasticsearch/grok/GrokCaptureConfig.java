@@ -92,18 +92,18 @@ public final class GrokCaptureConfig {
      * Build an extract that has access to the "native" type of the extracter
      * match. This means that patterns like {@code %{NUMBER:bytes:float}} has
      * access to an actual {@link float}. Extracters returned from this method
-     * should be stateless stateless and can be reused. Pathological implementations
+     * should be stateless and can be reused. Pathological implementations
      * of the {@code map} parameter could violate this, but the caller should
      * take care to stay sane.
      * <p>
      * While the goal is to produce a {@link GrokCaptureExtracter} that provides
      * a primitive, the caller can produce whatever type-safe constructs it
-     * needs and return them from this method. Thus the {@code <T>} in the type
+     * needs and return them from this method. Thus, the {@code <T>} in the type
      * signature.
      *
      * @param <T> The type of the result.
      * @param map Collection of handlers for each native type. Only one method
-     *            will be called but well behaved implementers are stateless.
+     *            will be called but well-behaved implementers are stateless.
      * @return whatever was returned by the handler.
      */
     public <T> T nativeExtracter(NativeExtracterMap<T> map) {
@@ -111,7 +111,7 @@ public final class GrokCaptureConfig {
     }
 
     /**
-     * Collection of handlers for each native type. Well behaved implementations
+     * Collection of handlers for each native type. Well-behaved implementations
      * are stateless and produce stateless results.
      */
     public interface NativeExtracterMap<T> {

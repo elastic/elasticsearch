@@ -138,7 +138,12 @@ public final class DerParser {
         int n = derInputStream.read(bytes);
         if (n < num) throw new IOException("Invalid DER: length too short");
 
-        return new BigInteger(1, bytes).intValue();
+        int len = new BigInteger(1, bytes).intValue();
+        if (len < 0) {
+            throw new IOException("Invalid DER: length larger than max-int");
+        }
+
+        return len;
     }
 
     /**

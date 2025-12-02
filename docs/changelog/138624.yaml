@@ -1,0 +1,6 @@
+pr: 138624
+summary: Handle individual doc parsing failure in bulk request with pipeline
+area: Ingest Node
+type: bug
+issues:
+ - 138445

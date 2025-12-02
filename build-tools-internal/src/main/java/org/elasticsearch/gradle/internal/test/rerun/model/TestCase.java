@@ -36,7 +36,7 @@ public class TestCase {
     }
 
     public List<TestCase> getChildren() {
-        return children;
+        return children != null ? children : java.util.Collections.emptyList();
     }
 
     public void setChildren(List<TestCase> children) {

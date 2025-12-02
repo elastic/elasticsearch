@@ -1,3 +1,15 @@
+# Smart Retries Configuration
+# SMART_RETRIES=true enables intelligent test filtering on retry attempts.
+# The pre-command hook fetches failed test history from Develocity API and
+# the InternalTestRerunPlugin filters test execution to only run previously failed tests.
+#
+# Retry Strategy:
+# - exit_status "-1": Agent/infrastructure failures (3 retries)
+# - signal_reason agent_stop: Agent stops (3 retries)
+# - exit_status "1": Test/build failures (1 retry with smart filtering)
+#
+# Note: exit_status "1" retries all failures including configuration errors.
+# Future improvement: Implement distinct exit codes for different failure types.
 env:
   SMART_RETRIES: "true"
 steps:
@@ -76,6 +88,10 @@ steps:
               limit: 3
             - exit_status: "1"
               limit: 1
+          manual:
+            allowed: true
+            permit_on_passed: false
+            reason: "Retry with smart test selection if desired"
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-fips-matrix-bwc"
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.fips.enabled=true v$$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
@@ -101,6 +117,10 @@ steps:
               limit: 3
             - exit_status: "1"
               limit: 1
+          manual:
+            allowed: true
+            permit_on_passed: false
+            reason: "Retry with smart test selection if desired"
   - group: java-matrix
     steps:
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-matrix"

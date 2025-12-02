@@ -36,7 +36,7 @@ public class WorkUnit {
     }
 
     public List<TestCase> getTests() {
-        return tests;
+        return tests != null ? tests : java.util.Collections.emptyList();
     }
 
     public void setTests(List<TestCase> tests) {

@@ -45,8 +45,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
-import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
-import org.elasticsearch.xpack.security.transport.ServerTransportFilter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -60,7 +58,6 @@ import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.BiPredicate;
 
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.isNoneExpression;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 

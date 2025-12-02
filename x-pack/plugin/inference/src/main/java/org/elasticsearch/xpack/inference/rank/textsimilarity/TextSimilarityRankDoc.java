@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankDoc;
@@ -36,13 +35,8 @@ public class TextSimilarityRankDoc extends RankDoc {
 
     public TextSimilarityRankDoc(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            inferenceId = in.readOptionalString();
-            field = in.readOptionalString();
-        } else {
-            inferenceId = in.readString();
-            field = in.readString();
-        }
+        inferenceId = in.readOptionalString();
+        field = in.readOptionalString();
     }
 
     @Override
@@ -63,13 +57,8 @@ public class TextSimilarityRankDoc extends RankDoc {
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeOptionalString(inferenceId);
-            out.writeOptionalString(field);
-        } else {
-            out.writeString(inferenceId == null ? "" : inferenceId);
-            out.writeString(field == null ? "" : field);
-        }
+        out.writeOptionalString(inferenceId);
+        out.writeOptionalString(field);
     }
 
     @Override

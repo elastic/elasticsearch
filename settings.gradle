@@ -176,3 +176,5 @@ if (extraProjects.exists()) {
 }
 
 include 'qa:vector'
+
+include 'x-pack:plugin:diskbbq'

@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -556,6 +557,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 @Override
                 public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
                     return blockLoaderFunctionConfig;
+                }
+
+                @Override
+                public MappingLookup mappingLookup() {
+                    return ctx.getMappingLookup();
                 }
             });
             if (loader == null) {

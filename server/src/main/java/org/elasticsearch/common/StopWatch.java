@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
  *
  *
  */
-public final class StopWatch {
+public class StopWatch {
 
     /**
      * Identifier of this stop watch.

@@ -7,21 +7,16 @@
 
 package org.elasticsearch.search.ccs;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
     private static final String LOCAL_INDEX_NAME = "local-index";
@@ -74,34 +69,42 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
     }
 
     public void testSemanticQueryWithCcMinimizeRoundTripsFalse() throws Exception {
-        final SemanticQueryBuilder queryBuilder = new SemanticQueryBuilder("foo", "bar");
-        final Consumer<SearchRequest> assertCcsMinimizeRoundTripsFalseFailure = s -> {
-            IllegalArgumentException e = assertThrows(
-                IllegalArgumentException.class,
-                () -> client().search(s).actionGet(TEST_REQUEST_TIMEOUT)
-            );
-            assertThat(
-                e.getMessage(),
-                equalTo("semantic query does not support cross-cluster search when [ccs_minimize_roundtrips] is false")
-            );
-        };
+        // Query a field has the same inference ID value across clusters, but with different backing inference services
+        assertSearchResponse(
+            new SemanticQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
+            ),
+            null,
+            s -> s.setCcsMinimizeRoundtrips(false)
+        );
 
-        final TestIndexInfo localIndexInfo = new TestIndexInfo(LOCAL_INDEX_NAME, Map.of(), Map.of(), Map.of());
-        final TestIndexInfo remoteIndexInfo = new TestIndexInfo(REMOTE_INDEX_NAME, Map.of(), Map.of(), Map.of());
-        setupTwoClusters(localIndexInfo, remoteIndexInfo);
+        // Query a field that has different inference ID values across clusters
+        assertSearchResponse(
+            new SemanticQueryBuilder(VARIABLE_INFERENCE_ID_FIELD, "b"),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))
+            ),
+            null,
+            s -> s.setCcsMinimizeRoundtrips(false)
+        );
 
-        // Explicitly set ccs_minimize_roundtrips=false in the search request
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder);
-        SearchRequest searchRequestWithCcMinimizeRoundTripsFalse = new SearchRequest(convertToArray(QUERY_INDICES), searchSourceBuilder);
-        searchRequestWithCcMinimizeRoundTripsFalse.setCcsMinimizeRoundtrips(false);
-        assertCcsMinimizeRoundTripsFalseFailure.accept(searchRequestWithCcMinimizeRoundTripsFalse);
-
-        // Using a point in time implicitly sets ccs_minimize_roundtrips=false
+        // Use a point in time to implicitly set ccs_minimize_roundtrips=false
         BytesReference pitId = openPointInTime(convertToArray(QUERY_INDICES), TimeValue.timeValueMinutes(2));
-        SearchSourceBuilder searchSourceBuilderWithPit = new SearchSourceBuilder().query(queryBuilder)
-            .pointInTimeBuilder(new PointInTimeBuilder(pitId));
-        SearchRequest searchRequestWithPit = new SearchRequest().source(searchSourceBuilderWithPit);
-        assertCcsMinimizeRoundTripsFalseFailure.accept(searchRequestWithPit);
+        assertSearchResponse(
+            new SemanticQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
+            null,
+            List.of(
+                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
+            ),
+            null,
+            s -> s.source().pointInTimeBuilder(new PointInTimeBuilder(pitId))
+        );
     }
 
     private void configureClusters() throws Exception {

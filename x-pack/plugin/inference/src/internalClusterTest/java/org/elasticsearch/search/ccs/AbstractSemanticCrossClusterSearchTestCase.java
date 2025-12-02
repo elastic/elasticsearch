@@ -161,16 +161,18 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
 
     protected void assertSearchResponse(
         QueryBuilder queryBuilder,
-        List<IndexWithBoost> indices,
+        @Nullable List<IndexWithBoost> indices,
         List<SearchResult> expectedSearchResults,
-        ClusterFailure expectedRemoteFailure,
-        Consumer<SearchRequest> searchRequestModifier
+        @Nullable ClusterFailure expectedRemoteFailure,
+        @Nullable Consumer<SearchRequest> searchRequestModifier
     ) throws Exception {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder).size(expectedSearchResults.size());
-        indices.forEach(i -> searchSourceBuilder.indexBoost(i.index(), i.boost()));
-
-        SearchRequest searchRequest = new SearchRequest(convertToArray(indices), searchSourceBuilder);
-        searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        SearchRequest searchRequest = new SearchRequest().source(searchSourceBuilder);
+        if (indices != null) {
+            indices.forEach(i -> searchSourceBuilder.indexBoost(i.index(), i.boost()));
+            searchRequest.indices(convertToArray(indices));
+            searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        }
         if (searchRequestModifier != null) {
             searchRequestModifier.accept(searchRequest);
         }

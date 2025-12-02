@@ -45,9 +45,11 @@ public class ShardWriteLoadDistributionMetrics {
     private final DoubleHistogram shardWeightHistogram;
     private final double[] percentiles;
     private final ClusterService clusterService;
-    private final AtomicReference<List<DoubleWithAttributes>> lastWriteLoadDistributionValues = new AtomicReference<>();
-    private final AtomicReference<List<DoubleWithAttributes>> lastWriteLoadPrioritisationThresholdValues = new AtomicReference<>();
-    private final AtomicReference<List<LongWithAttributes>> lastShardCountExceedingPrioritisationThresholdValues = new AtomicReference<>();
+    private final AtomicReference<List<DoubleWithAttributes>> lastWriteLoadDistributionValues = new AtomicReference<>(List.of());
+    private final AtomicReference<List<DoubleWithAttributes>> lastWriteLoadPrioritisationThresholdValues = new AtomicReference<>(List.of());
+    private final AtomicReference<List<LongWithAttributes>> lastShardCountExceedingPrioritisationThresholdValues = new AtomicReference<>(
+        List.of()
+    );
 
     public ShardWriteLoadDistributionMetrics(MeterRegistry meterRegistry, ClusterService clusterService) {
         // 2 significant digits means error < 1% of any value in the range
@@ -153,19 +155,14 @@ public class ShardWriteLoadDistributionMetrics {
     }
 
     private Collection<DoubleWithAttributes> getWriteLoadDistributionMetrics() {
-        return getValueOrEmptyCollection(lastWriteLoadDistributionValues);
+        return lastWriteLoadDistributionValues.getAndSet(List.of());
     }
 
     private Collection<DoubleWithAttributes> getWriteLoadPrioritisationThresholdMetrics() {
-        return getValueOrEmptyCollection(lastWriteLoadPrioritisationThresholdValues);
+        return lastWriteLoadPrioritisationThresholdValues.getAndSet(List.of());
     }
 
     private Collection<LongWithAttributes> getWriteLoadPrioritisationThresholdPercentileRankMetrics() {
-        return getValueOrEmptyCollection(lastShardCountExceedingPrioritisationThresholdValues);
-    }
-
-    private <T> Collection<T> getValueOrEmptyCollection(AtomicReference<List<T>> reference) {
-        final var value = reference.getAndSet(null);
-        return value == null ? List.of() : value;
+        return lastShardCountExceedingPrioritisationThresholdValues.getAndSet(List.of());
     }
 }

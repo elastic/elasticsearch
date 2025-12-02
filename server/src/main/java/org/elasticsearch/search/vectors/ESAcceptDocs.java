@@ -240,4 +240,47 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
             return Optional.of(acceptBitSet);
         }
     }
+
+    /** An AcceptDocs that wraps a ScorerSupplier. Indicates that a filter was provided. */
+    public static final class PostFilterEsAcceptDocs extends ESAcceptDocs {
+        private final ScorerSupplier scorerSupplier;
+        private final Bits liveDocs;
+        private final DocIdSetIterator iterator;
+
+        PostFilterEsAcceptDocs(ScorerSupplier scorerSupplier, Bits liveDocs) throws IOException {
+            this.scorerSupplier = scorerSupplier;
+            this.liveDocs = liveDocs;
+            this.iterator = scorerSupplier.get(NO_MORE_DOCS).iterator();
+        }
+
+        @Override
+        public Bits bits() throws IOException {
+            throw new UnsupportedOperationException("[PostFilterEsAcceptDocs] does not support bits creation");
+        }
+
+        @Override
+        public DocIdSetIterator iterator() throws IOException {
+            return liveDocs == null ? iterator : new FilteredDocIdSetIterator(iterator) {
+                @Override
+                protected boolean match(int doc) {
+                    return liveDocs.get(doc);
+                }
+            };
+        }
+
+        @Override
+        public int cost() throws IOException {
+            throw new UnsupportedOperationException("[PostFilterEsAcceptDocs] does not support computing exact cost");
+        }
+
+        @Override
+        public int approximateCost() throws IOException {
+            return Math.toIntExact(scorerSupplier.cost());
+        }
+
+        @Override
+        public Optional<BitSet> getBitSet() throws IOException {
+            throw new UnsupportedOperationException("[PostFilterEsAcceptDocs] does not support BitSet creation");
+        }
+    }
 }

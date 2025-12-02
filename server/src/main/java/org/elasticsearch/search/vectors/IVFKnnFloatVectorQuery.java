@@ -23,6 +23,10 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
     private final float[] query;
 
+    public IVFKnnFloatVectorQuery(String field, float[] query, int k, int numCands, Query filter, float visitRatio) {
+        this(field, query, k, numCands, filter, visitRatio, .75f);
+    }
+
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
      * @param field the field to search
@@ -31,9 +35,18 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
      * @param numCands the number of nearest neighbors to gather per shard
      * @param filter the filter to apply to the results
      * @param visitRatio the ratio of vectors to score for the IVF search strategy
+     * @param postFilteringThreshold the dynamic post filter transform value
      */
-    public IVFKnnFloatVectorQuery(String field, float[] query, int k, int numCands, Query filter, float visitRatio) {
-        super(field, visitRatio, k, numCands, filter);
+    public IVFKnnFloatVectorQuery(
+        String field,
+        float[] query,
+        int k,
+        int numCands,
+        Query filter,
+        float visitRatio,
+        float postFilteringThreshold
+    ) {
+        super(field, visitRatio, k, numCands, filter, postFilteringThreshold);
         this.query = query;
     }
 
@@ -77,10 +90,11 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     @Override
     protected TopDocs approximateSearch(
         LeafReaderContext context,
-        AcceptDocs acceptDocs,
+        AcceptDocs filterDocs,
         int visitedLimit,
         IVFCollectorManager knnCollectorManager,
-        float visitRatio
+        float visitRatio,
+        float postFilteringThreshold
     ) throws IOException {
         LeafReader reader = context.reader();
         FloatVectorValues floatVectorValues = reader.getFloatVectorValues(field);
@@ -91,13 +105,26 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         if (floatVectorValues.size() == 0) {
             return NO_RESULTS;
         }
+        assert filterDocs instanceof ESAcceptDocs;
         IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, knnCollectorManager.longAccumulator);
-        AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
+        AbstractMaxScoreKnnCollector knnCollector;
+        if (filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs
+            && (float) ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).approximateCost() / floatVectorValues
+                .size() >= postFilteringThreshold) {
+            knnCollector = knnCollectorManager.newOptimisticCollector(
+                visitedLimit,
+                strategy,
+                context,
+                Math.round(k * (5 + (1f - postFilteringThreshold)))
+            );
+        } else {
+            knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
+        }
         if (knnCollector == null) {
             return NO_RESULTS;
         }
         strategy.setCollector(knnCollector);
-        reader.searchNearestVectors(field, query, knnCollector, acceptDocs);
+        reader.searchNearestVectors(field, query, knnCollector, filterDocs);
         TopDocs results = knnCollector.topDocs();
         return results != null ? results : NO_RESULTS;
     }

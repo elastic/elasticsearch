@@ -241,7 +241,8 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
             originalQuery.numCands(),
             originalQuery.visitPercentage(),
             originalQuery.rescoreVectorBuilder(),
-            originalQuery.getVectorSimilarity()
+            originalQuery.getVectorSimilarity(),
+            originalQuery.getPostFilteringThreshold()
         );
         innerKnnQuery.addFilterQueries(originalQuery.filterQueries());
 
@@ -272,7 +273,8 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
             originalQuery.numCands(),
             originalQuery.visitPercentage(),
             originalQuery.rescoreVectorBuilder(),
-            originalQuery.getVectorSimilarity()
+            originalQuery.getVectorSimilarity(),
+            originalQuery.getPostFilteringThreshold()
         ).boost(originalQuery.boost()).queryName(originalQuery.queryName());
         knnQuery.addFilterQueries(originalQuery.filterQueries());
 

@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ResolvedIndices;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,11 +39,12 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.getMatchingInferenceFields;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
 import static org.elasticsearch.xpack.inference.queries.InferenceQueryUtils.getDefaultFields;
-import static org.elasticsearch.xpack.inference.queries.InferenceQueryUtils.getInferenceResults;
+import static org.elasticsearch.xpack.inference.queries.InferenceQueryUtils.getInferenceInfo;
+import static org.elasticsearch.xpack.inference.queries.InferenceQueryUtils.getResultFromFuture;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.convertFromBwcInferenceResultsMap;
-import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.getNewInferenceResultsFromSupplier;
 
 /**
  * <p>
@@ -69,7 +70,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     protected final T originalQuery;
     protected final Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap;
-    protected final SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier;
+    protected final PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture;
     protected final boolean ccsRequest;
 
     protected InterceptedInferenceQueryBuilder(T originalQuery) {
@@ -80,7 +81,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         Objects.requireNonNull(originalQuery, "original query must not be null");
         this.originalQuery = originalQuery;
         this.inferenceResultsMap = inferenceResultsMap != null ? Map.copyOf(inferenceResultsMap) : null;
-        this.inferenceResultsMapSupplier = null;
+        this.inferenceInfoFuture = null;
         this.ccsRequest = false;
     }
 
@@ -103,18 +104,18 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             this.ccsRequest = false;
         }
 
-        this.inferenceResultsMapSupplier = null;
+        this.inferenceInfoFuture = null;
     }
 
     protected InterceptedInferenceQueryBuilder(
         InterceptedInferenceQueryBuilder<T> other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
+        PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
         boolean ccsRequest
     ) {
         this.originalQuery = other.originalQuery;
         this.inferenceResultsMap = inferenceResultsMap;
-        this.inferenceResultsMapSupplier = inferenceResultsMapSupplier;
+        this.inferenceInfoFuture = inferenceInfoFuture;
         this.ccsRequest = ccsRequest;
     }
 
@@ -155,13 +156,13 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      * Generate a copy of {@code this}.
      *
      * @param inferenceResultsMap         The inference results map
-     * @param inferenceResultsMapSupplier The inference results map supplier
+     * @param inferenceInfoFuture         The inference info future
      * @param ccsRequest                  Flag indicating if this is a CCS request
      * @return A copy of {@code this} with the provided inference results map
      */
     protected abstract QueryBuilder copy(
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
+        PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
         boolean ccsRequest
     );
 
@@ -217,12 +218,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (inferenceResultsMapSupplier != null) {
-            throw new IllegalStateException(
-                "inferenceResultsMapSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?"
-            );
-        }
-
         out.writeNamedWriteable(originalQuery);
         if (out.getTransportVersion().supports(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)) {
             out.writeOptional(
@@ -264,15 +259,15 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     @Override
     protected boolean doEquals(InterceptedInferenceQueryBuilder<T> other) {
+        // Exclude inferenceInfoFuture from equality because it is transient
         return Objects.equals(originalQuery, other.originalQuery)
             && Objects.equals(inferenceResultsMap, other.inferenceResultsMap)
-            && Objects.equals(inferenceResultsMapSupplier, other.inferenceResultsMapSupplier)
             && Objects.equals(ccsRequest, other.ccsRequest);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(originalQuery, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
+        return Objects.hash(originalQuery, inferenceResultsMap, ccsRequest);
     }
 
     @Override
@@ -316,82 +311,70 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             return rewrittenBwC;
         }
 
-        // NOTE: This logic misses when ccs_minimize_roundtrips=false and only a remote cluster is querying a semantic text field.
-        // In this case, the remote data node will receive the original query, which will in turn result in an error about querying an
-        // unsupported field type.
-        ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
-        Set<FullyQualifiedInferenceId> inferenceIds = getInferenceIdsForFields(
-            resolvedIndices.getConcreteLocalIndicesMetadata().values(),
-            queryRewriteContext.getLocalClusterAlias(),
-            getFields(),
-            resolveWildcards(),
-            useDefaultFields()
-        );
-
-        // If we are handling a CCS request, always retain the intercepted query logic so that we can get inference results generated on
-        // the local cluster from the inference results map when rewriting on remote cluster data nodes. This can be necessary when:
-        // - A query specifies an inference ID override
-        // - Only non-inference fields are queried on the remote cluster
-        if (inferenceIds.isEmpty() && this.ccsRequest == false) {
-            // Not querying a semantic text field
-            return originalQuery;
-        }
-
         // Validate early to prevent partial failures
-        coordinatorNodeValidate(resolvedIndices);
-
-        boolean ccsRequest = this.ccsRequest || resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
-        if (ccsRequest && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
-            throw new IllegalArgumentException(
-                originalQuery.getName()
-                    + " query does not support cross-cluster search when querying a ["
-                    + SemanticTextFieldMapper.CONTENT_TYPE
-                    + "] field when [ccs_minimize_roundtrips] is false"
-            );
-        }
+        // TODO: Rework pre-inference coordinator node validation
+        coordinatorNodeValidate(queryRewriteContext.getResolvedIndices());
 
         InterceptedInferenceQueryBuilder<T> rewritten = customDoRewriteGetInferenceResults(queryRewriteContext);
-        return rewritten.doRewriteWaitForInferenceResults(queryRewriteContext, inferenceIds, ccsRequest);
+        return rewritten.doRewriteWaitForInferenceResults(queryRewriteContext);
     }
 
-    private QueryBuilder doRewriteWaitForInferenceResults(
-        QueryRewriteContext queryRewriteContext,
-        Set<FullyQualifiedInferenceId> inferenceIds,
-        boolean ccsRequest
-    ) {
-        if (inferenceResultsMapSupplier != null) {
-            // Additional inference results have already been requested, and we are waiting for them to continue the rewrite process
-            return getNewInferenceResultsFromSupplier(inferenceResultsMapSupplier, this, m -> copy(m, null, ccsRequest));
+    private QueryBuilder doRewriteWaitForInferenceResults(QueryRewriteContext queryRewriteContext) {
+        ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
+        if (inferenceInfoFuture != null) {
+            InferenceQueryUtils.InferenceInfo inferenceInfo = getResultFromFuture(inferenceInfoFuture);
+            if (inferenceInfo == null) {
+                return this;
+            }
+
+            // TODO: Refactor into common util method
+            if (inferenceInfo.minTransportVersion().supports(GET_INFERENCE_FIELDS_ACTION_TV) == false
+                && inferenceInfo.inferenceFieldCount() > 0
+                && resolvedIndices.getRemoteClusterIndices().isEmpty() == false
+                && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
+
+                throw new IllegalArgumentException(
+                    "One or more remote clusters does not support "
+                        + originalQuery.getName()
+                        + " query cross-cluster search when"
+                        + " [ccs_minimize_roundtrips] is false. Please update all clusters to at least "
+                        + GET_INFERENCE_FIELDS_ACTION_TV.toReleaseVersion()
+                );
+            }
+
+            // TODO: Integrate custom post-inference coordinator node validation here
+            QueryBuilder rewritten = this;
+            int inferenceFieldCount = inferenceInfo.inferenceFieldCount();
+            var newInferenceResultsMap = inferenceInfo.inferenceResultsMap();
+            if (inferenceFieldCount == 0) {
+                // We aren't querying any inference fields and therefore do not need to intercept the query
+                rewritten = originalQuery;
+            } else if (Objects.equals(inferenceResultsMap, newInferenceResultsMap) == false) {
+                inferenceResultsErrorCheck(newInferenceResultsMap);
+
+                // Keep a reference to the future so that we can check that the inference results map doesn't change in further rewrite
+                // cycles
+                rewritten = copy(newInferenceResultsMap, inferenceInfoFuture, ccsRequest);
+            }
+            return rewritten;
         }
 
-        FullyQualifiedInferenceId inferenceIdOverride = getInferenceIdOverride();
-        if (inferenceIdOverride != null) {
-            inferenceIds = Set.of(inferenceIdOverride);
-        }
-
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> newInferenceResultsMapSupplier = getInferenceResults(
+        // TODO: Don't hard-code alwaysSkipRemotes
+        boolean ccsRequest = this.ccsRequest || resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
+        PlainActionFuture<InferenceQueryUtils.InferenceInfo> newInferenceInfoFuture = new PlainActionFuture<>();
+        getInferenceInfo(
             queryRewriteContext,
-            inferenceIds,
+            getFields(),
+            resolveWildcards(),
+            useDefaultFields(),
+            false,
+            getQuery(),
             inferenceResultsMap,
-            getQuery()
+            getInferenceIdOverride(),
+            newInferenceInfoFuture
         );
 
-        QueryBuilder rewritten = this;
-        if (newInferenceResultsMapSupplier == null) {
-            // No additional inference results are required
-            if (inferenceResultsMap != null) {
-                // The inference results map is fully populated, so we can perform error checking
-                inferenceResultsErrorCheck(inferenceResultsMap);
-            } else {
-                // No inference results have been collected yet, indicating we don't need any to rewrite this query.
-                // This can happen when pre-computed inference results are provided by the user.
-                // Set an empty inference results map so that rewriting can continue.
-                rewritten = copy(Map.of(), null, ccsRequest);
-            }
-        } else {
-            rewritten = copy(inferenceResultsMap, newInferenceResultsMapSupplier, ccsRequest);
-        }
-        return rewritten;
+        return copy(inferenceResultsMap, newInferenceInfoFuture, ccsRequest);
     }
 
     private static Set<FullyQualifiedInferenceId> getInferenceIdsForFields(

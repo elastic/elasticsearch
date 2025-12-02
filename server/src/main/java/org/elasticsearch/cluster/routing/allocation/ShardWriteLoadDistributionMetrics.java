@@ -120,9 +120,9 @@ public class ShardWriteLoadDistributionMetrics {
                          * They also provide little value, so we round them down to
                          * zero here.
                          */
-                        double lessPreciseValue = roundTinyValuesToZero(writeLoad);
-                        shardWeightHistogram.recordValue(lessPreciseValue);
-                        maxShardWriteLoad = Math.max(maxShardWriteLoad, lessPreciseValue);
+                        double roundedValue = roundTinyValuesToZero(writeLoad);
+                        shardWeightHistogram.recordValue(roundedValue);
+                        maxShardWriteLoad = Math.max(maxShardWriteLoad, roundedValue);
                     }
                 }
             } catch (ArrayIndexOutOfBoundsException e) {

@@ -1664,29 +1664,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // do implicit casting for named parameters
             return plan.transformExpressionsUp(
                 org.elasticsearch.xpack.esql.core.expression.function.Function.class,
-                e -> ImplicitCasting.cast(e, context.functionRegistry().snapshotRegistry())
+                e -> ImplicitCasting.cast(e, context.functionRegistry().snapshotRegistry(), context.configuration())
             );
         }
 
-        private static Expression cast(org.elasticsearch.xpack.esql.core.expression.function.Function f, EsqlFunctionRegistry registry) {
+        private static Expression cast(
+            org.elasticsearch.xpack.esql.core.expression.function.Function f,
+            EsqlFunctionRegistry registry,
+            Configuration configuration
+        ) {
             if (f instanceof In in) {
-                return processIn(in);
+                return processIn(in, configuration);
             }
             if (f instanceof VectorFunction) {
-                return processVectorFunction(f, registry);
+                return processVectorFunction(f, registry, configuration);
             }
             if (f instanceof EsqlScalarFunction || f instanceof GroupingFunction) { // exclude AggregateFunction until it is needed
-                return processScalarOrGroupingFunction(f, registry);
+                return processScalarOrGroupingFunction(f, registry, configuration);
             }
             if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
-                return processBinaryOperator((BinaryOperator) f);
+                return processBinaryOperator((BinaryOperator) f, configuration);
             }
             return f;
         }
 
         private static Expression processScalarOrGroupingFunction(
             org.elasticsearch.xpack.esql.core.expression.function.Function f,
-            EsqlFunctionRegistry registry
+            EsqlFunctionRegistry registry,
+            Configuration configuration
         ) {
             List<Expression> args = f.arguments();
             List<DataType> targetDataTypes = registry.getDataTypeForStringLiteralConversion(f.getClass());
@@ -1709,7 +1714,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 targetDataType = targetDataTypes.get(i);
                             } // else the last type applies to all elements in a possible list (variadic)
                             if (targetDataType != NULL && targetDataType != UNSUPPORTED) {
-                                Expression e = castStringLiteral(arg, targetDataType);
+                                Expression e = castStringLiteral(arg, targetDataType, configuration);
                                 if (e != arg) {
                                     childrenChanged = true;
                                     newChildren.add(e);
@@ -1733,7 +1738,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 : resultF;
         }
 
-        private static Expression processBinaryOperator(BinaryOperator<?, ?, ?, ?> o) {
+        private static Expression processBinaryOperator(BinaryOperator<?, ?, ?, ?> o, Configuration configuration) {
             Expression left = o.left();
             Expression right = o.right();
             if (left.resolved() == false || right.resolved() == false) {
@@ -1763,7 +1768,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             if (from != Literal.NULL) {
-                Expression e = castStringLiteral(from, targetDataType);
+                Expression e = castStringLiteral(from, targetDataType, configuration);
                 newChildren.add(from == left ? e : left);
                 newChildren.add(from == right ? e : right);
                 childrenChanged = true;
@@ -1771,7 +1776,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return childrenChanged ? o.replaceChildren(newChildren) : o;
         }
 
-        private static Expression processIn(In in) {
+        private static Expression processIn(In in, Configuration configuration) {
             Expression left = in.value();
             List<Expression> right = in.list();
 
@@ -1785,7 +1790,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             for (Expression value : right) {
                 if (value.resolved() && value.dataType() == KEYWORD && value.foldable()) {
-                    Expression e = castStringLiteral(value, targetDataType);
+                    Expression e = castStringLiteral(value, targetDataType, configuration);
                     newChildren.add(e);
                     childrenChanged = true;
                 } else {
@@ -1843,6 +1848,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return type == DATETIME || type == DATE_NANOS || type == IP || type == VERSION || type == BOOLEAN;
         }
 
+        private static UnresolvedAttribute unresolvedAttribute(Expression value, String type) {
+            String name = BytesRefs.toString(value.fold(FoldContext.small()) /* TODO remove me */);
+            String message = LoggerMessageFormat.format(null, "Cannot convert string [{}] to [{}]", name, type);
+            return new UnresolvedAttribute(value.source(), name, message);
+        }
+
         private static UnresolvedAttribute unresolvedAttribute(Expression value, String type, Exception e) {
             String name = BytesRefs.toString(value.fold(FoldContext.small()) /* TODO remove me */);
             String message = LoggerMessageFormat.format(
@@ -1870,25 +1881,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
-        private static Expression castStringLiteral(Expression from, DataType target) {
+        private static Expression castStringLiteral(Expression from, DataType target, Configuration configuration) {
             assert from.foldable();
-            try {
-                return isTemporalAmount(target)
-                    ? castStringLiteralToTemporalAmount(from)
-                    : new Literal(
-                        from.source(),
-                        EsqlDataTypeConverter.convert(from.fold(FoldContext.small() /* TODO remove me */), target),
-                        target
-                    );
-            } catch (Exception e) {
-                return unresolvedAttribute(from, target.toString(), e);
+
+            if (isTemporalAmount(target)) {
+                return castStringLiteralToTemporalAmount(from);
             }
+
+            var converterToFactory = EsqlDataTypeConverter.converterFunctionFactory(target);
+            var source = from.source();
+            if (converterToFactory == null) {
+                return unresolvedAttribute(from, target.toString());
+            }
+            return converterToFactory.apply(source, from, configuration);
         }
 
         @SuppressWarnings("unchecked")
         private static Expression processVectorFunction(
             org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction,
-            EsqlFunctionRegistry registry
+            EsqlFunctionRegistry registry,
+            Configuration configuration
         ) {
             // Perform implicit casting for dense_vector from numeric and keyword values
             List<Expression> args = vectorFunction.arguments();
@@ -1900,7 +1912,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     var dataType = arg.dataType();
                     if (dataType == KEYWORD) {
                         if (arg.foldable()) {
-                            Expression exp = castStringLiteral(arg, DENSE_VECTOR);
+                            Expression exp = castStringLiteral(arg, DENSE_VECTOR, configuration);
                             if (exp != arg) {
                                 newArgs.add(exp);
                                 continue;

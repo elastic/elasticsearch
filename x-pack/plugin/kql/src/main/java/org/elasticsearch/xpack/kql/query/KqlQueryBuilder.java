@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.kql.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -97,7 +96,7 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_18_0;
+        return TransportVersion.minimumCompatible();
     }
 
     public String queryString() {

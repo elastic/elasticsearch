@@ -43,6 +43,8 @@ public class ConfigurationBuilder {
     private Map<String, Map<String, Column>> tables;
     private long queryStartTimeNanos;
 
+    private String projectRouting;
+
     public ConfigurationBuilder(Configuration configuration) {
         clusterName = configuration.clusterName();
         username = configuration.username();
@@ -58,6 +60,7 @@ public class ConfigurationBuilder {
         allowPartialResults = configuration.allowPartialResults();
         tables = configuration.tables();
         queryStartTimeNanos = configuration.queryStartTimeNanos();
+        projectRouting = configuration.projectRouting();
     }
 
     public ConfigurationBuilder clusterName(String clusterName) {
@@ -130,6 +133,11 @@ public class ConfigurationBuilder {
         return this;
     }
 
+    public ConfigurationBuilder projectRouting(String projectRouting) {
+        this.projectRouting = projectRouting;
+        return this;
+    }
+
     public Configuration build() {
         return new Configuration(
             zoneId,
@@ -145,7 +153,8 @@ public class ConfigurationBuilder {
             queryStartTimeNanos,
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
-            resultTruncationDefaultSizeTimeseries
+            resultTruncationDefaultSizeTimeseries,
+            projectRouting
         );
     }
 }

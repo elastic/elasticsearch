@@ -42,10 +42,10 @@ public class StSimplifyTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        addTestCaseSuppliers(suppliers, CARTESIAN_SHAPE, StSimplifyTests::valueOf);
         addTestCaseSuppliers(suppliers, GEO_POINT, StSimplifyTests::valueOf);
         addTestCaseSuppliers(suppliers, CARTESIAN_POINT, StSimplifyTests::valueOf);
         addTestCaseSuppliers(suppliers, GEO_SHAPE, StSimplifyTests::valueOf);
+        addTestCaseSuppliers(suppliers, CARTESIAN_SHAPE, StSimplifyTests::valueOf);
 
         var testSuppliers = anyNullIsNull(
             randomizeBytesRefsOffset(suppliers),

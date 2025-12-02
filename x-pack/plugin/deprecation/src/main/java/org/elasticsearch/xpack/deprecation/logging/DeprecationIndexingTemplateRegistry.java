@@ -34,7 +34,8 @@ public class DeprecationIndexingTemplateRegistry extends IndexTemplateRegistry {
     // history (please add a comment why you increased the version here)
     // version 1: initial
     // version 2: deprecated old name and renamed index pattern
-    public static final int INDEX_TEMPLATE_VERSION = 2;
+    // version 3: bump to fix https://github.com/elastic/sdh-elasticsearch/issues/9371
+    public static final int INDEX_TEMPLATE_VERSION = 3;
 
     public static final String DEPRECATION_INDEXING_TEMPLATE_VERSION_VARIABLE = "xpack.deprecation.indexing.template.version";
 

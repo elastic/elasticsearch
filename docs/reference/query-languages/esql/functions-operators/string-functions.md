@@ -21,6 +21,9 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/byte_length.md
 :::
 
+:::{include} ../_snippets/functions/layout/chunk.md
+:::
+
 :::{include} ../_snippets/functions/layout/concat.md
 :::
 

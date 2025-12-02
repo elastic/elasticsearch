@@ -160,7 +160,6 @@ max(rate(network.total_bytes_in[1h])):double | step:date
 4.379885057471264                            | 2024-05-10T00:00:00.000Z
 ;
 
->>>>>>> upstream/main
 twoRatesWithBucket
 required_capability: ts_command_v0
 TS k8s | STATS max(rate(network.total_bytes_in)), sum(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute) | SORT time_bucket DESC | LIMIT 3;
@@ -623,6 +622,7 @@ max_cost:integer | pod:keyword | time_bucket:datetime     | max_cluster_cost:int
 973              | two         | 2024-05-10T00:00:00.000Z | 1209                     | staging
 ;
 
+
 max_of_stddev_over_time
 required_capability: ts_command_v0
 required_capability: variance_stddev_over_time
@@ -749,9 +749,10 @@ mx:integer | tbucket:datetime
 1716       | 2024-05-10T00:00:00.000Z
 ;
 
+derivative_of_gauge_metric
+required_capability: ts_command_v0
+required_capability: TS_LINREG_DERIVATIVE
 
-<<<<<<< HEAD
-=======
 // tag::deriv[]
 TS k8s
 | WHERE pod == "three"
@@ -990,4 +991,3 @@ TS k8s
 max_rate:double 
 13.17372515125324
 ;
-

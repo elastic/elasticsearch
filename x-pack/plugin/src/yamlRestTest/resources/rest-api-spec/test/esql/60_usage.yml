@@ -58,7 +58,7 @@ setup:
             - ts_command_v0
             - cosine_vector_similarity_function
             - inline_stats
-            - promql_v0
+            - promql_pre_tech_preview_v3
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }
@@ -221,7 +221,7 @@ setup:
   - do: { xpack.usage: { } }
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 29 }
+  - length: { esql.features: 30 }
   - set: { esql.features.dissect: dissect_counter }
   - set: { esql.features.drop: drop_counter }
   - set: { esql.features.eval: eval_counter }

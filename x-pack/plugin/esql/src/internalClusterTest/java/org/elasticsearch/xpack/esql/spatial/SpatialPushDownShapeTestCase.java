@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.esql.spatial;
 
-import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Locale;
 
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCase {
@@ -143,8 +144,8 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
              FROM not-indexed | WHERE %s(location, %s("%s")) | STATS COUNT(*)
             """, spatialFunction, castingFunction(), wkt);
         try (
-            EsqlQueryResponse response1 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query1).get();
-            EsqlQueryResponse response2 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query2).get();
+            EsqlQueryResponse response1 = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query1)).actionGet();
+            EsqlQueryResponse response2 = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query2)).actionGet();
         ) {
             Object indexedResult = response1.response().column(0).iterator().next();
             Object notIndexedResult = response2.response().column(0).iterator().next();
@@ -159,8 +160,8 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
         final String query1 = "FROM indexed METADATA _id | " + predicate + " | KEEP _id, location";
         final String query2 = "FROM not-indexed METADATA _id | " + predicate + " | KEEP _id, location";
         try (
-            EsqlQueryResponse response1 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query1).get();
-            EsqlQueryResponse response2 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query2).get();
+            EsqlQueryResponse response1 = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query1)).actionGet();
+            EsqlQueryResponse response2 = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query2)).actionGet();
         ) {
             record Result(int id, String location) {
                 Result(Iterator<Object> iterator) {

@@ -92,7 +92,8 @@ public class QueryPlanningBenchmark {
             System.nanoTime(),
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY)
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY),
+            null
         );
 
         var fields = 10_000;
@@ -102,7 +103,7 @@ public class QueryPlanningBenchmark {
             mapping.put("field" + i, new EsField("field-" + i, TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         }
 
-        var esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Set.of());
+        var esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Set.of());
 
         var functionRegistry = new EsqlFunctionRegistry();
 

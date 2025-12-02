@@ -44,7 +44,9 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_REALM_DOMAINS;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.randomCloudApiKeyAuthentication;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfoTests.randomRoleDescriptorsIntersection;
@@ -62,6 +64,15 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AuthenticationTests extends ESTestCase {
+
+    private static final TransportVersion VERSION_7_0_0 = TransportVersion.fromId(7_00_00_99);
+    public static final TransportVersion[] AUTHENTICATION_TRANSPORT_VERSIONS = {
+        VERSION_7_0_0,
+        Authentication.VERSION_SYNTHETIC_ROLE_NAMES,
+        VERSION_API_KEY_ROLES_AS_BYTES,
+        Authentication.VERSION_REALM_DOMAINS,
+        Authentication.VERSION_METADATA_BEYOND_GENERIC_MAP,
+        TransportVersion.current() };
 
     public void testIsFailedRunAs() {
         final Authentication failedAuthentication = randomRealmAuthentication(randomBoolean()).runAs(randomUser(), null);
@@ -981,11 +992,11 @@ public class AuthenticationTests extends ESTestCase {
         final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.V_8_0_0,
-            TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)
+            TransportVersionUtils.getPreviousVersion(VERSION_REALM_DOMAINS)
         );
         final Authentication authentication = AuthenticationTestHelper.builder()
             .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`
-            .transportVersion(TransportVersionUtils.randomVersionBetween(random(), Authentication.VERSION_REALM_DOMAINS, null))
+            .transportVersion(TransportVersionUtils.randomVersionBetween(random(), VERSION_REALM_DOMAINS, null))
             .build();
         assertThat(authentication.getEffectiveSubject().getTransportVersion().after(olderVersion), is(true));
 
@@ -999,7 +1010,7 @@ public class AuthenticationTests extends ESTestCase {
     public void testMaybeRewriteForOlderVersionDoesNotEraseDomainForVersionsAfterDomains() {
         final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            Authentication.VERSION_REALM_DOMAINS,
+            VERSION_REALM_DOMAINS,
             // Don't include CURRENT, so we always have at least one newer version available below
             TransportVersionUtils.getPreviousVersion()
         );
@@ -1052,11 +1063,7 @@ public class AuthenticationTests extends ESTestCase {
 
         assertThat(
             Authentication.maybeRewriteRealmRef(
-                TransportVersionUtils.randomVersionBetween(
-                    random(),
-                    null,
-                    TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)
-                ),
+                TransportVersionUtils.randomVersionBetween(random(), null, TransportVersionUtils.getPreviousVersion(VERSION_REALM_DOMAINS)),
                 realmRefWithDomain
             ).getDomain(),
             nullValue()
@@ -1064,7 +1071,7 @@ public class AuthenticationTests extends ESTestCase {
 
         assertThat(
             Authentication.maybeRewriteRealmRef(
-                TransportVersionUtils.randomVersionBetween(random(), Authentication.VERSION_REALM_DOMAINS, null),
+                TransportVersionUtils.randomVersionBetween(random(), VERSION_REALM_DOMAINS, null),
                 realmRefWithDomain
             ),
             equalTo(realmRefWithDomain)
@@ -1094,10 +1101,9 @@ public class AuthenticationTests extends ESTestCase {
             .build();
 
         // pick a version before that of the authentication instance to force a rewrite
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
+        final TransportVersion olderVersion = randomTransportVersionBetween(
             VERSION_API_KEY_ROLES_AS_BYTES,
-            TransportVersionUtils.getPreviousVersion(original.getEffectiveSubject().getTransportVersion())
+            original.getEffectiveSubject().getTransportVersion()
         );
 
         final Map<String, Object> rewrittenMetadata = original.maybeRewriteForOlderVersion(olderVersion)
@@ -1139,10 +1145,9 @@ public class AuthenticationTests extends ESTestCase {
             .build();
 
         // pick a version before that of the authentication instance to force a rewrite
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
+        final TransportVersion olderVersion = randomTransportVersionBetween(
             VERSION_API_KEY_ROLES_AS_BYTES,
-            TransportVersionUtils.getPreviousVersion(original.getEffectiveSubject().getTransportVersion())
+            original.getEffectiveSubject().getTransportVersion()
         );
 
         final Map<String, Object> rewrittenMetadata = original.maybeRewriteForOlderVersion(olderVersion)
@@ -1262,7 +1267,7 @@ public class AuthenticationTests extends ESTestCase {
         );
 
         // check null value
-        assertThat(null, equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(null)));
+        assertThat(null, equalBytes(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(null)));
 
         // and an empty map
         final BytesReference empty = randomBoolean() ? new BytesArray("""
@@ -1322,8 +1327,8 @@ public class AuthenticationTests extends ESTestCase {
             realmRef = randomRealmRef(false);
         }
         // If the realm is expected to have a domain, we need a version that's at least compatible with domains
-        final TransportVersion minVersion = realmRef.getDomain() != null ? Authentication.VERSION_REALM_DOMAINS : TransportVersions.V_7_0_0;
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), minVersion, TransportVersion.current());
+        final TransportVersion minVersion = realmRef.getDomain() != null ? VERSION_REALM_DOMAINS : VERSION_7_0_0;
+        final TransportVersion version = randomTransportVersion(minVersion);
         final Map<String, Object> metadata;
         if (randomBoolean()) {
             metadata = Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
@@ -1336,11 +1341,35 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId) {
-        return randomApiKeyAuthentication(
-            user,
-            apiKeyId,
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersion.current())
+        return randomApiKeyAuthentication(user, apiKeyId, randomTransportVersion());
+    }
+
+    /**
+     * @param minVersion minimum version, inclusive
+     * @param maxVersion maximum version, exclusive
+     */
+    public static TransportVersion randomTransportVersionBetween(TransportVersion minVersion, TransportVersion maxVersion) {
+        return randomFrom(
+            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS)
+                .filter(v -> v.onOrAfter(minVersion) && v.before(maxVersion))
+                .toArray(TransportVersion[]::new)
         );
+    }
+
+    public static TransportVersion randomTransportVersionBefore(TransportVersion maxVersion) {
+        return randomFrom(
+            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS).filter(v -> v.before(maxVersion)).toArray(TransportVersion[]::new)
+        );
+    }
+
+    public static TransportVersion randomTransportVersion(TransportVersion minVersion) {
+        return randomFrom(
+            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS).filter(v -> v.onOrAfter(minVersion)).toArray(TransportVersion[]::new)
+        );
+    }
+
+    public static TransportVersion randomTransportVersion() {
+        return randomFrom(AUTHENTICATION_TRANSPORT_VERSIONS);
     }
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId, TransportVersion version) {

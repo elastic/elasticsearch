@@ -53,16 +53,6 @@ public class TransportVersions {
     }
 
     // TODO: ES-10337 we can remove all transport versions earlier than 8.18
-    public static final TransportVersion V_7_0_0 = def(7_00_00_99);
-    public static final TransportVersion V_7_1_0 = def(7_01_00_99);
-    public static final TransportVersion V_7_2_0 = def(7_02_00_99);
-    public static final TransportVersion V_7_3_0 = def(7_03_00_99);
-    public static final TransportVersion V_7_3_2 = def(7_03_02_99);
-    public static final TransportVersion V_7_4_0 = def(7_04_00_99);
-    public static final TransportVersion V_7_8_0 = def(7_08_00_99);
-    public static final TransportVersion V_7_8_1 = def(7_08_01_99);
-    public static final TransportVersion V_7_9_0 = def(7_09_00_99);
-    public static final TransportVersion V_7_10_0 = def(7_10_00_99);
     public static final TransportVersion V_8_0_0 = def(8_00_00_99);
     public static final TransportVersion V_8_1_0 = def(8_01_00_99);
     public static final TransportVersion V_8_2_0 = def(8_02_00_99);
@@ -97,7 +87,6 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_3 = def(8_797_0_03);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_4 = def(8_797_0_04);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_5 = def(8_797_0_05);
-    public static final TransportVersion V_8_18_0 = def(8_840_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

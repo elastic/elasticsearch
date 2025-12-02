@@ -112,11 +112,11 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#indexPatternAndMetadataFields}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#indexPatternAndFields}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitIndexPatternAndMetadataFields(EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx);
+  T visitIndexPatternAndFields(EsqlBaseParser.IndexPatternAndFieldsContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#indexPatternOrSubquery}.
    * @param ctx the parse tree
@@ -160,11 +160,29 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitIndexString(EsqlBaseParser.IndexStringContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#metadata}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#fieldsClause}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitMetadata(EsqlBaseParser.MetadataContext ctx);
+  T visitFieldsClause(EsqlBaseParser.FieldsClauseContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#metadataFields}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMetadataFields(EsqlBaseParser.MetadataFieldsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#optionalFields}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitOptionalFields(EsqlBaseParser.OptionalFieldsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#unmappedFields}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitUnmappedFields(EsqlBaseParser.UnmappedFieldsContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#evalCommand}.
    * @param ctx the parse tree
@@ -220,17 +238,29 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitQualifiedNamePatterns(EsqlBaseParser.QualifiedNamePatternsContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fieldNamePatterns}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFieldNamePatterns(EsqlBaseParser.FieldNamePatternsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#identifierOrParameter}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#identifierPatternOrParameter}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIdentifierPatternOrParameter(EsqlBaseParser.IdentifierPatternOrParameterContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#identifier}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitIdentifier(EsqlBaseParser.IdentifierContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#identifierPattern}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitIdentifierPattern(EsqlBaseParser.IdentifierPatternContext ctx);
   /**
    * Visit a parse tree produced by the {@code inputParam}
    * labeled alternative in {@link EsqlBaseParser#parameter}.
@@ -259,12 +289,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitInputNamedOrPositionalDoubleParams(EsqlBaseParser.InputNamedOrPositionalDoubleParamsContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#identifierOrParameter}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#stringOrParameter}.
    * @param ctx the parse tree

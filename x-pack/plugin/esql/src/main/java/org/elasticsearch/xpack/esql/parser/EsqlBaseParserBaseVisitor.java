@@ -131,7 +131,7 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitIndexPatternAndMetadataFields(EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) { return visitChildren(ctx); }
+  @Override public T visitIndexPatternAndFields(EsqlBaseParser.IndexPatternAndFieldsContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -187,7 +187,28 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitMetadata(EsqlBaseParser.MetadataContext ctx) { return visitChildren(ctx); }
+  @Override public T visitFieldsClause(EsqlBaseParser.FieldsClauseContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitMetadataFields(EsqlBaseParser.MetadataFieldsContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitOptionalFields(EsqlBaseParser.OptionalFieldsContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitUnmappedFields(EsqlBaseParser.UnmappedFieldsContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -257,14 +278,28 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitIdentifier(EsqlBaseParser.IdentifierContext ctx) { return visitChildren(ctx); }
+  @Override public T visitFieldNamePatterns(EsqlBaseParser.FieldNamePatternsContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitIdentifierPattern(EsqlBaseParser.IdentifierPatternContext ctx) { return visitChildren(ctx); }
+  @Override public T visitIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitIdentifierPatternOrParameter(EsqlBaseParser.IdentifierPatternOrParameterContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitIdentifier(EsqlBaseParser.IdentifierContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -293,13 +328,6 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitInputNamedOrPositionalDoubleParams(EsqlBaseParser.InputNamedOrPositionalDoubleParamsContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

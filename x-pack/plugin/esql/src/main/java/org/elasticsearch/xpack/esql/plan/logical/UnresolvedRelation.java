@@ -12,6 +12,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -26,8 +27,9 @@ import static java.util.Collections.singletonList;
 public class UnresolvedRelation extends LeafPlan implements Unresolvable, TelemetryAware {
 
     private final IndexPattern indexPattern;
-    private final boolean frozen;
     private final List<Attribute> metadataFields;
+    private final List<NamedExpression> optionalFields;
+    private final List<NamedExpression> unmappedFields;
     /*
      * Expected indexMode based on the declaration - used later for verification
      * at resolution time.
@@ -44,41 +46,32 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
     public UnresolvedRelation(
         Source source,
         IndexPattern indexPattern,
-        boolean frozen,
         List<Attribute> metadataFields,
-        String unresolvedMessage,
+        List<NamedExpression> optionalFields,
+        List<NamedExpression> unmappedFields,
         SourceCommand sourceCommand
     ) {
-        this(source, indexPattern, frozen, metadataFields, sourceCommand.indexMode(), unresolvedMessage, sourceCommand.name());
+        this(source, indexPattern, metadataFields, optionalFields, unmappedFields, sourceCommand.indexMode(), null, sourceCommand.name());
     }
 
     public UnresolvedRelation(
         Source source,
         IndexPattern indexPattern,
-        boolean frozen,
         List<Attribute> metadataFields,
+        List<NamedExpression> optionalFields,
+        List<NamedExpression> unmappedFields,
         IndexMode indexMode,
-        String unresolvedMessage,
+        @Nullable String unresolvedMessage,
         @Nullable String commandName
     ) {
         super(source);
         this.indexPattern = indexPattern;
-        this.frozen = frozen;
         this.metadataFields = metadataFields;
+        this.optionalFields = optionalFields;
+        this.unmappedFields = unmappedFields;
         this.indexMode = indexMode;
         this.unresolvedMsg = unresolvedMessage == null ? "Unknown index [" + indexPattern.indexPattern() + "]" : unresolvedMessage;
         this.commandName = commandName;
-    }
-
-    public UnresolvedRelation(
-        Source source,
-        IndexPattern table,
-        boolean frozen,
-        List<Attribute> metadataFields,
-        IndexMode indexMode,
-        String unresolvedMessage
-    ) {
-        this(source, table, frozen, metadataFields, indexMode, unresolvedMessage, null);
     }
 
     @Override
@@ -93,15 +86,21 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
 
     @Override
     protected NodeInfo<UnresolvedRelation> info() {
-        return NodeInfo.create(this, UnresolvedRelation::new, indexPattern, frozen, metadataFields, indexMode, unresolvedMsg, commandName);
+        return NodeInfo.create(
+            this,
+            UnresolvedRelation::new,
+            indexPattern,
+            metadataFields,
+            optionalFields,
+            unmappedFields,
+            indexMode,
+            unresolvedMsg,
+            commandName
+        );
     }
 
     public IndexPattern indexPattern() {
         return indexPattern;
-    }
-
-    public boolean frozen() {
-        return frozen;
     }
 
     @Override
@@ -110,14 +109,10 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
     }
 
     /**
-     *
-     * This is used by {@link PlanTelemetry} to collect query statistics
-     * It can return
-     * <ul>
-     *     <li>"FROM" if this a <code>|FROM idx</code> command</li>
-     *     <li>"METRICS" if it is the result of a <code>| METRICS idx some_aggs() BY fields</code> command</li>
-     * </ul>
+     * Used by {@link PlanTelemetry} to collect query statistics.
+     * It can return a name as defined in {@link SourceCommand}
      */
+    @Nullable
     @Override
     public String telemetryLabel() {
         return commandName;
@@ -137,6 +132,14 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         return metadataFields;
     }
 
+    public List<NamedExpression> optionalFields() {
+        return optionalFields;
+    }
+
+    public List<NamedExpression> unmappedFields() {
+        return unmappedFields;
+    }
+
     public IndexMode indexMode() {
         return indexMode;
     }
@@ -146,9 +149,13 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         return unresolvedMsg;
     }
 
+    public UnresolvedRelation withMessage(String msg) {
+        return new UnresolvedRelation(source(), indexPattern, metadataFields, optionalFields, unmappedFields, indexMode, msg, commandName);
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(source(), indexPattern, metadataFields, indexMode, unresolvedMsg);
+        return Objects.hash(source(), indexPattern, metadataFields, optionalFields, unmappedFields, indexMode, unresolvedMsg);
     }
 
     @Override
@@ -163,8 +170,9 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
 
         UnresolvedRelation other = (UnresolvedRelation) obj;
         return Objects.equals(indexPattern, other.indexPattern)
-            && Objects.equals(frozen, other.frozen)
             && Objects.equals(metadataFields, other.metadataFields)
+            && Objects.equals(optionalFields, other.optionalFields)
+            && Objects.equals(unmappedFields, other.unmappedFields)
             && indexMode == other.indexMode
             && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }

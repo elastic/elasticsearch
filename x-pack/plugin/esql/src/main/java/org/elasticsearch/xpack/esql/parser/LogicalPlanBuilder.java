@@ -101,7 +101,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -354,7 +353,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
     }
 
-    private LogicalPlan visitRelation(Source source, SourceCommand command, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {
+    private LogicalPlan visitRelation(Source source, SourceCommand command, EsqlBaseParser.IndexPatternAndFieldsContext ctx) {
         List<EsqlBaseParser.IndexPatternOrSubqueryContext> ctxs = ctx == null ? null : ctx.indexPatternOrSubquery();
         List<EsqlBaseParser.IndexPatternContext> indexPatternsCtx = new ArrayList<>();
         List<EsqlBaseParser.SubqueryContext> subqueriesCtx = new ArrayList<>();
@@ -368,23 +367,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             });
         }
         IndexPattern table = new IndexPattern(source, visitIndexPattern(indexPatternsCtx));
+        FromClausesFields clauses = new FromClausesFields(this, ctx);
+        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(
+            source,
+            table,
+            clauses.metadata,
+            clauses.optional,
+            clauses.unmapped,
+            command
+        );
+
         List<Subquery> subqueries = visitSubqueriesInFromCommand(subqueriesCtx);
-        Map<String, Attribute> metadataMap = new LinkedHashMap<>();
-        if (ctx.metadata() != null) {
-            for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
-                String id = c.getText();
-                Source src = source(c);
-                if (MetadataAttribute.isSupported(id) == false) {
-                    throw new ParsingException(src, "unsupported metadata field [" + id + "]");
-                }
-                Attribute a = metadataMap.put(id, MetadataAttribute.create(src, id));
-                if (a != null) {
-                    throw new ParsingException(src, "metadata field [" + id + "] already declared [" + a.source().source() + "]");
-                }
-            }
-        }
-        List<Attribute> metadataFields = List.of(metadataMap.values().toArray(Attribute[]::new));
-        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, null, command);
         if (subqueries.isEmpty()) {
             return unresolvedRelation;
         } else {
@@ -441,7 +434,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
-        return visitRelation(source(ctx), SourceCommand.FROM, ctx.indexPatternAndMetadataFields());
+        return visitRelation(source(ctx), SourceCommand.FROM, ctx.indexPatternAndFields());
     }
 
     @Override
@@ -720,7 +713,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) {
-        return visitRelation(source(ctx), SourceCommand.TS, ctx.indexPatternAndMetadataFields());
+        return visitRelation(source(ctx), SourceCommand.TS, ctx.indexPatternAndFields());
     }
 
     @Override
@@ -783,9 +776,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         UnresolvedRelation right = new UnresolvedRelation(
             source(target),
             new IndexPattern(source(target.index), rightPattern),
-            false,
+            emptyList(),
+            emptyList(),
             emptyList(),
             IndexMode.LOOKUP,
+            null,
             null
         );
 
@@ -1246,7 +1241,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         } else {
             table = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
         }
-        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, List.of(), null, SourceCommand.PROMQL);
+        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(
+            source,
+            table,
+            List.of(),
+            List.of(),
+            List.of(),
+            SourceCommand.PROMQL
+        );
 
         PromqlParams params = parsePromqlParams(ctx, source);
 

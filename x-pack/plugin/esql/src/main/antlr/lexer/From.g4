@@ -6,10 +6,8 @@
  */
 lexer grammar From;
 
-//
 // FROM command
-//
-FROM : 'from'                 -> pushMode(FROM_MODE);
+FROM : 'from' -> pushMode(FROM_MODE);
 
 // TS command
 TS : 'ts' -> pushMode(FROM_MODE);
@@ -21,6 +19,8 @@ FROM_SELECTOR : CAST_OP -> type(CAST_OP);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 METADATA : 'metadata';
+OPTIONAL : 'optional' -> pushMode(FIELD_PATTERN_MODE);
+UNMAPPED : 'unmapped' -> pushMode(FIELD_PATTERN_MODE);
 
 // we need this for EXPLAIN
 // change to double popMode to accommodate subquerys in FROM, when see ')' pop out of subquery(default) mode and from mode
@@ -36,21 +36,28 @@ fragment UNQUOTED_SOURCE_PART
     | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment -- used in index pattern date spec
     ;
 
-UNQUOTED_SOURCE
-    : UNQUOTED_SOURCE_PART+
-    ;
+UNQUOTED_SOURCE : UNQUOTED_SOURCE_PART+;
 
 FROM_UNQUOTED_SOURCE : UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE);
 FROM_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING);
 
-FROM_LINE_COMMENT
-    : LINE_COMMENT -> channel(HIDDEN)
-    ;
+FROM_LINE_COMMENT : LINE_COMMENT -> channel(HIDDEN);
+FROM_MULTILINE_COMMENT : MULTILINE_COMMENT -> channel(HIDDEN);
+FROM_WS : WS -> channel(HIDDEN);
 
-FROM_MULTILINE_COMMENT
-    : MULTILINE_COMMENT -> channel(HIDDEN)
-    ;
 
-FROM_WS
-    : WS -> channel(HIDDEN)
-    ;
+mode FIELD_PATTERN_MODE;
+FIELD_PATTERN_PIPE : PIPE -> type(PIPE), popMode, popMode;
+FIELD_PATTERN_METADATA : METADATA -> type(METADATA), popMode;
+FIELD_PATTERN_OPTIONAL : OPTIONAL -> type(OPTIONAL);
+FIELD_PATTERN_UNMAPPED : UNMAPPED -> type(UNMAPPED);
+FIELD_PATTERN_COMMA : COMMA -> type(COMMA);
+FIELD_PATTERN_PARAM : PARAM -> type(PARAM);
+FIELD_PATTERN_NAMED_OR_POSITIONAL_PARAM : NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
+FIELD_PATTERN_DOUBLE_PARAMS : DOUBLE_PARAMS -> type(DOUBLE_PARAMS);
+FIELD_PATTERN_NAMED_OR_POSITIONAL_DOUBLE_PARAMS : NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> type(NAMED_OR_POSITIONAL_DOUBLE_PARAMS);
+FIELD_PATTERN_ID_PATTERN : ID_PATTERN -> type(ID_PATTERN);
+
+FIELD_PATTERN_LINE_COMMENT : LINE_COMMENT -> channel(HIDDEN);
+FIELD_PATTERN_MULTILINE_COMMENT : MULTILINE_COMMENT -> channel(HIDDEN);
+FIELD_PATTERN_WS : WS -> channel(HIDDEN);

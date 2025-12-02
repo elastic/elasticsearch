@@ -12,7 +12,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
@@ -25,9 +24,11 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -71,6 +72,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
@@ -82,6 +84,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -635,7 +638,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     command + " *,\"-foo\"::data",
                     "*,-foo::data",
                     lineNumber,
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata', 'optional', 'unmapped'}"
                 );
                 expectErrorWithLineNumber(
                     command + " cluster:\"foo::data\"",
@@ -654,7 +657,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     command + " *, \"-foo\"::data",
                     " *, \"-foo\"::data",
                     lineNumber,
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata', 'optional', 'unmapped'}"
                 );
                 assertStringAsIndexPattern("*,-foo::data", command + " *, \"-foo::data\"");
                 assertStringAsIndexPattern("*::data", command + " *::data");
@@ -663,7 +666,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     command + " \"<logstash-{now/M{yyyy.MM}}>::data,<logstash-{now/d{yyyy.MM.dd|+12:00}}>\"::failures",
                     " \"<logstash-{now/M{yyyy.MM}}>::data,<logstash-{now/d{yyyy.MM.dd|+12:00}}>\"::failures",
                     lineNumber,
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata', 'optional', 'unmapped'}"
                 );
                 assertStringAsIndexPattern(
                     "<logstash-{now/M{yyyy.MM}}>::data,<logstash-{now/d{yyyy.MM.dd|+12:00}}>::failures",
@@ -857,7 +860,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     command,
                     "indexpattern, \"--index\"::data",
                     "line 1:29: ",
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata', 'optional', 'unmapped'}"
                 );
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
@@ -913,7 +916,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     command,
                     "*, \"-<-logstash-{now/D}>\"::data",
                     "line 1:31: ",
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata', 'optional', 'unmapped'}"
                 );
                 expectDateMathErrorWithLineNumber(command, "*, -<-logstash-{now/D}>::data", lineNumber, dateMathError);
                 // Check that invalid selectors throw (they're resolved first in /_search, and always validated)
@@ -991,8 +994,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM \"foo\"bar\"", ": token recognition error at: '\"'");
         expectError("FROM \"foo\"\"bar\"", ": extraneous input '\"bar\"' expecting <EOF>");
 
-        expectError("FROM \"\"\"foo\"\"\"bar\"\"\"", ": mismatched input 'bar' expecting {<EOF>, '|', ',', 'metadata'}");
-        expectError("FROM \"\"\"foo\"\"\"\"\"\"bar\"\"\"", ": mismatched input '\"bar\"' expecting {<EOF>, '|', ',', 'metadata'}");
+        expectError(
+            "FROM \"\"\"foo\"\"\"bar\"\"\"",
+            ": mismatched input 'bar' expecting {<EOF>, '|', ',', 'metadata', 'optional', 'unmapped'}"
+        );
+        expectError(
+            "FROM \"\"\"foo\"\"\"\"\"\"bar\"\"\"",
+            ": mismatched input '\"bar\"' expecting {<EOF>, '|', ',', 'metadata', 'optional', 'unmapped'}"
+        );
     }
 
     public void testInvalidQuotingAsLookupIndexPattern() {
@@ -1260,6 +1269,209 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testMetadataFieldNotFoundNormalField() {
         expectError("from test metadata emp_no", "line 1:20: unsupported metadata field [emp_no]");
+    }
+
+    public void testFromClauseFields() {
+        { // OPTIONAL
+            doTestFromClauseFields("FROM test METADATA _index OPTIONAL foo", List.of("foo"), null);
+            doTestFromClauseFields("FROM test OPTIONAL foo*", List.of("foo*"), null);
+            doTestFromClauseFields("FROM test OPTIONAL *foo METADATA _index", List.of("*foo"), null);
+            doTestFromClauseFields("FROM test OPTIONAL *foo* METADATA _source, _index", List.of("*foo*"), null);
+            doTestFromClauseFields("FROM test METADATA _index, _id OPTIONAL *", List.of(StringUtils.WILDCARD), null);
+            doTestFromClauseFields("FROM test OPTIONAL foo, bar, *baz | EVAL x = foo", List.of("foo", "bar", "*baz"), null);
+            doTestFromClauseFields("FROM test OPTIONAL foo, bar, baz* | WHERE foo > 0 | EVAL x = bar", List.of("foo", "bar", "baz*"), null);
+        }
+        { // UNMAPPED
+            doTestFromClauseFields("FROM test METADATA _index UNMAPPED foo", null, List.of("foo"));
+            doTestFromClauseFields("FROM test UNMAPPED foo*", null, List.of("foo*"));
+            doTestFromClauseFields("FROM test UNMAPPED *foo METADATA _index", null, List.of("*foo"));
+            doTestFromClauseFields("FROM test UNMAPPED *foo* METADATA _source, _index", null, List.of("*foo*"));
+            doTestFromClauseFields("FROM test METADATA _index, _id UNMAPPED *", null, List.of(StringUtils.WILDCARD));
+            doTestFromClauseFields("FROM test UNMAPPED foo, bar, *baz | EVAL x = foo", null, List.of("foo", "bar", "*baz"));
+            doTestFromClauseFields("FROM test UNMAPPED foo, bar, baz* | WHERE foo > 0 | EVAL x = bar", null, List.of("foo", "bar", "baz*"));
+        }
+        { // with keywords as field names
+            doTestFromClauseFields("FROM test OPTIONAL foo, `metadata`", List.of("foo", "metadata"), null);
+            doTestFromClauseFields("FROM test OPTIONAL `optional`, `metadata` METADATA _index", List.of("optional", "metadata"), null);
+            doTestFromClauseFields("FROM test UNMAPPED foo, `metadata`", null, List.of("foo", "metadata"));
+            doTestFromClauseFields("FROM test UNMAPPED `unmapped`, `metadata` METADATA _index", null, List.of("unmapped", "metadata"));
+        }
+        // mixed
+        doTestFromClauseFields(
+            "FROM test OPTIONAL `optional`, `metadata`, `unmapped` METADATA _index UNMAPPED `unmapped`, `optional`, `metadata`",
+            List.of("optional", "metadata", "unmapped"),
+            List.of("unmapped", "optional", "metadata")
+        );
+    }
+
+    private void doTestFromClauseFields(String query, List<String> optionalPatterns, List<String> unmappedPatterns) {
+        var plan = statement(query);
+        var unresolvedRelation = (UnresolvedRelation) plan.collectFirstChildren(UnresolvedRelation.class::isInstance).getFirst();
+        if (optionalPatterns != null) {
+            doTestFromClauseSpecificFields(unresolvedRelation.optionalFields(), optionalPatterns);
+        }
+        if (unmappedPatterns != null) {
+            doTestFromClauseSpecificFields(unresolvedRelation.unmappedFields(), unmappedPatterns);
+        }
+    }
+
+    private static void doTestFromClauseSpecificFields(List<NamedExpression> fields, List<String> expectedPatterns) {
+        assertThat(fields.size(), is(expectedPatterns.size()));
+        for (int i = 0; i < expectedPatterns.size(); i++) {
+            var expectedPattern = expectedPatterns.get(i);
+            var field = fields.get(i);
+
+            if (expectedPattern.equals(StringUtils.WILDCARD)) {
+                as(field, UnresolvedStar.class);
+            } else if (expectedPattern.contains(StringUtils.WILDCARD)) {
+                var unresolvedPattern = as(field, UnresolvedNamePattern.class);
+                assertThat(unresolvedPattern.pattern(), equalTo(expectedPattern));
+            } else {
+                var unresolvedAttr = as(field, UnresolvedAttribute.class);
+                assertThat(unresolvedAttr.name(), equalTo(expectedPattern));
+            }
+        }
+    }
+
+    public void testFromClauseFieldsWithIdentifierParams() {
+        LogicalPlan plan;
+        for (var clause : List.of("OPTIONAL", "UNMAPPED")) {
+            var isUnmapped = clause.equals("UNMAPPED");
+
+            plan = statement("FROM test METADATA _index " + clause + " ??", new QueryParams(List.of(paramAsIdentifier("pattern", "a*"))));
+            assertUnresolvedRelationFields(plan, "a*", isUnmapped);
+
+            plan = statement("FROM test " + clause + " ??1", new QueryParams(List.of(paramAsIdentifier("pattern", "b*"))));
+            assertUnresolvedRelationFields(plan, "b*", isUnmapped);
+
+            plan = statement(
+                "FROM test METADATA _index, _id " + clause + " ??one",
+                new QueryParams(List.of(paramAsIdentifier("one", "c*")))
+            );
+            assertUnresolvedRelationFields(plan, "c*", isUnmapped);
+        }
+    }
+
+    private static void assertUnresolvedRelationFields(LogicalPlan plan, String pattern, boolean isUnmapped) {
+        var unresolvedRelation = as(plan, UnresolvedRelation.class);
+        var fields = isUnmapped ? unresolvedRelation.unmappedFields() : unresolvedRelation.optionalFields();
+        assertThat(fields.size(), is(1));
+        var unresolvedAttr = as(fields.getFirst(), UnresolvedAttribute.class);
+        assertThat(unresolvedAttr.name(), equalTo(pattern));
+    }
+
+    public void testFromClauseDuplicatedField() {
+        doTestFromClauseFields("FROM test OPTIONAL foo, bar, foo", List.of("bar", "foo"), null);
+        doTestFromClauseFields("FROM test OPTIONAL foo, bar, foo, bar", List.of("foo", "bar"), null);
+
+        doTestFromClauseFields("FROM test UNMAPPED foo, bar, foo", null, List.of("bar", "foo"));
+        doTestFromClauseFields("FROM test UNMAPPED foo, bar, foo, bar", null, List.of("foo", "bar"));
+
+        doTestFromClauseFields("FROM test OPTIONAL o1, o2, o1 UNMAPPED u1, u2, u1, u1", List.of("o2", "o1"), List.of("u2", "u1"));
+    }
+
+    public void testFromClauseFieldsWithLiteralParam() {
+        for (var clause : List.of("OPTIONAL", "UNMAPPED")) {
+            expectError(
+                "FROM test METADATA _index " + clause + " ?",
+                List.of(paramAsConstant("pattern", "a*")),
+                "line 1:36: Query parameter [?] with value [a*] declared as a constant, cannot be used as an identifier or pattern"
+            );
+            expectError(
+                "FROM test " + clause + " ?1",
+                List.of(paramAsConstant("pattern", "a*")),
+                "line 1:20: Query parameter [?1] with value [a*] declared as a constant, cannot be used as an identifier or pattern"
+            );
+            expectError(
+                "FROM test METADATA _index, _id " + clause + " ?one",
+                List.of(paramAsConstant("one", "a*")),
+                "line 1:41: Query parameter [?one] with value [a*] declared as a constant, cannot be used as an identifier or pattern"
+            );
+        }
+    }
+
+    public void testFromClauseFieldsStar() {
+        for (var clause : List.of("OPTIONAL", "UNMAPPED")) {
+            var lower = clause.toLowerCase(Locale.ROOT);
+            expectError(
+                "FROM test METADATA _index " + clause + " *foo*, *",
+                "line 1:43: wildcard (*) must be present only once and be the only " + lower + " field when present, found [*foo*,*]"
+            );
+            expectError(
+                "FROM test " + clause + " *, foo",
+                "line 1:23: wildcard (*) must be present only once and be the only " + lower + " field when present, found [*,foo]"
+            );
+            expectError(
+                "FROM test METADATA _index, _id " + clause + " *, *foo*",
+                "line 1:44: wildcard (*) must be present only once and be the only " + lower + " field when present, found [*,*foo*]"
+            );
+            expectError(
+                "FROM test METADATA _index " + clause + " *, *",
+                "line 1:39: wildcard (*) must be present only once and be the only " + lower + " field when present, found [*,*]"
+            );
+        }
+    }
+
+    public void testFromClauseFieldsWithQualifiers() {
+        expectError("FROM test METADATA _index OPTIONAL [qualifier].[name]", "line 1:36: token recognition error at: '['");
+        expectError("FROM test METADATA _index UNMAPPED [qualifier].[name]", "line 1:36: token recognition error at: '['");
+    }
+
+    public void testFromRepeatedFieldsClauses() {
+        { // METADATA
+            expectError(
+                "FROM test METADATA _index, _source METADATA _id",
+                "line 1:36: METADATA clause specified more than once; the first was: [METADATA _index, _source]"
+            );
+            expectError(
+                "FROM test METADATA _index OPTIONAL foo METADATA _id",
+                "line 1:40: METADATA clause specified more than once; the first was: [METADATA _index]"
+            );
+        }
+        { // OPTIONAL
+            expectError(
+                "FROM test OPTIONAL foo OPTIONAL bar",
+                "line 1:24: OPTIONAL clause specified more than once; the first was: [OPTIONAL foo]"
+            );
+            expectError(
+                "FROM test OPTIONAL foo, bar METADATA _index OPTIONAL bar",
+                "line 1:45: OPTIONAL clause specified more than once; the first was: [OPTIONAL foo, bar]"
+            );
+        }
+        { // OPTIONAL with params
+            expectError(
+                "FROM test OPTIONAL foo, ??baz METADATA _index OPTIONAL bar",
+                List.of(paramAsIdentifier("baz", "bar")),
+                "line 1:47: OPTIONAL clause specified more than once; the first was: [OPTIONAL foo, ??baz]"
+            );
+            expectError(
+                "FROM test OPTIONAL foo, bar METADATA _index OPTIONAL ?baz",
+                List.of(paramAsIdentifier("baz", "bar")),
+                "line 1:45: OPTIONAL clause specified more than once; the first was: [OPTIONAL foo, bar]"
+            );
+        }
+        { // UNMAPPED
+            expectError(
+                "FROM test UNMAPPED foo UNMAPPED bar",
+                "line 1:24: UNMAPPED clause specified more than once; the first was: [UNMAPPED foo]"
+            );
+            expectError(
+                "FROM test UNMAPPED foo, bar METADATA _index UNMAPPED bar",
+                "line 1:45: UNMAPPED clause specified more than once; the first was: [UNMAPPED foo, bar]"
+            );
+        }
+        { // UNMAPPED with params
+            expectError(
+                "FROM test UNMAPPED foo, ??baz OPTIONAL fields UNMAPPED bar",
+                List.of(paramAsIdentifier("baz", "bar")),
+                "line 1:47: UNMAPPED clause specified more than once; the first was: [UNMAPPED foo, ??baz]"
+            );
+            expectError(
+                "FROM test UNMAPPED foo, bar OPTIONAL fields UNMAPPED ?baz",
+                List.of(paramAsIdentifier("baz", "bar")),
+                "line 1:45: UNMAPPED clause specified more than once; the first was: [UNMAPPED foo, bar]"
+            );
+        }
     }
 
     public void testDissectPattern() {
@@ -2755,15 +2967,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidRemoteClusterPattern() {
-        expectError("from \"rem:ote\":index", "mismatched input ':' expecting {<EOF>, '|', ',', 'metadata'}");
+        expectError("from \"rem:ote\":index", "mismatched input ':' expecting {<EOF>, '|', ',', 'metadata', 'optional', 'unmapped'}");
     }
 
     private LogicalPlan unresolvedRelation(String index) {
-        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), List.of(), List.of(), List.of(), SourceCommand.FROM);
     }
 
     private LogicalPlan unresolvedTSRelation(String index) {
-        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, List.of(), IndexMode.TIME_SERIES, null, "TS");
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), List.of(), List.of(), List.of(), SourceCommand.TS);
     }
 
     public void testMetricWithGroupKeyAsAgg() {
@@ -3291,7 +3503,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         String map = "{\"option1\":\"string\", \"option2\":1}";
 
         Map<String, String> commands = Map.ofEntries(
-            Map.entry("from {}", "line 1:7: mismatched input '\"option1\"' expecting {<EOF>, '|', ',', 'metadata'}"),
+            Map.entry(
+                "from {}",
+                "line 1:7: mismatched input '\"option1\"' expecting {<EOF>, '|', ',', 'metadata', 'optional', 'unmapped'}"
+            ),
             Map.entry("row x = {}", "line 1:9: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("eval x = {}", "line 1:22: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("where x > {}", "line 1:23: no viable alternative at input 'x > {'"),
@@ -5412,7 +5627,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
 
         expectError("from test)", "line -1:-1: Invalid query [from test)]");
-        expectError("from te()st", "line 1:8: mismatched input '(' expecting {<EOF>, '|', ',', 'metadata'");
+        expectError("from te()st", "line 1:8: mismatched input '(' expecting {<EOF>, '|', ',', 'metadata', 'optional', 'unmapped'");
         expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
         expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");
         if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {

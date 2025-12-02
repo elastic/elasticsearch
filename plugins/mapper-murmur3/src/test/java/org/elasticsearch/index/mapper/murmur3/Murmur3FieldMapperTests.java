@@ -153,4 +153,9 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, false));
     }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
 }

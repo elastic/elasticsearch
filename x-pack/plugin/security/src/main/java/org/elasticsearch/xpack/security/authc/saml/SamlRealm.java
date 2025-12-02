@@ -527,12 +527,8 @@ public final class SamlRealm extends Realm implements Releasable {
         return token instanceof SamlToken;
     }
 
-    private boolean isTokenForRealm(SamlToken samlToken, boolean defaultValueWhenNull) {
-        if (samlToken.getAuthenticatingRealm() == null) {
-            return defaultValueWhenNull;
-        } else {
-            return samlToken.getAuthenticatingRealm().equals(this.name());
-        }
+    private boolean isTokenForRealm(SamlToken samlToken) {
+        return samlToken.getAuthenticatingRealm() != null && samlToken.getAuthenticatingRealm().equals(this.name());
     }
 
     /**
@@ -547,7 +543,8 @@ public final class SamlRealm extends Realm implements Releasable {
 
     @Override
     public void authenticate(AuthenticationToken authenticationToken, ActionListener<AuthenticationResult<User>> listener) {
-        if (authenticationToken instanceof SamlToken samlToken && isTokenForRealm(samlToken, true)) {
+        if (authenticationToken instanceof SamlToken samlToken
+            && (samlToken.getAuthenticatingRealm() == null || isTokenForRealm(samlToken))) {
             if (this.idpDescriptor.get() instanceof UnresolvedEntity) {
                 // This isn't an ideal check, but we don't have a better option right now
                 listener.onResponse(
@@ -564,7 +561,7 @@ public final class SamlRealm extends Realm implements Releasable {
                 logger.debug("Parsed token [{}] to attributes [{}]", token, attributes);
                 buildUser(attributes, ActionListener.releaseAfter(listener, attributes));
             } catch (ElasticsearchSecurityException e) {
-                if (isTokenForRealm(samlToken, false)) {
+                if (isTokenForRealm(samlToken)) {
                     // If this token is explicitly for this realm, then there is no need to try other realms.
                     listener.onFailure(e);
                 } else {

@@ -114,14 +114,15 @@ public class S3BlobStoreRepositoryTimeoutTests extends ESMockAPIBasedRepositoryI
         final var latch = new CountDownLatch(1);
         s3StallingHttpHandler.setStallLatchRef(latch);
         try {
-            blobContainer.writeBlob(
-                randomFrom(OperationPurpose.values()),
-                "index-" + randomIdentifier(),
-                new BytesArray(randomBytes((int) ByteSizeValue.ofMb(10).getBytes())),
-                randomBoolean()
+            final var e = expectThrows(
+                IOException.class,
+                () -> blobContainer.writeBlob(
+                    randomFrom(OperationPurpose.values()),
+                    "index-" + randomIdentifier(),
+                    new BytesArray(randomBytes((int) ByteSizeValue.ofMb(10).getBytes())),
+                    randomBoolean()
+                )
             );
-            fail("should have timed out");
-        } catch (IOException e) {
             final var cause = ExceptionsHelper.unwrap(e, ApiCallTimeoutException.class);
             assertNotNull(cause);
             assertThat(cause.getMessage(), containsString("Client execution did not complete before the specified timeout configuration"));

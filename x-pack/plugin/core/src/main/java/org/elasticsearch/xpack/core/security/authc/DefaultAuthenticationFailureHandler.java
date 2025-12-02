@@ -113,6 +113,12 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
         if (e instanceof ElasticsearchAuthenticationProcessingError) {
             return (ElasticsearchAuthenticationProcessingError) e;
         }
+        if (e instanceof ElasticsearchSecurityException ese) {
+            if (ese.status() == RestStatus.FORBIDDEN &&
+                ese.getMetadata("es.security.authorization_error") != null) {
+                return ese;
+            }
+        }
         return createAuthenticationError("error attempting to authenticate request", e, (Object[]) null);
     }
 

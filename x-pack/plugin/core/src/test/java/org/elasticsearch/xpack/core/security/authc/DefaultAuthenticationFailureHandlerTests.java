@@ -156,6 +156,53 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         assertWWWAuthenticateWithSchemes(ese, negotiateAuthScheme, bearerAuthScheme, apiKeyAuthScheme, basicAuthScheme);
     }
 
+    public void testExceptionProcessingRequestWith403AuthorizationError() {
+        final DefaultAuthenticationFailureHandler failureHandler = new DefaultAuthenticationFailureHandler(Collections.emptyMap());
+        final HttpPreRequest request = mock(HttpPreRequest.class);
+        final ThreadContext threadContext = new ThreadContext(Settings.builder().build());
+
+        // Test 1: 403 exception with es.security.authorization_error metadata should be returned as-is
+        ElasticsearchSecurityException authorizationError = new ElasticsearchSecurityException(
+            "failed to authorize user for project [test-project]",
+            RestStatus.FORBIDDEN,
+            null,
+            (Object[]) null
+        );
+        authorizationError.addMetadata("es.security.authorization_error", "true");
+
+        ElasticsearchSecurityException result = failureHandler.exceptionProcessingRequest(request, authorizationError, threadContext);
+        assertThat(result, is(sameInstance(authorizationError)));
+        assertThat(result.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(result.getMessage(), equalTo("failed to authorize user for project [test-project]"));
+
+        // Test 2: 403 exception without metadata should fail assertion
+        ElasticsearchSecurityException forbiddenWithoutMetadata = new ElasticsearchSecurityException(
+            "some forbidden error",
+            RestStatus.FORBIDDEN,
+            null,
+            (Object[]) null
+        );
+
+        expectThrows(
+            AssertionError.class,
+            () -> failureHandler.exceptionProcessingRequest(request, forbiddenWithoutMetadata, threadContext)
+        );
+
+        // Test 3: 403 exception with different metadata should fail assertion
+        ElasticsearchSecurityException forbiddenWithDifferentMetadata = new ElasticsearchSecurityException(
+            "some other forbidden error",
+            RestStatus.FORBIDDEN,
+            null,
+            (Object[]) null
+        );
+        forbiddenWithDifferentMetadata.addMetadata("es.some.other.metadata", "value");
+
+        expectThrows(
+            AssertionError.class,
+            () -> failureHandler.exceptionProcessingRequest(request, forbiddenWithDifferentMetadata, threadContext)
+        );
+    }
+
     private void assertWWWAuthenticateWithSchemes(final ElasticsearchSecurityException ese, final String... schemes) {
         assertThat(ese.getBodyHeader("WWW-Authenticate").size(), is(schemes.length));
         assertThat(ese.getBodyHeader("WWW-Authenticate"), contains(schemes));

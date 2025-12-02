@@ -800,7 +800,6 @@ public class EsqlSession {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
                 listener.onResponse(
                     result.withIndices(IndexResolution.valid(new EsIndex(preAnalysis.indexPattern().indexPattern(), Map.of(), Map.of())))
-                        .withMinimumTransportVersion(TransportVersion.current())
                 );
             } else {
                 indexResolver.resolveAsMergedMappingAndRetrieveMinimumVersion(
@@ -976,7 +975,8 @@ public class EsqlSession {
     ) {
 
         public PreAnalysisResult(Set<String> fieldNames, Set<String> wildcardJoinIndices) {
-            this(fieldNames, wildcardJoinIndices, null, new HashMap<>(), null, InferenceResolution.EMPTY, null);
+            this(fieldNames, wildcardJoinIndices, null, new HashMap<>(), null, InferenceResolution.EMPTY,
+                TransportVersion.current());
         }
 
         PreAnalysisResult withIndices(IndexResolution indices) {
@@ -1021,6 +1021,12 @@ public class EsqlSession {
         }
 
         PreAnalysisResult withMinimumTransportVersion(TransportVersion minimumTransportVersion) {
+            if (this.minimumTransportVersion != null) {
+                if (this.minimumTransportVersion.equals(minimumTransportVersion)) {
+                    return this;
+                }
+                minimumTransportVersion = TransportVersion.min(this.minimumTransportVersion, minimumTransportVersion);
+            }
             return new PreAnalysisResult(
                 fieldNames,
                 wildcardJoinIndices,

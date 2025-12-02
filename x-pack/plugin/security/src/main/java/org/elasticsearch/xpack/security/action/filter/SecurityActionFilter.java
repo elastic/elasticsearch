@@ -169,13 +169,12 @@ public class SecurityActionFilter implements ActionFilter {
             securityAction,
             request,
             /*
-                here we fall back on the system user. Internal system requests are requests that are triggered by the system itself (e.g.
-                pings, update mappings, share relocation, etc...) and were not originated by user interaction. Since these requests are
-                triggered by es core modules, they are security agnostic and therefore not associated with any user. When these requests
-                execute locally, they are executed directly on their relevant action. Since there is no other way a request can make it to
-                the action without an associated user (not via REST or transport - this is taken care of by the {@link Rest} filter and the
-                {@link ServerTransport} filter respectively), it's safe to assume a system user here if a request is not associated with any
-                other user.
+                Here we fall back on the SYSTEM_USER. Internal system requests are requests that are triggered by the system itself (e.g.
+                pings, shard relocations) instead of by a REST request sent by a user. Since these requests are triggered internally, they
+                are security-agnostic and therefore not associated with any user. When these requests execute locally, they are executed
+                directly on their relevant action. Since there is no other way a request can make it to the action without an associated
+                user (not via REST or transport - this is taken care of by the SecurityRestFilter and the ServerTransportFilter
+                respectively), it's safe to assume a system user here if a request is not associated with any other user.
             */
             InternalUsers.SYSTEM_USER,
             authListener.delegateFailureAndWrap((delegate, authc) -> {

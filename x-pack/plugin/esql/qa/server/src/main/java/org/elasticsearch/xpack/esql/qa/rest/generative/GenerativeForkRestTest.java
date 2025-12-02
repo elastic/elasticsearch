@@ -38,7 +38,7 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
     @Override
     protected void doTest() throws Throwable {
         String query = testCase.query + " | FORK (WHERE true) (WHERE true) | WHERE _fork == \"fork1\" | DROP _fork";
-        doTest(query);
+        doTest(query, false);
     }
 
     @Override

@@ -183,11 +183,10 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
                 // Variable name is in plain text and has type WriteCode
                 if (codes[0] instanceof WriteCode) {
                     codes[0].execute(capture, List.of());
-                    return capture.toString();
                 } else {
                     codes[0].identity(capture);
-                    return capture.toString();
                 }
+                return capture.toString();
             } catch (IOException e) {
                 throw new MustacheException("Exception while parsing mustache function [" + fn + "] at line " + tc.line(), e);
             }

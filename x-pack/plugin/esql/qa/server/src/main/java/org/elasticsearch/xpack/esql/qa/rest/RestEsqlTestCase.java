@@ -144,6 +144,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         private CheckedConsumer<XContentBuilder, IOException> filter;
         private Boolean allowPartialResults = null;
+        private Boolean approximate = null;
 
         public RequestObjectBuilder() throws IOException {
             this(randomFrom(XContentType.values()));
@@ -242,6 +243,15 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return allowPartialResults;
         }
 
+        public RequestObjectBuilder approximate(boolean approximate)  {
+            this.approximate = approximate;
+            return this;
+        }
+
+        public Boolean approximate() {
+            return approximate;
+        }
+
         public RequestObjectBuilder build() throws IOException {
             if (isBuilt == false) {
                 if (tables != null) {
@@ -267,6 +277,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                     builder.startObject("filter");
                     filter.accept(builder);
                     builder.endObject();
+                }
+                if (approximate != null) {
+                    builder.field("approximate", approximate);
                 }
                 builder.endObject();
                 isBuilt = true;

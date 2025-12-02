@@ -115,10 +115,9 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         }
     }
 
-    private ClusterState balanceShardsByCount(ClusterState state) {
-        AllocationDeciders allocationDeciders = new AllocationDeciders(List.of());
-        RoutingAllocation routingAllocation = new RoutingAllocation(
-            allocationDeciders,
+    private static ClusterState balanceShardsByCount(ClusterState state) {
+        final var routingAllocation = new RoutingAllocation(
+            new AllocationDeciders(List.of()),
             state.getRoutingNodes().mutableCopy(),
             state,
             ClusterInfo.EMPTY,
@@ -162,11 +161,11 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         return BigDecimal.valueOf(value).multiply(BigDecimal.ONE, new MathContext(significantDigits, RoundingMode.FLOOR)).doubleValue();
     }
 
-    private Measurement measurementForNode(List<Measurement> measurements, String nodeId) {
+    private static Measurement measurementForNode(List<Measurement> measurements, String nodeId) {
         return measurements.stream().filter(m -> m.attributes().get("node_id").equals(nodeId)).findFirst().orElseThrow();
     }
 
-    private double measurementForPercentile(List<Measurement> measurements, String nodeId, double percentile) {
+    private static double measurementForPercentile(List<Measurement> measurements, String nodeId, double percentile) {
         return measurements.stream()
             .filter(
                 m -> m.attributes().get("percentile").equals(String.valueOf(percentile)) && m.attributes().get("node_id").equals(nodeId)
@@ -176,7 +175,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
             .getDouble();
     }
 
-    private Map<ShardId, Double> randomWriteLoads(ClusterState clusterState, double p50, double p90, double p100) {
+    private static Map<ShardId, Double> randomWriteLoads(ClusterState clusterState, double p50, double p90, double p100) {
         final var node1Shards = shardsOnNode(clusterState, "node_0");
         final var node2Shards = shardsOnNode(clusterState, "node_1");
         assertEquals(100, node1Shards.size());
@@ -200,7 +199,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         return shardWriteLoads;
     }
 
-    private List<ShardId> shardsOnNode(ClusterState clusterState, String nodeId) {
+    private static List<ShardId> shardsOnNode(ClusterState clusterState, String nodeId) {
         return clusterState.routingTable(ProjectId.DEFAULT)
             .allShards()
             .filter(shardRouting -> nodeId.equals(shardRouting.currentNodeId()))

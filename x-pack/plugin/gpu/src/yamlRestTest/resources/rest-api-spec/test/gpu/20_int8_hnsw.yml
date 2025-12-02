@@ -5,7 +5,6 @@
       cluster_features: [ "vectors.indexing.use_gpu" ]
       reason: "A cluster should have a GPU plugin to run these tests"
 
-  # creating an index is successful even if the GPU is not available
   - do:
       indices.create:
         index: my_vectors
@@ -20,7 +19,6 @@
                   type: int8_hnsw
           settings:
             index.number_of_shards: 1
-            index.vectors.indexing.use_gpu: true
             index.refresh_interval: -1 # disable automatic refresh to ensure documents are indexed together
   - match: { error: null }
 

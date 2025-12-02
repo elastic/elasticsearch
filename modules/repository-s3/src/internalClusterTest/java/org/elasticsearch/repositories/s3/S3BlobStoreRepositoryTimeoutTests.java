@@ -25,9 +25,13 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
+import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -39,7 +43,11 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_EXCEPTIONS_HISTOGRAM;
+import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_EXCEPTIONS_TOTAL;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
@@ -55,7 +63,7 @@ public class S3BlobStoreRepositoryTimeoutTests extends ESMockAPIBasedRepositoryI
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(S3RepositoryPlugin.class);
+        return List.of(S3RepositoryPlugin.class, TestTelemetryPlugin.class);
     }
 
     @Override
@@ -107,17 +115,24 @@ public class S3BlobStoreRepositoryTimeoutTests extends ESMockAPIBasedRepositoryI
     public void testWriteTimeout() {
         final String repository = createRepository(randomIdentifier());
 
-        final var blobStoreRepository = (BlobStoreRepository) internalCluster().getDataNodeInstance(RepositoriesService.class)
+        final var dataNodeName = internalCluster().getRandomDataNodeName();
+        final var blobStoreRepository = (BlobStoreRepository) internalCluster().getInstance(RepositoriesService.class, dataNodeName)
             .repository(ProjectId.DEFAULT, repository);
         final var blobContainer = blobStoreRepository.blobStore().blobContainer(BlobPath.EMPTY.add(randomIdentifier()));
+        final var plugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        plugin.resetMeter();
 
         final var latch = new CountDownLatch(1);
         s3StallingHttpHandler.setStallLatchRef(latch);
         try {
+            final var purpose = randomFrom(OperationPurpose.values());
             final var e = expectThrows(
                 IOException.class,
                 () -> blobContainer.writeBlob(
-                    randomFrom(OperationPurpose.values()),
+                    purpose,
                     "index-" + randomIdentifier(),
                     new BytesArray(randomBytes((int) ByteSizeValue.ofMb(10).getBytes())),
                     randomBoolean()
@@ -126,6 +141,31 @@ public class S3BlobStoreRepositoryTimeoutTests extends ESMockAPIBasedRepositoryI
             final var cause = ExceptionsHelper.unwrap(e, ApiCallTimeoutException.class);
             assertNotNull(cause);
             assertThat(cause.getMessage(), containsString("Client execution did not complete before the specified timeout configuration"));
+
+            // TODO: AWS SDK classifies ApiCallTimeoutException as "Other" which seems to be a bug. Update the test once it is fixed.
+            final var expectedErrorType = "Other";
+            final Map<String, Object> expectedAttributes = Map.of(
+                "repo_type",
+                "s3",
+                "repo_name",
+                repository,
+                "purpose",
+                purpose.getKey(),
+                "operation",
+                Operation.PUT_OBJECT.getKey(),
+                "error_type",
+                expectedErrorType
+            );
+            {
+                final var measurements = Measurement.combine(plugin.getLongCounterMeasurement(METRIC_EXCEPTIONS_TOTAL));
+                assertThat(measurements, hasSize(1));
+                assertThat(measurements.getFirst().attributes(), equalTo(expectedAttributes));
+            }
+            {
+                final var measurements = plugin.getLongHistogramMeasurement(METRIC_EXCEPTIONS_HISTOGRAM);
+                assertThat(measurements, hasSize(1));
+                assertThat(measurements.getFirst().attributes(), equalTo(expectedAttributes));
+            }
         } finally {
             latch.countDown();
         }

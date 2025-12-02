@@ -62,6 +62,7 @@ import static org.elasticsearch.rest.RestStatus.SERVICE_UNAVAILABLE;
 import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -378,25 +379,25 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
 
     private long getLongCounterValue(TestTelemetryPlugin plugin, String instrumentName, Operation operation) {
         final List<Measurement> measurements = Measurement.combine(plugin.getLongCounterMeasurement(instrumentName));
-        return measurements.stream()
-            .filter(m -> m.attributes().get("operation") == operation.getKey())
-            .mapToLong(Measurement::getLong)
-            .findFirst()
-            .orElse(0L);
+        return measurements.stream().peek(m -> {
+            if (METRIC_EXCEPTIONS_TOTAL.equals(instrumentName)) {
+                assertThat(m.attributes(), hasKey("error_type"));
+            }
+        }).filter(m -> operation.getKey().equals(m.attributes().get("operation"))).mapToLong(Measurement::getLong).sum();
     }
 
     private long getNumberOfMeasurements(TestTelemetryPlugin plugin, String instrumentName, Operation operation) {
         final List<Measurement> measurements = plugin.getLongHistogramMeasurement(instrumentName);
-        return measurements.stream().filter(m -> m.attributes().get("operation") == operation.getKey()).count();
+        return measurements.stream().filter(m -> operation.getKey().equals(m.attributes().get("operation"))).count();
     }
 
     private long getLongHistogramValue(TestTelemetryPlugin plugin, String instrumentName, Operation operation) {
         final List<Measurement> measurements = Measurement.combine(plugin.getLongHistogramMeasurement(instrumentName));
-        return measurements.stream()
-            .filter(m -> m.attributes().get("operation") == operation.getKey())
-            .mapToLong(Measurement::getLong)
-            .findFirst()
-            .orElse(0L);
+        return measurements.stream().peek(m -> {
+            if (METRIC_EXCEPTIONS_HISTOGRAM.equals(instrumentName)) {
+                assertThat(m.attributes(), hasKey("error_type"));
+            }
+        }).filter(m -> operation.getKey().equals(m.attributes().get("operation"))).mapToLong(Measurement::getLong).sum();
     }
 
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")

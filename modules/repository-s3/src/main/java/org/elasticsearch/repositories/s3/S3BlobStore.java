@@ -39,6 +39,7 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoriesMetrics;
@@ -204,7 +205,6 @@ class S3BlobStore implements BlobStore {
 
             long requestCount = 0;
             long responseCount = 0;
-            long awsErrorCount = 0;
             long throttleCount = 0;
             long http416ResponseCount = 0;
             for (final var apiCallAttemptMetrics : metricCollection.children()) {
@@ -214,7 +214,9 @@ class S3BlobStore implements BlobStore {
                 requestCount += 1;
                 final var errorTypes = apiCallAttemptMetrics.metricValues(CoreMetric.ERROR_TYPE);
                 if (errorTypes != null && errorTypes.size() > 0) {
-                    awsErrorCount += 1;
+                    final var attributesWithErrorType = Maps.copyMapWithAddedEntry(attributes, "error_type", errorTypes.getFirst());
+                    s3RepositoriesMetrics.common().exceptionCounter().incrementBy(1, attributesWithErrorType);
+                    s3RepositoriesMetrics.common().exceptionHistogram().record(1, attributesWithErrorType);
                     if (errorTypes.contains("Throttling")) {
                         throttleCount += 1;
                     }
@@ -238,10 +240,6 @@ class S3BlobStore implements BlobStore {
             }
 
             s3RepositoriesMetrics.common().requestCounter().incrementBy(requestCount, attributes);
-            if (awsErrorCount > 0) {
-                s3RepositoriesMetrics.common().exceptionCounter().incrementBy(awsErrorCount, attributes);
-                s3RepositoriesMetrics.common().exceptionHistogram().record(awsErrorCount, attributes);
-            }
             if (throttleCount > 0) {
                 s3RepositoriesMetrics.common().throttleCounter().incrementBy(throttleCount, attributes);
                 s3RepositoriesMetrics.common().throttleHistogram().record(throttleCount, attributes);

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMerge
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TsdimWithout;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
@@ -45,6 +46,7 @@ public class TimeSeriesAggregate extends Aggregate {
     );
 
     private final Bucket timeBucket;
+    private final TsdimWithout tsdimWithout;
 
     public TimeSeriesAggregate(
         Source source,
@@ -53,19 +55,33 @@ public class TimeSeriesAggregate extends Aggregate {
         List<? extends NamedExpression> aggregates,
         Bucket timeBucket
     ) {
+        this(source, child, groupings, aggregates, timeBucket, null);
+    }
+
+    public TimeSeriesAggregate(
+        Source source,
+        LogicalPlan child,
+        List<Expression> groupings,
+        List<? extends NamedExpression> aggregates,
+        Bucket timeBucket,
+        TsdimWithout tsdimWithout
+    ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
+        this.tsdimWithout = tsdimWithout;
     }
 
     public TimeSeriesAggregate(StreamInput in) throws IOException {
         super(in);
         this.timeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
+        this.tsdimWithout = in.readOptionalWriteable(inp -> (TsdimWithout) TsdimWithout.ENTRY.reader.read(inp));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(timeBucket);
+        out.writeOptionalWriteable(tsdimWithout);
     }
 
     @Override
@@ -75,22 +91,24 @@ public class TimeSeriesAggregate extends Aggregate {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket);
+        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, tsdimWithout);
     }
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket);
+        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, tsdimWithout);
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket);
+        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, tsdimWithout);
     }
 
     @Override
     public boolean expressionsResolved() {
-        return super.expressionsResolved() && (timeBucket == null || timeBucket.resolved());
+        return super.expressionsResolved()
+            && (timeBucket == null || timeBucket.resolved())
+            && (tsdimWithout == null || tsdimWithout.resolved());
     }
 
     @Nullable
@@ -98,9 +116,13 @@ public class TimeSeriesAggregate extends Aggregate {
         return timeBucket;
     }
 
+    public TsdimWithout tsdimWithout() {
+        return tsdimWithout;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child(), timeBucket);
+        return Objects.hash(groupings, aggregates, child(), timeBucket, tsdimWithout);
     }
 
     @Override
@@ -117,7 +139,8 @@ public class TimeSeriesAggregate extends Aggregate {
         return Objects.equals(groupings, other.groupings)
             && Objects.equals(aggregates, other.aggregates)
             && Objects.equals(child(), other.child())
-            && Objects.equals(timeBucket, other.timeBucket);
+            && Objects.equals(timeBucket, other.timeBucket)
+            && Objects.equals(tsdimWithout, other.tsdimWithout);
     }
 
     @Override
@@ -267,7 +290,6 @@ public class TimeSeriesAggregate extends Aggregate {
                             )
                         );
                 });
-                // }
             }
         }
     }

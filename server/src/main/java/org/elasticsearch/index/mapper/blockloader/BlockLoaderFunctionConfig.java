@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.blockloader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Configuration needed to transform loaded values into blocks.
@@ -27,6 +28,13 @@ public interface BlockLoaderFunctionConfig {
     Function function();
 
     record JustFunction(Function function) implements BlockLoaderFunctionConfig {}
+
+    record TimeSeriesDimensionsWithExcludes(Function function, Set<String> excludedFields) implements BlockLoaderFunctionConfig {
+        public TimeSeriesDimensionsWithExcludes {
+            assert function == Function.TIME_SERIES_DIMENSIONS
+                : "TimeSeriesDimensionsWithExcludes can only be used with TIME_SERIES_DIMENSIONS";
+        }
+    }
 
     record JustWarnings(Function function, Warnings warnings) implements BlockLoaderFunctionConfig {
 

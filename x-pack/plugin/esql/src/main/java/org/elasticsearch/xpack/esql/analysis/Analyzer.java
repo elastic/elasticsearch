@@ -2193,10 +2193,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     /**
      * Cast the union typed fields in EsRelation to date_nanos if they are mixed date and date_nanos types.
      */
-    private static class DateMillisToNanosInEsRelation extends Rule<LogicalPlan, LogicalPlan> {
+    private static class DateMillisToNanosInEsRelation extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
         @Override
-        public LogicalPlan apply(LogicalPlan plan) {
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             return plan.transformUp(EsRelation.class, relation -> {
                 if (relation.indexMode() == IndexMode.LOOKUP) {
                     return relation;
@@ -2204,7 +2204,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return relation.transformExpressionsUp(FieldAttribute.class, f -> {
                     if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isDate)) {
                         HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
-                        var convert = new ToDateNanos(f.source(), f);
+                        var convert = new ToDateNanos(f.source(), f, context.configuration());
                         imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
                         var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
                         return new FieldAttribute(

@@ -144,7 +144,6 @@ public class EsqlDataTypeConverter {
         Map.entry(BOOLEAN, ToBoolean::new),
         Map.entry(CARTESIAN_POINT, ToCartesianPoint::new),
         Map.entry(CARTESIAN_SHAPE, ToCartesianShape::new),
-        Map.entry(DATE_NANOS, ToDateNanos::new),
         // ToDegrees, typeless
         Map.entry(DENSE_VECTOR, ToDenseVector::new),
         Map.entry(DOUBLE, ToDouble::new),
@@ -171,7 +170,8 @@ public class EsqlDataTypeConverter {
         DataType,
         TriFunction<Source, Expression, Configuration, AbstractConvertFunction>> TYPE_AND_CONFIG_TO_CONVERTER_FUNCTION = Map.ofEntries(
             Map.entry(KEYWORD, ToString::new),
-            Map.entry(DATETIME, ToDatetime::new)
+            Map.entry(DATETIME, ToDatetime::new),
+            Map.entry(DATE_NANOS, ToDateNanos::new)
         );
 
     /**
@@ -181,6 +181,14 @@ public class EsqlDataTypeConverter {
         Map.entry(
             KEYWORD,
             (source, expression) -> new UnresolvedFunction(source, "to_string", FunctionResolutionStrategy.DEFAULT, List.of(expression))
+        ),
+        Map.entry(
+            DATETIME,
+            (source, expression) -> new UnresolvedFunction(source, "to_datetime", FunctionResolutionStrategy.DEFAULT, List.of(expression))
+        ),
+        Map.entry(
+            DATE_NANOS,
+            (source, expression) -> new UnresolvedFunction(source, "to_date_nanos", FunctionResolutionStrategy.DEFAULT, List.of(expression))
         )
     );
 

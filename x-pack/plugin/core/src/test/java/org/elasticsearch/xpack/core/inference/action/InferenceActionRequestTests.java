@@ -678,28 +678,15 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             false
         );
 
-        {
-            // From a version before the rerouting logic was added
-            InferenceAction.Request deserializedInstance = copyWriteable(
-                instance,
-                getNamedWriteableRegistry(),
-                instanceReader(),
-                TransportVersions.V_8_17_0
-            );
+        // From a version with rerouting removed
+        InferenceAction.Request deserializedInstance = copyWriteable(
+            instance,
+            getNamedWriteableRegistry(),
+            instanceReader(),
+            BaseInferenceActionRequest.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED
+        );
 
-            assertEquals(instance, deserializedInstance);
-        }
-        {
-            // From a version with rerouting removed
-            InferenceAction.Request deserializedInstance = copyWriteable(
-                instance,
-                getNamedWriteableRegistry(),
-                instanceReader(),
-                BaseInferenceActionRequest.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED
-            );
-
-            assertEquals(instance, deserializedInstance);
-        }
+        assertEquals(instance, deserializedInstance);
     }
 
     public void testWriteTo_WhenVersionIsBeforeInferenceContext_ShouldSetContextToEmptyContext() throws IOException {

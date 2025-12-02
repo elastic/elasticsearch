@@ -153,14 +153,19 @@ public class ShardWriteLoadDistributionMetrics {
     }
 
     private Collection<DoubleWithAttributes> getWriteLoadDistributionMetrics() {
-        return lastWriteLoadDistributionValues.getAndSet(null);
+        return getValueOrEmptyCollection(lastWriteLoadDistributionValues);
     }
 
     private Collection<DoubleWithAttributes> getWriteLoadPrioritisationThresholdMetrics() {
-        return lastWriteLoadPrioritisationThresholdValues.getAndSet(null);
+        return getValueOrEmptyCollection(lastWriteLoadPrioritisationThresholdValues);
     }
 
     private Collection<LongWithAttributes> getWriteLoadPrioritisationThresholdPercentileRankMetrics() {
-        return lastShardCountExceedingPrioritisationThresholdValues.getAndSet(null);
+        return getValueOrEmptyCollection(lastShardCountExceedingPrioritisationThresholdValues);
+    }
+
+    private <T> Collection<T> getValueOrEmptyCollection(AtomicReference<List<T>> reference) {
+        final var value = reference.getAndSet(null);
+        return value == null ? List.of() : value;
     }
 }

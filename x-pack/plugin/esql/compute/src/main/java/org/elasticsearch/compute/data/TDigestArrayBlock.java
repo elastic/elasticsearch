@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.io.IOException;
 import java.util.List;
@@ -286,6 +285,21 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
             bytes += b.ramBytesUsed();
         }
         return bytes;
+    }
+
+    @Override
+    public void serializeTDigest(int valueIndex, SerializedTDigestOutput out, BytesRef scratch) {
+        // not that this value count is different from getValueCount(position)!
+        // this value count represents the number of individual samples the histogram was computed for
+        long valueCount = valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex));
+        out.appendLong(valueCount);
+        if (valueCount > 0) {
+            // sum / min / max are only non-null for non-empty histograms
+            out.appendDouble(sums.getDouble(sums.getFirstValueIndex(valueIndex)));
+            out.appendDouble(minima.getDouble(minima.getFirstValueIndex(valueIndex)));
+            out.appendDouble(maxima.getDouble(maxima.getFirstValueIndex(valueIndex)));
+        }
+        out.appendBytesRef(encodedDigests.getBytesRef(encodedDigests.getFirstValueIndex(valueIndex), scratch));
     }
 
     @Override

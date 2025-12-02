@@ -27,6 +27,8 @@ public sealed interface TDigestBlock extends Block permits ConstantNullBlock, TD
         };
     }
 
+    void serializeTDigest(int valueIndex, SerializedTDigestOutput out, BytesRef scratch);
+
     /**
      * Builder for {@link TDigestBlock}
      */

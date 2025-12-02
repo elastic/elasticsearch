@@ -129,12 +129,17 @@ record TimeSeriesFields(String[] metricFields, String[] dimensionFields, String[
                 );
             }
             String parentField = field.substring(0, field.lastIndexOf('.'));
-            // Need to figure out if we need to address flattened stuff.
+            // If the parent field is a dimension, we consider it already tracked.
+            if (dimensionFields.contains(parentField) || metricFields.contains(parentField)) {
+                return;
+            }
+            // We do not check for flattened dimension subfields because even if it is accepted as a valid mapping
+            // indexing a document fails.
             if (isTimeSeriesDimension(field, mapping)) {
                 dimensionFields.add(parentField);
                 labelFields.remove(parentField);
                 alternativeSources.put(parentField, field);
-            } else if (isTimeSeriesLabel(field, mapping)) {
+            } else if (isTimeSeriesLabel(field, mapping) && labelFields.contains(parentField) == false) {
                 labelFields.add(parentField);
                 alternativeSources.put(parentField, field);
             }

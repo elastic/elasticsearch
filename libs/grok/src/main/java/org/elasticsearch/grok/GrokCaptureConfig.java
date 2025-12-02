@@ -55,35 +55,35 @@ public final class GrokCaptureConfig {
      */
     public GrokCaptureExtracter objectExtracter(Consumer<Object> emit) {
         // We could probably write this code a little more concisely but this makes it clear where we are boxing
-        return nativeExtracter(new NativeExtracterMap<GrokCaptureExtracter>() {
+        return nativeExtracter(new NativeExtracterMap<>() {
             @Override
             public GrokCaptureExtracter forString(Function<Consumer<String>, GrokCaptureExtracter> buildExtracter) {
-                return buildExtracter.apply(str -> emit.accept(str));
+                return buildExtracter.apply(emit::accept);
             }
 
             @Override
             public GrokCaptureExtracter forInt(Function<IntConsumer, GrokCaptureExtracter> buildExtracter) {
-                return buildExtracter.apply(i -> emit.accept(Integer.valueOf(i)));
+                return buildExtracter.apply(emit::accept);
             }
 
             @Override
             public GrokCaptureExtracter forLong(Function<LongConsumer, GrokCaptureExtracter> buildExtracter) {
-                return buildExtracter.apply(l -> emit.accept(Long.valueOf(l)));
+                return buildExtracter.apply(emit::accept);
             }
 
             @Override
             public GrokCaptureExtracter forFloat(Function<FloatConsumer, GrokCaptureExtracter> buildExtracter) {
-                return buildExtracter.apply(f -> emit.accept(Float.valueOf(f)));
+                return buildExtracter.apply(emit::accept);
             }
 
             @Override
             public GrokCaptureExtracter forDouble(Function<DoubleConsumer, GrokCaptureExtracter> buildExtracter) {
-                return buildExtracter.apply(d -> emit.accept(Double.valueOf(d)));
+                return buildExtracter.apply(emit::accept);
             }
 
             @Override
             public GrokCaptureExtracter forBoolean(Function<Consumer<Boolean>, GrokCaptureExtracter> buildExtracter) {
-                return buildExtracter.apply(b -> emit.accept(b));
+                return buildExtracter.apply(emit::accept);
             }
         });
     }

@@ -80,7 +80,8 @@ public class Absent extends AggregateFunction implements SurrogateExpression {
                 "long",
                 "text",
                 "unsigned_long",
-                "version" },
+                "version",
+                "exponential_histogram" },
             description = "Expression that outputs values to be checked for absence."
         ) Expression field
     ) {

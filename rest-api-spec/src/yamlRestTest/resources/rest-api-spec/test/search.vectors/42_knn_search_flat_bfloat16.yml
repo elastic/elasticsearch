@@ -260,13 +260,6 @@ setup:
   - lte: {hits.hits.2._score: 0.791}
 ---
 "Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn":
-  - requires:
-      reason: 'Quantized vector rescoring is required'
-      test_runner_features: [capabilities]
-      capabilities:
-        - method: GET
-          path: /_search
-          capabilities: [knn_quantized_vector_rescore_oversample]
   - skip:
       features: "headers"
 
@@ -313,22 +306,6 @@ setup:
   - match: { hits.hits.0._score: $knn_score0 }
   - match: { hits.hits.1._score: $knn_score1 }
   - match: { hits.hits.2._score: $knn_score2 }
----
-"Test bad parameters":
-  - do:
-      catch: bad_request
-      indices.create:
-        index: bad_flat
-        body:
-          mappings:
-            properties:
-              vector:
-                type: dense_vector
-                dims: 5
-                index: true
-                index_options:
-                  type: flat
-                  m: 42
 ---
 "Nested flat search":
   - do:

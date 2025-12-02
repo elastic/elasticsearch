@@ -1,0 +1,5 @@
+pr: 138883
+summary: Speed up `LeafCollector#setScorer` in `TopHitsAggregator`
+area: Search
+type: bug
+issues: []

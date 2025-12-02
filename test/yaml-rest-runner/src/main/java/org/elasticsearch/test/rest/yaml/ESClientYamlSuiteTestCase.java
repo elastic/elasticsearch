@@ -36,6 +36,7 @@ import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.rules.ErrorCollector;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -108,6 +109,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private static ClientYamlSuiteRestSpec restSpecification;
 
+    private ESClientYamlSuiteErrorCollector errorCollector;
+
     protected ESClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
         this.testCandidate = testCandidate;
     }
@@ -167,6 +170,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
+
+        errorCollector = new ESClientYamlSuiteErrorCollector();
     }
 
     /**
@@ -496,26 +501,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
                 executeSection(executableSection);
             }
-        } finally {
-            logger.debug("start teardown test [{}]", testCandidate.getTestPath());
-            for (ExecutableSection doSection : testCandidate.getTeardownSection().getDoSections()) {
-                executeSection(doSection);
-            }
-            logger.debug("end teardown test [{}]", testCandidate.getTestPath());
-        }
-    }
-
-    protected boolean skipSetupSections() {
-        return false;
-    }
-
-    /**
-     * Execute an {@link ExecutableSection}, careful to log its place of origin on failure.
-     */
-    private void executeSection(ExecutableSection executableSection) {
-        try {
-            executableSection.execute(restTestExecutionContext);
-        } catch (AssertionError | Exception e) {
+            errorCollector.verify();
+        } catch (AssertionError e) {
             // Dump the original yaml file, if available, for reference.
             Optional<Path> file = testCandidate.getRestTestSuite().getFile();
             if (file.isPresent()) {
@@ -533,16 +520,41 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                     .replace("\\r", "\r")
                     .replace("\\t", "\t")
             );
-            if (e instanceof AssertionError) {
-                throw new AssertionError(errorMessage(executableSection, e), e);
-            } else {
-                throw new RuntimeException(errorMessage(executableSection, e), e);
+            throw e;
+        } finally {
+            logger.debug("start teardown test [{}]", testCandidate.getTestPath());
+            for (ExecutableSection doSection : testCandidate.getTeardownSection().getDoSections()) {
+                executeSection(doSection);
             }
+            logger.debug("end teardown test [{}]", testCandidate.getTestPath());
         }
     }
 
-    private String errorMessage(ExecutableSection executableSection, Throwable t) {
-        return "Failure at [" + testCandidate.getSuitePath() + ":" + executableSection.getLocation().lineNumber() + "]: " + t.getMessage();
+    private void executeSection(ExecutableSection executableSection) {
+        errorCollector.checkSucceeds(() -> {
+            try {
+                executableSection.execute(restTestExecutionContext);
+                return null;
+            } catch (Throwable t) {
+                if (t instanceof AssertionError) {
+                    throw t;
+                } else {
+                    throw new AssertionError(
+                        "Error executing section at ["
+                            + testCandidate.getSuitePath()
+                            + ":"
+                            + executableSection.getLocation().lineNumber()
+                            + "]: "
+                            + t.getMessage(),
+                        t
+                    );
+                }
+            }
+        });
+    }
+
+    protected boolean skipSetupSections() {
+        return false;
     }
 
     protected boolean randomizeContentType() {
@@ -567,5 +579,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     public ClientYamlTestCandidate getTestCandidate() {
         return testCandidate;
+    }
+
+    private static class ESClientYamlSuiteErrorCollector extends ErrorCollector {
+
+        public void verify() throws AssertionError {
+            try {
+                super.verify();
+            } catch (Throwable e) {
+                throw new AssertionError(e.getMessage());
+            }
+        }
     }
 }

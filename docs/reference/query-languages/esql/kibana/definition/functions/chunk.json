@@ -34,5 +34,5 @@
     "FROM books\n| EVAL chunks = CHUNK(description, {\"strategy\": \"sentence\", \"max_chunk_size\": 20, \"sentence_overlap\": 0})"
   ],
   "preview" : true,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

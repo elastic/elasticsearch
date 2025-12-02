@@ -799,7 +799,7 @@ dateNanosOneRateIncreaseWithBucketAndClusterThenFilter
 required_capability: ts_command_v0
 required_capability: ts_rate_datenanos_2
 
-TS k8s-datenanos
+TS datenanos-k8s
 | WHERE cluster=="prod"
 | STATS max=max(rate(network.total_bytes_in)), inc=max(increase(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
 | EVAL max=ROUND(max, 5), inc=ROUND(inc, 5)

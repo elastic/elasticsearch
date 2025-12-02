@@ -144,7 +144,7 @@ datenanos_irate_long
 required_capability: ts_command_v0
 required_capability: ts_rate_datenanos
 
-TS k8s-datenanos
+TS datenanos-k8s
 | STATS irate_bytes_in=avg(irate(network.total_bytes_in) + 10) BY time_bucket = bucket(@timestamp,1minute)
 | SORT irate_bytes_in DESC, time_bucket DESC | LIMIT 10;
 
@@ -185,7 +185,7 @@ avg_irate_bytes:double | avg_irate_cost:double | cluster:keyword | time_bucket:d
 datenanos_irate_combined_avg
 required_capability: ts_command_v0
 required_capability: ts_rate_datenanos
-TS k8s-datenanos
+TS datenanos-k8s
 | STATS avg_irate_bytes = avg(irate(network.total_bytes_in)), avg_irate_cost = avg(irate(network.total_cost)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
 | EVAL avg_irate_bytes = ROUND(avg_irate_bytes, 5), avg_irate_cost = ROUND(avg_irate_cost, 5), ratio = ROUND(avg_irate_bytes / avg_irate_cost, 5)
 | KEEP avg_irate_bytes, avg_irate_cost, cluster, time_bucket, ratio

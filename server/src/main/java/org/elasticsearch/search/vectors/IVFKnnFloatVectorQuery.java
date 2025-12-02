@@ -111,7 +111,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
                 visitedLimit,
                 strategy,
                 context,
-                Math.round(k * (1 + (1f - postFilteringThreshold)))
+                Math.round(k * (5 + (1f - postFilteringThreshold)))
             );
         } else {
             knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);

@@ -117,10 +117,10 @@ public class ShardWriteLoadDistributionMetrics {
                          * don't play nice with the HdrHistogram because it works
                          * best when there is a relatively small difference in the
                          * scale of the values inserted into it.
-                         * They also provide little value, so we reduce their
-                         * precision here.
+                         * They also provide little value, so we round them down to
+                         * zero here.
                          */
-                        double lessPreciseValue = reducePrecision(writeLoad);
+                        double lessPreciseValue = roundTinyValuesToZero(writeLoad);
                         shardWeightHistogram.recordValue(lessPreciseValue);
                         maxShardWriteLoad = Math.max(maxShardWriteLoad, lessPreciseValue);
                     }
@@ -162,9 +162,9 @@ public class ShardWriteLoadDistributionMetrics {
         lastShardCountExceedingPrioritisationThresholdValues.set(shardCountsExceedingPrioritisationThresholdValues);
     }
 
-    private double reducePrecision(double value) {
-        assert value < Double.MAX_VALUE / 1000.0 : "Reduce precision might cause an overflow";
-        return Math.round(value * 1000.0) / 1000.0;
+    private double roundTinyValuesToZero(double value) {
+        assert value >= 0.0 : "We got a negative write load?! " + value;
+        return value < 0.01 ? 0.0 : value;
     }
 
     private Map<String, Object> getAttributesForPercentile(DiscoveryNode node, double percentile) {

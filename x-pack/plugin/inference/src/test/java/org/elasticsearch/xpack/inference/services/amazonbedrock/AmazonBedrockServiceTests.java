@@ -84,6 +84,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.completio
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettingsTests.createEmbeddingsRequestSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -1272,6 +1273,43 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         );
 
         testChunkedInfer(model);
+    }
+
+    public void testChunkedInfer_noInputs() throws IOException {
+        var model = AmazonBedrockEmbeddingsModelTests.createModel(
+            "id",
+            "region",
+            "model",
+            AmazonBedrockProvider.AMAZONTITAN,
+            null,
+            "access",
+            "secret"
+        );
+
+        var sender = mock(Sender.class);
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var amazonBedrockFactory = new AmazonBedrockMockRequestSender.Factory(
+            ServiceComponentsTests.createWithSettings(threadPool, Settings.EMPTY),
+            mockClusterServiceEmpty()
+        );
+
+        try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                model,
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+        }
     }
 
     private void testChunkedInfer(AmazonBedrockEmbeddingsModel model) throws IOException {

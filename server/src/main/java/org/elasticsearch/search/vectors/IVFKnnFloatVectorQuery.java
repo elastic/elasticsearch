@@ -103,7 +103,19 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         }
         assert filterDocs instanceof ESAcceptDocs;
         IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, knnCollectorManager.longAccumulator);
-        var knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
+        AbstractMaxScoreKnnCollector knnCollector;
+        if (filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs
+            && (float) ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).approximateCost() / floatVectorValues
+                .size() >= postFilteringThreshold) {
+            knnCollector = knnCollectorManager.newOptimisticCollector(
+                visitedLimit,
+                strategy,
+                context,
+                Math.round(k * (1 + (1f - postFilteringThreshold)))
+            );
+        } else {
+            knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
+        }
         if (knnCollector == null) {
             return NO_RESULTS;
         }

@@ -345,7 +345,8 @@ public class ScopedSettingsTests extends ESTestCase {
             e.getMessage(),
             equalTo(
                 "unknown setting [archived.index.store.type] was archived after upgrading, and must be removed."
-                    + " See [https://www.elastic.co/guide/en/elasticsearch/reference/8.19/deploy-manage/upgrade/deployment-or-cluster/archived-settings] "
+                    + " See [https://www.elastic.co/guide/en/elasticsearch/reference/8.19/"
+                    + "deploy-manage/upgrade/deployment-or-cluster/archived-settings] "
                     + "for details."
             )
         );

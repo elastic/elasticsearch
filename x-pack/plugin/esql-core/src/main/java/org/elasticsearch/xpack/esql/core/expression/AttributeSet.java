@@ -214,9 +214,9 @@ public class AttributeSet implements Set<Attribute> {
 
     public static class Builder {
 
-        protected final AttributeMap.Builder<Object> mapBuilder;
+        private final AttributeMap.Builder<Object> mapBuilder;
 
-        protected Builder(AttributeMap.Builder<Object> mapBuilder) {
+        private Builder(AttributeMap.Builder<Object> mapBuilder) {
             this.mapBuilder = mapBuilder;
         }
 

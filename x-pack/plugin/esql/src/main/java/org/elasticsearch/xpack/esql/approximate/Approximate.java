@@ -126,7 +126,7 @@ import java.util.stream.Stream;
  * probability can be directly computed as a ratio of the target number of rows
  * and this total number.
  * <p>
- * In the presence of commands that can change to number of rows, another step
+ * In the presence of commands that can change the number of rows, another step
  * is needed. The first goal is to find a sample probability that leads to
  * {@link Approximate#SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION} rows, and when is
  * probability is found, a sample probability leading to the target number of
@@ -436,7 +436,7 @@ public class Approximate {
     }
 
     private static boolean isCausedByUnsupported(Exception ex) {
-        return ExceptionsHelper.unwrapCausesAndSuppressed(ex, e -> e instanceof UnsupportedOperationException).isPresent();
+        return ExceptionsHelper.unwrapCausesAndSuppressed(ex, e -> e.toString().contains("not executing query of type")).isPresent();
     }
 
     /**
@@ -604,15 +604,16 @@ public class Approximate {
      *     <li> {@code EVAL} adding a new column with random bucket IDs for each trial
      *     <li> {@code STATS} command with:
      *          <ul>
+     *              <li> {@code COUNT} to track the sample size
      *              <li> Each aggregate function replaced by a sample-corrected version (if needed)
      *              <li> {@link Approximate#TRIAL_COUNT} * {@link Approximate#BUCKET_COUNT} additional columns
      *                   with a sampled values for each aggregate function, sample-corrected (if needed)
      *          </ul>
+     *     <li> {@code FILTER} to remove all rows with a too small sample size
      *     <li> All commands after the {@code STATS} command, modified to also process
      *          the additional bucket columns where possible
      *     <li> {@code EVAL} to compute confidence intervals for all fields with buckets
-     *     <li> {@code FILTER} to remove rows with null confidence intervals (due to very little data)
-     *     <li> {@code PROJECT} to drop all bucket columns
+     *     <li> {@code PROJECT} to drop all non-output columns
      * </ul>
      *
      * As an example, the simple query:
@@ -631,12 +632,13 @@ public class Approximate {
      *             | SAMPLE prob
      *             | EVAL x = 2*x
      *             | EVAL bucketId = MV_APPEND(RANDOM(B), ... , RANDOM(B))  // T times
-     *             | STATS s = SUM(x) / prob,
+     *             | STATS sampleSize = COUNT(*),
+     *                     s = SUM(x) / prob,
      *                     `s$0` = SUM(x) / (prob/B)) WHERE MV_SLICE(bucketId, 0, 0) == 0
      *                     ...,
      *                     `s$T*B-1` = SUM(x) / (prob/B) WHERE MV_SLICE(bucketId, T-1, T-1) == B-1
      *               BY group
-     *             | WHERE `s$0` IS NOT NULL AND ... AND `s$T*B-1` IS NOT NULL
+     *             | WHERE sampleSize >= 10
      *             | EVAL t = s*s, `t$0` = `s$0`*`s$0`, ..., `t$T*B-1` = `s$T*B-1`*`s$T*B-1`
      *             | EVAL `CONFIDENCE_INTERVAL(s)` = CONFIDENCE_INTERVAL(s, MV_APPEND(`s$0`, ... `s$T*B-1`), T, B, 0.90),
      *                    `CONFIDENCE_INTERVAL(t)` = CONFIDENCE_INTERVAL(t, MV_APPEND(`t$0`, ... `t$T*B-1`), T, B, 0.90)
@@ -695,20 +697,20 @@ public class Approximate {
                         continue;
                     }
 
-                    // Replace the original aggregation by a sample-corrected one.
                     Alias aggAlias = (Alias) aggOrKey;
                     AggregateFunction aggFn = (AggregateFunction) aggAlias.child();
 
+                    // If the query is preserving all rows, and the aggregation function is
+                    // counting all rows, we know the exact result without sampling.
                     if (aggFn.equals(COUNT_ALL_ROWS)
                         && aggregate.groupings().isEmpty()
                         && queryProperties.canDecreaseRowCount == false
                         && queryProperties.canIncreaseRowCount == false) {
-                        // If the query is preserving all rows, and the aggregation function is
-                        // counting all rows, we know the exact result without sampling.
                         aggregates.add(aggAlias.replaceChild(Literal.fromLong(Source.EMPTY, sourceRowCount)));
                         continue;
                     }
 
+                    // Replace the original aggregation by a sample-corrected one if needed.
                     if (SAMPLE_CORRECTED_AGGS.contains(aggFn.getClass()) == false) {
                         aggregates.add(aggAlias);
                     } else {

@@ -201,6 +201,26 @@ value:integer | count:long | CONFIDENCE_INTERVAL(count):long | RELIABLE(count):b
 ;
 
 
+approximate stats with zero variance
+required_capability: approximate
+approximate: true
+
+FROM many_numbers
+    | MV_EXPAND value
+    | STATS avg=avg(value), median=median(value), one=3/(1+SUM(2.0*value)/SUM(value)) BY value
+    | SORT value DESC
+    | LIMIT 5
+;
+
+avg:double | median:double | one:double | value:integer | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(median):double | RELIABLE(median):boolean | CONFIDENCE_INTERVAL(one):double | RELIABLE(one):boolean
+2000       | 2000          | 1          | 2000          | [2000,2000]                     | true                  | [2000,2000]                        | true                     | [1,1]                           | true
+1999       | 1999          | 1          | 1999          | [1999,1999]                     | true                  | [1999,1999]                        | true                     | [1,1]                           | true
+1998       | 1998          | 1          | 1998          | [1998,1998]                     | true                  | [1998,1998]                        | true                     | [1,1]                           | true
+1997       | 1997          | 1          | 1997          | [1997,1997]                     | true                  | [1997,1997]                        | true                     | [1,1]                           | true
+1996       | 1996          | 1          | 1996          | [1996,1996]                     | true                  | [1996,1996]                        | true                     | [1,1]                           | true
+;
+
+
 exact stats by on small data
 required_capability: approximate
 approximate: true

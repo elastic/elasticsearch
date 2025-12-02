@@ -88,6 +88,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * This class computes approximate results for certain classes of ES|QL queries.
@@ -655,6 +656,13 @@ public class Approximate {
         // for these fields at the end of the computation. They map to the list of buckets for
         // that field.
         Map<NameId, List<Alias>> fieldBuckets = new HashMap<>();
+        // For each sample-corrected expression, also keep track of the uncorrected expression.
+        // These are used when a division between two sample-corrected expressions is encountered.
+        // This results in the same value (because (expr1/prob) / (expr2/prob) == expr1/expr2),
+        // except that no round-off errors occur if either the numerator or denominator is an
+        // integer and rounded to that after sample-correction. The most common case is AVG, which
+        // is rewritten to AVG::double = SUM::double / COUNT::long.
+        Map<NameId, NamedExpression> uncorrectedExpressions = new HashMap<>();
 
         LogicalPlan approximatePlan = logicalPlan.transformUp(plan -> {
             if (plan instanceof LeafPlan) {
@@ -701,7 +709,15 @@ public class Approximate {
                         continue;
                     }
 
-                    aggregates.add(aggAlias.replaceChild(correctForSampling(aggFn, sampleProbability)));
+                    if (SAMPLE_CORRECTED_AGGS.contains(aggFn.getClass()) == false) {
+                        aggregates.add(aggAlias);
+                    } else {
+                        Expression correctedAgg = correctForSampling(aggFn, sampleProbability);
+                        aggregates.add(aggAlias.replaceChild(correctedAgg));
+                        Alias uncorrectedAggAlias = new Alias(aggAlias.source(), aggAlias.name() + "$uncorrected", aggFn);
+                        aggregates.add(uncorrectedAggAlias);
+                        uncorrectedExpressions.put(aggAlias.id(), uncorrectedAggAlias);
+                    }
 
                     if (SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass())) {
                         // For the supported single-valued aggregations, add buckets with sampled
@@ -710,20 +726,17 @@ public class Approximate {
                         List<Alias> buckets = new ArrayList<>();
                         for (int trialId = 0; trialId < TRIAL_COUNT; trialId++) {
                             for (int bucketId = 0; bucketId < BUCKET_COUNT; bucketId++) {
-                                Expression bucket = correctForSampling(
-                                    aggFn.withFilter(
-                                        new Equals(
+                                Expression bucket = aggFn.withFilter(
+                                    new Equals(
+                                        Source.EMPTY,
+                                        new MvSlice(
                                             Source.EMPTY,
-                                            new MvSlice(
-                                                Source.EMPTY,
-                                                bucketIdField.toAttribute(),
-                                                Literal.integer(Source.EMPTY, trialId),
-                                                Literal.integer(Source.EMPTY, trialId)
-                                            ),
-                                            Literal.integer(Source.EMPTY, bucketId)
-                                        )
-                                    ),
-                                    sampleProbability / BUCKET_COUNT
+                                            bucketIdField.toAttribute(),
+                                            Literal.integer(Source.EMPTY, trialId),
+                                            Literal.integer(Source.EMPTY, trialId)
+                                        ),
+                                        Literal.integer(Source.EMPTY, bucketId)
+                                    )
                                 );
                                 if (aggFn instanceof Count) {
                                     // For COUNT, no data should result in NULL, like in other aggregations.
@@ -733,13 +746,23 @@ public class Approximate {
                                         List.of(Literal.NULL, bucket)
                                     );
                                 }
-                                Alias namedBucket = new Alias(
+                                Alias bucketAlias = new Alias(
                                     Source.EMPTY,
                                     aggOrKey.name() + "$" + (trialId * BUCKET_COUNT + bucketId),
                                     bucket
                                 );
-                                buckets.add(namedBucket);
-                                aggregates.add(namedBucket);
+                                if (SAMPLE_CORRECTED_AGGS.contains(aggFn.getClass()) == false) {
+                                    buckets.add(bucketAlias);
+                                    aggregates.add(bucketAlias);
+                                } else {
+                                    Expression correctedBucket = correctForSampling(bucket, sampleProbability / BUCKET_COUNT);
+                                    bucketAlias = bucketAlias.replaceChild(correctedBucket);
+                                    buckets.add(bucketAlias);
+                                    aggregates.add(bucketAlias);
+                                    Alias uncorrectedBucketAlias = new Alias(Source.EMPTY, bucketAlias.name() + "$uncorrected", bucket);
+                                    uncorrectedExpressions.put(bucketAlias.id(), uncorrectedBucketAlias);
+                                    aggregates.add(uncorrectedBucketAlias);
+                                }
                             }
                         }
                         fieldBuckets.put(aggOrKey.id(), buckets);
@@ -793,6 +816,26 @@ public class Approximate {
                                 fields.addAll(buckets);
                                 fieldBuckets.put(field.id(), buckets);
                             }
+                        }
+                        // For each division of two sample-corrected expressions, replace it by
+                        // a division of the corresponding uncorrected expressions.
+                        for (int i = 0; i < fields.size(); i++) {
+                            Alias field = fields.get(i);
+                            fields.set(i, field.replaceChild(field.child().transformUp(e -> {
+                                if (e instanceof Div div
+                                    && div.left() instanceof NamedExpression left
+                                    && uncorrectedExpressions.containsKey(left.id())
+                                    && div.right() instanceof NamedExpression right
+                                    && uncorrectedExpressions.containsKey(right.id())) {
+                                    return new Div(
+                                        e.source(),
+                                        uncorrectedExpressions.get(left.id()).toAttribute(),
+                                        uncorrectedExpressions.get(right.id()).toAttribute(),
+                                        div.dataType()
+                                    );
+                                }
+                                return e;
+                            })));
                         }
                         plan = new Eval(Source.EMPTY, eval.child(), fields);
                         break;
@@ -908,37 +951,33 @@ public class Approximate {
         }
         approximatePlan = new Eval(Source.EMPTY, approximatePlan, confidenceIntervalsAndReliable);
 
-        // Finally, drop all bucket fields from the output.
-        Set<Attribute> dropAttributes = fieldBuckets.values()
-            .stream()
-            .flatMap(List::stream)
-            .map(Alias::toAttribute)
-            .collect(Collectors.toSet());
+        // Finally, drop all bucket fields and uncorrected fields from the output.
+        Set<Attribute> dropAttributes = Stream.concat(
+            fieldBuckets.values().stream().flatMap(List::stream),
+            uncorrectedExpressions.values().stream()
+        ).map(NamedExpression::toAttribute).collect(Collectors.toSet());
+
         List<Attribute> keepAttributes = new ArrayList<>(approximatePlan.output());
         keepAttributes.removeAll(dropAttributes);
         approximatePlan = new Project(Source.EMPTY, approximatePlan, keepAttributes);
 
         approximatePlan.setPreOptimized();
-
+        approximatePlan = logicalPlanOptimizer.optimize(approximatePlan);
         logger.debug("approximate plan:\n{}", approximatePlan);
-
-        return logicalPlanOptimizer.optimize(approximatePlan);
+        return approximatePlan;
     }
 
     /**
-     * Corrects an aggregation function for random sampling, if needed.
+     * Corrects an aggregation function for random sampling.
      * Some functions (like COUNT and SUM) need to be scaled up by the inverse of
      * the sampling probability, while others (like AVG and MEDIAN) do not.
      */
-    private static Expression correctForSampling(AggregateFunction agg, double sampleProbability) {
-        if (SAMPLE_CORRECTED_AGGS.contains(agg.getClass()) == false) {
-            return agg;
-        }
-        Expression correctedAgg = new Div(agg.source(), agg, Literal.fromDouble(Source.EMPTY, sampleProbability));
-        return switch (agg.dataType()) {
+    private static Expression correctForSampling(Expression expr, double sampleProbability) {
+        Expression correctedAgg = new Div(expr.source(), expr, Literal.fromDouble(Source.EMPTY, sampleProbability));
+        return switch (expr.dataType()) {
             case DOUBLE -> correctedAgg;
-            case LONG -> new ToLong(agg.source(), correctedAgg);
-            default -> throw new IllegalStateException("unexpected data type [" + agg.dataType() + "]");
+            case LONG -> new ToLong(expr.source(), correctedAgg);
+            default -> throw new IllegalStateException("unexpected data type [" + expr.dataType() + "]");
         };
     }
 }

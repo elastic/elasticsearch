@@ -83,8 +83,8 @@ public class IndexResolver {
     }
 
     /**
-     * Like {@code IndexResolver#resolveIndicesVersioned}
-     * but simplified and does not pass on the determined minimum transport version to the listener.
+     * Like {@code resolveAsMergedMappingAndRetrieveMinimumVersion}
+     * but does not pass on the determined minimum transport version to the listener.
      */
     public void resolveAsMergedMapping(
         String indexWildcard,

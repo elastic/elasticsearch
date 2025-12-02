@@ -1,0 +1,45 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[x{r}],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*), x{r}],FINAL,[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],null]
+  \_ExchangeExec[[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],true]
+    \_FilterExec[$$count(*)$count{r} > 0[LONG]]
+      \_EsStatsQueryExec[test,null,null,[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],ByStat{queryBuilderAndTags=[QueryBuilderAndTags[query={
+  "range" : {
+    "date" : {
+      "gte" : "2023-10-19T00:00:00.000Z",
+      "lt" : "2023-10-21T00:00:00.000Z",
+      "time_zone" : "Z",
+      "format" : "strict_date_optional_time",
+      "boost" : 0.0
+    }
+  }
+}, tags=[1697760000000]], QueryBuilderAndTags[query={
+  "range" : {
+    "date" : {
+      "gte" : "2023-10-21T00:00:00.000Z",
+      "lt" : "2023-10-22T00:00:00.000Z",
+      "time_zone" : "Z",
+      "format" : "strict_date_optional_time",
+      "boost" : 0.0
+    }
+  }
+}, tags=[1697846400000]], QueryBuilderAndTags[query={
+  "range" : {
+    "date" : {
+      "gte" : "2023-10-22T00:00:00.000Z",
+      "lt" : "2023-10-23T00:00:00.000Z",
+      "time_zone" : "Z",
+      "format" : "strict_date_optional_time",
+      "boost" : 0.0
+    }
+  }
+}, tags=[1697932800000]], QueryBuilderAndTags[query={
+  "range" : {
+    "date" : {
+      "gte" : "2023-10-23T00:00:00.000Z",
+      "lte" : "2023-10-24T00:00:00.000Z",
+      "time_zone" : "Z",
+      "format" : "strict_date_optional_time",
+      "boost" : 0.0
+    }
+  }
+}, tags=[1698019200000]]]}]

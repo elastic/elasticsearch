@@ -604,3 +604,23 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToDouble.java"
   }
 }
+
+
+test {
+  System.getProperties().each { key, value ->
+    if (key.toString().startsWith("golden.")) {
+      systemProperty key.toString(), value
+    }
+  }
+  if (project.hasProperty("golden.noactual")) {
+    systemProperty "golden.noactual", "true"
+  }
+  if (project.hasProperty("golden.cleanactual")) {
+    systemProperty "golden.cleanactual", "true"
+  }
+  if (project.hasProperty("golden.bulldoze")) {
+    systemProperty "golden.bulldoze", "true"
+  }
+  systemProperty "policy.directory", file("${projectDir}").absolutePath
+  systemProperty "java.security.policy", file("${projectDir}/test.policy").absolutePath
+}

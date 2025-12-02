@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash.CategorizeDef;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash.CategorizeDef.OutputFormat;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.SupportsObservabilityTier;
@@ -247,7 +248,16 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
 
     @Override
     public String toString() {
-        return "Categorize{field=" + field + "}";
+        return toString(String.valueOf(field));
+    }
+
+    @Override
+    public String goldenTestToString() {
+        return toString(field != null ? field.goldenTestToString() : null);
+    }
+
+    private static String toString(@Nullable String fieldToString) {
+        return "Categorize{field=" + fieldToString + "}";
     }
 
     @Override

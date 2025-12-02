@@ -114,7 +114,17 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
     }
 
     @Override
+    public String goldenTestNodeString() {
+        return goldenTestToString();
+    }
+
+    @Override
     public String toString() {
         return UNRESOLVED_PREFIX + pattern;
+    }
+
+    @Override
+    public String goldenTestToString() {
+        return toString();
     }
 }

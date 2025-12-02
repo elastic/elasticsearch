@@ -224,7 +224,17 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
     }
 
     @Override
-    public String propertiesToString(boolean skipIfChild) {
-        return super.propertiesToString(false);
+    public String goldenTestToString() {
+        return sourceText();
+    }
+
+    @Override
+    protected String propertiesToString(boolean skipIfChild) {
+        return super.propertiesToString(false /* skipIfChild */);
+    }
+
+    @Override
+    protected String goldenTestPropertiesToString(boolean skipIfChild) {
+        return super.goldenTestPropertiesToString(false /* skipIfChild */);
     }
 }

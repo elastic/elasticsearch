@@ -164,8 +164,18 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
+    public String goldenTestToString() {
+        return toString();
+    }
+
+    @Override
     public String nodeString() {
         return toString();
+    }
+
+    @Override
+    public String goldenTestNodeString() {
+        return goldenTestToString();
     }
 
     @Override

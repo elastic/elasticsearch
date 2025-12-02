@@ -1,0 +1,71 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[x{r}],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*), x{r}],FINAL,[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],null]
+  \_ExchangeExec[[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],true]
+    \_FilterExec[$$count(*)$count{r} > 0[LONG]]
+      \_EsStatsQueryExec[test,null,null,[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],ByStat{queryBuilderAndTags=[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "long",
+    "next" : {
+      "range" : {
+        "long" : {
+          "lt" : 1697846400000,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "round_to(long, 1697760000000,1697846400000,1697932800000,1698019200000)@2:25"
+  }
+}, tags=[1697760000000]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "long",
+    "next" : {
+      "range" : {
+        "long" : {
+          "gte" : 1697846400000,
+          "lt" : 1697932800000,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "round_to(long, 1697760000000,1697846400000,1697932800000,1698019200000)@2:25"
+  }
+}, tags=[1697846400000]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "long",
+    "next" : {
+      "range" : {
+        "long" : {
+          "gte" : 1697932800000,
+          "lt" : 1698019200000,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "round_to(long, 1697760000000,1697846400000,1697932800000,1698019200000)@2:25"
+  }
+}, tags=[1697932800000]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "long",
+    "next" : {
+      "range" : {
+        "long" : {
+          "gte" : 1698019200000,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "round_to(long, 1697760000000,1697846400000,1697932800000,1698019200000)@2:25"
+  }
+}, tags=[1698019200000]], QueryBuilderAndTags[query={
+  "bool" : {
+    "must_not" : [
+      {
+        "exists" : {
+          "field" : "long",
+          "boost" : 0.0
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[null]]]}]

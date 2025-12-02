@@ -164,8 +164,18 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     }
 
     @Override
+    public String goldenTestToString() {
+        return toString();
+    }
+
+    @Override
     public String nodeString() {
         return toString();
+    }
+
+    @Override
+    public String goldenTestNodeString() {
+        return goldenTestToString();
     }
 
     @Override

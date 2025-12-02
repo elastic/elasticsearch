@@ -1,0 +1,36 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[x{r}],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*), x{r}],SINGLE,[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],null]
+  \_EvalExec[[BUCKET(date{r},P1D[DATE_PERIOD]) AS x]]
+    \_MergeExec[[date{r}]]
+      |_ProjectExec[[date{f}]]
+      | \_LimitExec[1000[INTEGER],null]
+      |   \_ExchangeExec[[date{f}],false]
+      |     \_ProjectExec[[date{f}]]
+      |       \_FieldExtractExec[date{f}]<[],[]>
+      |         \_EsQueryExec[test], indexMode[standard], [_doc{f}], limit[1000[INTEGER]], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "integer",
+    "next" : {
+      "range" : {
+        "integer" : {
+          "gt" : 100,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "integer > 100@2:15"
+  }
+}, tags=[]]]]
+      \_ProjectExec[[date{f}]]
+        \_LimitExec[1000[INTEGER],null]
+          \_ExchangeExec[[date{f}],false]
+            \_ProjectExec[[date{f}]]
+              \_FieldExtractExec[date{f}]<[],[]>
+                \_EsQueryExec[test], indexMode[standard], [_doc{f}], limit[1000[INTEGER]], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "match" : {
+    "keyword" : {
+      "query" : "keyword",
+      "lenient" : true
+    }
+  }
+}, tags=[]]]]

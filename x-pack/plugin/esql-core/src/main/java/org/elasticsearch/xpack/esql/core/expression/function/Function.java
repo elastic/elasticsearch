@@ -60,9 +60,18 @@ public abstract class Function extends Expression {
 
     @Override
     public String nodeString() {
+        return nodeString(Expression::nodeString);
+    }
+
+    @Override
+    public String goldenTestNodeString() {
+        return nodeString(Expression::goldenTestNodeString);
+    }
+
+    private String nodeString(java.util.function.Function<Expression, String> expressionToString) {
         StringJoiner sj = new StringJoiner(",", functionName() + "(", ")");
         for (Expression ex : arguments()) {
-            sj.add(ex.nodeString());
+            sj.add(expressionToString.apply(ex));
         }
         return sj.toString();
     }

@@ -15,9 +15,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -72,11 +74,7 @@ import static org.mockito.Mockito.when;
  */
 public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
-    private TransformState processJSON(ReservedSnapshotAction action, TransformState prevState, String json) throws Exception {
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-            return action.transform(action.fromXContent(parser), prevState);
-        }
-    }
+    private final ProjectId projectId = randomProjectIdOrDefault();
 
     public void testDependencies() {
         var action = new ReservedSnapshotAction();
@@ -112,7 +110,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             }""";
 
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage(),
+            expectThrows(IllegalArgumentException.class, () -> processJSON(projectId, action, prevState, badPolicyJSON)).getMessage(),
             is("Required [schedule]")
         );
     }
@@ -124,9 +122,11 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         List<RepositoryMetadata> repositoriesMetadata = List.of(new RepositoryMetadata("repo", "fs", Settings.EMPTY));
 
-        Metadata.Builder mdBuilder = Metadata.builder();
-        mdBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(repositoriesMetadata));
-        ClusterState state = ClusterState.builder(clusterName).metadata(mdBuilder).build();
+        ClusterState state = ClusterState.builder(clusterName)
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId).putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(repositoriesMetadata))
+            )
+            .build();
 
         ReservedSnapshotAction action = new ReservedSnapshotAction();
 
@@ -134,7 +134,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         TransformState prevState = new TransformState(state, Set.of());
 
-        TransformState updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState updatedState = processJSON(projectId, action, prevState, emptyJSON);
         assertThat(updatedState.keys(), empty());
         assertEquals(prevState.state(), updatedState.state());
 
@@ -173,9 +173,12 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             }""";
 
         prevState = updatedState;
-        updatedState = processJSON(action, prevState, twoPoliciesJSON);
+        updatedState = processJSON(projectId, action, prevState, twoPoliciesJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("daily-snapshots", "daily-snapshots1"));
-        SnapshotLifecycleMetadata slmMetadata = updatedState.state().metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata slmMetadata = updatedState.state()
+            .metadata()
+            .getProject(projectId)
+            .custom(SnapshotLifecycleMetadata.TYPE);
         assertThat(slmMetadata.getSnapshotConfigurations().keySet(), containsInAnyOrder("daily-snapshots", "daily-snapshots1"));
 
         String onePolicyRemovedJSON = """
@@ -198,9 +201,9 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             }""";
 
         prevState = updatedState;
-        updatedState = processJSON(action, prevState, onePolicyRemovedJSON);
+        updatedState = processJSON(projectId, action, prevState, onePolicyRemovedJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("daily-snapshots"));
-        slmMetadata = updatedState.state().metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
+        slmMetadata = updatedState.state().metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE);
         assertThat(slmMetadata.getSnapshotConfigurations().keySet(), containsInAnyOrder("daily-snapshots"));
 
         String onePolicyRenamedJSON = """
@@ -223,9 +226,9 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             }""";
 
         prevState = updatedState;
-        updatedState = processJSON(action, prevState, onePolicyRenamedJSON);
+        updatedState = processJSON(projectId, action, prevState, onePolicyRenamedJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("daily-snapshots-2"));
-        slmMetadata = updatedState.state().metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
+        slmMetadata = updatedState.state().metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE);
         assertThat(slmMetadata.getSnapshotConfigurations().keySet(), containsInAnyOrder("daily-snapshots-2"));
     }
 
@@ -362,8 +365,8 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         controller = new ReservedClusterStateService(
             clusterService,
             null,
-            List.of(new ReservedClusterSettingsAction(clusterSettings), new ReservedSnapshotAction()),
-            List.of(new ReservedRepositoryAction(repositoriesService))
+            List.of(new ReservedClusterSettingsAction(clusterSettings)),
+            List.of(new ReservedRepositoryAction(repositoriesService), new ReservedSnapshotAction())
         );
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
@@ -378,7 +381,8 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             transportService,
             mock(ClusterService.class),
             threadPool,
-            mock(ActionFilters.class)
+            mock(ActionFilters.class),
+            TestProjectResolvers.singleProject(projectId)
         );
         assertThat(deleteAction.reservedStateHandlerName().get(), equalTo(ReservedSnapshotAction.NAME));
 
@@ -393,7 +397,8 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             transportService,
             mock(ClusterService.class),
             threadPool,
-            mock(ActionFilters.class)
+            mock(ActionFilters.class),
+            TestProjectResolvers.singleProject(projectId)
         );
         assertThat(putAction.reservedStateHandlerName().get(), equalTo(ReservedSnapshotAction.NAME));
 
@@ -450,5 +455,12 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         assertFalse(TransportPutSnapshotLifecycleAction.isNoopUpdate(existingPolicyMeta, newPolicy, existingHeaders));
         assertFalse(TransportPutSnapshotLifecycleAction.isNoopUpdate(existingPolicyMeta, existingPolicy, newHeaders));
         assertFalse(TransportPutSnapshotLifecycleAction.isNoopUpdate(null, existingPolicy, existingHeaders));
+    }
+
+    private TransformState processJSON(ProjectId projectId, ReservedSnapshotAction action, TransformState prevState, String json)
+        throws Exception {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+            return action.transform(projectId, action.fromXContent(parser), prevState);
+        }
     }
 }

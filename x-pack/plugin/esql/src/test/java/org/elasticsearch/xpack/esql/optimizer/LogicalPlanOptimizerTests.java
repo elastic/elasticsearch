@@ -7818,12 +7818,16 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateWithDateTrunc() {
-        var query = """
+        var query = randomFrom("""
             TS k8s
             | EVAL tbucket = date_trunc(1m, @timestamp)
             | STATS sum(last_over_time(network.bytes_in)) WHERE cluster == "prod" BY tbucket
             | LIMIT 10
-            """;
+            """, """
+            TS k8s
+            | STATS sum(last_over_time(network.bytes_in)) WHERE cluster == "prod" BY tbucket=date_trunc(1m, @timestamp)
+            | LIMIT 10
+            """);
         var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         var limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);

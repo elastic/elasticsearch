@@ -1,4 +1,7 @@
 setup:
+  - requires:
+      cluster_features: [ "mapper.exponential_histogram_type" ]
+      reason: exponential_histogram field type was introduced
   # Create an index template for the data stream with aggregate_metric_double field
   - do:
       indices.put_index_template:

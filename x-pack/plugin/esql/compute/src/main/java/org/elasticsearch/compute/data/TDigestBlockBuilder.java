@@ -103,7 +103,8 @@ public final class TDigestBlockBuilder implements TDigestBlock.Builder {
 
     @Override
     public long estimatedBytes() {
-        return 0;
+        return encodedDigestsBuilder.estimatedBytes() + minimaBuilder.estimatedBytes() + maximaBuilder.estimatedBytes() + sumsBuilder
+            .estimatedBytes() + valueCountsBuilder.estimatedBytes();
     }
 
     @Override

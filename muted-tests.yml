@@ -540,6 +540,12 @@ tests:
 - class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
   method: testSeqNoCASLinearizability
   issue: https://github.com/elastic/elasticsearch/issues/117249
+- class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
+  method: testEsqlTermsAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/138717
+- class: org.elasticsearch.readiness.ReadinessClusterIT
+  method: testReadinessDuringRestartsNormalOrder
+  issue: https://github.com/elastic/elasticsearch/issues/136955
 
 # Examples:
 #

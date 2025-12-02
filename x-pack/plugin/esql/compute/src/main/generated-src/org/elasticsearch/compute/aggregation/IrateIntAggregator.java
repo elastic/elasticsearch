@@ -37,7 +37,7 @@ import org.elasticsearch.core.Releasables;
 )
 public class IrateIntAggregator {
     public static IntIrateGroupingState initGrouping(DriverContext driverContext, boolean isDelta, boolean isDateNanos) {
-        final double dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
+        final int dateFactor = isDateNanos ? 1_000_000_000 : 1000;
         return new IntIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), isDelta, dateFactor);
     }
 
@@ -89,9 +89,9 @@ public class IrateIntAggregator {
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
         private final boolean isDelta;
-        private final double dateFactor;
+        private final int dateFactor;
 
-        IntIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, boolean isDelta, double dateFactor) {
+        IntIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, boolean isDelta, int dateFactor) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);

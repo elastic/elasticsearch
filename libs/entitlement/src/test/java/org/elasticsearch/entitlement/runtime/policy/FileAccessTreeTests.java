@@ -217,9 +217,7 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(FileAccessTree.normalizePath(Path.of("C:/a/b.txt")), equalTo("C:\\a\\b.txt"));
         assertThat(FileAccessTree.normalizePath(Path.of("C:/a/c\\foo.txt")), equalTo("C:\\a\\c\\foo.txt"));
 
-        var tree = accessTree(
-            entitlement("C:\\a\\b", "read", "C:/a.xml", "read", "C:/a/b.txt", "read", "C:/a/c\\foo.txt", "read")
-        );
+        var tree = accessTree(entitlement("C:\\a\\b", "read", "C:/a.xml", "read", "C:/a/b.txt", "read", "C:/a/c\\foo.txt", "read"));
 
         assertThat(tree.canRead(Path.of("C:/a.xml")), is(true));
         assertThat(tree.canRead(Path.of("C:\\a.xml")), is(true));

@@ -233,11 +233,9 @@ public class PolicyManager {
 
     private static Set<String> createForbiddenPaths(PathLookup pathLookup) {
         return pathLookup.getBaseDirPaths(PathLookup.BaseDir.CONFIG)
-            .flatMap(baseDir ->
-                Stream.of(
-                    baseDir.resolve("elasticsearch.yml"),
-                    baseDir.resolve("jvm.options"),
-                    baseDir.resolve("jvm.options.d")))
+            .flatMap(
+                baseDir -> Stream.of(baseDir.resolve("elasticsearch.yml"), baseDir.resolve("jvm.options"), baseDir.resolve("jvm.options.d"))
+            )
             .map(FileAccessTree::normalizePath)
             .collect(Collectors.toSet());
     }

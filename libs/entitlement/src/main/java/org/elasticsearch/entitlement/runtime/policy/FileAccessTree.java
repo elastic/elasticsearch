@@ -336,9 +336,13 @@ public final class FileAccessTree {
         Collection<String> forbiddenPaths,
         Collection<Path> componentPaths
     ) {
-        return new FileAccessTree(filesEntitlement, pathLookup, componentPaths,
+        return new FileAccessTree(
+            filesEntitlement,
+            pathLookup,
+            componentPaths,
             forbiddenPaths.stream().sorted(DEFAULT_COMPARISON.pathComparator()).toArray(String[]::new),
-            DEFAULT_COMPARISON);
+            DEFAULT_COMPARISON
+        );
     }
 
     public boolean canRead(Path path) {

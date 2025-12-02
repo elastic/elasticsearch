@@ -123,7 +123,7 @@ public class RoutingAllocation {
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      * @param isSimulating {@code true} if "transient" deciders should be ignored because we are simulating the final allocation
      */
-    private RoutingAllocation(
+    public RoutingAllocation(
         AllocationDeciders deciders,
         @Nullable RoutingNodes routingNodes,
         ClusterState clusterState,

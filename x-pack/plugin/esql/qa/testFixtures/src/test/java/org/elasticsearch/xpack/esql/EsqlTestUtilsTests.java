@@ -17,19 +17,19 @@ public class EsqlTestUtilsTests extends ESTestCase {
 
     public void testPromQL() {
         assertThat(
-            EsqlTestUtils.addRemoteIndices("PROMQL foo, bar step 1m (avg(baz))", Set.of(), false),
-            equalTo("PROMQL *:foo,foo,*:bar,bar step 1m (avg(baz))")
+            EsqlTestUtils.addRemoteIndices("PROMQL foo, bar step=1m (avg(baz))", Set.of(), false),
+            equalTo("PROMQL *:foo,foo,*:bar,bar step=1m (avg(baz))")
         );
         assertThat(
-            EsqlTestUtils.addRemoteIndices("PROMQL \"foo\", \"bar\" step 1m (avg(baz))", Set.of(), false),
-            equalTo("PROMQL *:foo,foo,*:bar,bar step 1m (avg(baz))")
+            EsqlTestUtils.addRemoteIndices("PROMQL \"foo\", \"bar\" step=1m (avg(baz))", Set.of(), false),
+            equalTo("PROMQL *:foo,foo,*:bar,bar step=1m (avg(baz))")
         );
     }
 
     public void testPromQLDefaultIndex() {
         assertThat(
-            EsqlTestUtils.addRemoteIndices("PROMQL step 1m (avg(baz))", Set.of(), false),
-            equalTo("PROMQL *:*,* step 1m (avg(baz))")
+            EsqlTestUtils.addRemoteIndices("PROMQL step=1m (avg(baz))", Set.of(), false),
+            equalTo("PROMQL *:*,* step=1m (avg(baz))")
         );
     }
 

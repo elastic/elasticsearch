@@ -917,12 +917,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 logger.info("Value is " + value + " of type " + value.getClass());
                 logger.info("expectedValue is " + expectedValue);
                 var matcher = expectedValue instanceof Matcher<?> ? (Matcher<?>) expectedValue : equalTo(expectedValue);
-                TestCase testCase = new TestCase(
-                    List.of(typed),
-                    expectedEvaluatorToString,
-                    expectedOutputType,
-                    matcher
-                );
+                TestCase testCase = new TestCase(List.of(typed), expectedEvaluatorToString, expectedOutputType, matcher);
                 for (String warning : expectedWarnings.apply(value)) {
                     testCase = testCase.withWarning(warning);
                 }

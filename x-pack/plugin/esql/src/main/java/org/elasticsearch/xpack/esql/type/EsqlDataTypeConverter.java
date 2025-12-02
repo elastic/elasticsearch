@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.type;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
@@ -146,7 +144,6 @@ public class EsqlDataTypeConverter {
         Map.entry(BOOLEAN, ToBoolean::new),
         Map.entry(CARTESIAN_POINT, ToCartesianPoint::new),
         Map.entry(CARTESIAN_SHAPE, ToCartesianShape::new),
-        Map.entry(DATETIME, ToDatetime::new),
         Map.entry(DATE_NANOS, ToDateNanos::new),
         // ToDegrees, typeless
         Map.entry(DENSE_VECTOR, ToDenseVector::new),
@@ -173,7 +170,8 @@ public class EsqlDataTypeConverter {
     private static final Map<
         DataType,
         TriFunction<Source, Expression, Configuration, AbstractConvertFunction>> TYPE_AND_CONFIG_TO_CONVERTER_FUNCTION = Map.ofEntries(
-            Map.entry(KEYWORD, ToString::new)
+            Map.entry(KEYWORD, ToString::new),
+            Map.entry(DATETIME, ToDatetime::new)
         );
 
     /**

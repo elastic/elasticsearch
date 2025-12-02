@@ -37,7 +37,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 
 /**
  * This test was originally based on the tests for sub-classes of EsField, like InvalidMappedFieldTests.
@@ -138,25 +137,21 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
 
     private Expression testConvertExpression(String name, DataType fromType, DataType toType) {
         FieldAttribute fromField = fieldAttribute(name, fromType);
-        if (isString(toType)) {
-            return new ToString(Source.EMPTY, fromField, config());
-        } else {
-            return switch (toType) {
-                case BOOLEAN -> new ToBoolean(Source.EMPTY, fromField);
-                case DATETIME -> new ToDatetime(Source.EMPTY, fromField);
-                case DOUBLE, FLOAT -> new ToDouble(Source.EMPTY, fromField);
-                case INTEGER -> new ToInteger(Source.EMPTY, fromField);
-                case LONG -> new ToLong(Source.EMPTY, fromField);
-                case IP -> new ToIpLeadingZerosRejected(Source.EMPTY, fromField);
-                case KEYWORD -> new ToString(Source.EMPTY, fromField, config());
-                case GEO_POINT -> new ToGeoPoint(Source.EMPTY, fromField);
-                case GEO_SHAPE -> new ToGeoShape(Source.EMPTY, fromField);
-                case CARTESIAN_POINT -> new ToCartesianPoint(Source.EMPTY, fromField);
-                case CARTESIAN_SHAPE -> new ToCartesianShape(Source.EMPTY, fromField);
-                case VERSION -> new ToVersion(Source.EMPTY, fromField);
-                default -> throw new UnsupportedOperationException("Conversion from " + fromType + " to " + toType + " is not supported");
-            };
-        }
+        return switch (toType) {
+            case BOOLEAN -> new ToBoolean(Source.EMPTY, fromField);
+            case DATETIME -> new ToDatetime(Source.EMPTY, fromField, config());
+            case DOUBLE, FLOAT -> new ToDouble(Source.EMPTY, fromField);
+            case INTEGER -> new ToInteger(Source.EMPTY, fromField);
+            case LONG -> new ToLong(Source.EMPTY, fromField);
+            case IP -> new ToIpLeadingZerosRejected(Source.EMPTY, fromField);
+            case KEYWORD, TEXT -> new ToString(Source.EMPTY, fromField, config());
+            case GEO_POINT -> new ToGeoPoint(Source.EMPTY, fromField);
+            case GEO_SHAPE -> new ToGeoShape(Source.EMPTY, fromField);
+            case CARTESIAN_POINT -> new ToCartesianPoint(Source.EMPTY, fromField);
+            case CARTESIAN_SHAPE -> new ToCartesianShape(Source.EMPTY, fromField);
+            case VERSION -> new ToVersion(Source.EMPTY, fromField);
+            default -> throw new UnsupportedOperationException("Conversion from " + fromType + " to " + toType + " is not supported");
+        };
     }
 
     private static FieldAttribute fieldAttribute(String name, DataType dataType) {

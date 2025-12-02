@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -99,11 +98,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.plan = pin.readNamedWriteable(PhysicalPlan.class);
         this.indices = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            this.runNodeLevelReduction = in.readBoolean();
-        } else {
-            this.runNodeLevelReduction = false;
-        }
+        this.runNodeLevelReduction = in.readBoolean();
     }
 
     @Override
@@ -117,9 +112,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         new PlanStreamOutput(out, configuration).writeNamedWriteable(plan);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeBoolean(runNodeLevelReduction);
-        }
+        out.writeBoolean(runNodeLevelReduction);
     }
 
     @Override

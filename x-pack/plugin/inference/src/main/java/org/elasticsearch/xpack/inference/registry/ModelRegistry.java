@@ -144,6 +144,9 @@ public class ModelRegistry implements ClusterStateListener {
     private static final String TASK_TYPE_FIELD = "task_type";
     private static final String MODEL_ID_FIELD = "model_id";
     private static final Logger logger = LogManager.getLogger(ModelRegistry.class);
+    // Currently all EIS preconfigured endpoints are prefixed with a dot. We should remove this restriction by leveraging
+    // the information from the authorization response instead.
+    private static final String EIS_PRECONFIGURED_ENDPOINT_ID_PREFIX = ".";
 
     private final OriginSettingClient client;
     private final Map<String, InferenceService.DefaultConfigId> defaultConfigIds;
@@ -185,7 +188,8 @@ public class ModelRegistry implements ClusterStateListener {
             var project = lastMetadata.get().getProject(ProjectId.DEFAULT);
             var state = ModelRegistryMetadata.fromState(project);
             var eisPreconfiguredEndpoints = state.getServiceInferenceIds(ElasticInferenceService.NAME);
-            return eisPreconfiguredEndpoints.contains(inferenceEntityId);
+            return eisPreconfiguredEndpoints.contains(inferenceEntityId)
+                && inferenceEntityId.startsWith(EIS_PRECONFIGURED_ENDPOINT_ID_PREFIX);
         }
 
         return false;

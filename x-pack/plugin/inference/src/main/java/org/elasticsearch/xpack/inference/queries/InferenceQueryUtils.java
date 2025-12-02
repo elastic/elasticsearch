@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -38,7 +37,6 @@ import org.elasticsearch.xpack.inference.InferenceException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -285,107 +283,6 @@ class InferenceQueryUtils {
         return new InferenceInfo(totalInferenceFieldCount, totalIndexCount, completeInferenceResultsMap, minTransportVersion);
     }
 
-    /**
-     * <p>
-     * Get inference results for the provided query using the provided fully qualified inference IDs.
-     * </p>
-     * <p>
-     * This method will return an inference results map supplier that will provide a complete map of additional inference results required.
-     * If the provided inference results map already contains all required inference results, a null supplier will be returned.
-     * </p>
-     *
-     * @param queryRewriteContext The query rewrite context
-     * @param fullyQualifiedInferenceIds The fully qualified inference IDs to use to generate inference results
-     * @param inferenceResultsMap The initial inference results map
-     * @param query The query to generate inference results for
-     * @return An inference results map supplier
-     */
-    static SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> getInferenceResults(
-        QueryRewriteContext queryRewriteContext,
-        Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds,
-        @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        @Nullable String query
-    ) {
-        List<String> inferenceIds = new ArrayList<>(fullyQualifiedInferenceIds.size());
-        if (query != null) {
-            for (FullyQualifiedInferenceId fullyQualifiedInferenceId : fullyQualifiedInferenceIds) {
-                if (inferenceResultsMap == null || inferenceResultsMap.containsKey(fullyQualifiedInferenceId) == false) {
-                    if (fullyQualifiedInferenceId.clusterAlias().equals(queryRewriteContext.getLocalClusterAlias()) == false) {
-                        // Catch if we are missing inference results that should have been generated on another cluster
-                        throw new IllegalStateException(
-                            "Cannot get inference results for inference endpoint ["
-                                + fullyQualifiedInferenceId
-                                + "] on cluster ["
-                                + queryRewriteContext.getLocalClusterAlias()
-                                + "]"
-                        );
-                    }
-
-                    inferenceIds.add(fullyQualifiedInferenceId.inferenceId());
-                }
-            }
-        }
-
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier = null;
-        if (inferenceIds.isEmpty() == false) {
-            inferenceResultsMapSupplier = new SetOnce<>();
-            registerInferenceAsyncActions(queryRewriteContext, inferenceResultsMapSupplier, query, inferenceIds);
-        }
-
-        return inferenceResultsMapSupplier;
-    }
-
-    static void registerInferenceAsyncActions(
-        QueryRewriteContext queryRewriteContext,
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
-        String query,
-        List<String> inferenceIds
-    ) {
-        List<InferenceAction.Request> inferenceRequests = inferenceIds.stream()
-            .map(
-                i -> new InferenceAction.Request(
-                    TaskType.ANY,
-                    i,
-                    null,
-                    null,
-                    null,
-                    List.of(query),
-                    Map.of(),
-                    InputType.INTERNAL_SEARCH,
-                    null,
-                    false
-                )
-            )
-            .toList();
-
-        queryRewriteContext.registerAsyncAction((client, listener) -> {
-            GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> gal = createGroupedActionListener(
-                inferenceResultsMapSupplier,
-                inferenceRequests.size(),
-                listener
-            );
-            for (InferenceAction.Request inferenceRequest : inferenceRequests) {
-                FullyQualifiedInferenceId fullyQualifiedInferenceId = new FullyQualifiedInferenceId(
-                    queryRewriteContext.getLocalClusterAlias(),
-                    inferenceRequest.getInferenceEntityId()
-                );
-                executeAsyncWithOrigin(
-                    client,
-                    ML_ORIGIN,
-                    InferenceAction.INSTANCE,
-                    inferenceRequest,
-                    gal.delegateFailureAndWrap((l, inferenceResponse) -> {
-                        InferenceResults inferenceResults = validateAndConvertInferenceResults(
-                            inferenceResponse.getResults(),
-                            fullyQualifiedInferenceId.inferenceId()
-                        );
-                        l.onResponse(Tuple.tuple(fullyQualifiedInferenceId, inferenceResults));
-                    })
-                );
-            }
-        });
-    }
-
     static Map<String, Float> getDefaultFields(Settings settings) {
         List<String> defaultFieldsList = settings.getAsList(DEFAULT_FIELD_SETTING.getKey(), DEFAULT_FIELD_SETTING.getDefault(settings));
         return QueryParserHelper.parseFieldsAndWeights(defaultFieldsList);
@@ -522,67 +419,6 @@ class InferenceQueryUtils {
             Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = new HashMap<>(responses.size());
             responses.forEach(r -> inferenceResultsMap.put(r.v1(), r.v2()));
             l.onResponse(inferenceResultsMap);
-        }));
-    }
-
-    private static Set<FullyQualifiedInferenceId> getInferenceIdsForFields(
-        Collection<IndexMetadata> indexMetadataCollection,
-        String clusterAlias,
-        Map<String, Float> fields,
-        boolean resolveWildcards,
-        boolean useDefaultFields
-    ) {
-        Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds = new HashSet<>();
-        for (IndexMetadata indexMetadata : indexMetadataCollection) {
-            final Map<String, Float> indexQueryFields = (useDefaultFields && fields.isEmpty())
-                ? getDefaultFields(indexMetadata.getSettings())
-                : fields;
-
-            Map<String, InferenceFieldMetadata> indexInferenceFields = indexMetadata.getInferenceFields();
-            for (String indexQueryField : indexQueryFields.keySet()) {
-                if (indexInferenceFields.containsKey(indexQueryField)) {
-                    // No wildcards in field name
-                    InferenceFieldMetadata inferenceFieldMetadata = indexInferenceFields.get(indexQueryField);
-                    fullyQualifiedInferenceIds.add(
-                        new FullyQualifiedInferenceId(clusterAlias, inferenceFieldMetadata.getSearchInferenceId())
-                    );
-                    continue;
-                }
-                if (resolveWildcards) {
-                    if (Regex.isMatchAllPattern(indexQueryField)) {
-                        indexInferenceFields.values()
-                            .forEach(
-                                ifm -> fullyQualifiedInferenceIds.add(
-                                    new FullyQualifiedInferenceId(clusterAlias, ifm.getSearchInferenceId())
-                                )
-                            );
-                    } else if (Regex.isSimpleMatchPattern(indexQueryField)) {
-                        indexInferenceFields.values()
-                            .stream()
-                            .filter(ifm -> Regex.simpleMatch(indexQueryField, ifm.getName()))
-                            .forEach(
-                                ifm -> fullyQualifiedInferenceIds.add(
-                                    new FullyQualifiedInferenceId(clusterAlias, ifm.getSearchInferenceId())
-                                )
-                            );
-                    }
-                }
-            }
-        }
-
-        return fullyQualifiedInferenceIds;
-    }
-
-    private static GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> createGroupedActionListener(
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
-        int inferenceRequestCount,
-        ActionListener<?> listener
-    ) {
-        return new GroupedActionListener<>(inferenceRequestCount, listener.delegateFailureAndWrap((l, responses) -> {
-            Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = new HashMap<>(responses.size());
-            responses.forEach(r -> inferenceResultsMap.put(r.v1(), r.v2()));
-            inferenceResultsMapSupplier.set(inferenceResultsMap);
-            l.onResponse(null);
         }));
     }
 

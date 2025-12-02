@@ -11,11 +11,9 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -29,12 +27,9 @@ import org.elasticsearch.xpack.inference.InferenceException;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.getMatchingInferenceFields;
@@ -375,54 +370,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         );
 
         return copy(inferenceResultsMap, newInferenceInfoFuture, ccsRequest);
-    }
-
-    private static Set<FullyQualifiedInferenceId> getInferenceIdsForFields(
-        Collection<IndexMetadata> indexMetadataCollection,
-        String clusterAlias,
-        Map<String, Float> fields,
-        boolean resolveWildcards,
-        boolean useDefaultFields
-    ) {
-        Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds = new HashSet<>();
-        for (IndexMetadata indexMetadata : indexMetadataCollection) {
-            final Map<String, Float> indexQueryFields = (useDefaultFields && fields.isEmpty())
-                ? getDefaultFields(indexMetadata.getSettings())
-                : fields;
-
-            Map<String, InferenceFieldMetadata> indexInferenceFields = indexMetadata.getInferenceFields();
-            for (String indexQueryField : indexQueryFields.keySet()) {
-                if (indexInferenceFields.containsKey(indexQueryField)) {
-                    // No wildcards in field name
-                    InferenceFieldMetadata inferenceFieldMetadata = indexInferenceFields.get(indexQueryField);
-                    fullyQualifiedInferenceIds.add(
-                        new FullyQualifiedInferenceId(clusterAlias, inferenceFieldMetadata.getSearchInferenceId())
-                    );
-                    continue;
-                }
-                if (resolveWildcards) {
-                    if (Regex.isMatchAllPattern(indexQueryField)) {
-                        indexInferenceFields.values()
-                            .forEach(
-                                ifm -> fullyQualifiedInferenceIds.add(
-                                    new FullyQualifiedInferenceId(clusterAlias, ifm.getSearchInferenceId())
-                                )
-                            );
-                    } else if (Regex.isSimpleMatchPattern(indexQueryField)) {
-                        indexInferenceFields.values()
-                            .stream()
-                            .filter(ifm -> Regex.simpleMatch(indexQueryField, ifm.getName()))
-                            .forEach(
-                                ifm -> fullyQualifiedInferenceIds.add(
-                                    new FullyQualifiedInferenceId(clusterAlias, ifm.getSearchInferenceId())
-                                )
-                            );
-                    }
-                }
-            }
-        }
-
-        return fullyQualifiedInferenceIds;
     }
 
     private static Map<String, Float> getInferenceFieldsMap(

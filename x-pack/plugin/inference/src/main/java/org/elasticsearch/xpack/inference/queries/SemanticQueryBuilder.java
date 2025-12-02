@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ResolvedIndices;
@@ -36,7 +35,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -247,20 +245,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     public static SemanticQueryBuilder fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
-    }
-
-    static <T extends QueryBuilder> T getNewInferenceResultsFromSupplier(
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> supplier,
-        T currentQueryBuilder,
-        Function<Map<FullyQualifiedInferenceId, InferenceResults>, T> copyGenerator
-    ) {
-        Map<FullyQualifiedInferenceId, InferenceResults> newInferenceResultsMap = supplier.get();
-        // It's safe to use only the new inference results map (once set) because we can enumerate the scenarios where we need to get
-        // inference results:
-        // - On the local coordinating node, getting inference results for the first time. The previous inference results map is null.
-        // - On the remote coordinating node, getting inference results for remote cluster inference IDs. In this case, we can guarantee
-        // that only remote cluster inference results are required to handle the query.
-        return newInferenceResultsMap != null ? copyGenerator.apply(newInferenceResultsMap) : currentQueryBuilder;
     }
 
     static Map<FullyQualifiedInferenceId, InferenceResults> convertFromBwcInferenceResultsMap(

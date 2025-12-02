@@ -293,7 +293,7 @@ by the last `test*` pattern.
 
 ::::{note}
 In previous versions, such expression is sometimes _not_ treated as an exclusion due to a bug.
-For example, neither `test,-test` or `test3,-test*` is treated as exclusion.
+For example, neither `test,-test` nor `test3,-test*` is treated as exclusion.
 Instead, `IndexNotFoundException` is thrown for the first expression while the second resolves to `test3`.
 This bug has since been fixed in 9.3.
 ::::

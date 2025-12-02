@@ -284,10 +284,19 @@ In multi-target syntax, you can use a comma-separated list to run a request on m
 
 Targets can be excluded by prefixing with the `-` character. This applies to both concrete names and wildcard patterns.
 For example, `test*,-test3` resolves to all resources that start with `test` except for the resource named `test3`.
-It is possible for exclusion to exclude all resources. For example, both `test*,-test*` and `test,-test` resolve to an empty set.
+It is possible for exclusion to exclude all resources. For example, `test*,-test*` resolves to an empty set.
 An exclusion affects targets listed _before_ it and has no impact on targets listed _after_ it.
 For example, `test3*,-test3,test*` resolves to all resources that start with `test`, including `test3`, because it is included
 by the last `test*` pattern.
+
+{applies_to}`stack: ga 9.3` A dash-prefixed (`-`) expression is always treated as an exclusion.
+
+::::{note}
+In previous versions, such expression is sometimes _not_ treated as an exclusion due to a bug.
+For example, neither `test,-test` or `test3,-test*` is treated as exclusion.
+Instead, `IndexNotFoundException` is thrown for the first expression while the second resolves to `test3`.
+This bug has since been fixed in 9.3.
+::::
 
 ::::{important}
 Aliases are resolved after wildcard expressions. This can result in a request that targets an excluded alias. For example, if `test3` is an index alias, the pattern `test*,-test3` still targets the indices for `test3`. To avoid this, exclude the concrete indices for the alias instead.

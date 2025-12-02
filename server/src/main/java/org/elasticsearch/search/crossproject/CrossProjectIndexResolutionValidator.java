@@ -182,7 +182,7 @@ public class CrossProjectIndexResolutionValidator {
                         foundFlat = true;
                         break;
                     }
-                    if (isUnauthorized == false && remoteException instanceof ElasticsearchSecurityException) {
+                    if (false == isUnauthorized && remoteException instanceof ElasticsearchSecurityException) {
                         isUnauthorized = true;
                         if (remoteAuthorizationExceptions == null) {
                             remoteAuthorizationExceptions = new HashMap<>();
@@ -193,7 +193,7 @@ public class CrossProjectIndexResolutionValidator {
                             if (v == null) {
                                 v = new ArrayList<>();
                             }
-                            v.add(remoteExpression);
+                            v.add(resource);
                             return v;
                         });
                     }
@@ -240,7 +240,8 @@ public class CrossProjectIndexResolutionValidator {
         List<String> unauthorizedIndices
     ) {
         return new ElasticsearchSecurityException(
-            Strings.replace(exceptionWithPlaceholder.getMessage(), "-*", Strings.collectionToCommaDelimitedString(unauthorizedIndices))
+            Strings.replace(exceptionWithPlaceholder.getMessage(), "-*", Strings.collectionToCommaDelimitedString(unauthorizedIndices)),
+            exceptionWithPlaceholder.status()
         );
     }
 

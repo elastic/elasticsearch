@@ -185,15 +185,20 @@ if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; 
             SMART_RETRY_STATUS="enabled"
             SMART_RETRY_DETAILS="Filtering to $FILTERED_WORK_UNITS work units with failures"
 
+            # Get the origin job name for better annotation labels
+            ORIGIN_JOB_NAME=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg jobId "$ORIGIN_JOB_ID" '.jobs[] | select(.id == $jobId) | .name' 2>/dev/null)
+            if [ -z "$ORIGIN_JOB_NAME" ] || [ "$ORIGIN_JOB_NAME" = "null" ]; then
+              ORIGIN_JOB_NAME="previous attempt"
+            fi
+
             echo "✓ Smart retry enabled: filtering to $FILTERED_WORK_UNITS work units"
 
             # Create Buildkite annotation for visibility
-            cat << EOF | buildkite-agent annotate --style info --context smart-retry
-## Smart Retry Enabled
+            # Use unique context per job to support multiple retries
+            cat << EOF | buildkite-agent annotate --style info --context "smart-retry-$BUILDKITE_JOB_ID"
+Rerunning tests that failed in [$ORIGIN_JOB_NAME]($BUILD_SCAN_URL)
 
-Rerunning only tests that failed in [previous attempt]($BUILD_SCAN_URL)
-
-**Work Units with Failures:** $FILTERED_WORK_UNITS
+**Gradle Tasks with Failures:** $FILTERED_WORK_UNITS
 
 This retry will skip test tasks that had no failures in the previous run.
 EOF

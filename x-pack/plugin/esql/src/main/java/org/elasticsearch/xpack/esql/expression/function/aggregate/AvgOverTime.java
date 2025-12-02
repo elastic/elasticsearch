@@ -33,7 +33,7 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link Avg}, but it is used to calculate the average value over a time series of values from the given field.
  */
-public class AvgOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, SurrogateExpression {
+public class AvgOverTime extends TimeSeriesAggregateFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "AvgOverTime",
@@ -101,13 +101,6 @@ public class AvgOverTime extends TimeSeriesAggregateFunction implements Optional
     @Override
     public AvgOverTime withFilter(Expression filter) {
         return new AvgOverTime(source(), field(), filter, window());
-    }
-
-    @Override
-    public Expression surrogate() {
-        Source s = source();
-        Expression f = field();
-        return new Div(s, new SumOverTime(s, f, filter(), window()), new CountOverTime(s, f, filter(), window()), dataType());
     }
 
     @Override

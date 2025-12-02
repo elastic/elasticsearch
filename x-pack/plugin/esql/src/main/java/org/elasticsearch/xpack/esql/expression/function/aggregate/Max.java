@@ -71,8 +71,8 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
             "ip",
             "keyword",
             "unsigned_long",
-            "version",
-            "exponential_histogram" },
+            "version"
+        },
         description = "The maximum value of a field.",
         type = FunctionType.AGGREGATE,
         examples = {

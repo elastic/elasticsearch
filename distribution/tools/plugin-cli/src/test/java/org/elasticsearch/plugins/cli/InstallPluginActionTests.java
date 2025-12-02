@@ -488,10 +488,11 @@ public class InstallPluginActionTests extends ESTestCase {
             ".sha512",
             checksumAndFilename(digest, url),
             newSecretKey(),
-            this::signature
+            this::signature,
+            true
         );
 
-        final InstallPluginAction spied = spy(action);
+        final BcPgpSignatureVerifier spied = (BcPgpSignatureVerifier) action.pgpSignatureVerifier(terminal);
 
         // Control for timeout on waiting for signature verification to complete
         CountDownLatch countDownLatch = new CountDownLatch(1);
@@ -511,7 +512,7 @@ public class InstallPluginActionTests extends ESTestCase {
             return null;
         }).when(spied).computeSignatureForDownloadedPlugin(any(InputStream.class), any(InputStream.class), any(PGPSignature.class));
 
-        installPlugin(new InstallablePlugin("analysis-icu", null), env.v1(), spied);
+        installPlugin(new InstallablePlugin("analysis-icu", null), env.v1(), action);
         assertThat(terminal.getOutput(), containsString("The plugin installer is trying to verify the signature "));
 
         // Clean-up the exiting plugin, let's try to reinstall with 'fast' random numbers
@@ -528,7 +529,7 @@ public class InstallPluginActionTests extends ESTestCase {
 
         terminal.reset();
 
-        installPlugin(new InstallablePlugin("analysis-icu", null), env.v1(), spied);
+        installPlugin(new InstallablePlugin("analysis-icu", null), env.v1(), action);
         assertThat(terminal.getOutput(), not(containsString("The plugin installer is trying to verify the signature ")));
     }
 
@@ -1020,7 +1021,8 @@ public class InstallPluginActionTests extends ESTestCase {
             shaExtension,
             shaCalculator,
             secretKey,
-            signature
+            signature,
+            false
         );
         installPlugin(new InstallablePlugin(pluginId, pluginUrl), env.v1(), action);
         assertPlugin(pluginId, pluginDir, env.v2());
@@ -1035,10 +1037,36 @@ public class InstallPluginActionTests extends ESTestCase {
         final String shaExtension,
         final Function<byte[], String> shaCalculator,
         final PGPSecretKey secretKey,
-        final BiFunction<byte[], PGPSecretKey, String> signature
+        final BiFunction<byte[], PGPSecretKey, String> signature,
+        final boolean spyVerifier
     ) throws Exception {
         InstallablePlugin pluginZip = createPlugin(pluginId, pluginDir);
         Path pluginZipPath = Path.of(URI.create(pluginZip.getLocation()));
+        PgpSignatureVerifier psv = new BcPgpSignatureVerifier(terminal) {
+            @Override
+            InputStream pluginZipInputStream(Path zip) throws IOException {
+                return new ByteArrayInputStream(Files.readAllBytes(zip));
+            }
+
+            @Override
+            String getPublicKeyId() {
+                return Long.toHexString(secretKey.getKeyID()).toUpperCase(Locale.ROOT);
+            }
+
+            @Override
+            InputStream getPublicKey() {
+                try {
+                    final ByteArrayOutputStream output = new ByteArrayOutputStream();
+                    final ArmoredOutputStream armored = new ArmoredOutputStream(output);
+                    secretKey.getPublicKey().encode(armored);
+                    armored.close();
+                    return new ByteArrayInputStream(output.toByteArray());
+                } catch (final IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        };
+        PgpSignatureVerifier verifier = spyVerifier ? spy(psv) : psv;
         InstallPluginAction action = new InstallPluginAction(terminal, env.v2(), false) {
             @Override
             Path downloadZip(String urlString, Path tmpDir) throws IOException {
@@ -1068,7 +1096,7 @@ public class InstallPluginActionTests extends ESTestCase {
             }
 
             @Override
-            void verifySignature(Path zip, String urlString) throws IOException, PGPException {
+            void verifySignature(Path zip, String urlString) throws IOException {
                 if (InstallPluginAction.OFFICIAL_PLUGINS.contains(pluginId)) {
                     super.verifySignature(zip, urlString);
                 } else {
@@ -1077,26 +1105,8 @@ public class InstallPluginActionTests extends ESTestCase {
             }
 
             @Override
-            InputStream pluginZipInputStream(Path zip) throws IOException {
-                return new ByteArrayInputStream(Files.readAllBytes(zip));
-            }
-
-            @Override
-            String getPublicKeyId() {
-                return Long.toHexString(secretKey.getKeyID()).toUpperCase(Locale.ROOT);
-            }
-
-            @Override
-            InputStream getPublicKey() {
-                try {
-                    final ByteArrayOutputStream output = new ByteArrayOutputStream();
-                    final ArmoredOutputStream armored = new ArmoredOutputStream(output);
-                    secretKey.getPublicKey().encode(armored);
-                    armored.close();
-                    return new ByteArrayInputStream(output.toByteArray());
-                } catch (final IOException e) {
-                    throw new AssertionError(e);
-                }
+            PgpSignatureVerifier pgpSignatureVerifier(Terminal terminal) {
+                return verifier;
             }
 
             @Override

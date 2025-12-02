@@ -19,6 +19,21 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
 }
 
+// Bouncy Castle FIPS dependencies are loaded in an isolated classloader at runtime.
+// They are bundled separately in lib/tools/plugin-cli/bcfips/ rather than the main classpath.
+configurations {
+  bcfips {
+    canBeConsumed = true
+    canBeResolved = true
+  }
+}
+
+def bcfipsDeps = [
+  "org.bouncycastle:bcpg-fips:2.0.12",
+  "org.bouncycastle:bc-fips:2.0.1",
+  "org.bouncycastle:bcutil-fips:2.0.5"
+]
+
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:cli")
@@ -29,8 +44,12 @@ dependencies {
   implementation 'org.ow2.asm:asm:9.9'
   implementation 'org.ow2.asm:asm-tree:9.9'
 
-  api "org.bouncycastle:bcpg-fips:1.0.7.1"
-  api "org.bouncycastle:bc-fips:1.0.2.6"
+  // BC FIPS JARs: compileOnly for compilation, bcfips config for bundling in isolated subdirectory
+  for (dep in bcfipsDeps) {
+    compileOnly dep
+    bcfips dep
+  }
+
   testImplementation project(":test:framework")
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
@@ -38,6 +57,14 @@ dependencies {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'
+}
+
+// BC FIPS is on compileOnly (excluded from default license check) but we still distribute it,
+// so we need to explicitly add bcfips JARs to the license check
+afterEvaluate {
+  tasks.named("dependencyLicenses").configure {
+    dependencies = dependencies + configurations.bcfips
+  }
 }
 
 tasks.named("test").configure {

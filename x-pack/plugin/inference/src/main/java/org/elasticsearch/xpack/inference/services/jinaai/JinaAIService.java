@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.jinaai;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
@@ -335,7 +334,7 @@ public class JinaAIService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_18_0;
+        return TransportVersion.minimumCompatible();
     }
 
     public static class Configuration {

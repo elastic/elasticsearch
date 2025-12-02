@@ -1,8 +1,8 @@
 {
-  "esql.get_query": {
+  "esql.delete_view": {
     "documentation": {
-      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-get-query",
-      "description": "Get a specific running ES|QL query information"
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-view-delete",
+      "description": "Delete a non-materialized VIEW for ESQL."
     },
     "stability": "experimental",
     "visibility": "feature_flag",
@@ -18,14 +18,14 @@
     "url": {
       "paths": [
         {
-          "path": "/_query/queries/{id}",
+          "path": "/_query/view/{name}",
           "methods": [
-            "GET"
+            "DELETE"
           ],
           "parts": {
-            "id": {
+            "name": {
               "type": "string",
-              "description": "The query ID"
+              "description": "The name of the view to delete"
             }
           }
         }

@@ -19,7 +19,6 @@ public class AggregateWritables {
             Count.ENTRY,
             CountDistinct.ENTRY,
             First.ENTRY,
-            AllFirst.ENTRY,
             Max.ENTRY,
             Median.ENTRY,
             MedianAbsoluteDeviation.ENTRY,
@@ -30,8 +29,6 @@ public class AggregateWritables {
             Idelta.ENTRY,
             Increase.ENTRY,
             Delta.ENTRY,
-            Deriv.ENTRY,
-            PredictLinear.ENTRY,
             Sample.ENTRY,
             SpatialCentroid.ENTRY,
             SpatialExtent.ENTRY,
@@ -44,7 +41,6 @@ public class AggregateWritables {
             MaxOverTime.ENTRY,
             AvgOverTime.ENTRY,
             Last.ENTRY,
-            AllLast.ENTRY,
             LastOverTime.ENTRY,
             FirstOverTime.ENTRY,
             SumOverTime.ENTRY,
@@ -55,9 +51,7 @@ public class AggregateWritables {
             PresentOverTime.ENTRY,
             Absent.ENTRY,
             AbsentOverTime.ENTRY,
-            DimensionValues.ENTRY,
-            HistogramMerge.ENTRY,
-            HistogramMergeOverTime.ENTRY
+            DimensionValues.ENTRY
         );
     }
 }

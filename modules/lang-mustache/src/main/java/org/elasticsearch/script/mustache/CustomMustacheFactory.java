@@ -118,7 +118,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
         return new Builder();
     }
 
-    static class CustomMustacheVisitor extends DefaultMustacheVisitor {
+    private static class CustomMustacheVisitor extends DefaultMustacheVisitor {
 
         CustomMustacheVisitor(DefaultMustacheFactory df) {
             super(df);
@@ -143,7 +143,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
     /**
      * Base class for custom Mustache functions
      */
-    abstract static class CustomCode extends IterableCode {
+    private abstract static class CustomCode extends IterableCode {
 
         private final String code;
 
@@ -198,7 +198,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
     /**
      * This function renders {@link Iterable} and {@link Map} as their JSON representation
      */
-    static class ToJsonCode extends CustomCode {
+    private static class ToJsonCode extends CustomCode {
 
         private static final String CODE = "toJson";
 
@@ -244,7 +244,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
     /**
      * This function concatenates the values of an {@link Iterable} using a given delimiter
      */
-    static class JoinerCode extends CustomCode {
+    private static class JoinerCode extends CustomCode {
 
         protected static final String CODE = "join";
         private static final String DEFAULT_DELIMITER = ",";
@@ -281,7 +281,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
         }
     }
 
-    static class CustomJoinerCode extends JoinerCode {
+    private static class CustomJoinerCode extends JoinerCode {
 
         private static final Pattern PATTERN = Pattern.compile("^" + CODE + " delimiter='(.*)'$");
 
@@ -306,7 +306,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
      * This function encodes a string using the {@link URLEncoder#encode(String, String)} method
      * with the UTF-8 charset.
      */
-    static class UrlEncoderCode extends DefaultMustache {
+    private static class UrlEncoderCode extends DefaultMustache {
 
         private static final String CODE = "url";
         private final Encoder encoder;

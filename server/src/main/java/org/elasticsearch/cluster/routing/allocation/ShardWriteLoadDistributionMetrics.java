@@ -117,7 +117,11 @@ public class ShardWriteLoadDistributionMetrics {
                 }
             } catch (ArrayIndexOutOfBoundsException e) {
                 // This shouldn't happen because our histogram should be auto-resizing, but just in case
-                final var message = "Failed to record shard write load distribution metrics for node " + node.getName();
+                final var message = "Failed to record shard write load distribution metrics for node "
+                    + node.getName()
+                    + " ("
+                    + e.getMessage()
+                    + ")";
                 assert false : message;
                 logger.error(message, e);
                 continue;

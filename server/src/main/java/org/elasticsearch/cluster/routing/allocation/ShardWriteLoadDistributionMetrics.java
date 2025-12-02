@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Publishes metrics about the distribution of shard write loads in the cluster
+ * Publishes metrics about the distribution of shard write loads on each node in the cluster
  */
 public class ShardWriteLoadDistributionMetrics {
 

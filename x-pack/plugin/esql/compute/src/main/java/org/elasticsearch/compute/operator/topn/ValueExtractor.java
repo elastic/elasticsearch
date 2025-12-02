@@ -56,7 +56,7 @@ interface ValueExtractor {
             case DOC -> new ValueExtractorForDoc(encoder, ((DocBlock) block).asVector());
             case AGGREGATE_METRIC_DOUBLE -> new ValueExtractorForAggregateMetricDouble(encoder, (AggregateMetricDoubleBlock) block);
             case EXPONENTIAL_HISTOGRAM -> new ValueExtractorForExponentialHistogram(encoder, (ExponentialHistogramBlock) block);
-            case TDIGEST -> new ValueExtractorForTDigest(encoder, (TDigestBlock)  block);
+            case TDIGEST -> new ValueExtractorForTDigest(encoder, (TDigestBlock) block);
             default -> {
                 assert false : "No value extractor for [" + block.elementType() + "]";
                 throw new UnsupportedOperationException("No value extractor for [" + block.elementType() + "]");

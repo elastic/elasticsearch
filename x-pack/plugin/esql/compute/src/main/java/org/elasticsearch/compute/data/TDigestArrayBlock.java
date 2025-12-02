@@ -347,6 +347,7 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
             }
         }
     }
+
     @Override
     public boolean equals(Object o) {
         if (o instanceof TDigestBlock block) {

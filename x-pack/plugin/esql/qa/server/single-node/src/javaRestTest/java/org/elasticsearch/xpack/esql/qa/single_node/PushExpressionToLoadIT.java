@@ -45,6 +45,7 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsql;
 import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.commonProfile;
 import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.fixTypesOnProfile;
 import static org.hamcrest.Matchers.any;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -83,6 +84,11 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         );
     }
 
+    /**
+     * We don't support fusing {@code LENGTH} into loading {@code wildcard} fields because
+     * we haven't written support for fusing functions to loading from its source format.
+     * We haven't done that because {@code wildcard} fields aren't super common.
+     */
     public void testLengthNotPushedToWildcard() throws IOException {
         String value = "v".repeat(between(0, 256));
         test(
@@ -94,6 +100,12 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         );
     }
 
+    /**
+     * We don't support fusing {@code LENGTH} into loading {@code text} fields because
+     * we haven't written support for fusing functions to loading from {@code _source}.
+     * Usually folks that want to go superfast will use doc values. But those aren't
+     * even available for {@code text} fields.
+     */
     public void testLengthNotPushedToText() throws IOException {
         String value = "v".repeat(between(0, 256));
         test(
@@ -104,6 +116,222 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesMap().entry("test:column_at_a_time:null", 1)
                 .entry("stored_fields[requires_source:true, fields:0, sequential: false]", 1)
                 .entry("test:row_stride:BlockSourceReader.Bytes", 1)
+        );
+    }
+
+    public void testMvMinToKeyword() throws IOException {
+        String min = "a".repeat(between(1, 256));
+        String max = "b".repeat(between(1, 256));
+        test(
+            justType("keyword"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MIN(test)",
+            matchesList().item(min),
+            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromOrds.SortedSet", 1)
+        );
+    }
+
+    public void testMvMinToIp() throws IOException {
+        String min = "192.168.0." + between(0, 255);
+        String max = "192.168.3." + between(0, 255);
+        test(
+            justType("ip"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MIN(test)",
+            matchesList().item(min),
+            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromOrds.SortedSet", 1)
+        );
+    }
+
+    public void testMvMinToHalfFloat() throws IOException {
+        double min = randomDouble();
+        double max = 1 + randomDouble();
+        test(
+            justType("half_float"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MIN(test)",
+            matchesList().item(closeTo(min, .1)),
+            matchesMap().entry("test:column_at_a_time:MvMinDoublesFromDocValues.Sorted", 1)
+        );
+    }
+
+    public void testMvMinToFloat() throws IOException {
+        double min = randomDouble();
+        double max = 1 + randomDouble();
+        test(
+            justType("float"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MIN(test)",
+            matchesList().item(closeTo(min, .1)),
+            matchesMap().entry("test:column_at_a_time:MvMinDoublesFromDocValues.Sorted", 1)
+        );
+    }
+
+    public void testMvMinToDouble() throws IOException {
+        double min = randomDouble();
+        double max = 1 + randomDouble();
+        test(
+            justType("double"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MIN(test)",
+            matchesList().item(min),
+            matchesMap().entry("test:column_at_a_time:MvMinDoublesFromDocValues.Sorted", 1)
+        );
+    }
+
+    public void testMvMinToByte() throws IOException {
+        int min = between(Byte.MIN_VALUE, Byte.MAX_VALUE - 10);
+        int max = between(min + 1, Byte.MAX_VALUE);
+        test(
+            justType("byte"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MIN(test)",
+            matchesList().item(min),
+            matchesMap().entry("test:column_at_a_time:MvMinIntsFromDocValues.Sorted", 1)
+        );
+    }
+
+    public void testMvMinToShort() throws IOException {
+        int min = between(Short.MIN_VALUE, Short.MAX_VALUE - 10);
+        int max = between(min + 1, Short.MAX_VALUE);
+        test(
+            justType("short"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MIN(test)",
+            matchesList().item(min),
+            matchesMap().entry("test:column_at_a_time:MvMinIntsFromDocValues.Sorted", 1)
+        );
+    }
+
+    public void testMvMinToInt() throws IOException {
+        int min = between(Integer.MIN_VALUE, Integer.MAX_VALUE - 10);
+        int max = between(min + 1, Integer.MAX_VALUE);
+        test(
+            justType("integer"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MIN(test)",
+            matchesList().item(min),
+            matchesMap().entry("test:column_at_a_time:MvMinIntsFromDocValues.Sorted", 1)
+        );
+    }
+
+    public void testMvMinToLong() throws IOException {
+        long min = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - 10);
+        long max = randomLongBetween(min + 1, Long.MAX_VALUE);
+        test(
+            justType("long"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MIN(test)",
+            matchesList().item(min),
+            matchesMap().entry("test:column_at_a_time:MvMinLongsFromDocValues.Sorted", 1)
+        );
+    }
+
+    public void testMvMaxToKeyword() throws IOException {
+        String min = "a".repeat(between(1, 256));
+        String max = "b".repeat(between(1, 256));
+        test(
+            justType("keyword"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MAX(test)",
+            matchesList().item(max),
+            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromOrds.SortedSet", 1)
+        );
+    }
+
+    public void testMvMaxToIp() throws IOException {
+        String min = "192.168.0." + between(0, 255);
+        String max = "192.168.3." + between(0, 255);
+        test(
+            justType("ip"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MAX(test)",
+            matchesList().item(max),
+            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromOrds.SortedSet", 1)
+        );
+    }
+
+    public void testMvMaxToByte() throws IOException {
+        int min = between(Byte.MIN_VALUE, Byte.MAX_VALUE - 10);
+        int max = between(min + 1, Byte.MAX_VALUE);
+        test(
+            justType("byte"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MAX(test)",
+            matchesList().item(max),
+            matchesMap().entry("test:column_at_a_time:MvMaxIntsFromDocValues.Sorted", 1)
+        );
+    }
+
+    public void testMvMaxToShort() throws IOException {
+        int min = between(Short.MIN_VALUE, Short.MAX_VALUE - 10);
+        int max = between(min + 1, Short.MAX_VALUE);
+        test(
+            justType("short"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MAX(test)",
+            matchesList().item(max),
+            matchesMap().entry("test:column_at_a_time:MvMaxIntsFromDocValues.Sorted", 1)
+        );
+    }
+
+    public void testMvMaxToInt() throws IOException {
+        int min = between(Integer.MIN_VALUE, Integer.MAX_VALUE - 10);
+        int max = between(min + 1, Integer.MAX_VALUE);
+        test(
+            justType("integer"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MAX(test)",
+            matchesList().item(max),
+            matchesMap().entry("test:column_at_a_time:MvMaxIntsFromDocValues.Sorted", 1)
+        );
+    }
+
+    public void testMvMaxToLong() throws IOException {
+        long min = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - 10);
+        long max = randomLongBetween(min + 1, Long.MAX_VALUE);
+        test(
+            justType("long"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MAX(test)",
+            matchesList().item(max),
+            matchesMap().entry("test:column_at_a_time:MvMaxLongsFromDocValues.Sorted", 1)
+        );
+    }
+
+    public void testMvMaxToHalfFloat() throws IOException {
+        double min = randomDouble();
+        double max = 1 + randomDouble();
+        test(
+            justType("half_float"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MAX(test)",
+            matchesList().item(closeTo(max, .1)),
+            matchesMap().entry("test:column_at_a_time:MvMaxDoublesFromDocValues.Sorted", 1)
+        );
+    }
+
+    public void testMvMaxToFloat() throws IOException {
+        double min = randomDouble();
+        double max = 1 + randomDouble();
+        test(
+            justType("float"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MAX(test)",
+            matchesList().item(closeTo(max, .1)),
+            matchesMap().entry("test:column_at_a_time:MvMaxDoublesFromDocValues.Sorted", 1)
+        );
+    }
+
+    public void testMvMaxToDouble() throws IOException {
+        double min = randomDouble();
+        double max = 1 + randomDouble();
+        test(
+            justType("double"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MAX(test)",
+            matchesList().item(max),
+            matchesMap().entry("test:column_at_a_time:MvMaxDoublesFromDocValues.Sorted", 1)
         );
     }
 
@@ -440,6 +668,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .entry("plans", instanceOf(List.class))
                     .entry("planning", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
+                    .entry("minimumTransportVersion", instanceOf(Integer.class))
             ),
             matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
             matchesList().item(expectedValue)

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -71,7 +70,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // Updates to the Cluster occur with the updateCluster method that given the key to map transforms an
     // old Cluster Object to a new Cluster Object with the remapping function.
     public final ConcurrentMap<String, Cluster> clusterInfo;
-    // Is the clusterInfo map iinitialization in progress? If so, we should not try to serialize it.
+    // Is the clusterInfo map initialization in progress? If so, we should not try to serialize it.
     private transient volatile boolean clusterInfoInitializing;
 
     public enum IncludeExecutionMetadata {
@@ -144,7 +143,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         } else {
             this.includeExecutionMetadata = in.readBoolean() ? IncludeExecutionMetadata.CCS_ONLY : IncludeExecutionMetadata.NEVER;
         }
-        this.isPartial = in.getTransportVersion().supports(TransportVersions.V_8_18_0) ? in.readBoolean() : false;
+        this.isPartial = in.readBoolean();
         this.skipOnFailurePredicate = Predicates.always();
         this.relativeStart = null;
         if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
@@ -166,9 +165,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         } else {
             out.writeBoolean(includeExecutionMetadata != IncludeExecutionMetadata.NEVER);
         }
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeBoolean(isPartial);
-        }
+        out.writeBoolean(isPartial);
         if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
             out.writeOptionalWriteable(overallTimeSpan);
             out.writeOptionalWriteable(planningTimeSpan);
@@ -273,6 +270,19 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public Map<String, Cluster> getClusters() {
         return clusterInfo;
+    }
+
+    /**
+     * This creates an initial Cluster object with indexExpression and skipUnavailable.
+     */
+    public void initCluster(String clusterAlias, String indexExpression) {
+        swapCluster(clusterAlias, (ca, previous) -> {
+            var expr = indexExpression;
+            if (previous != null) {
+                expr = previous.getIndexExpression() + "," + indexExpression;
+            }
+            return new Cluster(clusterAlias, expr, shouldSkipOnFailure(clusterAlias));
+        });
     }
 
     /**

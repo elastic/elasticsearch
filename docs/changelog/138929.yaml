@@ -1,0 +1,5 @@
+pr: 138929
+summary: Do not pack non-dimension fields in TS
+area: ES|QL
+type: bug
+issues: []

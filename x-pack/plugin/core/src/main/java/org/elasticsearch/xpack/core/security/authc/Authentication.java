@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -115,9 +114,10 @@ public final class Authentication implements ToXContentObject {
     private static final Logger logger = LogManager.getLogger(Authentication.class);
     private static final TransportVersion VERSION_AUTHENTICATION_TYPE = TransportVersion.fromId(6_07_00_99);
 
-    public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersions.V_7_9_0;
-    public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersions.V_8_2_0;
-    public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersions.V_8_8_0;
+    public static final TransportVersion VERSION_SYNTHETIC_ROLE_NAMES = TransportVersion.fromId(7_08_00_99);
+    public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersion.fromId(7_09_00_99);
+    public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersion.fromId(8_02_00_99);
+    public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersion.fromId(8_08_00_99);
 
     private static final TransportVersion SECURITY_CLOUD_API_KEY_REALM_AND_TYPE = TransportVersion.fromName(
         "security_cloud_api_key_realm_and_type"
@@ -211,7 +211,7 @@ public final class Authentication implements ToXContentObject {
 
     private User copyUserWithRolesRemovedForLegacyApiKeys(TransportVersion version, User user) {
         // API keys prior to 7.8 had synthetic role names. Strip these out to maintain the invariant that API keys don't have role names
-        if (type == AuthenticationType.API_KEY && version.onOrBefore(TransportVersions.V_7_8_0) && user.roles().length > 0) {
+        if (type == AuthenticationType.API_KEY && version.onOrBefore(VERSION_SYNTHETIC_ROLE_NAMES) && user.roles().length > 0) {
             logger.debug(
                 "Stripping [{}] roles from API key user [{}] for legacy version [{}]",
                 user.roles().length,

@@ -12,6 +12,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.junit.BeforeClass;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -169,13 +171,20 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             TEST_VERIFIER
         );
 
+        List<EsIndex> metricIndices = new ArrayList<>();
+        if (EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V7.isEnabled()) {
+            Map<String, EsField> expHistoMetricMapping = loadMapping("exp_histo_sample-mappings.json");
+            metricIndices.add(
+                EsIndexGenerator.esIndex("exp_histo_sample", expHistoMetricMapping, Map.of("exp_histo_sample", IndexMode.TIME_SERIES))
+            );
+        }
         metricMapping = loadMapping("k8s-mappings.json");
-        var metricsIndex = EsIndexGenerator.esIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES));
+        metricIndices.add(EsIndexGenerator.esIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
         metricsAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                indexResolutions(metricsIndex),
+                indexResolutions(metricIndices.toArray(EsIndex[]::new)),
                 enrichResolution,
                 emptyInferenceResolution()
             ),

@@ -155,7 +155,8 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             request.indexIncludeFrozen(),
             new TaskId(clusterService.localNode().getId(), task.getId()),
             task,
-            request.allowPartialSearchResults()
+            request.allowPartialSearchResults(),
+            request.projectRouting()
         );
 
         if (Strings.hasText(request.cursor()) == false) {

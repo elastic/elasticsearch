@@ -2,7 +2,7 @@
 
 ## `V_L1_NORM` [esql-v_l1_norm]
 ```{applies_to}
-stack: development
+stack: preview 9.3.0
 serverless: preview
 ```
 

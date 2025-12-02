@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
 import org.elasticsearch.xpack.analytics.mapper.ParsedHistogramConverter;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.ExponentialHistogramAggregatorTestCase;
 import org.junit.AssumptionViolatedException;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -72,14 +71,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
-
-    @Before
-    public void setup() {
-        assumeTrue(
-            "Only when exponential_histogram feature flag is enabled",
-            ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()
-        );
-    }
 
     protected Collection<? extends Plugin> getPlugins() {
         return Collections.singletonList(new ExponentialHistogramMapperPlugin());

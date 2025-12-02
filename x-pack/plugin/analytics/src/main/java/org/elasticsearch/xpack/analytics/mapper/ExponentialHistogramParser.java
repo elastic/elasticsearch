@@ -67,8 +67,6 @@ public class ExponentialHistogramParser {
     private static final ParseField BUCKET_INDICES_FIELD = new ParseField(ExponentialHistogramXContent.BUCKET_INDICES_FIELD);
     private static final ParseField BUCKET_COUNTS_FIELD = new ParseField(ExponentialHistogramXContent.BUCKET_COUNTS_FIELD);
 
-    public static final FeatureFlag EXPONENTIAL_HISTOGRAM_FEATURE = new FeatureFlag("exponential_histogram");
-
     private static final Set<String> ROOT_FIELD_NAMES = Set.of(
         SCALE_FIELD.getPreferredName(),
         SUM_FIELD.getPreferredName(),

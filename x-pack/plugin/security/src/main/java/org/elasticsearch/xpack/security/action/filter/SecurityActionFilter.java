@@ -22,7 +22,6 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.license.LicenseUtils;
@@ -165,84 +164,64 @@ public class SecurityActionFilter implements ActionFilter {
         }
 
         final String securityAction = SecurityActionMapper.action(action, request);
-        SubscribableListener
-            // Step 1: authenticate the user
-            .<RequestContext>newForked(
-                /*
-                    here we fall back on the system user. Internal system requests are requests that are triggered by the system itself
-                    (e.g. pings, update mappings, share relocation, etc...) and were not originated by user interaction. Since these
-                    requests are triggered by es core modules, they are security agnostic and therefore not associated with any user. When
-                    these requests execute locally, they are executed directly on their relevant action. Since there is no other way a
-                    request can make it to the action without an associated user (not via REST or transport - this is taken care of by the
-                    {@link Rest} filter and the {@link ServerTransport} filter respectively), it's safe to assume a system user here if a
-                    request is not associated with any other user.
-                */
-                authcListener -> authcService.authenticate(
-                    securityAction,
-                    request,
-                    InternalUsers.SYSTEM_USER,
-                    authcListener.map(authc -> new RequestContext(threadContext, authc))
-                )
-            )
-            // Step 2: check the authenticated user is authorized to proceed
-            .<RequestContext>andThen(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext, (authzListener, requestContext) -> {
-                if (requestContext.authc != null) {
-                    try (var ignored1 = requestContext.onAuthcSuccess()) {
-                        authzService.authorize(
-                            requestContext.authc,
-                            securityAction,
-                            request,
-                            authzListener.map(ignored2 -> requestContext.captureAuthzSuccessContext())
-                        );
-                    }
+        final SubscribableListener<AuthResult> authListener = new SubscribableListener<>();
+        authcService.authenticate(
+            securityAction,
+            request,
+            /*
+                here we fall back on the system user. Internal system requests are requests that are triggered by the system itself (e.g.
+                pings, update mappings, share relocation, etc...) and were not originated by user interaction. Since these requests are
+                triggered by es core modules, they are security agnostic and therefore not associated with any user. When these requests
+                execute locally, they are executed directly on their relevant action. Since there is no other way a request can make it to
+                the action without an associated user (not via REST or transport - this is taken care of by the {@link Rest} filter and the
+                {@link ServerTransport} filter respectively), it's safe to assume a system user here if a request is not associated with any
+                other user.
+            */
+            InternalUsers.SYSTEM_USER,
+            authListener.delegateFailureAndWrap((delegate, authc) -> {
+                if (authc != null) {
+                    final String requestId = AuditUtil.extractRequestId(threadContext);
+                    assert Strings.hasText(requestId);
+                    authzService.authorize(
+                        authc,
+                        securityAction,
+                        request,
+                        delegate.map(ignored -> new AuthResult(threadContext, requestId, authc))
+                    );
                 } else {
-                    authzListener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
+                    delegate.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
                 }
             })
-            // Step 3: execute the action
-            .addListener(
-                // NB the response is handled inline here rather than via more andThen() calls because it might be refcounted, in which case
-                // it must be kept alive until the outer listener is completed
-                listener.delegateFailureAndWrap((delegate, requestContext) -> {
-                    try (var ignored = threadContext.wrapRestorable(requestContext.storedContext).get()) {
-                        chain.proceed(task, action, request, delegate.map(response -> {
-                            // Step 4: log the response
-                            auditTrailService.get()
-                                .coordinatingActionResponse(requestContext.requestId, requestContext.authc, action, request, response);
-                            // Step 5: pass the response back up the chain
-                            return response;
-                        }));
-                    }
-                }),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                threadContext
-            );
+        );
+
+        authListener.addListener(listener.delegateFailure((ll, authResult) -> {
+            try (var ignored = authResult.inAuthenticatedContext()) {
+                chain.proceed(task, action, request, ll.map(response -> {
+                    auditTrailService.get().coordinatingActionResponse(authResult.requestId, authResult.authc, action, request, response);
+                    return response;
+                }));
+            }
+        }));
     }
 
     /**
-     * Carries the request ID and the {@link Authentication} along with the response, for eventual audit logging.
+     * Carries the request ID, the {@link Authentication}, and the thread context in which auth completed.
      */
-    private static class RequestContext {
+    private static class AuthResult {
         private final ThreadContext threadContext;
-        ThreadContext.StoredContext storedContext;
+        private final ThreadContext.StoredContext authenticatedContext;
+        final String requestId;
         final Authentication authc;
-        String requestId;
 
-        RequestContext(ThreadContext threadContext, Authentication authc) {
+        AuthResult(ThreadContext threadContext, String requestId, Authentication authc) {
             this.threadContext = threadContext;
-            this.storedContext = threadContext.newStoredContext();
+            this.authenticatedContext = threadContext.newStoredContext();
+            this.requestId = requestId;
             this.authc = authc;
         }
 
-        Releasable onAuthcSuccess() {
-            this.requestId = AuditUtil.extractRequestId(threadContext);
-            assert Strings.hasText(requestId);
-            return threadContext.wrapRestorable(storedContext).get();
-        }
-
-        RequestContext captureAuthzSuccessContext() {
-            storedContext = threadContext.newStoredContext();
-            return this;
+        Releasable inAuthenticatedContext() {
+            return threadContext.wrapRestorable(authenticatedContext).get();
         }
     }
 }

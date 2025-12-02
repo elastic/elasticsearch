@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -80,7 +79,6 @@ public class BFloat16Tests extends ESTestCase {
 
         float rounded = BFloat16.truncateToBFloat16(value);
 
-        // System.out.println(value + " rounds to " + rounded);
         assertEquals(
             value + " rounded to " + rounded + ", not " + expectedRounded,
             Float.floatToIntBits(expectedRounded),

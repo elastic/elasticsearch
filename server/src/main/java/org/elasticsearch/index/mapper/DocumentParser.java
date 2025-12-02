@@ -369,6 +369,8 @@ public final class DocumentParser {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         assert token == XContentParser.Token.FIELD_NAME || token == XContentParser.Token.END_OBJECT;
+        int countArray = 0;
+        long arrayObjectsLimit = context.indexSettings().getMappingArrayObjectsLimit();
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == null) {
                 throwEOF(context.parent(), context);
@@ -384,7 +386,7 @@ public final class DocumentParser {
                     }
                     break;
                 case START_OBJECT:
-                    parseObject(context, currentFieldName);
+                    countArray = parseObject(context, currentFieldName, arrayObjectsLimit, countArray);
                     break;
                 case START_ARRAY:
                     parseArray(context, currentFieldName);
@@ -525,15 +527,28 @@ public final class DocumentParser {
         );
     }
 
-    private static void parseObject(final DocumentParserContext context, String currentFieldName) throws IOException {
+    private static int parseObject(final DocumentParserContext context, String currentFieldName, long arrayObjectsLimit, int alreadyCounted)
+        throws IOException {
+        int newCount = 0;
         assert currentFieldName != null;
         context.setImmediateXContentParent(context.parser().currentToken());
         Mapper objectMapper = context.getMapper(currentFieldName);
         if (objectMapper != null) {
             doParseObject(context, currentFieldName, objectMapper);
         } else {
+            newCount = alreadyCounted + 1;
+            if (newCount > arrayObjectsLimit) {
+                throw new IllegalStateException(
+                    "The number of array objects has exceeded the allowed limit of ["
+                        + arrayObjectsLimit
+                        + "]. This limit can be set by changing the ["
+                        + MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey()
+                        + "] index level setting."
+                );
+            }
             parseObjectDynamic(context, currentFieldName);
         }
+        return newCount;
     }
 
     private static void doParseObject(DocumentParserContext context, String currentFieldName, Mapper objectMapper) throws IOException {
@@ -767,10 +782,12 @@ public final class DocumentParser {
         XContentParser.Token token;
         XContentParser.Token previousToken = parser.currentToken();
         int elements = 0;
+        int countArray = 0;
+        long arrayObjectsLimit = context.indexSettings().getMappingArrayObjectsLimit();
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
                 elements = 2;
-                parseObject(context, lastFieldName);
+                countArray = parseObject(context, lastFieldName, arrayObjectsLimit, countArray);
             } else if (token == XContentParser.Token.START_ARRAY) {
                 elements = 2;
                 parseArray(context, lastFieldName);

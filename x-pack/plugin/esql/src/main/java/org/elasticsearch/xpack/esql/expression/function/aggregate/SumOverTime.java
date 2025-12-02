@@ -48,7 +48,7 @@ public class SumOverTime extends TimeSeriesAggregateFunction implements Optional
     )
     public SumOverTime(
         Source source,
-        @Param(name = "field", type = { "aggregate_metric_double", "double", "integer", "long" }) Expression field,
+        @Param(name = "field", type = { "aggregate_metric_double", "double", "integer", "long", "exponential_histogram" }) Expression field,
         @Param(
             name = "window",
             type = { "time_duration" },

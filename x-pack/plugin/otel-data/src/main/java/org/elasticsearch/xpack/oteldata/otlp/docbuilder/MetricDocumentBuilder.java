@@ -44,8 +44,9 @@ public class MetricDocumentBuilder {
 
     public BytesRef buildMetricDocument(
         XContentBuilder builder,
+        DataPointGroupingContext.DataPointGroup dataPointGroup,
         Map<String, String> dynamicTemplates,
-        DataPointGroupingContext.DataPointGroup dataPointGroup
+        Map<String, Map<String, String>> dynamicTemplateParams
     ) throws IOException {
         List<DataPoint> dataPoints = dataPointGroup.dataPoints();
         builder.startObject();
@@ -69,7 +70,12 @@ public class MetricDocumentBuilder {
             dataPoint.buildMetricValue(mappingHints, builder);
             String dynamicTemplate = dataPoint.getDynamicTemplate(mappingHints);
             if (dynamicTemplate != null) {
-                dynamicTemplates.put("metrics." + dataPoint.getMetricName(), dynamicTemplate);
+                String metricFieldPath = "metrics." + dataPoint.getMetricName();
+                dynamicTemplates.put(metricFieldPath, dynamicTemplate);
+                if (dataPointGroup.unit() != null && dataPointGroup.unit().isEmpty() == false) {
+                    // Store the unit of the metric in the dynamic template parameters
+                    dynamicTemplateParams.put(metricFieldPath, Map.of("unit", dataPointGroup.unit()));
+                }
             }
             if (mappingHints.docCount()) {
                 docCount = dataPoint.getDocCount();

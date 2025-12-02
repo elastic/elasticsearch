@@ -10,6 +10,6 @@ steps:
       buildDirectory: /dev/shm/bk
     matrix:
       setup:
-        FWC_VERSION: ["9.2.0", "9.2.1"]
+        FWC_VERSION: ["9.2.0", "9.2.1", "9.2.2"]
     env:
       FWC_VERSION: "{{matrix.FWC_VERSION}}"

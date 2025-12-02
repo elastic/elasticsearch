@@ -108,7 +108,10 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                                         EsField.TimeSeriesFieldType.DIMENSION
                                     ),
                                     DataType.KEYWORD,
-                                    new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS)
+                                    new BlockLoaderFunctionConfig.TimeSeriesDimensionsWithExcludes(
+                                        BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS,
+                                        oldAgg.tsdimWithout().excludedFieldNames()
+                                    )
                                 ),
                                 true
                             );

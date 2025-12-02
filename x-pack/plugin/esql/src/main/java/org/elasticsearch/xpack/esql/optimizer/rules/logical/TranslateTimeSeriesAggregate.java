@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggr
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TsdimWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
@@ -300,7 +301,12 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             }
         });
         NamedExpression timeBucket = timeBucketRef.get();
+        Holder<TsdimWithout> tsdimWithoutRef = new Holder<>();
         for (var group : aggregate.groupings()) {
+            if (Alias.unwrap(group) instanceof TsdimWithout tsdimWithoutExpr) {
+                tsdimWithoutRef.set(tsdimWithoutExpr);
+                continue;
+            }
             if (group instanceof Attribute == false) {
                 throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
             }
@@ -342,7 +348,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             newChild,
             firstPassGroupings,
             mergeExpressions(firstPassAggs, firstPassGroupings),
-            (Bucket) Alias.unwrap(timeBucket)
+            (Bucket) Alias.unwrap(timeBucket),
+            tsdimWithoutRef.get()
         );
         checkWindow(firstPhase);
         if (packDimensions.isEmpty()) {

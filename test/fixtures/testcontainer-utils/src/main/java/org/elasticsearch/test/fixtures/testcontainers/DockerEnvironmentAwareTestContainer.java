@@ -12,6 +12,8 @@ package org.elasticsearch.test.fixtures.testcontainers;
 import org.elasticsearch.test.fixtures.CacheableTestFixture;
 import org.junit.Assume;
 import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.DockerClientFactory;
@@ -30,14 +32,10 @@ import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
-public abstract class DockerEnvironmentAwareTestContainer extends GenericContainer<DockerEnvironmentAwareTestContainer>
+public class DockerEnvironmentAwareTestContainer extends GenericContainer<DockerEnvironmentAwareTestContainer>
     implements
         TestRule,
         CacheableTestFixture {
-
-    static {
-        System.setProperty("api.version", "v1.44"); // set docker api version to avoid version probing which fails in some environments
-    }
 
     protected static final Logger LOGGER = LoggerFactory.getLogger(DockerEnvironmentAwareTestContainer.class);
 
@@ -64,6 +62,24 @@ public abstract class DockerEnvironmentAwareTestContainer extends GenericContain
 
     public DockerEnvironmentAwareTestContainer(Future<String> image) {
         super(image);
+    }
+
+    @Override
+    public Statement apply(Statement statement, Description description) {
+        return new Statement() {
+            @Override
+            public void evaluate() {
+                try {
+                    start();
+                    statement.evaluate();
+                } catch (Throwable e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    stop();
+                }
+            }
+        };
+
     }
 
     @Override

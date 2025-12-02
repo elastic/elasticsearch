@@ -487,6 +487,12 @@ public class DiskThresholdSettings implements Writeable {
         return getFreeBytesThreshold(total, lowStageWatermark, lowStageMaxHeadroom);
     }
 
+    public static ByteSizeValue getFreeBytesThresholdLowStage(ByteSizeValue total, ClusterSettings clusterSettings) {
+        var lowStageWatermark = clusterSettings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
+        var lowStageMaxHeadroom = clusterSettings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING);
+        return getFreeBytesThreshold(total, lowStageWatermark, lowStageMaxHeadroom);
+    }
+
     public ByteSizeValue getFreeBytesThresholdHighStage(ByteSizeValue total) {
         return getFreeBytesThreshold(total, highStageWatermark, highStageMaxHeadroom);
     }

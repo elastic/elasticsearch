@@ -105,8 +105,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, knnCollectorManager.longAccumulator);
         AbstractMaxScoreKnnCollector knnCollector;
         if (filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs
-            && (float) ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).approximateCost() / floatVectorValues
-                .size() >= 0) {
+            && (float) ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).approximateCost() / floatVectorValues.size() >= 0) {
             knnCollector = knnCollectorManager.newOptimisticCollector(
                 visitedLimit,
                 strategy,

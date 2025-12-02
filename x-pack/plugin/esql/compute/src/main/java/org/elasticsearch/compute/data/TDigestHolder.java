@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * This exists to hold the values from a {@link TDigestBlock}.  It is roughly parallel to
@@ -39,6 +40,23 @@ public class TDigestHolder {
     public TDigestHolder(List<Double> centroids, List<Long> counts, double min, double max, double sum, long valueCount)
         throws IOException {
         this(encodeCentroidsAndCounts(centroids, counts), min, max, sum, valueCount);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if ((o instanceof TDigestHolder that)) {
+            return Double.compare(min, that.min) == 0
+                && Double.compare(max, that.max) == 0
+                && Double.compare(sum, that.sum) == 0
+                && valueCount == that.valueCount
+                && Objects.equals(encodedDigest, that.encodedDigest);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(min, max, sum, valueCount, encodedDigest);
     }
 
     private static BytesRef encodeCentroidsAndCounts(List<Double> centroids, List<Long> counts) throws IOException {

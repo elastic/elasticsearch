@@ -20,9 +20,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.cluster.metadata.ViewTestsUtils.randomName;
+import static org.elasticsearch.cluster.metadata.ViewTestsUtils.randomView;
 import static org.elasticsearch.xpack.esql.plugin.EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG;
-import static org.elasticsearch.xpack.esql.view.ViewTests.randomName;
-import static org.elasticsearch.xpack.esql.view.ViewTests.randomView;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;

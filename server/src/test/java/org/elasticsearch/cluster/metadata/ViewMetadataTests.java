@@ -1,14 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
+package org.elasticsearch.cluster.metadata;
 
-package org.elasticsearch.xpack.esql.view;
-
-import org.elasticsearch.cluster.metadata.View;
-import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -18,8 +17,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.view.ViewTests.randomName;
-import static org.elasticsearch.xpack.esql.view.ViewTests.randomView;
+import static org.elasticsearch.cluster.metadata.ViewTestsUtils.randomName;
+import static org.elasticsearch.cluster.metadata.ViewTestsUtils.randomView;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ViewMetadataTests extends AbstractChunkedSerializingTestCase<ViewMetadata> {

@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
+package org.elasticsearch.cluster.metadata;
 
-package org.elasticsearch.xpack.esql.view;
-
-import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -15,6 +15,8 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
+import static org.elasticsearch.cluster.metadata.ViewTestsUtils.randomName;
+import static org.elasticsearch.cluster.metadata.ViewTestsUtils.randomView;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ViewTests extends AbstractXContentSerializingTestCase<View> {
@@ -37,15 +39,6 @@ public class ViewTests extends AbstractXContentSerializingTestCase<View> {
     @Override
     protected View createXContextTestInstance(XContentType xContentType) {
         return randomView(randomName());
-    }
-
-    public static String randomName() {
-        return randomAlphaOfLength(8);
-    }
-
-    public static View randomView(String name) {
-        String query = "FROM " + randomAlphaOfLength(10);
-        return new View(name, query);
     }
 
     @Override

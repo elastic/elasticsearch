@@ -76,7 +76,8 @@ public class ConfigurationTestUtils {
             System.nanoTime(),
             false,
             tsTruncation,
-            defaultTsTruncation
+            defaultTsTruncation,
+            null
         );
     }
 

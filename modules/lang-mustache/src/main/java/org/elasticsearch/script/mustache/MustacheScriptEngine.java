@@ -41,7 +41,7 @@ import static org.elasticsearch.core.Strings.format;
 /**
  * Main entry point handling template registration, compilation and
  * execution.
- *
+ * <p>
  * Template handling is based on Mustache. Template handling is a two step
  * process: First compile the string representing the template, the resulting
  * {@link Mustache} object can then be re-used for subsequent executions.

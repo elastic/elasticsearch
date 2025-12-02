@@ -2742,7 +2742,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Acquires a lock on Lucene soft-deleted documents to prevent them from being trimmed
      */
-    public Closeable acquireHistoryRetentionLock() {
+    public Releasable acquireHistoryRetentionLock() {
         return getEngine().acquireHistoryRetentionLock();
     }
 
@@ -2989,13 +2989,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         verifyNotClosed();
         ensureSoftDeletesEnabled();
-        try (Closeable ignore = acquireHistoryRetentionLock()) {
+        try (Releasable ignore = acquireHistoryRetentionLock()) {
             final long actualRetainingSequenceNumber = retainingSequenceNumber == RETAIN_ALL
                 ? getMinRetainedSeqNo()
                 : retainingSequenceNumber;
             return replicationTracker.addRetentionLease(id, actualRetainingSequenceNumber, source, listener);
-        } catch (final IOException e) {
-            throw new AssertionError(e);
         }
     }
 
@@ -3012,13 +3010,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         verifyNotClosed();
         ensureSoftDeletesEnabled();
-        try (Closeable ignore = acquireHistoryRetentionLock()) {
+        try (Releasable ignore = acquireHistoryRetentionLock()) {
             final long actualRetainingSequenceNumber = retainingSequenceNumber == RETAIN_ALL
                 ? getMinRetainedSeqNo()
                 : retainingSequenceNumber;
             return replicationTracker.renewRetentionLease(id, actualRetainingSequenceNumber, source);
-        } catch (final IOException e) {
-            throw new AssertionError(e);
         }
     }
 

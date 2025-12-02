@@ -30,8 +30,7 @@ import static org.elasticsearch.xpack.core.security.support.Exceptions.authentic
  */
 public class DefaultAuthenticationFailureHandler implements AuthenticationFailureHandler {
     /**
-     * Metadata key to mark ElasticsearchSecurityException instances as explicit authorization errors
-     * that should be allowed during authentication processing with 403 status.
+     * Metadata key to denote exceptions that are allowed to return with 403 status
      */
     public static final String AUTHORIZATION_ERROR_METADATA_KEY = "es.security.authorization_error";
 

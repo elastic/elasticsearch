@@ -476,13 +476,15 @@ public class MustacheTests extends ESTestCase {
     }
 
     public void testsUnsupportedPartials() {
-        Exception e;
+        ScriptException e;
 
         final String script1 = "{{>foobar}}";
-        e = expectThrows(Exception.class, () -> compile(script1));
+        e = expectThrows(ScriptException.class, () -> compile(script1));
+        assertThat(e.getMessage(), containsString("Template foobar not found"));
 
         final String script2 = "{{>*foobar}}";
-        e = expectThrows(Exception.class, () -> compile(script2));
+        e = expectThrows(ScriptException.class, () -> compile(script2));
+        assertThat(e.getMessage(), containsString("Template *foobar not found"));
     }
 
     private void assertScript(String script, Map<String, Object> vars, Matcher<String> matcher) {

@@ -152,7 +152,7 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
         Instant endTimestamp = Instant.parse(endTimestampString);
 
         Supplier<Configuration> configurationSupplier = () -> timezone == null
-            ? randomConfiguration()
+            ? randomConfiguration(TEST_SOURCE.text())
             : configurationForTimezone(ZoneId.of(timezone));
 
         return Stream.of(DataType.KEYWORD, DataType.TEXT)

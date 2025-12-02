@@ -362,7 +362,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         double upper = mm + scale * sm * zu;
 
         // If the bestEstimate is outside the confidence interval, it is not a sensible interval,
-        // so return null instead.
+        // so return null instead. TODO: this criterion is not ideal, and should be revisited.
         return lower <= bestEstimate && bestEstimate <= upper ? new double[] { lower, upper, (double) reliableCount / trialCount } : null;
     }
 

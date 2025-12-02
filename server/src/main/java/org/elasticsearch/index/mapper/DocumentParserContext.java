@@ -161,6 +161,10 @@ public abstract class DocumentParserContext {
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private Scope currentScope;
 
+    private final Map<String, String> arrayFirstField;
+    private final Map<String, Integer> arrayElementCount;
+    private final Set<String> mixedArrays;
+
     private final Map<String, List<Mapper>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
@@ -205,7 +209,10 @@ public abstract class DocumentParserContext {
         Set<String> fieldsAppliedFromTemplates,
         Set<String> copyToFields,
         DynamicMapperSize dynamicMapperSize,
-        boolean recordedSource
+        boolean recordedSource,
+        Map<String, String> arrayFirstField,
+        Map<String, Integer> arrayElementCount,
+        Set<String> mixedArrays
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
@@ -226,6 +233,9 @@ public abstract class DocumentParserContext {
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
         this.recordedSource = recordedSource;
+        this.arrayFirstField = arrayFirstField;
+        this.arrayElementCount = arrayElementCount;
+        this.mixedArrays = mixedArrays;
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -248,7 +258,10 @@ public abstract class DocumentParserContext {
             in.fieldsAppliedFromTemplates,
             in.copyToFields,
             in.dynamicMappersSize,
-            in.recordedSource
+            in.recordedSource,
+            in.arrayFirstField,
+            in.arrayElementCount,
+            in.mixedArrays
         );
     }
 
@@ -278,7 +291,10 @@ public abstract class DocumentParserContext {
             new HashSet<>(),
             new HashSet<>(mappingLookup.fieldTypesLookup().getCopyToDestinationFields()),
             new DynamicMapperSize(),
-            false
+            false,
+            new HashMap<>(),
+            new HashMap<>(),
+            new HashSet<>()
         );
     }
 
@@ -587,6 +603,42 @@ public abstract class DocumentParserContext {
                 // that list, and what is important is that all of the intermediate objects are added to the dynamic object mappers so that
                 // they can be looked up once sub-fields need to be added to them. For simplicity, we treat these like any other object
                 addDynamicMapper(submapper);
+            }
+        }
+
+        // We run this when the immediate parent is an array, and we're creating a FieldMapper dynamically.
+        final long limit = indexSettings().getMappingArrayObjectsLimit();
+        if (isImmediateParentAnArray() && mapper instanceof FieldMapper fieldMapper) {
+            final String path = fieldMapper.fullPath();
+            final int pos = path.lastIndexOf('.');
+            if (pos > 0) {
+                final String arrayName = path.substring(0, pos);
+                final String fieldName = path.substring(pos + 1);
+
+                if (mixedArrays.contains(arrayName) == false) {
+                    final String firstFieldName = arrayFirstField.get(arrayName);
+                    if (firstFieldName == null) {
+                        arrayFirstField.put(arrayName, fieldName);
+                        arrayElementCount.put(arrayName, 1);
+                    } else if (firstFieldName.equals(fieldName)) {
+                        final int count = arrayElementCount.getOrDefault(arrayName, 0) + 1;
+                        if (count > limit) {
+                            throw new DocumentParsingException(
+                                parser().getTokenLocation(),
+                                "The number of array objects has exceeded the allowed limit of ["
+                                    + limit
+                                    + "]. This limit can be set by changing the ["
+                                    + MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey()
+                                    + "] index level setting."
+                            );
+                        }
+                        arrayElementCount.put(arrayName, count);
+                    } else {
+                        mixedArrays.add(arrayName);
+                        arrayFirstField.remove(arrayName);
+                        arrayElementCount.remove(arrayName);
+                    }
+                }
             }
         }
 

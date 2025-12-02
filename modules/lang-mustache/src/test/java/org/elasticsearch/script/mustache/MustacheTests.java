@@ -475,6 +475,16 @@ public class MustacheTests extends ESTestCase {
         );
     }
 
+    public void testsUnsupportedPartials() {
+        Exception e;
+
+        final String script1 = "{{>foobar}}";
+        e = expectThrows(Exception.class, () -> compile(script1));
+
+        final String script2 = "{{>*foobar}}";
+        e = expectThrows(Exception.class, () -> compile(script2));
+    }
+
     private void assertScript(String script, Map<String, Object> vars, Matcher<String> matcher) {
         String result = compile(script).newInstance(vars).execute();
         assertThat(result, matcher);

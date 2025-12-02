@@ -366,6 +366,7 @@ public class PushQueriesIT extends ESRestTestCase {
                     .entry("plans", instanceOf(List.class))
                     .entry("planning", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
+                    .entry("minimumTransportVersion", instanceOf(Integer.class))
             ),
             matchesList().item(matchesMap().entry("name", "test").entry("type", anyOf(equalTo("text"), equalTo("keyword")))),
             equalTo(found ? List.of(List.of(value)) : List.of())

@@ -443,7 +443,7 @@ public class ESVectorUtil {
         IMPL.vectorAccumulateAdd(a, b);
     }
 
-    public static void vectorScalerDivide(float [] a, float b) {
+    public static void vectorScalerDivide(float[] a, float b) {
         IMPL.vectorScalerDivide(a, b);
     }
 }

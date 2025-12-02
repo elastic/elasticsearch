@@ -72,7 +72,7 @@ public interface ESVectorUtilSupport {
 
     int indexOf(byte[] bytes, int offset, int length, byte marker);
 
-    void vectorScalerDivide(float [] a, float b);
+    void vectorScalerDivide(float[] a, float b);
 
     void vectorAccumulateAdd(float[] a, float[] b);
 }

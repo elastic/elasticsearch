@@ -38,6 +38,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperParsingException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -932,6 +933,18 @@ public final class DocumentParser {
                 // ignore copy_to that targets inference fields, values are already extracted in the coordinating node to perform inference.
                 continue;
             }
+            
+            // Validate that copy_to target field exists when dynamic mappings are disabled
+            ObjectMapper.Dynamic dynamic = context.dynamic();
+            if (dynamic == ObjectMapper.Dynamic.FALSE || dynamic == ObjectMapper.Dynamic.STRICT) {
+                if (context.mappingLookup().getMapper(field) == null) {
+                    throw new MapperParsingException(
+                        "Cannot copy_to non-existent field '" + field + 
+                        "' when dynamic mappings are disabled (dynamic=[" + dynamic + "])"
+                    );
+                }
+            }
+            
             // In case of a hierarchy of nested documents, we need to figure out
             // which document the field should go to
             LuceneDocument targetDoc = null;

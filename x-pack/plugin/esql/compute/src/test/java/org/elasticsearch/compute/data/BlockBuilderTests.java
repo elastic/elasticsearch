@@ -43,7 +43,7 @@ public class BlockBuilderTests extends ESTestCase {
 
     private static boolean supportsVectors(ElementType type) {
         return switch (type) {
-            case AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM -> false;
+            case AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST -> false;
             default -> true;
         };
     }

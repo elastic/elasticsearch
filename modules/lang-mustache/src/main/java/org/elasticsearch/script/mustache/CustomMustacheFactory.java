@@ -137,6 +137,13 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
                 list.add(new IterableCode(templateContext, df, mustache, variable));
             }
         }
+
+        @Override
+        public void partial(TemplateContext tc, String variable, String indent) {
+            // throwing a mustache exception here is important because this gets caught, handled (closing readers, etc),
+            // and re-thrown in the mustache parser itself
+            throw new MustacheException("partial templates are not supported");
+        }
     }
 
     /**

@@ -1,5 +1,0 @@
-pr: 138132
-summary: Fix integer overflow in block memory estimation
-area: ES|QL
-type: bug
-issues: []

@@ -54,21 +54,13 @@ public class CodecService implements CodecProvider {
                 .onOrAfter(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID);
 
         var legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, bigArrays);
-        if (ZSTD_STORED_FIELDS_FEATURE_FLAG) {
-            PerFieldMapperCodec defaultZstdCodec = new PerFieldMapperCodec(
-                Zstd814StoredFieldsFormat.Mode.BEST_SPEED,
-                mapperService,
-                bigArrays
-            );
-            codecs.put(
-                DEFAULT_CODEC,
-                useSyntheticId ? new ES93TSDBZSTDCompressionLucene103Codec(defaultZstdCodec, bigArrays) : defaultZstdCodec
-            );
+        if (useSyntheticId) {
+            // Use the default Lucene compression when the synthetic id is used even if the ZSTD feature flag is enabled
+            codecs.put(DEFAULT_CODEC, new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec, bigArrays));
+        } else if (ZSTD_STORED_FIELDS_FEATURE_FLAG) {
+            codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, bigArrays));
         } else {
-            codecs.put(
-                DEFAULT_CODEC,
-                useSyntheticId ? new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec, bigArrays) : legacyBestSpeedCodec
-            );
+            codecs.put(DEFAULT_CODEC, legacyBestSpeedCodec);
         }
 
         codecs.put(LEGACY_DEFAULT_CODEC, legacyBestSpeedCodec);

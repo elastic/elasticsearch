@@ -117,10 +117,9 @@ Vector Search:
 * Update to Lucene 10.3.2 [#138230](https://github.com/elastic/elasticsearch/pull/138230) (issue: [#135718](https://github.com/elastic/elasticsearch/issues/135718))
 * [Vector Search] Fix  wrong vector docvalue_fields [#137862](https://github.com/elastic/elasticsearch/pull/137862)
 
+
+
 ## 9.1.8 [elasticsearch-9.1.8-release-notes]
-```{applies_to}
-stack: ga 9.1.8
-```
 
 ### Features and enhancements [elasticsearch-9.1.8-features-enhancements]
 
@@ -635,9 +634,6 @@ Machine Learning:
 * Track inference deployments [#131442](https://github.com/elastic/elasticsearch/pull/131442)
 * [ML] Add Azure AI Rerank support to the Inference Plugin [#129848](https://github.com/elastic/elasticsearch/pull/129848)
 * [ML] Add IBM watsonx Completion and Chat Completion support to the Inference Plugin [#129146](https://github.com/elastic/elasticsearch/pull/129146)
-* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
-* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
-* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
 
 Mapping:
 * Add new `pattern_text` field mapper in tech preview [#135370](https://github.com/elastic/elasticsearch/pull/135370)

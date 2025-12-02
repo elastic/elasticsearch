@@ -58,7 +58,6 @@ import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.BiPredicate;
 
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.isNoneExpression;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
@@ -421,12 +420,12 @@ class IndicesAndAliasesResolver {
                     var resolved = resolvedExpressionsBuilder.build();
 
                     if (crossProjectModeDecider.crossProjectEnabled()) {
-                        setResolvedIndexExpressionsIfUnset(replaceable, resolved);
+                        setResolvedIndexExpressions(replaceable, resolved);
                     }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
                 } else if (crossProjectModeDecider.crossProjectEnabled()) {
-                    setResolvedIndexExpressionsIfUnset(replaceable, ResolvedIndexExpressions.builder().build());
+                    setResolvedIndexExpressions(replaceable, ResolvedIndexExpressions.builder().build());
                 }
 
                 // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.
@@ -452,7 +451,7 @@ class IndicesAndAliasesResolver {
                         indicesRequest.includeDataStreams(),
                         replaceable.getProjectRouting()
                     );
-                    setResolvedIndexExpressionsIfUnset(replaceable, resolved);
+                    setResolvedIndexExpressions(replaceable, resolved);
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
                 } else {
@@ -474,7 +473,7 @@ class IndicesAndAliasesResolver {
                     // once we've migrated from `indices()` to using resolved expressions holistically,
                     // we will always store them
                     if (crossProjectModeDecider.crossProjectEnabled()) {
-                        setResolvedIndexExpressionsIfUnset(replaceable, resolved);
+                        setResolvedIndexExpressions(replaceable, resolved);
                     }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(split.getRemote());
@@ -547,23 +546,28 @@ class IndicesAndAliasesResolver {
         return resolvedIndicesBuilder.build();
     }
 
-    private static void setResolvedIndexExpressionsIfUnset(IndicesRequest.Replaceable replaceable, ResolvedIndexExpressions resolved) {
-        if (replaceable.getResolvedIndexExpressions() == null) {
-            replaceable.setResolvedIndexExpressions(resolved);
-        } else {
-            // see https://github.com/elastic/elasticsearch/issues/135799
+    private static void setResolvedIndexExpressions(IndicesRequest.Replaceable replaceable, ResolvedIndexExpressions resolved) {
+        if (replaceable.getResolvedIndexExpressions() != null) {
+            // see https://github.com/elastic/elasticsearch/issues/135799 and ES-4376
             String message = "resolved index expressions are already set to ["
                 + replaceable.getResolvedIndexExpressions()
-                + "] and should not be set again. Attempted to set to new expressions ["
+                + "]. Replace with new expressions ["
                 + resolved
                 + "] for ["
                 + replaceable.getClass().getName()
                 + "]";
             logger.debug(message);
-            // we are excepting `*,-*` below since we've observed this already -- keeping this assertion to catch other cases
-            // If more exceptions are found, we can add a comment to above linked issue and relax this check further
-            assert replaceable.indices() == null || isNoneExpression(replaceable.indices()) : message;
+
+            // Double authorization and hence index resolution can happen first in ServerTransportFilter and then in SecurityActionFilter.
+            // The first resolution should expand all wildcards. Hence, the second resolution is performed against concrete names.
+            // As a result, the resolved indices from the second resolution must be identical (most of the time) or a subset of the
+            // resolved indices from the first resolution. The later can happen if the user's role changes in between the two
+            // authorizations.
+            assert replaceable.getResolvedIndexExpressions().getLocalIndicesList().containsAll(resolved.getLocalIndicesList())
+                && replaceable.getResolvedIndexExpressions().getRemoteIndicesList().containsAll(resolved.getRemoteIndicesList()) : message;
         }
+        // We always use the latest resolution. It is more up-to-date and also consistent with how we call Replaceable#indices(String[]).
+        replaceable.setResolvedIndexExpressions(resolved);
     }
 
     /**

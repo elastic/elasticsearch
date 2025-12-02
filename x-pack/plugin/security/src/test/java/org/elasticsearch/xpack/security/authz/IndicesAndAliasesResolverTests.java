@@ -127,7 +127,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -815,27 +814,87 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
     }
 
-    public void testResolveMultipleTimesDoesNotOverwriteExpressions() {
-        SearchRequest request = new SearchRequest("barbaz", "foofoo*");
-        request.indicesOptions(IndicesOptions.fromOptions(false, true, true, false));
-        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
-        String[] replacedIndices = new String[] { "barbaz", "foofoobar", "foofoo" };
-        assertThat(indices, hasSize(replacedIndices.length));
-        assertThat(request.indices().length, equalTo(replacedIndices.length));
-        assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
-        ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
-        assertThat(actual, is(notNullValue()));
-        assertThat(
-            actual.expressions(),
-            contains(
-                resolvedIndexExpression("barbaz", Set.of("barbaz"), CONCRETE_RESOURCE_UNAUTHORIZED),
-                resolvedIndexExpression("foofoo*", Set.of("foofoobar", "foofoo"), SUCCESS)
-            )
-        );
-        request.indices(NO_INDICES_OR_ALIASES_ARRAY);
-        resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()));
-        assertThat(actual, sameInstance(request.getResolvedIndexExpressions()));
+    public void testResolveMultipleTimesWillUseLatestResults() {
+        // Simulate the process and IndicesOptions for CPS fanout requests
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(false);
+        final String originalExpression = "f*";
+        var request = new SearchRequest().indices(originalExpression);
+        request.indicesOptions(IndicesOptions.fromOptions(true, true, true, randomBoolean()));
+
+        {
+            // First index resolution expands wildcard to concrete names
+            final String[] authorizedIndices = new String[] { "foofoo", "foofoobar", "foobarfoo" };
+            roleMap.put(
+                "role",
+                new RoleDescriptor(
+                    "role",
+                    null,
+                    new IndicesPrivileges[] { IndicesPrivileges.builder().indices(authorizedIndices).privileges("all").build() },
+                    null
+                )
+            );
+
+            assertNull(request.getResolvedIndexExpressions());
+            final var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+                "indices:/" + randomAlphaOfLength(8),
+                request,
+                projectMetadata,
+                buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())
+            );
+
+            final String[] expectedLocalIndices = new String[] { "foobarfoo", "foofoobar", "foofoo" };
+            assertThat(resolvedIndices.getLocal(), containsInAnyOrder(expectedLocalIndices));
+            assertThat(resolvedIndices.getRemote(), empty());
+
+            // First resolution, wildcard is expanded
+            assertThat(request.indices(), arrayContainingInAnyOrder(expectedLocalIndices));
+            final var resolved = request.getResolvedIndexExpressions();
+            assertThat(resolved, is(notNullValue()));
+            assertThat(
+                resolved.expressions(),
+                contains(resolvedIndexExpression(originalExpression, Set.of(expectedLocalIndices), SUCCESS, Set.of()))
+            );
+        }
+
+        {
+            // Second index resolution with changed role that removes access to `foobarfoo` but grant access to `bar`
+            // The removed access should be reflected in the second resolution but the additional access has no impact
+            // because the second resolution is performed against concrete names.
+            final String[] authorizedIndices = new String[] { "foofoo", "foofoobar", "bar" };
+            roleMap.put(
+                "role",
+                new RoleDescriptor(
+                    "role",
+                    null,
+                    new IndicesPrivileges[] { IndicesPrivileges.builder().indices(authorizedIndices).privileges("all").build() },
+                    null
+                )
+            );
+
+            final var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+                "indices:/" + randomAlphaOfLength(8),
+                request,
+                projectMetadata,
+                buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())
+            );
+
+            var expectedLocalIndices = new String[] { "foofoobar", "foofoo" };
+            assertThat(resolvedIndices.getLocal(), containsInAnyOrder(expectedLocalIndices));
+            assertThat(resolvedIndices.getRemote(), empty());
+
+            // request.indices() and request.getResolvedIndexExpressions() are updated to the latest result
+            assertThat(request.indices(), arrayContainingInAnyOrder(expectedLocalIndices));
+            final var resolved = request.getResolvedIndexExpressions();
+            assertThat(resolved, is(notNullValue()));
+            assertThat(
+                resolved.expressions(),
+                containsInAnyOrder(
+                    resolvedIndexExpression("foofoo", Set.of("foofoo"), SUCCESS, Set.of()),
+                    resolvedIndexExpression("foofoobar", Set.of("foofoobar"), SUCCESS, Set.of()),
+                    resolvedIndexExpression("foobarfoo", Set.of(), CONCRETE_RESOURCE_UNAUTHORIZED, Set.of())
+                )
+            );
+        }
     }
 
     public void testResolveWildcardsExpandOpenAndClosedIgnoreUnavailable() {

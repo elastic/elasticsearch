@@ -21,7 +21,6 @@ import software.amazon.awssdk.services.bedrockruntime.model.StopReason;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -31,40 +30,16 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.concurrent.Flow;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
-
 @SuppressWarnings("checkstyle:LineLength")
-class AmazonBedrockChatCompletionStreamingProcessor
+class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreamingProcessor<StreamingUnifiedChatCompletionResults.Results>
     implements
         Flow.Processor<ConverseStreamOutput, StreamingUnifiedChatCompletionResults.Results> {
     private static final Logger logger = LogManager.getLogger(AmazonBedrockChatCompletionStreamingProcessor.class);
 
-    private final AtomicReference<Throwable> error = new AtomicReference<>(null);
-    private final AtomicLong demand = new AtomicLong(0);
-    private final AtomicBoolean isDone = new AtomicBoolean(false);
-    private final AtomicBoolean onCompleteCalled = new AtomicBoolean(false);
-    private final AtomicBoolean onErrorCalled = new AtomicBoolean(false);
-    private final ThreadPool threadPool;
-    private volatile Flow.Subscriber<? super StreamingUnifiedChatCompletionResults.Results> downstream;
-    private volatile Flow.Subscription upstream;
-
-    AmazonBedrockChatCompletionStreamingProcessor(ThreadPool threadPool) {
-        this.threadPool = threadPool;
-    }
-
-    @Override
-    public void subscribe(Flow.Subscriber<? super StreamingUnifiedChatCompletionResults.Results> subscriber) {
-        if (downstream == null) {
-            downstream = subscriber;
-            downstream.onSubscribe(new StreamSubscription());
-        } else {
-            subscriber.onError(new IllegalStateException("Subscriber already set."));
-        }
+    protected AmazonBedrockChatCompletionStreamingProcessor(ThreadPool threadPool) {
+        super(threadPool);
     }
 
     @Override
@@ -266,59 +241,9 @@ class AmazonBedrockChatCompletionStreamingProcessor
         }
     }
 
-    private void runOnUtilityThreadPool(Runnable runnable) {
-        try {
-            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(runnable);
-        } catch (Exception e) {
-            logger.error(Strings.format("failed to fork [%s] to utility thread pool", runnable), e);
-        }
-    }
 
-    private class StreamSubscription implements Flow.Subscription {
-        @Override
-        public void request(long n) {
-            if (n > 0L) {
-                demand.updateAndGet(i -> {
-                    var sum = i + n;
-                    return sum >= 0 ? sum : Long.MAX_VALUE;
-                });
-                if (upstream == null) {
-                    // wait for upstream to subscribe before forwarding request
-                    return;
-                }
-                if (upstreamIsRunning()) {
-                    requestOnMlThread(n);
-                } else if (error.get() != null && onErrorCalled.compareAndSet(false, true)) {
-                    downstream.onError(error.get());
-                } else if (onCompleteCalled.compareAndSet(false, true)) {
-                    downstream.onComplete();
-                }
-            } else {
-                cancel();
-                downstream.onError(new IllegalStateException("Cannot request a negative number."));
-            }
-        }
 
-        private boolean upstreamIsRunning() {
-            return isDone.get() == false && error.get() == null;
-        }
 
-        private void requestOnMlThread(long n) {
-            var currentThreadPool = EsExecutors.executorName(Thread.currentThread());
-            if (UTILITY_THREAD_POOL_NAME.equalsIgnoreCase(currentThreadPool)) {
-                upstream.request(n);
-            } else {
-                runOnUtilityThreadPool(() -> upstream.request(n));
-            }
-        }
-
-        @Override
-        public void cancel() {
-            if (upstream != null && upstreamIsRunning()) {
-                upstream.cancel();
-            }
-        }
-    }
 
     /**
      * Parse a MessageStartEvent into a ChatCompletionChunk stream

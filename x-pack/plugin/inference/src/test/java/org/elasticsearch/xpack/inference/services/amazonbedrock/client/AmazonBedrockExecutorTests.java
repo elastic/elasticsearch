@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
+import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequestEntity;
+
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseOutput;
@@ -36,6 +40,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.common.TruncatorTests.createTruncator;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider.ANTHROPIC;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -114,7 +119,7 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
         assertThat(result.asMap(), is(buildExpectationCompletion(List.of("converse result"))));
     }
 
-    public void testExecute_FailsProperly_WithElasticsearchException() {
+    public void testExecute_CompletionFailsProperly_WithElasticsearchException() {
         var model = AmazonBedrockChatCompletionModelTests.createModel(
             "id",
             "region",
@@ -132,6 +137,71 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
         var listener = new PlainActionFuture<InferenceServiceResults>();
 
         var executor = new AmazonBedrockCompletionExecutor(request, responseHandler, logger, () -> false, listener, clientCache);
+        executor.run();
+
+        var exceptionThrown = assertThrows(ElasticsearchException.class, () -> listener.actionGet(new TimeValue(30000)));
+        assertThat(exceptionThrown.getMessage(), containsString("Failed to send request from inference entity id [id]"));
+        assertThat(exceptionThrown.getCause().getMessage(), containsString("test exception"));
+    }
+
+    public void testExecute_ChatCompletionRequest() {
+        var model = AmazonBedrockChatCompletionModelTests.createModel(
+            "id",
+            "region",
+            "model",
+            AmazonBedrockProvider.AMAZONTITAN,
+            "accesskey",
+            "secretkey"
+        );
+        var content = new UnifiedCompletionRequest.ContentString("content");
+        var toolCall = new UnifiedCompletionRequest.ToolCall(
+            "id",
+            new UnifiedCompletionRequest.ToolCall.FunctionField("function", model.model()),
+            ""
+        );
+        var message = new UnifiedCompletionRequest.Message(content, "user", "tooluse_Z7IP83_eTt2y_TECni1ULw", List.of(toolCall));
+
+        var requestEntity = new AmazonBedrockChatCompletionRequestEntity(List.of(message), model.model(),
+            512L, null, null, null, null, null);
+        var request = new AmazonBedrockChatCompletionRequest(model, requestEntity, null, false);
+        var responseHandler = new AmazonBedrockChatCompletionResponseHandler();
+
+        var clientCache = new AmazonBedrockMockClientCache(getTestConverseResult("converse result"), null, null);
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+
+        var executor = new AmazonBedrockChatCompletionExecutor(request, responseHandler, logger, () -> false, listener, clientCache);
+        executor.run();
+        var result = listener.actionGet(new TimeValue(30000));
+        assertNotNull(result);
+        assertThat(result.asMap(), is(buildExpectationCompletion(List.of("converse result"))));
+    }
+
+    public void testExecute_ChatCompletionFailsProperly_WithElasticsearchException() {
+        var model = AmazonBedrockChatCompletionModelTests.createModel(
+            "id",
+            "region",
+            "model",
+            ANTHROPIC,
+            "accesskey",
+            "secretkey"
+        );
+        var content = new UnifiedCompletionRequest.ContentString("content");
+        var toolCall = new UnifiedCompletionRequest.ToolCall(
+            "id",
+            new UnifiedCompletionRequest.ToolCall.FunctionField("function", model.model()),
+            ""
+        );
+        var message = new UnifiedCompletionRequest.Message(content, "user", "tooluse_Z7IP83_eTt2y_TECni1ULw", List.of(toolCall));
+
+        var requestEntity = new AmazonBedrockChatCompletionRequestEntity(List.of(message), model.model(),
+            512L, null, null, null, null, null);
+        var request = new AmazonBedrockChatCompletionRequest(model, requestEntity, null, false);
+        var responseHandler = new AmazonBedrockChatCompletionResponseHandler();
+
+        var clientCache = new AmazonBedrockMockClientCache(null, null, new ElasticsearchException("test exception"));
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+
+        var executor = new AmazonBedrockChatCompletionExecutor(request, responseHandler, logger, () -> false, listener, clientCache);
         executor.run();
 
         var exceptionThrown = assertThrows(ElasticsearchException.class, () -> listener.actionGet(new TimeValue(30000)));

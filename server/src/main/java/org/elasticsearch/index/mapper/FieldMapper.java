@@ -332,6 +332,10 @@ public abstract class FieldMapper extends Mapper {
                 throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + this.fullPath() + "]");
             }
 
+            // Check if dynamic mappings are disabled
+            ObjectMapper.Dynamic rootDynamic = ObjectMapper.Dynamic.getRootDynamic(mappers);
+            boolean isDynamicDisabled = rootDynamic == ObjectMapper.Dynamic.FALSE;
+
             final String sourceScope = mappers.nestedLookup().getNestedParent(this.fullPath());
             for (String copyTo : this.copyTo().copyToFields()) {
                 if (mappers.isMultiField(copyTo)) {
@@ -339,6 +343,13 @@ public abstract class FieldMapper extends Mapper {
                 }
                 if (mappers.isObjectField(copyTo)) {
                     throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is mapped as an object");
+                }
+
+                // When dynamic is false, check if the target field exists
+                if (isDynamicDisabled && mappers.getMapper(copyTo) == null) {
+                    throw new IllegalArgumentException(
+                        "Cannot copy to field [" + copyTo + "] because it does not exist and dynamic mappings are disabled"
+                    );
                 }
 
                 final String targetScope = mappers.nestedLookup().getNestedParent(copyTo);

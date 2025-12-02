@@ -1,0 +1,165 @@
+---
+setup:
+  - requires:
+      cluster_features: "gte_v8.2.0"
+      reason: Field type filters were added in 8.2
+  - do:
+      indices.create:
+        index: test_types_filter
+        body:
+          mappings:
+            properties:
+              product:
+                type: object
+                properties:
+                  name:
+                    type: text
+                  price:
+                    type: float
+                  tags:
+                    type: keyword
+              category:
+                type: object
+                properties:
+                  title:
+                    type: text
+                  id:
+                    type: integer
+              description:
+                type: text
+              nested_comments:
+                type: nested
+                properties:
+                  text:
+                    type: text
+                  rating:
+                    type: integer
+
+---
+"Types filter excludes object fields when not requested":
+  - do:
+      field_caps:
+        index: 'test_types_filter'
+        fields: '*'
+        types: 'text'
+
+  # Should include text fields
+  - is_true: fields.product\\.name
+  - is_true: fields.category\\.title
+  - is_true: fields.description
+  - is_true: fields.nested_comments\\.text
+  
+  # Should NOT include object or nested fields
+  - is_false: fields.product
+  - is_false: fields.category
+  - is_false: fields.nested_comments
+  
+  # Should NOT include non-text fields
+  - is_false: fields.product\\.price
+  - is_false: fields.product\\.tags
+  - is_false: fields.category\\.id
+  - is_false: fields.nested_comments\\.rating
+
+---
+"Types filter includes object fields when explicitly requested":
+  - do:
+      field_caps:
+        index: 'test_types_filter'
+        fields: '*'
+        types: 'text,object'
+
+  # Should include text fields
+  - is_true: fields.product\\.name
+  - is_true: fields.category\\.title
+  - is_true: fields.description
+  
+  # Should include object fields (but not nested)
+  - is_true: fields.product
+  - is_true: fields.category
+  
+  # Should NOT include nested fields (not in types filter)
+  - is_false: fields.nested_comments
+  
+  # Should NOT include other types
+  - is_false: fields.product\\.price
+  - is_false: fields.product\\.tags
+
+---
+"Types filter includes nested fields when explicitly requested":
+  - do:
+      field_caps:
+        index: 'test_types_filter'
+        fields: '*'
+        types: 'nested,text'
+
+  # Should include text fields
+  - is_true: fields.product\\.name
+  - is_true: fields.nested_comments\\.text
+  
+  # Should include nested fields
+  - is_true: fields.nested_comments
+  
+  # Should NOT include object fields (not in types filter)
+  - is_false: fields.product
+  - is_false: fields.category
+
+---
+"Types filter with keyword type only":
+  - do:
+      field_caps:
+        index: 'test_types_filter'
+        fields: '*'
+        types: 'keyword'
+
+  # Should include keyword field
+  - is_true: fields.product\\.tags
+  
+  # Should NOT include any object/nested fields
+  - is_false: fields.product
+  - is_false: fields.category
+  - is_false: fields.nested_comments
+  
+  # Should NOT include other types
+  - is_false: fields.product\\.name
+  - is_false: fields.product\\.price
+  - is_false: fields.description
+
+---
+"No types filter includes all fields":
+  - do:
+      field_caps:
+        index: 'test_types_filter'
+        fields: '*'
+
+  # Should include all fields
+  - is_true: fields.product
+  - is_true: fields.product\\.name
+  - is_true: fields.product\\.price
+  - is_true: fields.product\\.tags
+  - is_true: fields.category
+  - is_true: fields.category\\.title
+  - is_true: fields.category\\.id
+  - is_true: fields.description
+  - is_true: fields.nested_comments
+  - is_true: fields.nested_comments\\.text
+  - is_true: fields.nested_comments\\.rating
+
+---
+"Types filter combined with -parent filter":
+  - do:
+      field_caps:
+        index: 'test_types_filter'
+        fields: '*'
+        types: 'text,object'
+        filters: '-parent'
+
+  # Should include text fields
+  - is_true: fields.product\\.name
+  - is_true: fields.category\\.title
+  - is_true: fields.description
+  
+  # Should NOT include parent objects even though object is in types filter
+  # because -parent filter takes precedence
+  - is_false: fields.product
+  - is_false: fields.category
+  - is_false: fields.nested_comments

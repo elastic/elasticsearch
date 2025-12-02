@@ -29,16 +29,10 @@ public final class BFloat16 {
         // this means that a NaN is unlikely to be turned into infinity by rounding
 
         int bits = Float.floatToIntBits(f);
-        int bfloat16 = bits >>> 16;
-
-        // if highest discarded bit is 1,
-        // and there's other non-zero discarded bits, or the bfloat16 is odd
-        // then round up
-        if ((bits & 0x8000) == 0x8000 && ((bits & 0x7fff) != 0 || (bfloat16 & 1) == 1)) {
-            bfloat16++;
-        }
-
-        return (short) bfloat16;
+        int lsb = (bits >> 16) & 1;
+        int roundingBias = 0x7fff + lsb;
+        bits += roundingBias;
+        return (short) (bits >> 16);
     }
 
     public static float truncateToBFloat16(float f) {

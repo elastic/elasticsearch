@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class BFloat16Tests extends ESTestCase {
 
@@ -23,6 +24,10 @@ public class BFloat16Tests extends ESTestCase {
         // exact bfloat16 value
         float bfloat16 = construct(exp, 0b1111001_00000000_00000000);
         assertRounding(bfloat16, bfloat16);
+
+        // some FP examples
+        assertRounding(1.003f, 1.0f);
+        assertRounding(1.004f, 1.0078125f);
 
         // round down
         assertRounding(construct(exp, 0b0000001_01111111_11111111), construct(exp, 0b0000001_00000000_00000000));
@@ -71,7 +76,7 @@ public class BFloat16Tests extends ESTestCase {
 
         // rounded float value to check should be close to input value
         // this checks the bit representations in the tests are actually sensible
-        assertThat((double) expectedRounded, closeTo(value, 0.002));
+        assertThat(Math.abs(value - expectedRounded), lessThan(0.004f));
 
         float rounded = BFloat16.truncateToBFloat16(value);
 

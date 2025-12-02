@@ -360,13 +360,6 @@ setup:
           vector: [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
 ---
 "Vector rescoring has the same scoring as exact search for kNN section":
-  - requires:
-      reason: 'Quantized vector rescoring is required'
-      test_runner_features: [capabilities]
-      capabilities:
-        - method: GET
-          path: /_search
-          capabilities: [knn_quantized_vector_rescore_oversample]
   - skip:
       features: "headers"
 
@@ -415,9 +408,6 @@ setup:
   - match: { hits.hits.2._score: $rescore_score2 }
 ---
 "Test index configured rescore vector":
-  - requires:
-      cluster_features: ["mapper.dense_vector.rescore_vector"]
-      reason: Needs rescore_vector feature
   - skip:
       features: "headers"
   - do:
@@ -507,9 +497,6 @@ setup:
 
 ---
 "no default oversample value":
-  - requires:
-      cluster_features: ["mapper.dense_vector.default_oversample_value_for_bbq"]
-      reason: "Needs default_oversample_value_for_bbq feature"
   - do:
       indices.get_mapping:
         index: int4_flat

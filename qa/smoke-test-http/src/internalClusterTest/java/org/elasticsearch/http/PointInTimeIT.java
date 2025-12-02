@@ -43,5 +43,13 @@ public class PointInTimeIT extends HttpSmokeTestCase {
             assertThat(error.getMessage(), containsString("Validation Failed: 1: [index] is not specified;"));
             assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
         }
+        // With project_routing in non-CPS env
+        {
+            Request request = new Request("POST", "_pit");
+            request.addParameter("", "1m");
+            ResponseException error = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+            assertThat(error.getMessage(), containsString("Validation Failed: 1: [index] is not specified;"));
+            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+        }
     }
 }

@@ -53,7 +53,6 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean includeUnmapped = false;
     private boolean includeEmptyFields = true;
-    private boolean crossProjectEnabled = false;
     @Nullable
     private ResolvedIndexExpressions resolvedIndexExpressions = null;
     /**
@@ -250,11 +249,6 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         return this;
     }
 
-    public FieldCapabilitiesRequest crossProjectEnabled(boolean crossProjectEnabled) {
-        this.crossProjectEnabled = crossProjectEnabled;
-        return this;
-    }
-
     @Override
     public String[] indices() {
         return indices;
@@ -361,9 +355,9 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         if (fields == null || fields.length == 0) {
             validationException = ValidateActions.addValidationError("no fields specified", validationException);
         }
-        if (projectRouting != null && crossProjectEnabled == false) {
+        if (projectRouting != null && indicesOptions.resolveCrossProjectIndexExpression() == false) {
             validationException = ValidateActions.addValidationError(
-                "project_routing specified in non-CPS environment",
+                "Unknown key for a VALUE_STRING in [project_routing]",
                 validationException
             );
 

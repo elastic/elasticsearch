@@ -50,8 +50,6 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
 
     private boolean allowPartialSearchResults = false;
 
-    private boolean crossProjectEnabled = false;
-
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = SearchRequest.DEFAULT_INDICES_OPTIONS;
     public static final IndicesOptions DEFAULT_CPS_INDICES_OPTIONS = SearchRequest.DEFAULT_CPS_INDICES_OPTIONS;
 
@@ -107,9 +105,9 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
         if (keepAlive == null) {
             validationException = addValidationError("[keep_alive] is not specified", validationException);
         }
-        if (projectRouting != null && crossProjectEnabled == false) {
+        if (projectRouting != null && indicesOptions.resolveCrossProjectIndexExpression() == false) {
             validationException = ValidateActions.addValidationError(
-                "project_routing specified in non-CPS environment",
+                "Unknown key for a VALUE_STRING in [project_routing]",
                 validationException
             );
 
@@ -240,11 +238,6 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
 
     public OpenPointInTimeRequest allowPartialSearchResults(boolean allowPartialSearchResults) {
         this.allowPartialSearchResults = allowPartialSearchResults;
-        return this;
-    }
-
-    public OpenPointInTimeRequest crossProjectEnabled(boolean crossProjectEnabled) {
-        this.crossProjectEnabled = crossProjectEnabled;
         return this;
     }
 

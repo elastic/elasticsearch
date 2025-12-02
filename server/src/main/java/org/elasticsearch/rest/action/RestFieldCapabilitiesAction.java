@@ -61,7 +61,6 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
         final FieldCapabilitiesRequest fieldRequest = new FieldCapabilitiesRequest();
 
         final boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
-        fieldRequest.crossProjectEnabled(crossProjectEnabled);
         if (crossProjectEnabled) {
             fieldRequest.projectRouting(request.param("project_routing", null));
             // Setting includeResolvedTo to always include index resolution data structure in the linked project responses,

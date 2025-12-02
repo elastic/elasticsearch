@@ -54,7 +54,6 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(indices);
         final boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
-        openRequest.crossProjectEnabled(crossProjectEnabled);
         if (crossProjectEnabled) {
             openRequest.projectRouting(request.param("project_routing", null));
             openRequest.indicesOptions(IndicesOptions.fromRequest(request, OpenPointInTimeRequest.DEFAULT_CPS_INDICES_OPTIONS));

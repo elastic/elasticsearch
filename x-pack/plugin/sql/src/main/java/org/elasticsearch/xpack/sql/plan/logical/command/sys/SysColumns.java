@@ -183,7 +183,8 @@ public class SysColumns extends Command {
                     IndexResolver.ALL_FIELDS,
                     includeFrozen,
                     emptyMap(),
-                    null, // TODO pass project routing
+                    session.configuration().crossProject(),
+                    session.configuration().projectRouting(),
                     listener.delegateFailureAndWrap((delegate, r) -> {
                         List<List<?>> rows = new ArrayList<>();
                         // populate the data only when a target is found

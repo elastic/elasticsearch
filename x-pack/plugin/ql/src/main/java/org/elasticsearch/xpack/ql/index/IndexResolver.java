@@ -405,6 +405,7 @@ public class IndexResolver {
         Set<String> fieldNames,
         boolean includeFrozen,
         Map<String, Object> runtimeMappings,
+        boolean setCpsOptions,
         String projectRouting,
         ActionListener<IndexResolution> listener
     ) {
@@ -413,6 +414,7 @@ public class IndexResolver {
             fieldNames,
             includeFrozen,
             runtimeMappings,
+            setCpsOptions,
             projectRouting,
             listener,
             (fieldName, types) -> null
@@ -427,6 +429,7 @@ public class IndexResolver {
         Set<String> fieldNames,
         boolean includeFrozen,
         Map<String, Object> runtimeMappings,
+        boolean setCpsOptions,
         String projectRouting,
         ActionListener<IndexResolution> listener,
         BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> specificValidityVerifier
@@ -438,6 +441,13 @@ public class IndexResolver {
             runtimeMappings,
             projectRouting
         );
+        if (setCpsOptions) {
+            fieldRequest.indicesOptions(
+                IndicesOptions.builder(fieldRequest.indicesOptions())
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            );
+        }
         client.fieldCaps(
             fieldRequest,
             listener.delegateFailureAndWrap(

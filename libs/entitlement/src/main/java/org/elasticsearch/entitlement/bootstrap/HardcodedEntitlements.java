@@ -191,13 +191,22 @@ class HardcodedEntitlements {
             Path trustStorePath = trustStore != null
                 ? Path.of(trustStore)
                 : Path.of(System.getProperty("java.home")).resolve("lib/security/jssecacerts");
+            // Always add below two
+            Path jssecacertsPath = Path.of(System.getProperty("java.home")).resolve("lib/security/jssecacerts");
+            Path cacertsPath = Path.of(System.getProperty("java.home")).resolve("lib/security/cacerts");
 
             Collections.addAll(
                 serverScopes,
                 new Scope(
                     "org.bouncycastle.fips.tls",
                     List.of(
-                        new FilesEntitlement(List.of(FilesEntitlement.FileData.ofPath(trustStorePath, READ))),
+                        new FilesEntitlement(
+                            List.of(
+                                FilesEntitlement.FileData.ofPath(trustStorePath, READ),
+                                FilesEntitlement.FileData.ofPath(jssecacertsPath, READ),
+                                FilesEntitlement.FileData.ofPath(cacertsPath, READ)
+                            )
+                        ),
                         new ManageThreadsEntitlement(),
                         new OutboundNetworkEntitlement()
                     )

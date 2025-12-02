@@ -301,7 +301,7 @@ The index lifecycle management APIs enable you to set up policies to automatical
 
 ### [Inference](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-inference)
 
-The inference APIs enable you to create inference endpoints and integrate with machine learning models of different services - such as Amazon Bedrock, Anthropic, Azure AI Studio, Cohere, Google AI, Mistral, OpenAI, or HuggingFace.
+The inference APIs enable you to create inference endpoints and integrate with machine learning models of different services - such as Amazon Bedrock, Anthropic, Azure AI Studio, Cohere, Google AI, Groq, Mistral, OpenAI, or HuggingFace.
 
 | API | Description |
 | --- | ----------- |

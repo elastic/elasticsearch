@@ -20,6 +20,7 @@ import org.junit.BeforeClass;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
@@ -28,7 +29,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
-import static org.junit.Assume.assumeTrue;
 
 public class PromqlParserTests extends ESTestCase {
 
@@ -37,6 +37,17 @@ public class PromqlParserTests extends ESTestCase {
     @BeforeClass
     public static void checkPromqlEnabled() {
         assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
+    }
+
+    public void testSpaceBetweenAssignParams() {
+        Stream.of(
+            parse("PROMQL test step=5m (avg(foo))"),
+            parse("PROMQL test step= 5m (avg(foo))"),
+            parse("PROMQL test step =5m (avg(foo))"),
+            parse("PROMQL test step = 5m (avg(foo))")
+        ).map(PromqlCommand::step).forEach(step -> {
+            assertThat(step.value(), equalTo(Duration.ofMinutes(5)));
+        });
     }
 
     public void testValidRangeQuery() {

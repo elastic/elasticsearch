@@ -389,9 +389,9 @@ public class SysColumnsTests extends ESTestCase {
             return Void.TYPE;
         }).when(resolver).resolveAsMergedMapping(any(), eq(IndexResolver.ALL_FIELDS), anyBoolean(), any(), anyBoolean(), any(), any());
         doAnswer(invocation -> {
-            ((ActionListener<List<EsIndex>>) invocation.getArguments()[4]).onResponse(singletonList(test));
+            ((ActionListener<List<EsIndex>>) invocation.getArguments()[6]).onResponse(singletonList(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsSeparateMappings(any(), any(), anyBoolean(), any(), any());
+        }).when(resolver).resolveAsSeparateMappings(any(), any(), anyBoolean(), any(), anyBoolean(), any(), any());
 
         SqlSession session = new SqlSession(config, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);

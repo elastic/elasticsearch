@@ -744,10 +744,21 @@ public class IndexResolver {
         String javaRegex,
         boolean includeFrozen,
         Map<String, Object> runtimeMappings,
+        boolean crossProjectEnabled,
+        String projectRouting,
         ActionListener<List<EsIndex>> listener
     ) {
-        // TODO pass project routing
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, ALL_FIELDS, includeFrozen, runtimeMappings, null);
+        if (crossProjectEnabled) {
+            fieldRequest.indicesOptions(
+                IndicesOptions.builder(fieldRequest.indicesOptions())
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            );
+            if (projectRouting != null) {
+                fieldRequest.projectRouting(projectRouting);
+            }
+        }
         client.fieldCaps(fieldRequest, listener.delegateFailureAndWrap((delegate, response) -> {
             client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases -> {
                 delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases()));

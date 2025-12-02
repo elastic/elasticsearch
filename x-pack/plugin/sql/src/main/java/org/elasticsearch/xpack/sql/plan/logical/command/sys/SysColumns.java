@@ -165,6 +165,8 @@ public class SysColumns extends Command {
                     regex,
                     includeFrozen,
                     emptyMap(),
+                    session.configuration().crossProject(),
+                    session.configuration().projectRouting(),
                     listener.delegateFailureAndWrap((delegate, esIndices) -> {
                         List<List<?>> rows = new ArrayList<>();
                         for (EsIndex esIndex : esIndices) {

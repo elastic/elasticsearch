@@ -153,9 +153,9 @@ public final class GrokCaptureConfig {
     public GrokCaptureExtracter rangeExtracter(Consumer<Object> emit) {
         return (utf8Bytes, offset, region) -> {
             for (int number : backRefs) {
-                if (region.beg[number] >= 0) {
-                    int matchOffset = offset + region.beg[number];
-                    int matchLength = region.end[number] - region.beg[number];
+                if (region.getBeg(number) >= 0) {
+                    int matchOffset = offset + region.getBeg(number);
+                    int matchLength = region.getEnd(number) - region.getBeg(number);
                     String match = new String(utf8Bytes, matchOffset, matchLength, StandardCharsets.UTF_8);
                     emit.accept(new GrokCaptureExtracter.Range(match, matchOffset, matchLength));
                 }

@@ -404,7 +404,7 @@ public class IndexNameExpressionResolver {
         for (int i = 0, n = expressions.length; i < n; i++) {
             String originalExpression = expressions[i];
 
-            // Resolve exclusion, a `-` prefixed expression is an exclusion only if it succeeds a wildcard.
+            // Resolve exclusion, a `-` prefixed expression is an exclusion
             boolean isExclusion = originalExpression.startsWith("-");
             String baseExpression = isExclusion ? originalExpression.substring(1) : originalExpression;
 

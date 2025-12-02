@@ -49,7 +49,7 @@ public class CCMServiceIT extends CCMSingleNodeIT {
 
     private static final MockWebServer webServer = new MockWebServer();
     private static String gatewayUrl;
-    private static ElasticInferenceServiceAuthorizationResponseEntityTests.EisAuthorizationResponse chatCompletionResponse;
+    private static String chatCompletionResponseBody;
 
     private AuthorizationTaskExecutor authorizationTaskExecutor;
     private ModelRegistry modelRegistry;
@@ -79,9 +79,9 @@ public class CCMServiceIT extends CCMSingleNodeIT {
 
         webServer.start();
         gatewayUrl = getUrl(webServer);
-        chatCompletionResponse = ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse(
+        chatCompletionResponseBody = ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse(
             gatewayUrl
-        );
+        ).responseJson();
     }
 
     @Before
@@ -144,7 +144,7 @@ public class CCMServiceIT extends CCMSingleNodeIT {
         var eisEndpoints = getEisEndpoints(modelRegistry);
         assertThat(eisEndpoints, empty());
 
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionResponse.responseJson()));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionResponseBody));
         var listener = new TestPlainActionFuture<Void>();
         ccmService.get().storeConfiguration(new CCMModel(new SecureString("secret".toCharArray())), listener);
         listener.actionGet(TimeValue.THIRTY_SECONDS);

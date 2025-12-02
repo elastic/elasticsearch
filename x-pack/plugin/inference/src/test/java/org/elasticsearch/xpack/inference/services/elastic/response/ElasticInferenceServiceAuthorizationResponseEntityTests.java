@@ -324,16 +324,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             createGpLlmV2CompletionAuthorizedEndpoint(),
             createElserAuthorizedEndpoint(),
             createJinaEmbedAuthorizedEndpoint(),
-            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
-                RERANK_V1_ENDPOINT_ID,
-                RERANK_V1_MODEL_NAME,
-                createTaskTypeObject(EIS_RERANK_PATH, "rerank"),
-                "preview",
-                List.of(),
-                "2024-05-01",
-                null,
-                null
-            )
+            createRerankV1AuthorizedEndpoint()
         );
 
         var inferenceIds = authorizedEndpoints.stream()
@@ -349,15 +340,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 createGpLlmV2CompletionExpectedEndpoint(url),
                 createElserExpectedEndpoint(url),
                 createJinaExpectedEndpoint(url),
-                new ElasticInferenceServiceRerankModel(
-                    RERANK_V1_ENDPOINT_ID,
-                    TaskType.RERANK,
-                    ElasticInferenceService.NAME,
-                    new ElasticInferenceServiceRerankServiceSettings(RERANK_V1_MODEL_NAME),
-                    EmptyTaskSettings.INSTANCE,
-                    EmptySecretSettings.INSTANCE,
-                    new ElasticInferenceServiceComponents(url)
-                )
+                createRerankV1ExpectedEndpoint(url)
             ),
             inferenceIds
         );
@@ -496,6 +479,31 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             new WordBoundaryChunkingSettings(500, 2)
+        );
+    }
+
+    private static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createRerankV1AuthorizedEndpoint() {
+        return new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+            RERANK_V1_ENDPOINT_ID,
+            RERANK_V1_MODEL_NAME,
+            createTaskTypeObject(EIS_RERANK_PATH, "rerank"),
+            "preview",
+            List.of(),
+            "2024-05-01",
+            null,
+            null
+        );
+    }
+
+    private static ElasticInferenceServiceRerankModel createRerankV1ExpectedEndpoint(String url) {
+        return new ElasticInferenceServiceRerankModel(
+            RERANK_V1_ENDPOINT_ID,
+            TaskType.RERANK,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceRerankServiceSettings(RERANK_V1_MODEL_NAME),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url)
         );
     }
 

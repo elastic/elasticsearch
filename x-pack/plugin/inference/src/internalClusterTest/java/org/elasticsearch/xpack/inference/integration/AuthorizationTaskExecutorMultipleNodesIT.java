@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
-import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -55,14 +54,14 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
     private static final String AUTH_TASK_ACTION = AuthorizationPoller.TASK_NAME + "[c]";
     private static final MockWebServer webServer = new MockWebServer();
     private static String gatewayUrl;
-    private static ElasticInferenceServiceAuthorizationResponseEntityTests.EisAuthorizationResponse chatCompletionResponse;
+    private static String chatCompletionResponseBody;
 
     @BeforeClass
     public static void initClass() throws IOException {
         webServer.start();
         gatewayUrl = getUrl(webServer);
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EIS_EMPTY_RESPONSE));
-        chatCompletionResponse = getEisRainbowSprinklesAuthorizationResponse(gatewayUrl);
+        chatCompletionResponseBody = getEisRainbowSprinklesAuthorizationResponse(gatewayUrl).responseJson();
     }
 
     @Before
@@ -113,7 +112,7 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
         );
 
         // queue a response that authorizes one model
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionResponse.responseJson()));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionResponseBody));
 
         assertTrue("expected the node to shutdown properly", internalCluster().stopNode(nodeNameMapping.get(pollerTask.node())));
 

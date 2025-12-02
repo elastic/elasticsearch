@@ -25,8 +25,8 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
     private final MockWebServer webServer = new MockWebServer();
 
     public void enqueueAuthorizeAllModelsResponse() {
-        var authResponse = getEisAuthorizationResponseWithMultipleEndpoints("ignored");
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(authResponse.responseJson()));
+        var authResponseBody = getEisAuthorizationResponseWithMultipleEndpoints("ignored").responseJson();
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(authResponseBody));
     }
 
     public String getUrl() {

@@ -35,9 +35,9 @@ public class StoreInferenceEndpointsAction extends ActionType<StoreInferenceEndp
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
-        private final List<? extends Model> models;
+        private final List<Model> models;
 
-        public Request(List<? extends Model> models, TimeValue timeout) {
+        public Request(List<Model> models, TimeValue timeout) {
             super(timeout, DEFAULT_ACK_TIMEOUT);
             this.models = Objects.requireNonNull(models);
         }
@@ -53,7 +53,7 @@ public class StoreInferenceEndpointsAction extends ActionType<StoreInferenceEndp
             out.writeCollection(models);
         }
 
-        public List<? extends Model> getModels() {
+        public List<Model> getModels() {
             return models;
         }
 

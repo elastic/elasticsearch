@@ -933,7 +933,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testHideFromConfigurationApi_ThrowsUnsupported_WithAvailableModels() throws Exception {
+    public void testHideFromConfigurationApi_ThrowsUnsupported() throws Exception {
         try (var service = createServiceWithMockSender()) {
             expectThrows(UnsupportedOperationException.class, service::hideFromConfigurationApi);
         }

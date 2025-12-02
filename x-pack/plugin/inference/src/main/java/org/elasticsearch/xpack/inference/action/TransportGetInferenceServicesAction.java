@@ -127,6 +127,7 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
             threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> getEisAuthorization(authModelListener, eisSender));
         }).<List<InferenceServiceConfiguration>>andThen((configurationListener, authorizationModel) -> {
             var serviceConfigs = getServiceConfigurationsForServices(availableServices);
+            serviceConfigs.sort(Comparator.comparing(InferenceServiceConfiguration::getService));
 
             if (authorizationModel.isAuthorized() == false) {
                 configurationListener.onResponse(serviceConfigs);

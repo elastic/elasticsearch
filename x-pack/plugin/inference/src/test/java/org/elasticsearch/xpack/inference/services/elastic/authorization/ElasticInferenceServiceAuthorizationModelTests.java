@@ -171,40 +171,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         );
 
         assertThat(auth.getEndpoints(Set.of(id1)), is(List.of(chatCompletionEndpoint)));
-    }
-
-    public void testReturnsAuthorizedTaskTypes_UsesFirstInferenceId_IfDuplicates() {
-        var id = "id1";
-
-        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
-            List.of(
-                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
-                    id,
-                    "name1",
-                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
-                    "ga",
-                    null,
-                    "",
-                    "",
-                    null
-                ),
-                // This should be ignored because the id is a duplicate
-                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
-                    id,
-                    "name2",
-                    createTaskTypeObject(EIS_SPARSE_PATH, TaskType.SPARSE_EMBEDDING.toString()),
-                    "ga",
-                    null,
-                    "",
-                    "",
-                    null
-                )
-            )
-        );
-
-        var auth = ElasticInferenceServiceAuthorizationModel.of(response, "url");
         assertThat(auth.getTaskTypes(), is(Set.of(TaskType.CHAT_COMPLETION)));
-        assertThat(auth.getEndpointIds(), is(Set.of(id)));
+        assertThat(auth.getEndpointIds(), is(Set.of(id1)));
         assertTrue(auth.isAuthorized());
     }
 

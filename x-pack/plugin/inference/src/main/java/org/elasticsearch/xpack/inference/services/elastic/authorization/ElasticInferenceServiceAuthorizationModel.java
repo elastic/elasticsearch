@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
@@ -48,6 +49,7 @@ public class ElasticInferenceServiceAuthorizationModel {
     private static final String UNKNOWN_TASK_TYPE_LOG_MESSAGE = "Authorized endpoint id [{}] has unknown task type [{}], skipping";
     private static final String UNSUPPORTED_TASK_TYPE_LOG_MESSAGE = "Authorized endpoint id [{}] has unsupported task type [{}], skipping";
 
+    // public because it's used in tests outside the package
     public static ElasticInferenceServiceAuthorizationModel of(
         ElasticInferenceServiceAuthorizationResponseEntity responseEntity,
         String baseEisUrl
@@ -214,12 +216,6 @@ public class ElasticInferenceServiceAuthorizationModel {
     }
 
     private static SimilarityMeasure getSimilarityMeasure(ElasticInferenceServiceAuthorizationResponseEntity.Configuration configuration) {
-        validateFieldPresent(
-            ElasticInferenceServiceAuthorizationResponseEntity.Configuration.SIMILARITY,
-            configuration.similarity(),
-            TaskType.TEXT_EMBEDDING
-        );
-
         return SimilarityMeasure.fromString(configuration.similarity());
     }
 
@@ -292,8 +288,8 @@ public class ElasticInferenceServiceAuthorizationModel {
         return Set.copyOf(authorizedEndpoints.keySet());
     }
 
-    public List<ElasticInferenceServiceModel> getEndpoints(Set<String> endpointIds) {
-        return endpointIds.stream().map(authorizedEndpoints::get).filter(Objects::nonNull).toList();
+    public List<Model> getEndpoints(Set<String> endpointIds) {
+        return endpointIds.stream().<Model>map(authorizedEndpoints::get).filter(Objects::nonNull).toList();
     }
 
     @Override

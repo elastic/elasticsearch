@@ -314,7 +314,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             .addListener(listener);
     }
 
-    private List<? extends Model> getNewInferenceEndpointsToStore(ElasticInferenceServiceAuthorizationModel authModel) {
+    private List<Model> getNewInferenceEndpointsToStore(ElasticInferenceServiceAuthorizationModel authModel) {
         logger.debug("Received authorization response, {}", authModel);
 
         var scopedAuthModel = authModel.newLimitedToTaskTypes(EnumSet.copyOf(IMPLEMENTED_TASK_TYPES));
@@ -328,7 +328,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         return scopedAuthModel.getEndpoints(newEndpointIds);
     }
 
-    private void storePreconfiguredModels(List<? extends Model> newEndpoints, ActionListener<Void> listener) {
+    private void storePreconfiguredModels(List<Model> newEndpoints, ActionListener<Void> listener) {
         if (newEndpoints.isEmpty()) {
             listener.onResponse(null);
             return;

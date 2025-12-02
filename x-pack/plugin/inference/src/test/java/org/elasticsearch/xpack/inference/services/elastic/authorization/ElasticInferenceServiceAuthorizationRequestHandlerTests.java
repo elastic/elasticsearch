@@ -248,10 +248,10 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createApplierFactory(secret)
         );
 
-        var elserResponse = getEisElserAuthorizationResponse(eisGatewayUrl);
+        var elserResponseBody = getEisElserAuthorizationResponse(eisGatewayUrl).responseJson();
 
         try (var sender = senderFactory.createSender()) {
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(elserResponse.responseJson()));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(elserResponseBody));
 
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);

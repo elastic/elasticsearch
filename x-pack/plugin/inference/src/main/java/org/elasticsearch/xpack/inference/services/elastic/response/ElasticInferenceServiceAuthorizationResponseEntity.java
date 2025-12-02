@@ -301,8 +301,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
 
     private final List<AuthorizedEndpoint> authorizedEndpoints;
 
-    public ElasticInferenceServiceAuthorizationResponseEntity(List<AuthorizedEndpoint> authorizedModels) {
-        this.authorizedEndpoints = Objects.requireNonNull(authorizedModels);
+    public ElasticInferenceServiceAuthorizationResponseEntity(List<AuthorizedEndpoint> authorizedEndpoints) {
+        this.authorizedEndpoints = Objects.requireNonNull(authorizedEndpoints);
     }
 
     /**

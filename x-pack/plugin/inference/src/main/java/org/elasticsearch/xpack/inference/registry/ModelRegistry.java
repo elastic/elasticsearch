@@ -712,12 +712,12 @@ public class ModelRegistry implements ClusterStateListener {
         }), timeout);
     }
 
-    public void storeModels(List<? extends Model> models, ActionListener<List<ModelStoreResponse>> listener, TimeValue timeout) {
+    public void storeModels(List<Model> models, ActionListener<List<ModelStoreResponse>> listener, TimeValue timeout) {
         storeModels(models, true, listener, timeout);
     }
 
     private void storeModels(
-        List<? extends Model> models,
+        List<Model> models,
         boolean updateClusterState,
         ActionListener<List<ModelStoreResponse>> listener,
         TimeValue timeout
@@ -745,7 +745,7 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     private ActionListener<BulkResponse> getStoreMultipleModelsListener(
-        List<? extends Model> models,
+        List<Model> models,
         boolean updateClusterState,
         ActionListener<List<ModelStoreResponse>> listener,
         TimeValue timeout
@@ -818,12 +818,12 @@ public class ModelRegistry implements ClusterStateListener {
 
     private record StoreResponseWithIndexInfo(ModelStoreResponse modelStoreResponse, boolean modifiedIndex) {}
 
-    private record ResponseInfo(List<StoreResponseWithIndexInfo> responses, List<? extends Model> successfullyStoredModels) {}
+    private record ResponseInfo(List<StoreResponseWithIndexInfo> responses, List<Model> successfullyStoredModels) {}
 
     private static ResponseInfo getResponseInfo(
         BulkResponse bulkResponse,
         Map<String, String> docIdToInferenceId,
-        Map<String, ? extends Model> inferenceIdToModel
+        Map<String, Model> inferenceIdToModel
     ) {
         var responses = new ArrayList<StoreResponseWithIndexInfo>();
         var successfullyStoredModels = new ArrayList<Model>();
@@ -909,7 +909,7 @@ public class ModelRegistry implements ClusterStateListener {
         }
     }
 
-    private static Model getModelFromMap(@Nullable String inferenceId, Map<String, ? extends Model> inferenceIdToModel) {
+    private static Model getModelFromMap(@Nullable String inferenceId, Map<String, Model> inferenceIdToModel) {
         if (inferenceId != null) {
             return inferenceIdToModel.get(inferenceId);
         }
@@ -917,7 +917,7 @@ public class ModelRegistry implements ClusterStateListener {
         return null;
     }
 
-    private void updateClusterState(List<? extends Model> models, ActionListener<AcknowledgedResponse> listener, TimeValue timeout) {
+    private void updateClusterState(List<Model> models, ActionListener<AcknowledgedResponse> listener, TimeValue timeout) {
         var inferenceIdsSet = models.stream().map(Model::getInferenceEntityId).collect(Collectors.toSet());
         var storeListener = listener.delegateResponse((delegate, exc) -> {
             logger.warn(format("Failed to add minimal service settings to cluster state for inference endpoints %s", inferenceIdsSet), exc);

@@ -182,7 +182,7 @@ public class AuthorizationPollerTests extends ESTestCase {
     public void testSendsAuthorizationRequest_WhenModelRegistryIsReady() {
         var mockRegistry = mock(ModelRegistry.class);
         when(mockRegistry.isReady()).thenReturn(true);
-        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id1", "id2"));
+        when(mockRegistry.getInferenceIds()).thenReturn(Set.of());
 
         var url = "eis-url";
         var sparseModel = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING);
@@ -253,7 +253,7 @@ public class AuthorizationPollerTests extends ESTestCase {
     public void testSendsAuthorizationRequest_WhenCCMIsNotConfigurable() {
         var mockRegistry = mock(ModelRegistry.class);
         when(mockRegistry.isReady()).thenReturn(true);
-        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id1", "id2"));
+        when(mockRegistry.getInferenceIds()).thenReturn(Set.of());
 
         var url = "eis-url";
         var sparseModel = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING);
@@ -356,7 +356,7 @@ public class AuthorizationPollerTests extends ESTestCase {
 
         var mockRegistry = mock(ModelRegistry.class);
         when(mockRegistry.isReady()).thenReturn(true);
-        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id1", "id2"));
+        when(mockRegistry.getInferenceIds()).thenReturn(Set.of());
 
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
@@ -398,7 +398,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         when(mockRegistry.isReady()).thenReturn(true);
         // Since the registry is already aware of the sparse endpoint, the authorization poller will not consider it a new
         // one and not attempt to store it.
-        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id1", sparseModel.id()));
+        when(mockRegistry.getInferenceIds()).thenReturn(Set.of(sparseModel.id()));
 
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {

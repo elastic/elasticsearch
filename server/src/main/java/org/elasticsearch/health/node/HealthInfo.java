@@ -63,7 +63,7 @@ public record HealthInfo(
             input.getTransportVersion().supports(SIMPLE_HEATH_INFO_ADDITION)
                 ? input.readMap(in -> in.readCollectionAsList(SimpleNodeHealthInfo::new))
                 : Map.of()
-            );
+        );
     }
 
     @Override
@@ -79,9 +79,7 @@ public record HealthInfo(
             output.writeOptionalWriteable(fileSettingsHealthInfo);
         }
         if (output.getTransportVersion().supports(SIMPLE_HEATH_INFO_ADDITION)) {
-            output.writeMap(simpleNodeHealthInfoByMonitor, (out, list) -> {
-                out.writeCollection(list, StreamOutput::writeWriteable);
-            });
+            output.writeMap(simpleNodeHealthInfoByMonitor, (out, list) -> { out.writeCollection(list, StreamOutput::writeWriteable); });
         }
     }
 }

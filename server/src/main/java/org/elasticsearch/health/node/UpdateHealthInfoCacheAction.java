@@ -68,7 +68,8 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             DiskHealthInfo diskHealthInfo,
             DataStreamLifecycleHealthInfo dslHealthInfo,
             RepositoriesHealthInfo repositoriesHealthInfo,
-            @Nullable FileSettingsService.FileSettingsHealthInfo fileSettingsHealthInfo, @Nullable Map<String, SimpleHealthInfo> simpleHealthInfoByTrackerName
+            @Nullable FileSettingsService.FileSettingsHealthInfo fileSettingsHealthInfo,
+            @Nullable Map<String, SimpleHealthInfo> simpleHealthInfoByTrackerName
         ) {
             this.nodeId = nodeId;
             this.diskHealthInfo = diskHealthInfo;
@@ -188,17 +189,17 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         public String getDescription() {
             return String.format(
                 Locale.ROOT,
-                "Update health info cache for node [%s] with disk health info [%s], DSL health info [%s], repositories health info [%s]" +
-                    "and the following simple health infos: %s.",
+                "Update health info cache for node [%s] with disk health info [%s], DSL health info [%s], repositories health info [%s]"
+                    + "and the following simple health infos: %s.",
                 nodeId,
                 diskHealthInfo,
                 dslHealthInfo,
                 repositoriesHealthInfo,
                 simpleHealthInfoByTrackerName != null
                     ? simpleHealthInfoByTrackerName.entrySet()
-                    .stream()
-                    .map(entry -> "Indicator: " + entry.getKey() + ": \n" + entry.getValue())
-                    .collect(Collectors.joining("\n"))
+                        .stream()
+                        .map(entry -> "Indicator: " + entry.getKey() + ": \n" + entry.getValue())
+                        .collect(Collectors.joining("\n"))
                     : null
             );
         }

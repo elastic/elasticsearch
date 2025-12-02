@@ -57,13 +57,7 @@ public class SimpleHealthIndicator implements HealthIndicatorService {
         HealthStatus overallStatus = HealthStatus.merge(simpleNodeHealthInfo.stream().map(SimpleNodeHealthInfo::healthStatus));
 
         return switch (overallStatus) {
-            case GREEN -> createIndicator(
-                HealthStatus.GREEN,
-                greenSymptom,
-                null,
-                Collections.emptyList(),
-                Collections.emptyList()
-            );
+            case GREEN -> createIndicator(HealthStatus.GREEN, greenSymptom, null, Collections.emptyList(), Collections.emptyList());
             case YELLOW -> createIndicator(
                 HealthStatus.YELLOW,
                 yellowSymptom + " on the following nodes: " + nodeList,

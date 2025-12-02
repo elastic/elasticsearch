@@ -14,7 +14,7 @@ import org.elasticsearch.health.node.SimpleHealthInfo;
 
 import java.util.Collections;
 
-public class TestTracker extends SimpleHealthTracker{
+public class TestTracker extends SimpleHealthTracker {
     @Override
     public String trackerName() {
         return "test-tracker-abs";

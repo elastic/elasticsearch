@@ -114,8 +114,7 @@ public class HealthInfoCache implements ClusterStateListener {
         simpleHealthInfoReportsByNodeAndTrackerName.forEach((nodeId, trackerMap) -> {
             if (trackerMap.isEmpty() == false) {
                 trackerMap.forEach((trackerName, simpleHealthInfo) -> {
-                    perTrackerSimpleHealthInfo
-                        .computeIfAbsent(trackerName, key -> new ArrayList<>())
+                    perTrackerSimpleHealthInfo.computeIfAbsent(trackerName, key -> new ArrayList<>())
                         .add(
                             new SimpleNodeHealthInfo(
                                 nodeId,

@@ -1,0 +1,5 @@
+pr: 136518
+summary: "Azure: set max retries properly"
+area: Snapshot/Restore
+type: bug
+issues: []

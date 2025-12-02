@@ -1,0 +1,6 @@
+pr: 138522
+summary: Support CCQ for inference commands
+area: ES|QL
+type: enhancement
+issues:
+ - 136860

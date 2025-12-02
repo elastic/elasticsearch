@@ -170,6 +170,7 @@ public class CsvTestsDataLoader {
     private static final TestDataset LOGS = new TestDataset("logs");
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
+    private static final TestDataset DENSE_VECTOR_TEXT = new TestDataset("dense_vector_text");
     private static final TestDataset COLORS = new TestDataset("colors");
     private static final TestDataset COLORS_CMYK_LOOKUP = new TestDataset("colors_cmyk").withSetting("lookup-settings.json");
     private static final TestDataset EXP_HISTO_SAMPLE = new TestDataset(
@@ -245,6 +246,7 @@ public class CsvTestsDataLoader {
         Map.entry(COLORS_CMYK_LOOKUP.indexName, COLORS_CMYK_LOOKUP),
         Map.entry(MULTI_COLUMN_JOINABLE.indexName, MULTI_COLUMN_JOINABLE),
         Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP),
+        Map.entry(DENSE_VECTOR_TEXT.indexName, DENSE_VECTOR_TEXT),
         Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE)
     );
 
@@ -589,13 +591,13 @@ public class CsvTestsDataLoader {
 
     private static void createInferenceEndpoint(RestClient client, TaskType taskType, String inferenceId, String modelSettings)
         throws IOException {
-        Request request = new Request("PUT", "_inference/" + taskType.name() + "/" + inferenceId);
+        Request request = new Request("PUT", "/_inference/" + taskType.name() + "/" + inferenceId);
         request.setJsonEntity(modelSettings);
         client.performRequest(request);
     }
 
     private static boolean clusterHasInferenceEndpoint(RestClient client, TaskType taskType, String inferenceId) throws IOException {
-        Request request = new Request("GET", "_inference/" + taskType.name() + "/" + inferenceId);
+        Request request = new Request("GET", "/_inference/" + taskType.name() + "/" + inferenceId);
         try {
             client.performRequest(request);
         } catch (ResponseException e) {
@@ -609,7 +611,7 @@ public class CsvTestsDataLoader {
 
     private static void deleteInferenceEndpoint(RestClient client, String inferenceId) throws IOException {
         try {
-            client.performRequest(new Request("DELETE", "_inference/" + inferenceId));
+            client.performRequest(new Request("DELETE", "/_inference/" + inferenceId));
         } catch (ResponseException e) {
             // 404 here means the endpoint was not created
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {

@@ -21,7 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.SizeLimitingStringWriter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -114,11 +114,8 @@ public final class MustacheScriptEngine implements ScriptEngine {
         return builder.build();
     }
 
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     private static boolean getDetectMissingParamsOption(Map<String, String> options) {
-        return Boolean.valueOf(options.get(DETECT_MISSING_PARAMS_OPTION));
+        return Booleans.parseBoolean(options.get(DETECT_MISSING_PARAMS_OPTION));
     }
 
     @Override

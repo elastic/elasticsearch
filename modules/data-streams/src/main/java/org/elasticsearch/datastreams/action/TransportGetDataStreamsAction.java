@@ -286,8 +286,14 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                      * settings so that we can get some ilm information and the index mode, neither of which come from additional settings
                      * providers.
                      */
-                    ComposableIndexTemplate template = MetadataCreateDataStreamService.lookupTemplateForDataStream(dataStream.getName(), state.metadata());
-                    Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, state.metadata().componentTemplates());
+                    ComposableIndexTemplate template = MetadataCreateDataStreamService.lookupTemplateForDataStream(
+                        dataStream.getName(),
+                        state.metadata()
+                    );
+                    Settings templateSettings = MetadataIndexTemplateService.resolveSettings(
+                        template,
+                        state.metadata().componentTemplates()
+                    );
                     final Settings settings = templateSettings.merge(dataStream.getSettings());
                     ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
                     if (indexMode == null && state.metadata().templatesV2().get(indexTemplate) != null) {

@@ -225,6 +225,7 @@ public class ScriptCache {
             if (o == null || getClass() != o.getClass()) return false;
             CacheKey cacheKey = (CacheKey) o;
             return Objects.equals(lang, cacheKey.lang)
+                && Objects.equals(projectId, cacheKey.projectId)
                 && Objects.equals(idOrCode, cacheKey.idOrCode)
                 && Objects.equals(context, cacheKey.context)
                 && Objects.equals(options, cacheKey.options);
@@ -232,7 +233,7 @@ public class ScriptCache {
 
         @Override
         public int hashCode() {
-            return Objects.hash(lang, idOrCode, context, options);
+            return Objects.hash(lang, projectId, idOrCode, context, options);
         }
     }
 

@@ -3357,9 +3357,7 @@ public class VerifierTests extends ESTestCase {
                 fullTextAnalyzer,
                 ParsingException.class
             ),
-            equalTo(
-                "1:57: Invalid named parameter [\"num_snippets\":null], NULL is not supported"
-            )
+            equalTo("1:57: Invalid named parameter [\"num_snippets\":null], NULL is not supported")
         );
         assertThat(
             error(
@@ -3367,9 +3365,7 @@ public class VerifierTests extends ESTestCase {
                 fullTextAnalyzer,
                 ParsingException.class
             ),
-            equalTo(
-                "1:57: Invalid named parameter [\"num_words\":null], NULL is not supported"
-            )
+            equalTo("1:57: Invalid named parameter [\"num_words\":null], NULL is not supported")
         );
         assertThat(
             error(
@@ -3377,9 +3373,7 @@ public class VerifierTests extends ESTestCase {
                 fullTextAnalyzer,
                 VerificationException.class
             ),
-            startsWith(
-                "1:29: Invalid option [invalid] in [TOP_SNIPPETS(body, \"query\", {\"invalid\": \"foobar\"})]"
-            )
+            startsWith("1:29: Invalid option [invalid] in [TOP_SNIPPETS(body, \"query\", {\"invalid\": \"foobar\"})]")
         );
     }
 

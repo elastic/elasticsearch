@@ -198,12 +198,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
             false
         ).stream().map(MemoryIndexChunkScorer.ScoredChunk::content).limit(effectiveNumSnippets).toList();
 
-        List<String> result = process(
-            PARAGRAPH_INPUT,
-            query,
-            effectiveNumSnippets,
-            effectiveNumWords
-        );
+        List<String> result = process(PARAGRAPH_INPUT, query, effectiveNumSnippets, effectiveNumWords);
         assertThat(result.size(), equalTo(expectedNumChunksReturned));
         assertThat(result, equalTo(expected));
     }
@@ -213,12 +208,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
         try (
             EvalOperator.ExpressionEvaluator eval = evaluator(
-                new TopSnippets(
-                    Source.EMPTY,
-                    field("field", DataType.KEYWORD),
-                    field("query", DataType.KEYWORD),
-                    optionsMap
-                )
+                new TopSnippets(Source.EMPTY, field("field", DataType.KEYWORD), field("query", DataType.KEYWORD), optionsMap)
             ).get(driverContext());
             Block block = eval.eval(row(List.of(new BytesRef(str), new BytesRef(query))))
         ) {

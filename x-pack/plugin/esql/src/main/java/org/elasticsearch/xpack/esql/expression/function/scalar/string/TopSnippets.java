@@ -43,7 +43,6 @@ import static java.util.Map.entry;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.expression.function.Options.resolve;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
@@ -51,8 +50,11 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.util.Chunk
 
 public class TopSnippets extends EsqlScalarFunction implements OptionalArgument {
 
-    public static final NamedWriteableRegistry.Entry ENTRY =
-        new NamedWriteableRegistry.Entry(Expression.class, "TopSnippets", TopSnippets::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "TopSnippets",
+        TopSnippets::new
+    );
 
     static final int DEFAULT_NUM_SNIPPETS = 5;
     static final int DEFAULT_WORD_SIZE = 300;
@@ -78,7 +80,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
             """,
         examples = {
             @Example(file = "top-snippets", tag = "top-snippets", applies_to = "stack: preview 9.3.0"),
-            @Example(file = "top-snippets", tag = "top-snippets-with-options", applies_to = "stack: preview 9.3.0")}
+            @Example(file = "top-snippets", tag = "top-snippets-with-options", applies_to = "stack: preview 9.3.0") }
     )
     public TopSnippets(
         Source source,
@@ -140,8 +142,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
             return new TypeResolution("Unresolved children");
         }
 
-        return isString(field(), sourceText(), FIRST)
-            .and(() -> isString(query(), sourceText(), SECOND))
+        return isString(field(), sourceText(), FIRST).and(() -> isString(query(), sourceText(), SECOND))
             .and(() -> resolve(options(), source(), THIRD, ALLOWED_OPTIONS));
     }
 
@@ -169,7 +170,9 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
         return field;
     }
 
-    Expression query() { return query; }
+    Expression query() {
+        return query;
+    }
 
     Expression options() {
         return options;
@@ -197,7 +200,6 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
         return value != null ? ((Number) value).intValue() : defaultValue;
     }
 
-
     @Evaluator(extraName = "BytesRef")
     static void process(BytesRefBlock.Builder builder, BytesRef str, BytesRef query, @Fixed int numSnippets, @Fixed int numWords) {
         String content = str.utf8ToString();
@@ -206,12 +208,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
         ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(numWords, 0);
         List<String> chunks = chunkText(content, chunkingSettings);
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
-        List<MemoryIndexChunkScorer.ScoredChunk> scoredChunks = scorer.scoreChunks(
-            chunks,
-            queryString,
-            numSnippets,
-            false
-        );
+        List<MemoryIndexChunkScorer.ScoredChunk> scoredChunks = scorer.scoreChunks(chunks, queryString, numSnippets, false);
         List<String> snippets = scoredChunks.stream().map(MemoryIndexChunkScorer.ScoredChunk::content).limit(numSnippets).toList();
         emitChunks(builder, snippets);
     }
@@ -233,7 +230,12 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
 
         int numSnippets = numSnippets();
         int numWords = numWords();
-        return new TopSnippetsBytesRefEvaluator.Factory(source(), toEvaluator.apply(field), toEvaluator.apply(query), numSnippets,
-            numWords);
+        return new TopSnippetsBytesRefEvaluator.Factory(
+            source(),
+            toEvaluator.apply(field),
+            toEvaluator.apply(query),
+            numSnippets,
+            numWords
+        );
     }
 }

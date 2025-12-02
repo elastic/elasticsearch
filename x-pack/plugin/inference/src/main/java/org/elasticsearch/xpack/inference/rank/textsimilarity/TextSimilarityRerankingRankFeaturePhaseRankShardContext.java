@@ -53,14 +53,14 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
                         .toList();
 
                     List<String> bestChunks;
-                        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
-                        List<MemoryIndexChunkScorer.ScoredChunk> scoredChunks = scorer.scoreChunks(
-                            chunks,
-                            chunkScorerConfig.inferenceText(),
-                            size,
-                            true
-                        );
-                        bestChunks = scoredChunks.stream().map(MemoryIndexChunkScorer.ScoredChunk::content).limit(size).toList();
+                    MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
+                    List<MemoryIndexChunkScorer.ScoredChunk> scoredChunks = scorer.scoreChunks(
+                        chunks,
+                        chunkScorerConfig.inferenceText(),
+                        size,
+                        true
+                    );
+                    bestChunks = scoredChunks.stream().map(MemoryIndexChunkScorer.ScoredChunk::content).limit(size).toList();
                     rankFeatureDocs[i].featureData(bestChunks);
 
                 } else {

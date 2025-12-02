@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.inference.chunking.ChunkerBuilder;
 import java.util.List;
 
 public class ChunkUtils {
-    private ChunkUtils() { }
+    private ChunkUtils() {}
 
     public static List<String> chunkText(String content, ChunkingSettings chunkingSettings) {
         Chunker chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());

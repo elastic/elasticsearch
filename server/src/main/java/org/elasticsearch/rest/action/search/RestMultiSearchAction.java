@@ -81,10 +81,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
             client.threadPool().getThreadContext().setErrorTraceTransportHeader(request);
         }
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
-        if (crossProjectEnabled) {
-            // accept but drop project_routing param until fully supported
-            request.param("project_routing");
-        }
         final MultiSearchRequest multiSearchRequest = parseRequest(
             request,
             allowExplicitIndex,

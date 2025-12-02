@@ -20,6 +20,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -41,6 +43,13 @@ public class ShardWriteLoadDistributionMetrics {
         "es.allocator.shard_write_load.prioritisation_threshold.current";
     public static final String WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME =
         "es.allocator.shard_write_load.prioritisation_threshold.shard_count_exceeding.current";
+    public static final FeatureFlag WRITE_LOAD_DISTRIBUTION_METRICS_FEATURE_FLAG = new FeatureFlag("shard_write_load_distribution_metrics");
+    public static final Setting<Boolean> SHARD_WRITE_LOAD_METRICS_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.routing.allocation.write_load_decider.shard_write_load_metrics.enabled",
+        WRITE_LOAD_DISTRIBUTION_METRICS_FEATURE_FLAG.isEnabled(),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private final DoubleHistogram shardWeightHistogram;
     private final double[] percentiles;
@@ -50,6 +59,7 @@ public class ShardWriteLoadDistributionMetrics {
     private final AtomicReference<List<LongWithAttributes>> lastShardCountExceedingPrioritisationThresholdValues = new AtomicReference<>(
         List.of()
     );
+    private volatile boolean metricsEnabled = false;
 
     public ShardWriteLoadDistributionMetrics(MeterRegistry meterRegistry, ClusterService clusterService) {
         // 2 significant digits means error < 1% of any value in the range
@@ -63,6 +73,9 @@ public class ShardWriteLoadDistributionMetrics {
         double... percentiles
     ) {
         this.clusterService = clusterService;
+        this.clusterService.getClusterSettings()
+            .initializeAndWatch(SHARD_WRITE_LOAD_METRICS_ENABLED_SETTING, value -> this.metricsEnabled = value);
+
         // We can use ShortCountsHistogram because we don't expect any count to exceed Short.MAX_VALUE on a single node
         this.shardWeightHistogram = new DoubleHistogram(numberOfSignificantDigits, ShortCountsHistogram.class);
         this.percentiles = percentiles;
@@ -88,7 +101,9 @@ public class ShardWriteLoadDistributionMetrics {
 
     public void onNewInfo(ClusterInfo clusterInfo) {
         // We need a cluster state and shard write loads to compute these metrics
-        if (clusterService.lifecycleState() != Lifecycle.State.STARTED || clusterInfo.getShardWriteLoads().isEmpty()) {
+        if (metricsEnabled == false
+            || clusterService.lifecycleState() != Lifecycle.State.STARTED
+            || clusterInfo.getShardWriteLoads().isEmpty()) {
             return;
         }
 

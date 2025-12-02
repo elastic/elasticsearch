@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -46,8 +47,126 @@ import static org.mockito.Mockito.when;
 public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
 
     public void testShardWriteLoadDistributionMetrics() {
+        final var testInfrastructure = createTestInfrastructure();
+
+        testInfrastructure.shardWriteLoadDistributionMetrics.onNewInfo(testInfrastructure.clusterInfo);
+        testInfrastructure.meterRegistry.getRecorder().collect();
+
+        final var writeLoadDistributionMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_DISTRIBUTION_METRIC_NAME);
+        final var writeLoadPrioritisationThresholdMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(
+                InstrumentType.DOUBLE_GAUGE,
+                ShardWriteLoadDistributionMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME
+            );
+        final var countAboveThresholdMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(
+                InstrumentType.LONG_GAUGE,
+                ShardWriteLoadDistributionMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME
+            );
+
+        logger.info(
+            "Generated maximums p50={}/p90={}/p100={}",
+            testInfrastructure.maxP50,
+            testInfrastructure.maxP90,
+            testInfrastructure.maxP100
+        );
+        assertEquals(8, writeLoadDistributionMeasurements.size());
+        for (String nodeId : List.of("node_0", "node_1")) {
+            assertThat(measurementForPercentile(writeLoadDistributionMeasurements, nodeId, 0.0), greaterThanOrEqualTo(0.0));
+            assertRoughlyInRange(
+                testInfrastructure.numberOfSignificantDigits,
+                measurementForPercentile(writeLoadDistributionMeasurements, nodeId, 50.0),
+                0.0,
+                testInfrastructure.maxP50
+            );
+            assertRoughlyInRange(
+                testInfrastructure.numberOfSignificantDigits,
+                measurementForPercentile(writeLoadDistributionMeasurements, nodeId, 90.0),
+                testInfrastructure.maxP50,
+                testInfrastructure.maxP90
+            );
+            assertRoughlyInRange(
+                testInfrastructure.numberOfSignificantDigits,
+                measurementForPercentile(writeLoadDistributionMeasurements, nodeId, 100.0),
+                testInfrastructure.maxP90,
+                testInfrastructure.maxP100
+            );
+
+            assertThat(
+                measurementForNode(writeLoadPrioritisationThresholdMeasurements, nodeId).getDouble(),
+                Matchers.allOf(greaterThan(0.5 * testInfrastructure.maxP90), lessThanOrEqualTo(0.5 * testInfrastructure.maxP100))
+            );
+            assertThat(measurementForNode(countAboveThresholdMeasurements, nodeId).getLong(), greaterThan(0L));
+        }
+    }
+
+    public void testShardWriteLoadDistributionMetricsDisabled() {
+        final var testInfrastructure = createTestInfrastructure();
+        testInfrastructure.clusterService()
+            .getClusterSettings()
+            .applySettings(
+                Settings.builder().put(ShardWriteLoadDistributionMetrics.SHARD_WRITE_LOAD_METRICS_ENABLED_SETTING.getKey(), false).build()
+            );
+
+        testInfrastructure.shardWriteLoadDistributionMetrics.onNewInfo(testInfrastructure.clusterInfo);
+        testInfrastructure.meterRegistry.getRecorder().collect();
+
+        assertNoMetricsPublished(testInfrastructure);
+    }
+
+    public void testShardWriteLoadDistributionMetricsNoShardWriteLoads() {
+        final var testInfrastructure = createTestInfrastructure();
+
+        testInfrastructure.shardWriteLoadDistributionMetrics.onNewInfo(ClusterInfo.EMPTY);
+        testInfrastructure.meterRegistry.getRecorder().collect();
+
+        assertNoMetricsPublished(testInfrastructure);
+    }
+
+    public void testShardWriteLoadDistributionMetricsClusterNotStarted() {
+        final var testInfrastructure = createTestInfrastructure();
+
+        when(testInfrastructure.clusterService.lifecycleState()).thenReturn(
+            randomFrom(Lifecycle.State.INITIALIZED, Lifecycle.State.STOPPED)
+        );
+        testInfrastructure.meterRegistry.getRecorder().collect();
+
+        assertNoMetricsPublished(testInfrastructure);
+    }
+
+    private static void assertNoMetricsPublished(TestInfrastructure testInfrastructure) {
+        assertThat(
+            testInfrastructure.meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_DISTRIBUTION_METRIC_NAME),
+            Matchers.empty()
+        );
+        assertThat(
+            testInfrastructure.meterRegistry.getRecorder()
+                .getMeasurements(
+                    InstrumentType.DOUBLE_GAUGE,
+                    ShardWriteLoadDistributionMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME
+                ),
+            Matchers.empty()
+        );
+        assertThat(
+            testInfrastructure.meterRegistry.getRecorder()
+                .getMeasurements(
+                    InstrumentType.LONG_GAUGE,
+                    ShardWriteLoadDistributionMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME
+                ),
+            Matchers.empty()
+        );
+    }
+
+    public TestInfrastructure createTestInfrastructure() {
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            ClusterSettings.createBuiltInClusterSettings(
+                Settings.builder().put(ShardWriteLoadDistributionMetrics.SHARD_WRITE_LOAD_METRICS_ENABLED_SETTING.getKey(), true).build()
+            )
+        );
         when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         final var indexName = randomIdentifier();
         final var clusterState = balanceShardsByCount(ClusterStateCreationUtils.state(indexName, 2, 200));
@@ -67,53 +186,28 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         final double maxp100 = randomDoubleBetween(maxp90, 50, true);
 
         final var clusterInfo = ClusterInfo.builder().shardWriteLoads(randomWriteLoads(clusterState, maxp50, maxp90, maxp100)).build();
-        shardWriteLoadDistributionMetrics.onNewInfo(clusterInfo);
-
-        meterRegistry.getRecorder().collect();
-
-        final var writeLoadDistributionMeasurements = meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_DISTRIBUTION_METRIC_NAME);
-        final var writeLoadPrioritisationThresholdMeasurements = meterRegistry.getRecorder()
-            .getMeasurements(
-                InstrumentType.DOUBLE_GAUGE,
-                ShardWriteLoadDistributionMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME
-            );
-        final var countAboveThresholdMeasurements = meterRegistry.getRecorder()
-            .getMeasurements(
-                InstrumentType.LONG_GAUGE,
-                ShardWriteLoadDistributionMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME
-            );
-
-        logger.info("Generated maximums p50={}/p90={}/p100={}", maxp50, maxp90, maxp100);
-        assertEquals(8, writeLoadDistributionMeasurements.size());
-        for (String nodeId : List.of("node_0", "node_1")) {
-            assertThat(measurementForPercentile(writeLoadDistributionMeasurements, nodeId, 0.0), greaterThanOrEqualTo(0.0));
-            assertRoughlyInRange(
-                numberOfSignificantDigits,
-                measurementForPercentile(writeLoadDistributionMeasurements, nodeId, 50.0),
-                0.0,
-                maxp50
-            );
-            assertRoughlyInRange(
-                numberOfSignificantDigits,
-                measurementForPercentile(writeLoadDistributionMeasurements, nodeId, 90.0),
-                maxp50,
-                maxp90
-            );
-            assertRoughlyInRange(
-                numberOfSignificantDigits,
-                measurementForPercentile(writeLoadDistributionMeasurements, nodeId, 100.0),
-                maxp90,
-                maxp100
-            );
-
-            assertThat(
-                measurementForNode(writeLoadPrioritisationThresholdMeasurements, nodeId).getDouble(),
-                Matchers.allOf(greaterThan(0.5 * maxp90), lessThanOrEqualTo(0.5 * maxp100))
-            );
-            assertThat(measurementForNode(countAboveThresholdMeasurements, nodeId).getLong(), greaterThan(0L));
-        }
+        return new TestInfrastructure(
+            clusterService,
+            meterRegistry,
+            clusterInfo,
+            shardWriteLoadDistributionMetrics,
+            numberOfSignificantDigits,
+            maxp50,
+            maxp90,
+            maxp100
+        );
     }
+
+    public record TestInfrastructure(
+        ClusterService clusterService,
+        RecordingMeterRegistry meterRegistry,
+        ClusterInfo clusterInfo,
+        ShardWriteLoadDistributionMetrics shardWriteLoadDistributionMetrics,
+        int numberOfSignificantDigits,
+        double maxP50,
+        double maxP90,
+        double maxP100
+    ) {}
 
     private static ClusterState balanceShardsByCount(ClusterState state) {
         final var routingAllocation = new RoutingAllocation(

@@ -151,7 +151,7 @@ public class IndexResolver {
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
             listener.delegateFailureAndWrap((l, response) -> {
-                TransportVersion responseMinimumVersion = response.caps().minTransportVersion();
+                TransportVersion responseMinimumVersion = response.minTransportVersion();
                 // Note: Once {@link EsqlResolveFieldsResponse}'s CREATED version is live everywhere
                 // we can remove this and make sure responseMinimumVersion is non-null. That'll be 10.0-ish.
                 TransportVersion overallMinimumVersion = responseMinimumVersion == null

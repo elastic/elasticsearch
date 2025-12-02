@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.esql.stats;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
+
+import java.util.Map;
 
 /**
  * Interface for determining information about fields in the index.
@@ -60,6 +64,11 @@ public interface SearchStats {
     default MappedFieldType fieldType(FieldName name) {
         return null;
     }
+
+    /**
+     * Returns the target shards and their index metadata.
+     */
+    Map<ShardId, IndexMetadata> targetShards();
 
     /**
      * When there are no search stats available, for example when there are no search contexts, we have static results.
@@ -129,6 +138,11 @@ public interface SearchStats {
         public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
             return false;
         }
+
+        @Override
+        public Map<ShardId, IndexMetadata> targetShards() {
+            return Map.of();
+        }
     }
 
     /**
@@ -197,6 +211,11 @@ public interface SearchStats {
 
         @Override
         public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Map<ShardId, IndexMetadata> targetShards() {
             throw new UnsupportedOperationException();
         }
     }

@@ -88,7 +88,7 @@ setup:
   - match: {hits.total.value: 6}
   - match: {hits.hits.0.fields.day_of_week: [Thursday] }
   - match: {hits.hits.0.fields.day_of_week_from_source: [Thursday] }
-  - match: {hits.hits.0.fields.day_of_week_letters: [T, h, u, r, s, d, a, y] }
+  - match: {hits.hits.0.fields.day_of_week_letters: [T, a, d, h, r, s, u, y] }
   - match: {hits.hits.0.fields.prefixed_node: [node_c] }
 
 ---

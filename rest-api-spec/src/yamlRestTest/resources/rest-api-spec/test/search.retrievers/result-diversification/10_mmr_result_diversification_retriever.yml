@@ -585,7 +585,7 @@ teardown:
   - match: { error.type: illegal_argument_exception }
 
   - do:
-      catch: /\[diversify\] MMR result diversification \[size\] of -3 must be greater than or equal to zero/
+      catch: /\[diversify\] MMR result diversification \[size\] of -3 must be greater than zero/
       search:
         index: test-result-diversification-index
         body:

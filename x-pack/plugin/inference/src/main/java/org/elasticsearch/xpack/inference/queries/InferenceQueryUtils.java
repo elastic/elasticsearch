@@ -48,8 +48,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
 
-class InferenceQueryUtils {
-    record InferenceInfo(
+public class InferenceQueryUtils {
+    public record InferenceInfo(
         int inferenceFieldCount,
         int indexCount,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
@@ -58,7 +58,8 @@ class InferenceQueryUtils {
 
     private InferenceQueryUtils() {}
 
-    static void getInferenceInfo(
+    // TODO: Add javadoc
+    public static void getInferenceInfo(
         QueryRewriteContext queryRewriteContext,
         Map<String, Float> fields,
         boolean resolveWildcards,
@@ -111,7 +112,7 @@ class InferenceQueryUtils {
         }
     }
 
-    static InferenceInfo getResultFromFuture(PlainActionFuture<InferenceInfo> future) {
+    public static InferenceInfo getResultFromFuture(PlainActionFuture<InferenceInfo> future) {
         if (future.isDone() == false) {
             return null;
         }
@@ -121,6 +122,11 @@ class InferenceQueryUtils {
         } catch (ExecutionException e) {
             throw new InferenceException("Unable to get inference information", e.getCause());
         }
+    }
+
+    public static Map<String, Float> getDefaultFields(Settings settings) {
+        List<String> defaultFieldsList = settings.getAsList(DEFAULT_FIELD_SETTING.getKey(), DEFAULT_FIELD_SETTING.getDefault(settings));
+        return QueryParserHelper.parseFieldsAndWeights(defaultFieldsList);
     }
 
     private static void getLocalInferenceInfo(
@@ -281,11 +287,6 @@ class InferenceQueryUtils {
         }
 
         return new InferenceInfo(totalInferenceFieldCount, totalIndexCount, completeInferenceResultsMap, minTransportVersion);
-    }
-
-    static Map<String, Float> getDefaultFields(Settings settings) {
-        List<String> defaultFieldsList = settings.getAsList(DEFAULT_FIELD_SETTING.getKey(), DEFAULT_FIELD_SETTING.getDefault(settings));
-        return QueryParserHelper.parseFieldsAndWeights(defaultFieldsList);
     }
 
     private static Map<String, Set<InferenceFieldMetadata>> getLocalInferenceFields(

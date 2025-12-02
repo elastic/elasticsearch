@@ -1,0 +1,5 @@
+pr: 107188
+summary: Fix bug causing incorrect error on force deleting already deleted model
+area: ML
+type: bug
+issues: [105420]

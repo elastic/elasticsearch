@@ -260,7 +260,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             newChildren.add(newSubPlan);
         }
         if (subPlanChanged || forkOutputChanged) {
-            fork.replaceSubPlansAndOutput(newChildren, prunedForkAttrs);
+            fork = fork.replaceSubPlansAndOutput(newChildren, prunedForkAttrs);
         }
         return fork;
     }

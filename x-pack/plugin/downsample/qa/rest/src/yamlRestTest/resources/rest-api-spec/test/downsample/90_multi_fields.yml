@@ -47,13 +47,13 @@
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:50:24.467Z", "dimension": "pod", "label-dimension": "my label", "label-text": "my other text", "metric": 3}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T20:50:44.467Z", "dimension": "pod", "label-dimension": "my other label", "label-text": "my random text", "metric": 2}'
+          - '{"@timestamp": "2021-04-28T20:50:44.467Z", "dimension": "pod", "label-dimension": "my label", "label-text": "my random text", "metric": 2}'
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T20:51:04.467Z", "dimension": "pod", "label-dimension": "my other label", "label-text": "some text", "metric": 4}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "dimension": "pod", "label-dimension": "my other label", "label-text": "some other text", "metric": 6}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "dimension": "pod", "label-dimension": "my label", "label-text": "some other text", "metric": 6}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "dimension": "pod", "label-dimension": "my other label", "label-text": "some random text", "metric": 3}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "dimension": "pod", "label-dimension": "my label", "label-text": "some random text", "metric": 3}'
 
   - do:
       indices.put_settings:
@@ -76,17 +76,17 @@
       search:
         index: test-downsample
         body:
-          sort: [ "_tsid", "@timestamp" ]
+          sort: [ "@timestamp", "_tsid" ]
 
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._source._doc_count: 2 }
+  - match: { hits.hits.0._source._doc_count: 4 }
   - match: { hits.hits.0._source.dimension: pod }
   - match: { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
-  - match: { hits.hits.0._source.label-dimension: "my other label" }
+  - match: { hits.hits.0._source.label-dimension: "my label" }
   - match: { hits.hits.0._source.label-text: "my other text" }
-  - match: { hits.hits.0._source.metric.sum: 9 }
-  - match: { hits.hits.0._source.metric.value_count: 2 }
-  - match: { hits.hits.0._source.metric.min: 3 }
+  - match: { hits.hits.0._source.metric.sum: 13 }
+  - match: { hits.hits.0._source.metric.value_count: 4 }
+  - match: { hits.hits.0._source.metric.min: 1 }
   - match: { hits.hits.0._source.metric.max: 6 }
 
 ---

@@ -22,16 +22,11 @@ import java.util.Arrays;
 public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
     private final float[] query;
-    public IVFKnnFloatVectorQuery(
-        String field,
-        float[] query,
-        int k,
-        int numCands,
-        Query filter,
-        float visitRatio
-    ){
+
+    public IVFKnnFloatVectorQuery(String field, float[] query, int k, int numCands, Query filter, float visitRatio) {
         this(field, query, k, numCands, filter, visitRatio, .75f);
     }
+
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
      * @param field the field to search

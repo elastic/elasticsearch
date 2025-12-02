@@ -20,6 +20,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.CrossClusterSubqueryIT.assertClusterEsqlExecutionInfo;
+import static org.elasticsearch.xpack.esql.action.CrossClusterSubqueryIT.assertClusterEsqlExecutionInfoFailureReason;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
@@ -63,10 +64,7 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
                 assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
                 assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SKIPPED);
                 assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-                var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteCluster.getFailures(), not(empty()));
-                var failure = remoteCluster.getFailures().get(0);
-                assertThat(failure.reason(), containsString(simulatedFailure.getMessage()));
+                assertClusterEsqlExecutionInfoFailureReason(executionInfo, REMOTE_CLUSTER_1, simulatedFailure.getMessage());
             }
 
             // This is how it behaves today. If all the remote clusters referenced by a subquery fail to respond,
@@ -140,12 +138,10 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
                 assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
                 assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SKIPPED);
                 assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-                var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteCluster.getFailures(), not(empty()));
-                var failure = remoteCluster.getFailures().get(0);
-                assertThat(
-                    failure.reason(),
-                    containsString("Remote cluster [cluster-a] (with setting skip_unavailable=true) is not available")
+                assertClusterEsqlExecutionInfoFailureReason(
+                    executionInfo,
+                    REMOTE_CLUSTER_1,
+                    "Remote cluster [cluster-a] (with setting skip_unavailable=true) is not available"
                 );
             }
 

@@ -22,9 +22,11 @@ import java.util.Locale;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
@@ -177,6 +179,11 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
             assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SKIPPED);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+            assertClusterEsqlExecutionInfoFailureReason(
+                executionInfo,
+                REMOTE_CLUSTER_1,
+                "no valid indices found in any subquery in remote cluster [cluster-a]"
+            );
         }
 
         // Multiple subqueries on remote cluster 1 do not have any index matching the index pattern,
@@ -202,6 +209,11 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
             assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SKIPPED);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+            assertClusterEsqlExecutionInfoFailureReason(
+                executionInfo,
+                REMOTE_CLUSTER_1,
+                "no valid indices found in any subquery in remote cluster [cluster-a]"
+            );
         }
 
         // Some subqueries on remote cluster 1 have indexes matching the index pattern, some don't
@@ -323,6 +335,11 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
             assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SKIPPED);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+            assertClusterEsqlExecutionInfoFailureReason(
+                executionInfo,
+                LOCAL_CLUSTER,
+                "no valid indices found in any subquery in local cluster"
+            );
         }
 
         try (EsqlQueryResponse resp = runQuery("""
@@ -345,6 +362,11 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
             assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SKIPPED);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+            assertClusterEsqlExecutionInfoFailureReason(
+                executionInfo,
+                LOCAL_CLUSTER,
+                "no valid indices found in any subquery in local cluster"
+            );
         }
 
         try (EsqlQueryResponse resp = runQuery("""
@@ -500,7 +522,8 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
             assertCCSExecutionInfoDetails(executionInfo);
         }
 
-        // lookup join in main query after subqueries is not supported yet, because there is remote index pattern and limit
+        // lookup join in main query after subqueries is not supported yet, because there is remote index pattern and limit,
+        // refer to LookupJoin.checkRemoteJoin
         // TODO remove the limit added for subqueries
         VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
             FROM logs-*,(FROM c*:logs-*), (FROM r*:logs-*)
@@ -639,5 +662,12 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
     ) {
         var cluster = executionInfo.getCluster(clusterAlias);
         assertEquals(expectedStatus, cluster.getStatus());
+    }
+
+    static void assertClusterEsqlExecutionInfoFailureReason(EsqlExecutionInfo executionInfo, String clusterAlias, String expectedMessage) {
+        var cluster = executionInfo.getCluster(clusterAlias);
+        var failures = cluster.getFailures();
+        assertThat(failures, not(empty()));
+        assertThat(failures.get(0).reason(), containsString(expectedMessage));
     }
 }

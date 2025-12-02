@@ -613,13 +613,13 @@ public class EsqlSession {
                             .stream()
                             .anyMatch(ir -> ir.isValid() && ir.get().originalIndices().get(clusterAlias) != null);
                         if (clusterHasValidIndex == false) {
-                            String errorMsg = "no valid indices found in any subquery " + EsqlCCSUtils.inClusterName(clusterAlias);
-                            LOGGER.debug(errorMsg);
+                            String errorMsg = "no valid indices found in any subquery {}";
+                            LOGGER.debug(errorMsg, EsqlCCSUtils.inClusterName(clusterAlias));
                             EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
                                 executionInfo,
                                 clusterAlias,
                                 EsqlExecutionInfo.Cluster.Status.SKIPPED,
-                                new VerificationException(errorMsg)
+                                new VerificationException(errorMsg, EsqlCCSUtils.inClusterName(clusterAlias))
                             );
                         }
                     });

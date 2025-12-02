@@ -45,6 +45,8 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
+import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
+import org.elasticsearch.xpack.security.transport.ServerTransportFilter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -551,7 +553,7 @@ class IndicesAndAliasesResolver {
         if (replaceable.getResolvedIndexExpressions() == null) {
             replaceable.setResolvedIndexExpressions(resolved);
         } else {
-            // see https://github.com/elastic/elasticsearch/issues/135799
+            // see https://github.com/elastic/elasticsearch/issues/135799 and ES-4376
             String message = "resolved index expressions are already set to ["
                 + replaceable.getResolvedIndexExpressions()
                 + "] and should not be set again. Attempted to set to new expressions ["
@@ -560,9 +562,15 @@ class IndicesAndAliasesResolver {
                 + replaceable.getClass().getName()
                 + "]";
             logger.debug(message);
-            // we are excepting `*,-*` below since we've observed this already -- keeping this assertion to catch other cases
-            // If more exceptions are found, we can add a comment to above linked issue and relax this check further
-            assert replaceable.indices() == null || isNoneExpression(replaceable.indices()) : message;
+            // Double authorization and hence index resolution can happen first in ServerTransportFilter and then in SecurityActionFilter.
+            // This cannot happen on the coordinating node since it does not involve ServerTransportFilter. Therefore, there should be no
+            // remote indices.
+            assert replaceable.getResolvedIndexExpressions().getRemoteIndicesList().isEmpty() && resolved.getRemoteIndicesList().isEmpty()
+                : message;
+            // Since the first resolution expands all wildcards, the second resolution is performed against concrete names.
+            // As a result, the resolved indices from the second resolution must be identical (most of the time) or a subset of the
+            // resolved indices from the first resolution if the user's role changes in between the two authorizations.
+            assert replaceable.getResolvedIndexExpressions().getLocalIndicesList().containsAll(resolved.getLocalIndicesList()) : message;
         }
     }
 

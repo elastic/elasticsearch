@@ -919,7 +919,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         assertThat(modelRegistry.getInferenceIds(), not(hasItem(inferenceId1)));
 
-        PlainActionFuture<List<ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        var storeListener = new PlainActionFuture<List<ModelStoreResponse>>();
         modelRegistry.storeModels(List.of(model), storeListener, TimeValue.THIRTY_SECONDS);
 
         var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
@@ -1002,6 +1002,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var testModelId1 = "test-1";
         var testModelId2 = "test-2";
 
+        // Using these models because the mock inference plugin we use in this test only supports these test services and EIS
         var testModel1 = new TestSparseInferenceServiceExtension.TestSparseModel(
             testModelId1,
             new TestSparseInferenceServiceExtension.TestServiceSettings("model", "hidden_field", false)
@@ -1012,7 +1013,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             new TestSparseInferenceServiceExtension.TestServiceSettings("model", "hidden_field", false)
         );
 
-        PlainActionFuture<List<ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        var storeListener = new PlainActionFuture<List<ModelStoreResponse>>();
         modelRegistry.storeModels(List.of(eisModel, testModel1, testModel2), storeListener, TimeValue.THIRTY_SECONDS);
 
         var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);

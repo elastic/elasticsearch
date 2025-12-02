@@ -920,7 +920,7 @@ public class ModelRegistry implements ClusterStateListener {
     private void updateClusterState(ResponseInfo responseInfo, ActionListener<AcknowledgedResponse> listener, TimeValue timeout) {
         var inferenceIdsSet = responseInfo.successfullyStoredModels().stream().map(Model::getInferenceEntityId).collect(Collectors.toSet());
 
-        SubscribableListener.<Void>newForked(outOfSyncListener -> handleOutOfSyncEndpoints(responseInfo, outOfSyncListener))
+        SubscribableListener.<Void>newForked(outOfSyncListener -> handleOutOfSyncEndpoints(responseInfo, outOfSyncListener, timeout))
             .<AcknowledgedResponse>andThen(addModelMetadataTaskListener -> {
                 var cleanupListener = addModelMetadataTaskListener.delegateResponse((delegate, exc) -> {
                     logger.atWarn()
@@ -960,9 +960,7 @@ public class ModelRegistry implements ClusterStateListener {
             .addListener(listener);
     }
 
-    private void handleOutOfSyncEndpoints(ResponseInfo responseInfo, ActionListener<Void> listener) {
-        // This set of inference ids represents the endpoints that exist in the index but not in the cluster state.
-        // This should only occur for EIS preconfigured endpoints
+    private void handleOutOfSyncEndpoints(ResponseInfo responseInfo, ActionListener<Void> listener, TimeValue timeout) {
         var outOfSyncEndpointsExist = responseInfo.responses.stream()
             .anyMatch(
                 response -> response.modelStoreResponse().failed()
@@ -1015,7 +1013,7 @@ public class ModelRegistry implements ClusterStateListener {
                         listener.onResponse(null);
                     })
                 ),
-                null
+                timeout
             );
         }, e -> {
             logger.atWarn().withThrowable(e).log("Failed to retrieve all endpoints to fix out of sync ones");

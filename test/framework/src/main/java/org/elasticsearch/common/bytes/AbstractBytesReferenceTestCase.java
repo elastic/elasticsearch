@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.greaterThan;
 
 public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
@@ -508,13 +509,13 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         BytesReference copy = bytesReference.slice(0, bytesReference.length());
 
         // get refs & compare
-        assertEquals(copy, bytesReference);
+        assertThat(bytesReference, equalBytes(copy));
         int sliceFrom = randomIntBetween(0, bytesReference.length());
         int sliceLength = randomIntBetween(0, bytesReference.length() - sliceFrom);
-        assertEquals(copy.slice(sliceFrom, sliceLength), bytesReference.slice(sliceFrom, sliceLength));
+        assertThat(bytesReference.slice(sliceFrom, sliceLength), equalBytes(copy.slice(sliceFrom, sliceLength)));
 
         BytesRef bytesRef = BytesRef.deepCopyOf(copy.toBytesRef());
-        assertEquals(new BytesArray(bytesRef), copy);
+        assertThat(copy, equalBytes(new BytesArray(bytesRef)));
 
         int offsetToFlip = randomIntBetween(0, bytesRef.length - 1);
         int value = ~Byte.toUnsignedInt(bytesRef.bytes[bytesRef.offset + offsetToFlip]);
@@ -625,13 +626,13 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
         final BytesArray b1 = new BytesArray(array1, offset1, len);
         final BytesArray b2 = new BytesArray(array2, offset2, len);
-        assertEquals(b1, b2);
+        assertThat(b2, equalBytes(b1));
         assertEquals(Arrays.hashCode(BytesReference.toBytes(b1)), b1.hashCode());
         assertEquals(Arrays.hashCode(BytesReference.toBytes(b2)), b2.hashCode());
 
         // test same instance
-        assertEquals(b1, b1);
-        assertEquals(b2, b2);
+        assertThat(b1, equalBytes(b1));
+        assertThat(b2, equalBytes(b2));
 
         if (len > 0) {
             // test different length
@@ -714,7 +715,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
                 }
                 boolean sliceRight = randomBoolean();
                 BytesReference right = sliceRight ? input2.readSlicedBytesReference() : input2.readBytesReference();
-                assertEquals(left, right);
+                assertThat(right, equalBytes(left));
                 if (sliceRight && bytesReference.hasArray()) {
                     assertSame(right.array(), right.array());
                 }

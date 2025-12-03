@@ -17,6 +17,24 @@ cost:double       | time_bucket:datetime
 36.375            | 2024-05-10T00:11:00.000Z
 ;
 
+avg_over_time_of_double_no_grouping_promql
+required_capability: promql_pre_tech_preview_v3
+PROMQL k8s step 1m (sum(avg_over_time(network.cost[1m])))
+| SORT `sum(avg_over_time(network.cost[1m]))` DESC, step DESC | LIMIT 10;
+
+sum(avg_over_time(network.cost[1m])):double | step:date
+69.6875                                     | 2024-05-10T00:09:00.000Z
+56.5625                                     | 2024-05-10T00:08:00.000Z
+49.5                                        | 2024-05-10T00:17:00.000Z
+48.3125                                     | 2024-05-10T00:22:00.000Z
+45.8125                                     | 2024-05-10T00:15:00.000Z
+40.4375                                     | 2024-05-10T00:06:00.000Z
+39.54166666666667                           | 2024-05-10T00:13:00.000Z
+37.9375                                     | 2024-05-10T00:12:00.000Z
+36.6875                                     | 2024-05-10T00:19:00.000Z
+36.375                                      | 2024-05-10T00:11:00.000Z
+;
+
 avg_over_time_of_double_no_grouping_single_bucket
 required_capability: ts_command_v0
 required_capability: tbucket
@@ -28,11 +46,10 @@ cost:double       | time_bucket:datetime
 ;
 
 avg_over_time_of_double_no_grouping_single_bucket_promql
-required_capability: promql_v0
-TS k8s
-| PROMQL step 1h (sum(avg_over_time(network.cost[1h])));
+required_capability: promql_pre_tech_preview_v3
+PROMQL k8s step 1h (sum(avg_over_time(network.cost[1h])));
 
-sum(avg_over_time(network.cost[1h])):double | TBUCKET:date
+sum(avg_over_time(network.cost[1h])):double | step:date
 56.32254035241995                           | 2024-05-10T00:00:00.000Z
 ;
 

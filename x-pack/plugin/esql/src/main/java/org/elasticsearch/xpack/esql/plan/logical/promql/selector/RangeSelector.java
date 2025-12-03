@@ -7,12 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 
@@ -94,26 +91,6 @@ public class RangeSelector extends Selector {
         }
         RangeSelector that = (RangeSelector) o;
         return Objects.equals(range, that.range);
-    }
-
-    /**
-     * RangeSelector outputs three columns representing time series data:
-     * 0. range - the step instance for the given interval
-     * 1. labels - The metric name and all label key-value pairs
-     * 2. timestamp - The sample timestamp in milliseconds since epoch
-     * 3. value - The metric value
-     */
-    @Override
-    public List<Attribute> output() {
-        if (output == null) {
-            output = List.of(
-                new ReferenceAttribute(source(), "promql$range", DataType.DATETIME),
-                new ReferenceAttribute(source(), "promql$labels", DataType.KEYWORD),
-                new ReferenceAttribute(source(), "promql$timestamp", DataType.DATETIME),
-                new ReferenceAttribute(source(), "promql$value", DataType.DOUBLE)
-            );
-        }
-        return output;
     }
 
     @Override

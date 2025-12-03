@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -31,6 +33,8 @@ import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
+// The amount of cases sometimes exceed the 20 minutes
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
     public DateDiffTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

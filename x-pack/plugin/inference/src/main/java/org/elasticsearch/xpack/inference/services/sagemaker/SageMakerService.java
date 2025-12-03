@@ -271,6 +271,9 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
             listener.onFailure(createInvalidModelException(model));
             return;
         }
+        if (input.isEmpty()) {
+            listener.onResponse(List.of());
+        }
         try {
             var sageMakerModel = ((SageMakerModel) model).override(taskSettings);
             var batchedRequests = new EmbeddingRequestChunker<>(

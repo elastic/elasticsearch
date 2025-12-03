@@ -35,10 +35,6 @@ import java.util.function.Supplier;
  */
 class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
-    static boolean isInstance(XContentParser parser) {
-        return parser instanceof WrappingParser;
-    }
-
     private static final class WrappingParser extends FilterXContentParser {
 
         private final ContentPath contentPath;
@@ -50,6 +46,11 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             if (in.currentToken() == Token.FIELD_NAME) {
                 expandDots(in);
             }
+        }
+
+        @Override
+        public XContentParser switchParser(XContentParser parser) throws IOException {
+            return new WrappingParser(parser, contentPath);
         }
 
         @Override

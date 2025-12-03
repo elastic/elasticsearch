@@ -1,0 +1,6 @@
+pr: 137907
+summary: Prune columns when using fork
+area: ES|QL
+type: bug
+issues:
+ - 136365

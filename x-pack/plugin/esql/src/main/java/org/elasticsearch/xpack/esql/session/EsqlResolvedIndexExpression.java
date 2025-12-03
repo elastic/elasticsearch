@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -35,7 +36,7 @@ public record EsqlResolvedIndexExpression(Set<String> expression, Set<String> re
                         .stream()
                         .filter(e -> e.localExpressions().indices().isEmpty() == false)
                         .filter(e -> e.localExpressions().localIndexResolutionResult() == SUCCESS)
-                        .map(e -> new EsqlResolvedIndexExpression(Set.of(e.original()), e.localExpressions().indices()))
+                        .map(EsqlResolvedIndexExpression::from)
                         .reduce(EMPTY, EsqlResolvedIndexExpression::merge)
                 )
             )
@@ -45,4 +46,14 @@ public record EsqlResolvedIndexExpression(Set<String> expression, Set<String> re
     private static EsqlResolvedIndexExpression merge(EsqlResolvedIndexExpression a, EsqlResolvedIndexExpression b) {
         return new EsqlResolvedIndexExpression(Sets.union(a.expression(), b.expression()), Sets.union(a.resolved(), b.resolved()));
     }
+
+    private static EsqlResolvedIndexExpression from(ResolvedIndexExpression e) {
+        var expression = e.original();
+        if (expression.startsWith(ORIGIN_PREFIX)) {
+            expression = expression.substring(ORIGIN_PREFIX.length());
+        }
+        return new EsqlResolvedIndexExpression(Set.of(expression), e.localExpressions().indices());
+    }
+
+    private static final String ORIGIN_PREFIX = "_origin:";
 }

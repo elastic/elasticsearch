@@ -69,9 +69,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
             userProfileUsage = in.readGenericMap();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            remoteClusterServerUsage = in.readGenericMap();
-        }
+        remoteClusterServerUsage = in.readGenericMap();
     }
 
     public SecurityFeatureSetUsage(
@@ -133,9 +131,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
             out.writeGenericMap(userProfileUsage);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeGenericMap(remoteClusterServerUsage);
-        }
+        out.writeGenericMap(remoteClusterServerUsage);
     }
 
     @Override

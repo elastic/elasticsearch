@@ -183,11 +183,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             } else {
                 this.priority = Priority.NORMAL;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                this.deploymentId = in.readString();
-            } else {
-                this.deploymentId = modelId;
-            }
+            this.deploymentId = in.readString();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
             } else {
@@ -309,9 +305,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
                 out.writeEnum(priority);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                out.writeString(deploymentId);
-            }
+            out.writeString(deploymentId);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeOptionalWriteable(adaptiveAllocationsSettings);
             }
@@ -587,11 +581,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             } else {
                 this.priority = Priority.NORMAL;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                this.deploymentId = in.readString();
-            } else {
-                this.deploymentId = modelId;
-            }
+            this.deploymentId = in.readString();
 
             if (in.getTransportVersion().onOrAfter(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
                 // We store additional model usage per allocation in the task params.
@@ -651,9 +641,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
                 out.writeEnum(priority);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                out.writeString(deploymentId);
-            }
+            out.writeString(deploymentId);
             if (out.getTransportVersion().onOrAfter(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
                 out.writeLong(perDeploymentMemoryBytes);
                 out.writeLong(perAllocationMemoryBytes);

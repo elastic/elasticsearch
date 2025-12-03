@@ -203,10 +203,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             // Versions before 8.7.0 don't support more than one KNN clause
             searchRequest.source().knnSearch(List.of(searchRequest.source().knnSearch().get(0)));
         }
-        if (version.before(TransportVersions.V_8_8_0) && searchRequest.source() != null) {
-            // Versions before 8.8 don't support rank
-            searchRequest.source().rankBuilder(null);
-        }
         if (version.before(TransportVersions.V_8_9_X) && searchRequest.source() != null) {
             // Versions before 8_500_999 don't support queries
             searchRequest.source().subSearches(new ArrayList<>());

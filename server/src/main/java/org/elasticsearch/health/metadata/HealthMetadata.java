@@ -52,9 +52,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
 
     public HealthMetadata(StreamInput in) throws IOException {
         this.diskMetadata = Disk.readFrom(in);
-        this.shardLimitsMetadata = in.getTransportVersion().onOrAfter(ShardLimits.VERSION_SUPPORTING_SHARD_LIMIT_FIELDS)
-            ? in.readOptionalWriteable(ShardLimits::readFrom)
-            : null;
+        this.shardLimitsMetadata = in.readOptionalWriteable(ShardLimits::readFrom);
     }
 
     @Override
@@ -70,9 +68,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         diskMetadata.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(ShardLimits.VERSION_SUPPORTING_SHARD_LIMIT_FIELDS)) {
-            out.writeOptionalWriteable(shardLimitsMetadata);
-        }
+        out.writeOptionalWriteable(shardLimitsMetadata);
     }
 
     public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -172,7 +168,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         private static final ParseField SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED_FIELD = new ParseField(
             "shard_capacity_unhealthy_threshold_red"
         );
-        static final TransportVersion VERSION_SUPPORTING_SHARD_LIMIT_FIELDS = TransportVersions.V_8_8_0;
         static final TransportVersion VERSION_SHARD_CAPACITY_UNHEALTH_THRESHOLDS = TransportVersion.fromName(
             "shard_capacity_unhealthy_thresholds"
         );

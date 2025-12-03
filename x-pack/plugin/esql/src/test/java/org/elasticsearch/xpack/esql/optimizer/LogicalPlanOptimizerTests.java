@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
@@ -7812,6 +7813,41 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));
         Bucket bucket = as(Alias.unwrap(evalBucket.fields().get(0)), Bucket.class);
         assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+        assertTrue(lastOverTime.hasFilter());
+        assertThat(lastOverTime.filter(), instanceOf(Equals.class));
+    }
+
+    public void testTranslateWithDateTrunc() {
+        var query = randomFrom("""
+            TS k8s
+            | EVAL tbucket = date_trunc(1m, @timestamp)
+            | STATS sum(last_over_time(network.bytes_in)) WHERE cluster == "prod" BY tbucket
+            | LIMIT 10
+            """, """
+            TS k8s
+            | STATS sum(last_over_time(network.bytes_in)) WHERE cluster == "prod" BY tbucket=date_trunc(1m, @timestamp)
+            | LIMIT 10
+            """);
+        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        var limit = as(plan, Limit.class);
+        Aggregate finalAgg = as(limit.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        assertNotNull(aggsByTsid.timeBucket());
+        assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+        Eval evalBucket = as(aggsByTsid.child(), Eval.class);
+        assertThat(evalBucket.fields(), hasSize(1));
+        EsRelation relation = as(evalBucket.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+
+        var sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
+        assertFalse(sum.hasFilter());
+
+        LastOverTime lastOverTime = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), LastOverTime.class);
+        assertThat(Expressions.attribute(lastOverTime.field()).name(), equalTo("network.bytes_in"));
+        assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));
+        DateTrunc dateTrunc = as(Alias.unwrap(evalBucket.fields().get(0)), DateTrunc.class);
+        assertThat(Expressions.attribute(dateTrunc.field()).name(), equalTo("@timestamp"));
         assertTrue(lastOverTime.hasFilter());
         assertThat(lastOverTime.filter(), instanceOf(Equals.class));
     }

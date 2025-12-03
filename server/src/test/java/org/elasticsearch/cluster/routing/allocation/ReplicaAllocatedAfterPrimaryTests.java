@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
 
-    public void testSimulationDisables() {
+    public void testDeciderIsDisabledDuringSimulation() {
         var decider = new ReplicaAfterPrimaryActiveAllocationDecider();
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Arrays.asList(decider)),

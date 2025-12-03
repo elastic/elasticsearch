@@ -28,6 +28,7 @@ public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecide
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (allocation.isSimulating()) {
+            // Planning / desired balance computation will ultimately assign all the shards, no need to reject based on ordering.
             return allocation.decision(Decision.YES, NAME, "decider inactive for planning simulation");
         }
 

@@ -169,7 +169,7 @@ public class SubjectTests extends ESTestCase {
               "cross_cluster": {
                 "cluster": ["cross_cluster_search"],
                 "indices": [
-                  { "names":["index"], "privileges":["read","read_cross_cluster","view_index_metadata"] }
+                  { "names":["index"], "privileges":["read","view_index_metadata"] }
                 ]
               }
             }""");

@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
 
 public class AzureOpenAiChatCompletionRequestEntityTests extends ESTestCase {
     // Test values
@@ -98,10 +97,6 @@ public class AzureOpenAiChatCompletionRequestEntityTests extends ESTestCase {
 
     public void testCreateRequestEntity_NoInput_ThrowsException() {
         assertThrows(NullPointerException.class, () -> new AzureOpenAiChatCompletionRequestEntity(null, USER_VALUE));
-    }
-
-    public void testCreateRequestEntity_NoUser_Success() {
-        assertThrows(NullPointerException.class, () -> new AzureOpenAiChatCompletionRequestEntity(mock(UnifiedChatInput.class), null));
     }
 
     private static void testSerialization(boolean isStreaming, String userValue, String expectedJson) throws IOException {

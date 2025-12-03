@@ -31,7 +31,9 @@ public class AzureOpenAiChatCompletionRequestTests extends ESTestCase {
     private static final String MESSAGES_FIELD_NAME = "messages";
     private static final String ROLE_FIELD_NAME = "role";
     private static final String CONTENT_FIELD_NAME = "content";
-    private static final String USER_FIELD = "user";
+    private static final String USER_FIELD_NAME = "user";
+    private static final String STREAM_OPTIONS_FIELD_NAME = "stream_options";
+    private static final String INCLUDE_USAGE_FIELD_NAME = "include_usage";
     private static final String API_KEY_HEADER_NAME = "api-key";
     // Test values
     private static final String ROLE_VALUE = "user";
@@ -74,6 +76,8 @@ public class AzureOpenAiChatCompletionRequestTests extends ESTestCase {
         assertThat(requestMap.get(STREAM_FIELD_NAME), is(true));
         assertThat(requestMap.get(N_FIELD_NAME), is(1));
         assertThat(requestMap.get(MESSAGES_FIELD_NAME), is(List.of(Map.of(ROLE_FIELD_NAME, ROLE_VALUE, CONTENT_FIELD_NAME, input))));
+        assertThat(requestMap.get(STREAM_OPTIONS_FIELD_NAME), is(Map.of(INCLUDE_USAGE_FIELD_NAME, true)));
+        assertThat(requestMap.get(USER_FIELD_NAME), is(USER_VALUE));
         assertThat(requestMap, aMapWithSize(5));
         return httpPost;
     }
@@ -102,7 +106,7 @@ public class AzureOpenAiChatCompletionRequestTests extends ESTestCase {
         assertThat(request.getURI().toString(), is(URL_DEFAULT_VALUE));
         assertThat(requestMap.get(STREAM_FIELD_NAME), is(false));
         assertThat(requestMap.get(N_FIELD_NAME), is(1));
-        assertThat(requestMap.get(USER_FIELD), is(USER_VALUE));
+        assertThat(requestMap.get(USER_FIELD_NAME), is(USER_VALUE));
         assertThat(requestMap.get(MESSAGES_FIELD_NAME), is(List.of(Map.of(ROLE_FIELD_NAME, ROLE_VALUE, CONTENT_FIELD_NAME, input))));
         assertThat(requestMap, aMapWithSize(4));
         return httpPost;

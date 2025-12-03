@@ -23,19 +23,16 @@ public class AzureOpenAiChatCompletionRequest implements AzureOpenAiRequest {
 
     private final UnifiedChatInput chatInput;
 
-    private final URI uri;
-
     private final AzureOpenAiCompletionModel model;
 
     public AzureOpenAiChatCompletionRequest(UnifiedChatInput chatInput, AzureOpenAiCompletionModel model) {
         this.chatInput = chatInput;
         this.model = Objects.requireNonNull(model);
-        this.uri = model.getUri();
     }
 
     @Override
     public HttpRequest createHttpRequest() {
-        var httpPost = new HttpPost(uri);
+        var httpPost = new HttpPost(getURI());
         var requestEntity = Strings.toString(new AzureOpenAiChatCompletionRequestEntity(chatInput, model.getTaskSettings().user()));
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
@@ -48,7 +45,7 @@ public class AzureOpenAiChatCompletionRequest implements AzureOpenAiRequest {
 
     @Override
     public URI getURI() {
-        return this.uri;
+        return model.getUri();
     }
 
     @Override

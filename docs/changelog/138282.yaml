@@ -1,0 +1,5 @@
+pr: 138282
+summary: Allow fast blob-cache introspection by shard-id
+area: Searchable Snapshots
+type: enhancement
+issues: []

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic;
+package org.elasticsearch.xpack.esql.core.expression.predicate.operator.math;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;

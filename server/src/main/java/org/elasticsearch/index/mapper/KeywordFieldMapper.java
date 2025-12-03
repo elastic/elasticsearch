@@ -1320,14 +1320,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 var utfBytes = value.bytes();
                 var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
                 final String fieldName = fieldType().syntheticSourceFallbackFieldName();
-
-                // store the value in a binary doc values field, create one if it doesn't exist
-                MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
-                if (field == null) {
-                    field = new MultiValuedBinaryDocValuesField(fieldName, MultiValuedBinaryDocValuesField.Ordering.INSERTION);
-                    context.doc().addWithKey(fieldName, field);
-                }
-                field.add(bytesRef);
+                context.doc().add(new StoredField(fieldName, bytesRef));
             }
 
             return false;
@@ -1516,7 +1509,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         // extra copy of the field for supporting synthetic source. This layer will check that copy.
         if (fieldType().ignoreAbove.valuesPotentiallyIgnored()) {
             final String fieldName = fieldType().syntheticSourceFallbackFieldName();
-            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldName));
+            layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
+                @Override
+                protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                    BytesRef ref = (BytesRef) value;
+                    b.utf8Value(ref.bytes, ref.offset, ref.length);
+                }
+            });
         }
 
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);

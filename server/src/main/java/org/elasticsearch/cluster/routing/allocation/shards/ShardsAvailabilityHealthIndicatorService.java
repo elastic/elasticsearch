@@ -65,8 +65,10 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1078,30 +1080,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             if (verbose == false) {
                 return HealthIndicatorDetails.EMPTY;
             }
-            return new SimpleHealthIndicatorDetails(
-                Map.of(
-                    "unassigned_primaries",
-                    primaries.unassigned,
-                    "initializing_primaries",
-                    primaries.initializing,
-                    "creating_primaries",
-                    primaries.unassigned_new,
-                    "restarting_primaries",
-                    primaries.unassigned_restarting,
-                    "started_primaries",
-                    primaries.started + primaries.relocating,
-                    "unassigned_replicas",
-                    replicas.unassigned,
-                    "initializing_replicas",
-                    replicas.initializing,
-                    "creating_replicas",
-                    replicas.unassigned_new,
-                    "restarting_replicas",
-                    replicas.unassigned_restarting,
-                    "started_replicas",
-                    replicas.started + replicas.relocating
-                )
-            );
+            final Map<String, Integer> details = new LinkedHashMap<>();
+            details.put("unassigned_primaries", primaries.unassigned);
+            details.put("initializing_primaries", primaries.initializing);
+            details.put("creating_primaries", primaries.unassigned_new);
+            details.put("restarting_primaries", primaries.unassigned_restarting);
+            details.put("started_primaries", primaries.started + primaries.relocating);
+            details.put("unassigned_replicas", replicas.unassigned);
+            details.put("initializing_replicas", replicas.initializing);
+            details.put("creating_replicas", replicas.unassigned_new);
+            details.put("restarting_replicas", replicas.unassigned_restarting);
+            details.put("started_replicas", replicas.started + replicas.relocating);
+            return new SimpleHealthIndicatorDetails(Collections.unmodifiableMap(details));
         }
 
         public List<HealthIndicatorImpact> getImpacts() {

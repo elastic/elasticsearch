@@ -65,6 +65,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "elasticsearch",
                     "googleaistudio",
                     "googlevertexai",
+                    "groq",
                     "hugging_face",
                     "jinaai",
                     "llama",
@@ -191,6 +192,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "llama",
                     "deepseek",
                     "elastic",
+                    "groq",
                     "openai",
                     "openshift_ai",
                     "streaming_completion_test_service",
@@ -220,6 +222,10 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 ).toArray()
             )
         );
+    }
+
+    public void testGetServicesWithEmbeddingTaskType() throws IOException {
+        assertThat(providersFor(TaskType.EMBEDDING), containsInAnyOrder(List.of("text_embedding_test_service").toArray()));
     }
 
     private List<Object> getAllServices() throws IOException {

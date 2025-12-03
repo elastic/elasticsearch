@@ -13,6 +13,7 @@ module org.elasticsearch.swisshash {
     requires org.elasticsearch.simdvec;
     requires org.elasticsearch.xcontent;
     requires hppc;
+    requires org.apache.lucene.core;
 
     exports org.elasticsearch.swisshash to org.elasticsearch.compute;
 }

@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -148,6 +150,45 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         testInfrastructure.meterRegistry.getRecorder().collect();
 
         assertNoMetricsPublished(testInfrastructure);
+    }
+
+    public void testMetricsForNodeWithNoShards() {
+        final var testInfrastructure = createTestInfrastructure();
+
+        final var originalClusterState = testInfrastructure.clusterService.state();
+        final var additionalNodeId = "node_2";
+        final var nodesWithNodeAdded = DiscoveryNodes.builder(originalClusterState.nodes())
+            .add(DiscoveryNodeUtils.create(additionalNodeId))
+            .build();
+        final var clusterStateWithNodeAdded = ClusterState.builder(originalClusterState).nodes(nodesWithNodeAdded).build();
+        when(testInfrastructure.clusterService.state()).thenReturn(clusterStateWithNodeAdded);
+
+        testInfrastructure.shardWriteLoadDistributionMetrics.onNewInfo(testInfrastructure.clusterInfo);
+        testInfrastructure.meterRegistry.getRecorder().collect();
+
+        final var writeLoadDistributionMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_DISTRIBUTION_METRIC_NAME);
+        final var writeLoadPrioritisationThresholdMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(
+                InstrumentType.DOUBLE_GAUGE,
+                ShardWriteLoadDistributionMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME
+            );
+        final var countAboveThresholdMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(
+                InstrumentType.LONG_GAUGE,
+                ShardWriteLoadDistributionMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME
+            );
+        final var shardWriteLoadSumMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_SUM_METRIC_NAME);
+
+        assertNoMetricsPublished(writeLoadDistributionMeasurements, additionalNodeId);
+        assertNoMetricsPublished(writeLoadPrioritisationThresholdMeasurements, additionalNodeId);
+        assertNoMetricsPublished(countAboveThresholdMeasurements, additionalNodeId);
+        assertThat(measurementForNode(shardWriteLoadSumMeasurements, additionalNodeId).getDouble(), Matchers.is(0.0));
+    }
+
+    private static void assertNoMetricsPublished(List<Measurement> measurements, String nodeId) {
+        assertThat(measurements.stream().filter(m -> m.attributes().get("node_id").equals(nodeId)).toList(), Matchers.empty());
     }
 
     private static void assertNoMetricsPublished(TestInfrastructure testInfrastructure) {

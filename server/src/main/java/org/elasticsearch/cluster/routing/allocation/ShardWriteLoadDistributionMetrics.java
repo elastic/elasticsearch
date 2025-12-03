@@ -156,24 +156,31 @@ public class ShardWriteLoadDistributionMetrics {
                 continue;
             }
 
-            for (double percentile : percentiles) {
-                writeLoadDistributionValues.add(
-                    new DoubleWithAttributes(
-                        shardWeightHistogram.getValueAtPercentile(percentile),
-                        getAttributesForPercentile(node, percentile)
-                    )
-                );
-            }
             final var nodeAttrs = getAttributesForNode(node);
-            final double prioritisationThreshold = BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO
-                * maxShardWriteLoad;
-            writeLoadPrioritisationThresholdValues.add(new DoubleWithAttributes(prioritisationThreshold, nodeAttrs));
 
-            final long shardsExceedingThreshold = (long) shardWeightHistogram.getCountBetweenValues(
-                prioritisationThreshold,
-                Double.MAX_VALUE
-            );
-            shardCountsExceedingPrioritisationThresholdValues.add(new LongWithAttributes(shardsExceedingThreshold, nodeAttrs));
+            /*
+             * Only publish distribution and prioritization threshold metrics if the node contains at least one shard
+             */
+            if (Double.isFinite(maxShardWriteLoad)) {
+                for (double percentile : percentiles) {
+                    writeLoadDistributionValues.add(
+                        new DoubleWithAttributes(
+                            shardWeightHistogram.getValueAtPercentile(percentile),
+                            getAttributesForPercentile(node, percentile)
+                        )
+                    );
+                }
+
+                final double prioritisationThreshold = BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO
+                    * maxShardWriteLoad;
+                writeLoadPrioritisationThresholdValues.add(new DoubleWithAttributes(prioritisationThreshold, nodeAttrs));
+
+                final long shardsExceedingThreshold = (long) shardWeightHistogram.getCountBetweenValues(
+                    prioritisationThreshold,
+                    Double.MAX_VALUE
+                );
+                shardCountsExceedingPrioritisationThresholdValues.add(new LongWithAttributes(shardsExceedingThreshold, nodeAttrs));
+            }
             shardWriteLoadSumValues.add(new DoubleWithAttributes(totalShardWriteLoad, nodeAttrs));
         }
 

@@ -25,13 +25,13 @@ import org.apache.lucene.search.KnnCollector;
  */
 public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCollector {
 
-    private static final double DEFAULT_DISCOVERY_RATE_SMOOTHING = 0.1;
-    private static final double DEFAULT_THRESHOLD_LOOSENESS = 0.1;
-    private static final double DEFAULT_PATIENCE_SCALING = 10.0;
+    private static final float DEFAULT_DISCOVERY_RATE_SMOOTHING = 0.1f;
+    private static final float DEFAULT_THRESHOLD_LOOSENESS = 0.1f;
+    private static final float DEFAULT_PATIENCE_SCALING = 10.0f;
 
-    private final double discoveryRateSmoothing;
-    private final double thresholdLooseness;
-    private final double patienceScaling;
+    private final float discoveryRateSmoothing;
+    private final float thresholdLooseness;
+    private final float patienceScaling;
 
     private final KnnCollector delegate;
     private boolean patienceFinished = false;
@@ -39,20 +39,19 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
     private int previousQueueSize = 0;
     private int currentQueueSize = 0;
 
-    private double smoothedDiscoveryRate = 0.0;
-    private double mean = 0.0;
-    private double m2 = 0.0;
+    private float smoothedDiscoveryRate = 0.0f;
+    private float mean = 0.0f;
+    private float m2 = 0.0f;
     private int samples = 0;
     private int steps = 0;
 
-    /** How many consecutive saturated steps */
     private int saturatedCount = 0;
 
     public AdaptiveHnswQueueSaturationCollector(
         KnnCollector delegate,
-        double discoveryRateSmoothing,
-        double thresholdLooseness,
-        double patienceScaling
+        float discoveryRateSmoothing,
+        float thresholdLooseness,
+        float patienceScaling
     ) {
         super(delegate, 0, 0);
         this.delegate = delegate;
@@ -81,15 +80,15 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
     }
 
     public void nextCandidate() {
-        double discoveryRate = (currentQueueSize - previousQueueSize) / (1e-9 + steps);
-        double rate = Math.max(0, discoveryRate);
+        float discoveryRate = (float) ((currentQueueSize - previousQueueSize) / (1e-9 + steps));
+        float rate = Math.max(0, discoveryRate);
 
         // exponentially smoothed discovery rate
         smoothedDiscoveryRate = discoveryRateSmoothing * rate + (1 - discoveryRateSmoothing) * smoothedDiscoveryRate;
 
         // rolling mean + variance
         samples++;
-        double deltaMean = smoothedDiscoveryRate - mean;
+        float deltaMean = smoothedDiscoveryRate - mean;
         mean += deltaMean / samples;
         m2 += deltaMean * (smoothedDiscoveryRate - mean);
 

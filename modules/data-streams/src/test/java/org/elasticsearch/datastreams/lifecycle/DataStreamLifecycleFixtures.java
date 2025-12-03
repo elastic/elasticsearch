@@ -148,12 +148,12 @@ public class DataStreamLifecycleFixtures {
         ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsampling = randomResettable(
             DataStreamLifecycleFixtures::randomDownsamplingRounds
         );
-        return DataStreamLifecycle.createDataLifecycleTemplate(
-            frequently(),
-            randomResettable(ESTestCase::randomTimeValue),
-            downsampling,
-            randomResettable(() -> randomSamplingMethod(downsampling.get()))
-        );
+        return DataStreamLifecycle.dataLifecycleBuilder()
+            .enabled(frequently())
+            .dataRetention(randomResettable(ESTestCase::randomTimeValue))
+            .downsamplingRounds(downsampling)
+            .downsamplingMethod(randomResettable(() -> randomSamplingMethod(downsampling.get())))
+            .buildTemplate();
     }
 
     public static <T> ResettableValue<T> randomResettable(Supplier<T> supplier) {

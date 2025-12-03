@@ -1,0 +1,5 @@
+pr: 138989
+summary: Auto prefiltering for queries on dense `semantic_text` fields
+area: Relevance
+type: bug
+issues: []

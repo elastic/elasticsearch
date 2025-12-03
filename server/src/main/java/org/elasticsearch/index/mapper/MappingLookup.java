@@ -366,18 +366,16 @@ public final class MappingLookup {
     }
 
     private void checkNestedFieldsLimit(long limit) {
-        long actualNestedFields = 0;
-        for (ObjectMapper objectMapper : objectMappers.values()) {
-            if (objectMapper.isNested()) {
-                actualNestedFields++;
-            }
-        }
-        if (actualNestedFields > limit) {
+        if (nestedLookup.getNestedMappers().size() > limit) {
             throw new IllegalArgumentException("Limit of nested fields [" + limit + "] has been exceeded");
         }
     }
 
     private void checkNestedParentsLimit(long limit) {
+        if (nestedLookup.getNestedMappers().size() < limit) {
+            return;
+        }
+
         Set<Query> nestedPaths = new HashSet<>();
         for (var nested : nestedLookup.getNestedMappers().values()) {
             nestedPaths.add(nested.parentTypeFilter());

@@ -501,8 +501,8 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.codec.vectors.reflect; // to org.elasticsearch.gpu;
     exports org.elasticsearch.index.codec.vectors.es818 to org.elasticsearch.test.knn;
     exports org.elasticsearch.inference.telemetry;
-    exports org.elasticsearch.index.codec.vectors.diskbbq to org.elasticsearch.test.knn;
-    exports org.elasticsearch.index.codec.vectors.diskbbq.next to org.elasticsearch.test.knn;
+    exports org.elasticsearch.index.codec.vectors.diskbbq to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
+    exports org.elasticsearch.index.codec.vectors.diskbbq.next to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
     exports org.elasticsearch.index.codec.vectors.cluster to org.elasticsearch.test.knn;
     exports org.elasticsearch.index.codec.vectors.es93 to org.elasticsearch.test.knn;
     exports org.elasticsearch.search.crossproject;

@@ -239,7 +239,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                 64,
                 true,
                 DenseVectorFieldMapper.VectorSimilarity.COSINE,
-                DenseVectorFieldMapper.VectorIndexType.FLAT.parseIndexOptions("vector_value", new HashMap<>(), IndexVersion.current()),
+                DenseVectorFieldMapper.VectorIndexType.FLAT.parseIndexOptions("vector_value", new HashMap<>(), IndexVersion.current(), List.of()),
                 new HashMap<>(),
                 false
             );

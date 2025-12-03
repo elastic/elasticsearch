@@ -7,8 +7,12 @@
 
 package org.elasticsearch.xpack.diskbbq;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
@@ -35,11 +39,31 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
     @Override
     public VectorsFormatProvider getVectorsFormatProvider() {
         return (indexSettings, options, similarity) -> {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT)
-                && DISK_BBQ_FEATURE.check(getLicenseState()) == false) {
-                throw LicenseUtils.newComplianceException(DISK_BBQ_FEATURE.getName());
+            if (options instanceof DenseVectorFieldMapper.BBQIVFIndexOptions diskbbq) {
+                if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT)
+                    && DISK_BBQ_FEATURE.check(getLicenseState()) == false) {
+                    throw LicenseUtils.newComplianceException(DISK_BBQ_FEATURE.getName());
+                }
+                int clusterSize = diskbbq.getClusterSize();
+                DenseVectorFieldMapper.ElementType elementType = DenseVectorFieldMapper.ElementType.FLOAT;
+                boolean onDiskRescore = diskbbq.isOnDiskRescore();
+                if (Build.current().isSnapshot()) {
+                    return new ESNextDiskBBQVectorsFormat(
+                        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                        clusterSize,
+                        ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                        elementType,
+                        onDiskRescore
+                    );
+                }
+                return new ES920DiskBBQVectorsFormat(
+                    clusterSize,
+                    ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                    elementType,
+                    onDiskRescore
+                );
             }
-
+            return null;
         };
     }
 

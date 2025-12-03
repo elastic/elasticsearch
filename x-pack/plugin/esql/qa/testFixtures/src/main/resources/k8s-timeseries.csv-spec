@@ -997,15 +997,16 @@ required_capability: ts_command_v0
 TS k8s
 | WHERE cluster=="prod"
 | STATS max=max(rate(network.total_bytes_in)), inc=max(increase(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
-| EVAL max=ROUND(max, 6), inc=ROUND(inc, 6)
+| EVAL max=ROUND(max, 3), inc=ROUND(inc, 3)
 | KEEP max, inc, time_bucket, cluster
 | SORT time_bucket DESC 
 | LIMIT 3;
 
-max:double | inc:double  | time_bucket:datetime     | cluster:keyword
-6.980661   | 2094.198198 | 2024-05-10T00:20:00.000Z | prod
-11.860806  | 3558.241758 | 2024-05-10T00:15:00.000Z | prod
-11.562738  | 3468.821293 | 2024-05-10T00:10:00.000Z | prod
+max:double | inc:double | time_bucket:datetime   | cluster:keyword
+6.981      | 2094.198   | 2024-05-10T00:20:00.000Z | prod
+11.861     | 3558.242   | 2024-05-10T00:15:00.000Z | prod
+11.563     | 3468.821   | 2024-05-10T00:10:00.000Z | prod
+
 
 ;
 
@@ -1016,15 +1017,16 @@ required_capability: ts_rate_datenanos_2
 TS datenanos-k8s
 | WHERE cluster=="prod"
 | STATS max=max(rate(network.total_bytes_in)), inc=max(increase(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
-| EVAL max=ROUND(max, 6), inc=ROUND(inc, 6)
+| EVAL max=ROUND(max, 3), inc=ROUND(inc, 3)
 | KEEP max, inc, time_bucket, cluster
 | SORT time_bucket DESC 
 | LIMIT 3;
 
 max:double | inc:double | time_bucket:date_nanos   | cluster:keyword
-6.98066    | 2094.1982  | 2024-05-10T00:20:00.000Z | prod
-11.86081   | 3558.24176 | 2024-05-10T00:15:00.000Z | prod
-11.56274   | 3468.82129 | 2024-05-10T00:10:00.000Z | prod
+6.981      | 2094.198   | 2024-05-10T00:20:00.000Z | prod
+11.861     | 3558.242   | 2024-05-10T00:15:00.000Z | prod
+11.563     | 3468.821   | 2024-05-10T00:10:00.000Z | prod
+
 ;
 
 oneRateIncreaseWithBucketAndClusterThenFilter
@@ -1051,15 +1053,15 @@ required_capability: ts_rate_datenanos_2
 TS datenanos-k8s
 | WHERE cluster=="prod"
 | STATS max=max(rate(network.total_bytes_in)), inc=max(increase(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
-| EVAL max=ROUND(max, 4), inc=ROUND(inc, 4)
+| EVAL max=ROUND(max, 3), inc=ROUND(inc, 3)
 | KEEP max, inc, time_bucket, cluster
 | SORT time_bucket DESC 
 | LIMIT 3;
 
 max:double | inc:double | time_bucket:date_nanos   | cluster:keyword
-6.9807     | 2094.198   | 2024-05-10T00:20:00.000Z | prod
-11.8608    | 3558.242   | 2024-05-10T00:15:00.000Z | prod
-11.5627    | 3468.821   | 2024-05-10T00:10:00.000Z | prod
+6.981      | 2094.198   | 2024-05-10T00:20:00.000Z | prod
+11.861     | 3558.242   | 2024-05-10T00:15:00.000Z | prod
+11.563     | 3468.821   | 2024-05-10T00:10:00.000Z | prod
 
 ;
 

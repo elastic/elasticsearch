@@ -718,6 +718,7 @@ TS k8s METADATA _tsid
 | EVAL maxRate=ROUND(maxRate, 6) | KEEP maxRate, tbucket;
 
 
+
 maxRate:double | tbucket:datetime
 0.05898        | 2024-05-10T00:00:00.000Z
 ;
@@ -1026,3 +1027,39 @@ max:double | inc:double  | time_bucket:date_nanos   | cluster:keyword
 11.562738  | 3468.821293 | 2024-05-10T00:10:00.000Z | prod
 
 ;
+
+oneRateIncreaseWithBucketAndClusterThenFilter
+required_capability: ts_command_v0
+TS k8s
+| WHERE cluster=="prod"
+| STATS max=max(rate(network.total_bytes_in)), inc=max(increase(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
+| EVAL max=ROUND(max, 5), inc=ROUND(inc, 5)
+| KEEP max, inc, time_bucket, cluster
+| SORT time_bucket DESC 
+| LIMIT 3;
+
+max:double | inc:double | time_bucket:datetime     | cluster:keyword
+6.98066    | 2094.1982  | 2024-05-10T00:20:00.000Z | prod
+11.86081   | 3558.24176 | 2024-05-10T00:15:00.000Z | prod
+11.56274   | 3468.82129 | 2024-05-10T00:10:00.000Z | prod
+
+;
+
+dateNanosOneRateIncreaseWithBucketAndClusterThenFilter
+required_capability: ts_command_v0
+required_capability: ts_rate_datenanos_2
+
+TS datenanos-k8s
+| WHERE cluster=="prod"
+| STATS max=max(rate(network.total_bytes_in)), inc=max(increase(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
+| EVAL max=ROUND(max, 5), inc=ROUND(inc, 5)
+| KEEP max, inc, time_bucket, cluster
+| SORT time_bucket DESC 
+| LIMIT 3;
+
+max:double | inc:double | time_bucket:date_nanos     | cluster:keyword
+6.98065    | 2094.19643 | 2024-05-10T00:20:00.000Z | prod
+11.86081   | 3558.24176 | 2024-05-10T00:15:00.000Z | prod
+11.56274   | 3468.82129 | 2024-05-10T00:10:00.000Z | prod
+;
+

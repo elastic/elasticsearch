@@ -86,7 +86,12 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
     private final boolean isRateOverTime;
     private final int dateFactor;
 
-    public RateDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, boolean isRateOverTime, boolean isDateNanos) {
+    public RateDoubleGroupingAggregatorFunction(
+        List<Integer> channels,
+        DriverContext driverContext,
+        boolean isRateOverTime,
+        boolean isDateNanos
+    ) {
         this.channels = channels;
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
@@ -585,7 +590,13 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
                 }
                 final double rate;
                 if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                    rate = extrapolateRate(state, tsContext.rangeStartInMillis(group) / 1000.0, tsContext.rangeEndInMillis(group) / 1000.0, isRateOverTime, dateFactor);
+                    rate = extrapolateRate(
+                        state,
+                        tsContext.rangeStartInMillis(group) / 1000.0,
+                        tsContext.rangeEndInMillis(group) / 1000.0,
+                        isRateOverTime,
+                        dateFactor
+                    );
                 } else {
                     rate = computeRateWithoutExtrapolate(state, isRateOverTime);
                 }
@@ -678,7 +689,13 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
      * We still extrapolate the rate in this case, but not all the way to the boundary, only by half of the average duration between
      * samples (which is our guess for where the series actually starts or ends).
      */
-    private static double extrapolateRate(ReducedState state, double rangeStartSec, double rangeEndSec, boolean isRateOverTime, int dateFactor) {
+    private static double extrapolateRate(
+        ReducedState state,
+        double rangeStartSec,
+        double rangeEndSec,
+        boolean isRateOverTime,
+        int dateFactor
+    ) {
         assert state.samples >= 2 : "rate requires at least two samples; got " + state.samples;
         final double firstTsSec = state.intervals[state.intervals.length - 1].t2 / dateFactor;
         final double lastTsSec = state.intervals[0].t1 / dateFactor;

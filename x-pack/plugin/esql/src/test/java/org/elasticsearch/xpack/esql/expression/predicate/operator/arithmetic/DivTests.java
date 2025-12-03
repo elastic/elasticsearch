@@ -161,6 +161,38 @@ public class DivTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        // Overflows
+        suppliers.addAll(
+            List.of(
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(0.1, DataType.DOUBLE, "rhs")
+                        ),
+                        "DivDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: Infinity")
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(0.1, DataType.DOUBLE, "rhs")
+                        ),
+                        "DivDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: -Infinity")
+                )
+            )
+        );
+
         suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), DivTests::divErrorMessageString);
 
         // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial

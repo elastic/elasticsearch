@@ -1,3 +1,12 @@
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /{index}/_downsample/{target_index}
+          capabilities: ['downsample.multi_field_fix']
+      test_runner_features: [ "capabilities" ]
+      reason: Requires the fix for downsampling multi fields
+
 ---
 "Downsample index with multi-fields":
   - do:

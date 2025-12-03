@@ -25,14 +25,22 @@ public final class SamlAuthenticateResponse extends ActionResponse {
     private final String realm;
     private final TimeValue expiresIn;
     private final Authentication authentication;
+    private final String inResponseTo;
 
-    public SamlAuthenticateResponse(Authentication authentication, String tokenString, String refreshToken, TimeValue expiresIn) {
+    public SamlAuthenticateResponse(
+        Authentication authentication,
+        String tokenString,
+        String refreshToken,
+        TimeValue expiresIn,
+        String inResponseTo
+    ) {
         this.principal = authentication.getEffectiveSubject().getUser().principal();
         this.realm = authentication.getEffectiveSubject().getRealm().getName();
         this.tokenString = tokenString;
         this.refreshToken = refreshToken;
         this.expiresIn = expiresIn;
         this.authentication = authentication;
+        this.inResponseTo = inResponseTo;
     }
 
     public String getPrincipal() {
@@ -59,6 +67,10 @@ public final class SamlAuthenticateResponse extends ActionResponse {
         return authentication;
     }
 
+    public String getInResponseTo() {
+        return inResponseTo;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(principal);
@@ -67,5 +79,6 @@ public final class SamlAuthenticateResponse extends ActionResponse {
         out.writeString(refreshToken);
         out.writeTimeValue(expiresIn);
         authentication.writeTo(out);
+        out.writeString(inResponseTo);
     }
 }

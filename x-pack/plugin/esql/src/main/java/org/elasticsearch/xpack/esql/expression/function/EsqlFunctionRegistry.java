@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AllFirst;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AllLast;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Delta;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Deriv;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Idelta;
@@ -70,7 +73,6 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
@@ -365,7 +367,7 @@ public class EsqlFunctionRegistry {
                 def(StdDev.class, uni(StdDev::new), "std_dev"),
                 def(Variance.class, uni(Variance::new), "variance", "std_var"),
                 def(Sum.class, uni(Sum::new), "sum"),
-                def(Top.class, tri(Top::new), "top"),
+                def(Top.class, quad(Top::new), "top"),
                 def(Values.class, uni(Values::new), "values"),
                 def(WeightedAvg.class, bi(WeightedAvg::new), "weighted_avg"),
                 def(Present.class, uni(Present::new), "present"),
@@ -432,10 +434,11 @@ public class EsqlFunctionRegistry {
                 def(Trim.class, Trim::new, "trim"),
                 def(UrlEncode.class, UrlEncode::new, "url_encode"),
                 def(UrlEncodeComponent.class, UrlEncodeComponent::new, "url_encode_component"),
-                def(UrlDecode.class, UrlDecode::new, "url_decode") },
+                def(UrlDecode.class, UrlDecode::new, "url_decode"),
+                def(Chunk.class, bi(Chunk::new), "chunk") },
             // date
             new FunctionDefinition[] {
-                def(DateDiff.class, DateDiff::new, "date_diff"),
+                def(DateDiff.class, tric(DateDiff::new), "date_diff"),
                 def(DateExtract.class, DateExtract::new, "date_extract"),
                 def(DateFormat.class, DateFormat::new, "date_format"),
                 def(DateParse.class, DateParse::new, "date_parse"),
@@ -522,32 +525,33 @@ public class EsqlFunctionRegistry {
             // fulltext functions
             new FunctionDefinition[] {
                 def(Decay.class, quad(Decay::new), "decay"),
-                def(Kql.class, bi(Kql::new), "kql"),
+                def(Kql.class, bic(Kql::new), "kql"),
                 def(Knn.class, tri(Knn::new), "knn"),
                 def(Match.class, tri(Match::new), "match"),
                 def(MultiMatch.class, MultiMatch::new, "multi_match"),
-                def(QueryString.class, bi(QueryString::new), "qstr"),
+                def(QueryString.class, bic(QueryString::new), "qstr"),
                 def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase"),
                 def(Score.class, uni(Score::new), "score") },
             // time-series functions
             new FunctionDefinition[] {
-                defTS(Rate.class, bi(Rate::new), "rate"),
+                defTS3(Rate.class, Rate::new, "rate"),
                 defTS(Irate.class, bi(Irate::new), "irate"),
                 defTS(Idelta.class, bi(Idelta::new), "idelta"),
                 defTS(Delta.class, bi(Delta::new), "delta"),
                 defTS(Increase.class, bi(Increase::new), "increase"),
-                def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
-                def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
-                def(SumOverTime.class, uni(SumOverTime::new), "sum_over_time"),
+                defTS(Deriv.class, bi(Deriv::new), "deriv"),
+                def(MaxOverTime.class, bi(MaxOverTime::new), "max_over_time"),
+                def(MinOverTime.class, bi(MinOverTime::new), "min_over_time"),
+                def(SumOverTime.class, bi(SumOverTime::new), "sum_over_time"),
                 def(StdDevOverTime.class, uni(StdDevOverTime::new), "stddev_over_time"),
                 def(VarianceOverTime.class, uni(VarianceOverTime::new), "variance_over_time", "stdvar_over_time"),
-                def(CountOverTime.class, uni(CountOverTime::new), "count_over_time"),
+                def(CountOverTime.class, bi(CountOverTime::new), "count_over_time"),
                 def(CountDistinctOverTime.class, bi(CountDistinctOverTime::new), "count_distinct_over_time"),
                 def(PresentOverTime.class, uni(PresentOverTime::new), "present_over_time"),
                 def(AbsentOverTime.class, uni(AbsentOverTime::new), "absent_over_time"),
-                def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
-                defTS(LastOverTime.class, bi(LastOverTime::new), "last_over_time"),
-                defTS(FirstOverTime.class, bi(FirstOverTime::new), "first_over_time"),
+                def(AvgOverTime.class, bi(AvgOverTime::new), "avg_over_time"),
+                defTS3(LastOverTime.class, LastOverTime::new, "last_over_time"),
+                defTS3(FirstOverTime.class, FirstOverTime::new, "first_over_time"),
                 def(PercentileOverTime.class, bi(PercentileOverTime::new), "percentile_over_time"),
                 // dense vector function
                 def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
@@ -560,6 +564,8 @@ public class EsqlFunctionRegistry {
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
                 def(First.class, bi(First::new), "first"),
+                def(AllFirst.class, bi(AllFirst::new), "all_first"),
+                def(AllLast.class, bi(AllLast::new), "all_last"),
                 def(Last.class, bi(Last::new), "last"),
                 def(Term.class, bi(Term::new), "term"),
                 def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
@@ -567,8 +573,7 @@ public class EsqlFunctionRegistry {
                 def(L1Norm.class, L1Norm::new, "v_l1_norm"),
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
-                def(Hamming.class, Hamming::new, "v_hamming"),
-                def(Chunk.class, bi(Chunk::new), "chunk") } };
+                def(Hamming.class, Hamming::new, "v_hamming") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -775,7 +780,7 @@ public class EsqlFunctionRegistry {
         if (TimestampAware.class.isAssignableFrom(def.clazz())) {
             countOfParamsToDescribe--; // skip the implicit @timestamp parameter (last or last before Configuration)
         }
-        if (EsqlConfigurationFunction.class.isAssignableFrom(def.clazz())) {
+        if (ConfigurationFunction.class.isAssignableFrom(def.clazz())) {
             // this isn't enforced by the contract, but the convention is: func(..., Expression timestamp, Configuration config)
             assert Configuration.class.isAssignableFrom(params[params.length - 1].getType())
                 : "The configuration parameter must be the last argument of an EsqlConfigurationFunction definition";
@@ -1256,7 +1261,11 @@ public class EsqlFunctionRegistry {
      * Build a {@linkplain FunctionDefinition} for a ternary function that is configuration aware.
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected <T extends Function> FunctionDefinition def(Class<T> function, TernaryConfigurationAwareBuilder<T> ctorRef, String... names) {
+    protected static <T extends Function> FunctionDefinition def(
+        Class<T> function,
+        TernaryConfigurationAwareBuilder<T> ctorRef,
+        String... names
+    ) {
         FunctionBuilder builder = (source, children, cfg) -> {
             checkIsOptionalTriFunction(function, children.size());
             return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null, cfg);
@@ -1268,11 +1277,51 @@ public class EsqlFunctionRegistry {
         T build(Source source, Expression one, Expression two, Expression three, Configuration configuration);
     }
 
+    /**
+     * Build a {@linkplain FunctionDefinition} for a quaternary function that is configuration aware.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(
+        Class<T> function,
+        QuaternaryConfigurationAwareBuilder<T> ctorRef,
+        String... names
+    ) {
+        FunctionBuilder builder = (source, children, cfg) -> {
+            checkIsOptionalQuadFunction(function, children.size());
+            return ctorRef.build(
+                source,
+                children.get(0),
+                children.get(1),
+                children.size() > 2 ? children.get(2) : null,
+                children.size() > 3 ? children.get(3) : null,
+                cfg
+            );
+        };
+        return def(function, builder, names);
+    }
+
+    protected interface QuaternaryConfigurationAwareBuilder<T> {
+        T build(Source source, Expression one, Expression two, Expression three, Expression four, Configuration configuration);
+    }
+
     protected static <T extends Function> FunctionDefinition defTS(Class<T> function, BinaryBuilder<T> ctorRef, String... names) {
         checkIsTimestampAware(function);
         FunctionBuilder builder = (source, children, cfg) -> {
             checkIsUniFunction(children.size());
             return ctorRef.build(source, children.getFirst(), UnresolvedTimestamp.withSource(source));
+        };
+        return def(function, builder, names);
+    }
+
+    protected static <T extends Function> FunctionDefinition defTS(
+        Class<T> function,
+        BinaryConfigurationAwareBuilder<T> ctorRef,
+        String... names
+    ) {
+        checkIsTimestampAware(function);
+        FunctionBuilder builder = (source, children, cfg) -> {
+            checkIsUniFunction(children.size());
+            return ctorRef.build(source, children.getFirst(), UnresolvedTimestamp.withSource(source), cfg);
         };
         return def(function, builder, names);
     }
@@ -1296,11 +1345,29 @@ public class EsqlFunctionRegistry {
         return def(function, builder, names);
     }
 
+    protected static <T extends Function> FunctionDefinition defTS3(Class<T> function, TernaryBuilder<T> ctorRef, String... names) {
+        checkIsTimestampAware(function);
+        FunctionBuilder builder = (source, children, cfg) -> {
+            checkIsOptionalBiFunction(function, children.size());
+            return ctorRef.build(
+                source,
+                children.get(0),
+                children.size() == 2 ? children.get(1) : null,
+                UnresolvedTimestamp.withSource(source)
+            );
+        };
+        return def(function, builder, names);
+    }
+
     //
     // Utility functions to help disambiguate the method handle passed in.
     // They work by providing additional method information to help the compiler know which method to pick.
     //
     private static <T extends Function> BiFunction<Source, Expression, T> uni(BiFunction<Source, Expression, T> function) {
+        return function;
+    }
+
+    private static <T extends Function> UnaryConfigurationAwareBuilder<T> unic(UnaryConfigurationAwareBuilder<T> function) {
         return function;
     }
 
@@ -1313,6 +1380,10 @@ public class EsqlFunctionRegistry {
     }
 
     private static <T extends Function> TernaryBuilder<T> tri(TernaryBuilder<T> function) {
+        return function;
+    }
+
+    private static <T extends Function> TernaryConfigurationAwareBuilder<T> tric(TernaryConfigurationAwareBuilder<T> function) {
         return function;
     }
 
@@ -1350,6 +1421,20 @@ public class EsqlFunctionRegistry {
             throw new QlIllegalArgumentException("expects two or three arguments");
         } else if (hasMinimumOne == false && hasMinimumTwo == false && childrenSize != 3) {
             throw new QlIllegalArgumentException("expects exactly three arguments");
+        }
+    }
+
+    private static void checkIsOptionalQuadFunction(Class<? extends Function> function, int childrenSize) {
+        if (OptionalArgument.class.isAssignableFrom(function)) {
+            if (childrenSize > 4 || childrenSize < 3) {
+                throw new QlIllegalArgumentException("expects three or four arguments");
+            }
+        } else if (TwoOptionalArguments.class.isAssignableFrom(function)) {
+            if (childrenSize > 4 || childrenSize < 2) {
+                throw new QlIllegalArgumentException("expects minimum two, maximum four arguments");
+            }
+        } else if (childrenSize != 4) {
+            throw new QlIllegalArgumentException("expects exactly four arguments");
         }
     }
 }

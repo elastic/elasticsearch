@@ -76,7 +76,7 @@ dependencies {
   testImplementation project(':modules:mapper-extras')
 
   // security deps
-  api 'com.unboundid:unboundid-ldapsdk:6.0.3'
+  api "com.unboundid:unboundid-ldapsdk:${versions.ldapsdk}"
 
   implementation project(":x-pack:plugin:core:template-resources")
 

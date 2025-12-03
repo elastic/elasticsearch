@@ -1,0 +1,5 @@
+pr: 138738
+summary: Add node scoped `vectors.indexing.use_gpu` setting
+area: Vector Search
+type: enhancement
+issues: []

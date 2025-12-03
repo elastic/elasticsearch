@@ -31,9 +31,11 @@ import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconf
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_MULTILINGUAL_EMBED_MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_RERANK_ENDPOINT_ID_V1;
-import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_RERANK_MODEL_ID_V1;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_RERANK_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_RERANK_MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DENSE_TEXT_EMBEDDINGS_DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.GP_LLM_V2_MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.defaultDenseTextEmbeddingsSimilarity;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
@@ -45,6 +47,8 @@ public class PreconfiguredEndpointModelAdapterTests extends ESTestCase {
         new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null);
     private static final ElasticInferenceServiceCompletionServiceSettings COMPLETION_SETTINGS =
         new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
+    private static final ElasticInferenceServiceCompletionServiceSettings GP_LLM_V2_COMPLETION_SETTINGS =
+        new ElasticInferenceServiceCompletionServiceSettings(GP_LLM_V2_MODEL_ID);
     private static final ElasticInferenceServiceDenseTextEmbeddingsServiceSettings DENSE_SETTINGS =
         new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
             DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
@@ -53,15 +57,16 @@ public class PreconfiguredEndpointModelAdapterTests extends ESTestCase {
             null
         );
     private static final ElasticInferenceServiceRerankServiceSettings RERANK_SETTINGS = new ElasticInferenceServiceRerankServiceSettings(
-        DEFAULT_RERANK_MODEL_ID_V1
+        DEFAULT_RERANK_MODEL_ID
     );
     private static final ElasticInferenceServiceComponents EIS_COMPONENTS = new ElasticInferenceServiceComponents("");
 
     public void testGetModelsWithValidId() {
         var endpointIds = Set.of(
             DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
+            GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID,
             DEFAULT_ELSER_ENDPOINT_ID_V2,
-            DEFAULT_RERANK_ENDPOINT_ID_V1,
+            DEFAULT_RERANK_ENDPOINT_ID,
             DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID
         );
         var models = PreconfiguredEndpointModelAdapter.getModels(endpointIds, EIS_COMPONENTS);
@@ -96,6 +101,18 @@ public class PreconfiguredEndpointModelAdapterTests extends ESTestCase {
                 ),
                 new ElasticInferenceServiceModel(
                     new ModelConfigurations(
+                        GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID,
+                        TaskType.CHAT_COMPLETION,
+                        ElasticInferenceService.NAME,
+                        GP_LLM_V2_COMPLETION_SETTINGS,
+                        ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                    ),
+                    new ModelSecrets(EmptySecretSettings.INSTANCE),
+                    GP_LLM_V2_COMPLETION_SETTINGS,
+                    EIS_COMPONENTS
+                ),
+                new ElasticInferenceServiceModel(
+                    new ModelConfigurations(
                         DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID,
                         TaskType.TEXT_EMBEDDING,
                         ElasticInferenceService.NAME,
@@ -108,7 +125,7 @@ public class PreconfiguredEndpointModelAdapterTests extends ESTestCase {
                 ),
                 new ElasticInferenceServiceModel(
                     new ModelConfigurations(
-                        DEFAULT_RERANK_ENDPOINT_ID_V1,
+                        DEFAULT_RERANK_ENDPOINT_ID,
                         TaskType.RERANK,
                         ElasticInferenceService.NAME,
                         RERANK_SETTINGS,

@@ -121,29 +121,29 @@ public abstract class AbstractTestInferenceService implements InferenceService {
 
     protected List<ChunkedInput> chunkInputs(ChunkInferenceInput input) {
         ChunkingSettings chunkingSettings = input.chunkingSettings();
-        String inputText = input.input();
-        if (chunkingSettings == null) {
-            return List.of(new ChunkedInput(inputText, 0, inputText.length()));
+        String inputString = input.input().value();
+        if (chunkingSettings == null || input.input().isText() == false) {
+            return List.of(new ChunkedInput(inputString, 0, inputString.length()));
         }
 
         List<ChunkedInput> chunkedInputs = new ArrayList<>();
         if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.NONE) {
-            var offsets = NoopChunker.INSTANCE.chunk(input.input(), chunkingSettings);
+            var offsets = NoopChunker.INSTANCE.chunk(inputString, chunkingSettings);
             List<ChunkedInput> ret = new ArrayList<>();
             for (var offset : offsets) {
-                ret.add(new ChunkedInput(inputText.substring(offset.start(), offset.end()), offset.start(), offset.end()));
+                ret.add(new ChunkedInput(inputString.substring(offset.start(), offset.end()), offset.start(), offset.end()));
             }
             return ret;
         } else if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.WORD) {
             WordBoundaryChunker chunker = new WordBoundaryChunker();
             WordBoundaryChunkingSettings wordBoundaryChunkingSettings = (WordBoundaryChunkingSettings) chunkingSettings;
             List<WordBoundaryChunker.ChunkOffset> offsets = chunker.chunk(
-                inputText,
+                inputString,
                 wordBoundaryChunkingSettings.maxChunkSize(),
                 wordBoundaryChunkingSettings.overlap()
             );
             for (WordBoundaryChunker.ChunkOffset offset : offsets) {
-                chunkedInputs.add(new ChunkedInput(inputText.substring(offset.start(), offset.end()), offset.start(), offset.end()));
+                chunkedInputs.add(new ChunkedInput(inputString.substring(offset.start(), offset.end()), offset.start(), offset.end()));
             }
 
         } else {

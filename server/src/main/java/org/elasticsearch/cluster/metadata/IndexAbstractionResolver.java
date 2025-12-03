@@ -74,7 +74,8 @@ public class IndexAbstractionResolver {
         final Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
         final BiPredicate<String, IndexComponentSelector> isAuthorized,
         final TargetProjects targetProjects,
-        final boolean includeDataStreams
+        final boolean includeDataStreams,
+        @Nullable final String projectRouting
     ) {
         if (targetProjects == TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED) {
             final String message = "cannot resolve indices cross project if target set is local only";
@@ -88,7 +89,7 @@ public class IndexAbstractionResolver {
         boolean wildcardSeen = false;
         for (String originalIndexExpression : indices) {
             final CrossProjectIndexExpressionsRewriter.IndexRewriteResult indexRewriteResult = CrossProjectIndexExpressionsRewriter
-                .rewriteIndexExpression(originalIndexExpression, originProjectAlias, linkedProjectAliases);
+                .rewriteIndexExpression(originalIndexExpression, originProjectAlias, linkedProjectAliases, projectRouting);
 
             final String localIndexExpression = indexRewriteResult.localExpression();
             if (localIndexExpression == null) {

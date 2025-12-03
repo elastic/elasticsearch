@@ -382,6 +382,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     public void writeCentroids(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
+        int[] centroidAssignments,
         float[] globalCentroid,
         CentroidOffsetAndLength centroidOffsetAndLength,
         IndexOutput centroidOutput

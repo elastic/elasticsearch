@@ -133,20 +133,19 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
     /**
      * This is the cluster state task executor for cluster state update actions.
+     * Visible for testing
      */
-    private static final SimpleBatchedExecutor<DownsampleClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR =
-        new SimpleBatchedExecutor<>() {
-            @Override
-            public Tuple<ClusterState, Void> executeTask(DownsampleClusterStateUpdateTask task, ClusterState clusterState)
-                throws Exception {
-                return Tuple.tuple(task.execute(clusterState), null);
-            }
+    static final SimpleBatchedExecutor<DownsampleClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR = new SimpleBatchedExecutor<>() {
+        @Override
+        public Tuple<ClusterState, Void> executeTask(DownsampleClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
+            return Tuple.tuple(task.execute(clusterState), null);
+        }
 
-            @Override
-            public void taskSucceeded(DownsampleClusterStateUpdateTask task, Void unused) {
-                task.listener.onResponse(AcknowledgedResponse.TRUE);
-            }
-        };
+        @Override
+        public void taskSucceeded(DownsampleClusterStateUpdateTask task, Void unused) {
+            task.listener.onResponse(AcknowledgedResponse.TRUE);
+        }
+    };
 
     @Inject
     public TransportDownsampleAction(
@@ -840,19 +839,20 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             fieldProperties.get(TIME_SERIES_METRIC_PARAM).toString()
         );
         builder.startObject(field);
-        if (metricType == TimeSeriesParams.MetricType.COUNTER) {
-            // For counters, we keep the same field type, because they store
-            // only one value (the last value of the counter)
-            for (String fieldProperty : fieldProperties.keySet()) {
-                builder.field(fieldProperty, fieldProperties.get(fieldProperty));
-            }
-        } else {
+        if (metricType == TimeSeriesParams.MetricType.GAUGE) {
             var supported = getSupportedMetrics(metricType, fieldProperties);
 
             builder.field("type", AggregateMetricDoubleFieldMapper.CONTENT_TYPE)
                 .stringListField(AggregateMetricDoubleFieldMapper.Names.METRICS, supported.supportedMetrics)
                 .field(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC, supported.defaultMetric)
                 .field(TIME_SERIES_METRIC_PARAM, metricType);
+        } else {
+            // For counters and histograms, we keep the same field type.
+            // Counters because they store the last value (for now)
+            // Histograms because they are merged to a histogram
+            for (String fieldProperty : fieldProperties.keySet()) {
+                builder.field(fieldProperty, fieldProperties.get(fieldProperty));
+            }
         }
         builder.endObject();
     }
@@ -1106,7 +1106,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onFailure(Exception e) {
-            recordSuccessMetrics(startTime);  // Downsampling has already completed in all shards.
             listener.onFailure(e);
         }
 
@@ -1161,6 +1160,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                         logger.debug("Updating downsample index status for [{}]", downsampleIndexName);
                         final ProjectMetadata project = currentState.metadata().getProject(projectId);
                         final IndexMetadata downsampleIndex = project.index(downsampleIndexName);
+                        if (downsampleIndex == null) {
+                            throw new IllegalStateException(
+                                "Failed to update downsample status because [" + downsampleIndexName + "] does not exist"
+                            );
+                        }
                         if (IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(downsampleIndex.getSettings()) == DownsampleTaskStatus.SUCCESS) {
                             return currentState;
                         }
@@ -1182,7 +1186,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onFailure(Exception e) {
-            recordSuccessMetrics(startTime);  // Downsampling has already completed in all shards.
             actionListener.onFailure(e);
         }
 
@@ -1255,8 +1258,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onFailure(Exception e) {
-            recordSuccessMetrics(startTime);
-            logger.debug("Downsampling measured successfully", e);
+            recordFailureMetrics(startTime);
+            logger.debug("Downsampling failure measured successfully", e);
             this.actionListener.onFailure(e);
         }
 

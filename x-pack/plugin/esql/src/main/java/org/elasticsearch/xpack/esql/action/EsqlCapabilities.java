@@ -315,6 +315,16 @@ public class EsqlCapabilities {
         AGG_TOP_WITH_OPTIONAL_ORDER_FIELD,
 
         /**
+         * Support for the extra "map" field in {@code TOP} aggregation.
+         */
+        AGG_TOP_WITH_OUTPUT_FIELD,
+
+        /**
+         * Fix for a bug when surrogating a {@code TOP}  with limit 1 and output field.
+         */
+        FIX_AGG_TOP_WITH_OUTPUT_FIELD_SURROGATE,
+
+        /**
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,
@@ -1033,6 +1043,10 @@ public class EsqlCapabilities {
          */
         @Deprecated
         METRICS_COMMAND(Build.current().isSnapshot()),
+        /**
+         * Enables automatically grouping by all dimension fields in TS mode queries
+         */
+        METRICS_GROUP_BY_ALL(),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -1290,6 +1304,21 @@ public class EsqlCapabilities {
         SET_COMMAND,
 
         /**
+         * Support timezones in DATE_TRUNC and dependent functions.
+         */
+        DATE_TRUNC_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+
+        /**
+         * Support timezones in DATE_DIFF.
+         */
+        DATE_DIFF_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+
+        /**
+         * Support timezones in KQL and QSTR.
+         */
+        KQL_QSTR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+
+        /**
          * (Re)Added EXPLAIN command
          */
         EXPLAIN(Build.current().isSnapshot()),
@@ -1488,6 +1517,8 @@ public class EsqlCapabilities {
          */
         PERCENTILE_OVER_TIME,
         VARIANCE_STDDEV_OVER_TIME,
+        TS_LINREG_DERIVATIVE,
+        TS_RATE_DATENANOS,
         /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011
@@ -1543,14 +1574,11 @@ public class EsqlCapabilities {
         PACK_DIMENSIONS_IN_TS,
 
         /**
-         * Support for exponential_histogram type
+         * Support for exponential_histogram type, before it is released into tech preview.
+         * When implementing changes on this type, we'll simply increment the version suffix at the end to prevent bwc tests from running.
+         * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          */
-        EXPONENTIAL_HISTOGRAM(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
-
-        /**
-         * Support for exponential_histogram type in TOPN
-         */
-        EXPONENTIAL_HISTOGRAM_TOPN(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+        EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V7(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
         /**
          * Create new block when filtering OrdinalBytesRefBlock
@@ -1587,6 +1615,13 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/133462
          */
         PUSHING_DOWN_EVAL_WITH_SCORE,
+
+        /**
+         * Fix for ClassCastException in STATS
+         * https://github.com/elastic/elasticsearch/issues/133992
+         * https://github.com/elastic/elasticsearch/issues/136598
+         */
+        FIX_STATS_CLASSCAST_EXCEPTION,
 
         /**
          * Fix attribute equality to respect the name id of the attribute.
@@ -1631,7 +1666,7 @@ public class EsqlCapabilities {
         /**
          * Chunk function.
          */
-        CHUNK_FUNCTION(Build.current().isSnapshot()),
+        CHUNK_FUNCTION_V2(),
 
         /**
          * Support for vector similarity functtions pushdown
@@ -1641,6 +1676,48 @@ public class EsqlCapabilities {
         FIX_MV_CONSTANT_COMPARISON_FIELD,
 
         FULL_TEXT_FUNCTIONS_ACCEPT_NULL_FIELD,
+
+        /**
+         * Support for the temporary work to eventually allow FIRST to work with null and multi-value fields, among other things.
+         */
+        ALL_FIRST(Build.current().isSnapshot()),
+
+        ALL_LAST(Build.current().isSnapshot()),
+
+        /**
+         * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes
+         */
+        ST_EXTENT_AGG_NULL_SUPPORT,
+
+        /**
+         * Support grouping window in time-series for example: rate(counter, "1m") or avg_over_time(field, "5m")
+         */
+        TIME_SERIES_WINDOW_V1,
+
+        /**
+         * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
+         */
+        LIKE_PARAMETER_SUPPORT,
+
+        /**
+         * PromQL support in ESQL, before it is released into tech preview.
+         * When implementing new functionality or breaking changes,
+         * we'll simply increment the version suffix at the end to prevent bwc tests from running.
+         * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
+         * At this point, we need to add new capabilities for any further changes.
+         */
+        PROMQL_PRE_TECH_PREVIEW_V4(Build.current().isSnapshot()),
+
+        /**
+         * KNN function adds support for k and visit_percentage options
+         */
+        KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,
+
+        /**
+         * Enables automatically grouping by all dimension fields in TS mode queries and outputs the _timeseries column
+         * with all the dimensions.
+         */
+        METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

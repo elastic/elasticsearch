@@ -375,7 +375,7 @@ public final class IndexSortConfig {
             if (fieldData == null) {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]");
             }
-            sortFields[i] = fieldData.sortField(this.indexCreatedVersion, sortSpec.missingValue, mode, null, reverse);
+            sortFields[i] = fieldData.indexSort(this.indexCreatedVersion, sortSpec.missingValue, mode, reverse);
             validateIndexSortField(sortFields[i]);
         }
         return new Sort(sortFields);
@@ -430,6 +430,8 @@ public final class IndexSortConfig {
             return SortField.Type.STRING;
         } else if (sortField instanceof SortedNumericSortField) {
             return ((SortedNumericSortField) sortField).getNumericType();
+        } else if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource fcs) {
+            return fcs.sortType();
         } else {
             return sortField.getType();
         }

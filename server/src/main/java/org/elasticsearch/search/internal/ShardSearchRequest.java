@@ -105,7 +105,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
     /**
      * Additional metadata specific to the resharding feature. See {@link org.elasticsearch.cluster.routing.SplitShardCountSummary}.
      */
-    private final SplitShardCountSummary reshardSplitShardCountSummary;
+    private final SplitShardCountSummary splitShardCountSummary;
 
     public static final TransportVersion SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY = TransportVersion.fromName(
         "shard_search_request_reshard_shard_count_summary"
@@ -151,7 +151,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         @Nullable String clusterAlias,
         ShardSearchContextId readerId,
         TimeValue keepAlive,
-        SplitShardCountSummary reshardSplitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary
     ) {
         this(
             originalIndices,
@@ -172,7 +172,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             computeWaitForCheckpoint(searchRequest.getWaitForCheckpoints(), shardId, shardRequestIndex),
             searchRequest.getWaitForCheckpointsTimeout(),
             searchRequest.isForceSyntheticSource(),
-            reshardSplitShardCountSummary
+            splitShardCountSummary
         );
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
@@ -196,11 +196,18 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
 
     // Used by ValidateQueryAction, ExplainAction, FieldCaps, TermsEnumAction, lookup join in ESQL
     public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter) {
-        this(shardId, nowInMillis, aliasFilter, null);
+        // TODO fix SplitShardCountSummary
+        this(shardId, nowInMillis, aliasFilter, null, SplitShardCountSummary.UNSET);
     }
 
     // Used by ESQL and field_caps API
-    public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter, String clusterAlias) {
+    public ShardSearchRequest(
+        ShardId shardId,
+        long nowInMillis,
+        AliasFilter aliasFilter,
+        String clusterAlias,
+        SplitShardCountSummary splitShardCountSummary
+    ) {
         this(
             OriginalIndices.NONE,
             shardId,
@@ -220,10 +227,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             SearchService.NO_TIMEOUT,
             false,
-            // This parameter is specific to the resharding feature.
-            // TODO
-            // It is currently only supported in _search API and is stubbed here as a result.
-            SplitShardCountSummary.UNSET
+            splitShardCountSummary
         );
     }
 
@@ -247,7 +251,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         long waitForCheckpoint,
         TimeValue waitForCheckpointsTimeout,
         boolean forceSyntheticSource,
-        SplitShardCountSummary reshardSplitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary
     ) {
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -269,7 +273,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         this.waitForCheckpoint = waitForCheckpoint;
         this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
         this.forceSyntheticSource = forceSyntheticSource;
-        this.reshardSplitShardCountSummary = reshardSplitShardCountSummary;
+        this.splitShardCountSummary = splitShardCountSummary;
     }
 
     @SuppressWarnings("this-escape")
@@ -295,7 +299,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         this.waitForCheckpoint = clone.waitForCheckpoint;
         this.waitForCheckpointsTimeout = clone.waitForCheckpointsTimeout;
         this.forceSyntheticSource = clone.forceSyntheticSource;
-        this.reshardSplitShardCountSummary = clone.reshardSplitShardCountSummary;
+        this.splitShardCountSummary = clone.splitShardCountSummary;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -363,9 +367,9 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             forceSyntheticSource = false;
         }
         if (in.getTransportVersion().supports(SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
-            reshardSplitShardCountSummary = SplitShardCountSummary.fromInt(in.readVInt());
+            splitShardCountSummary = new SplitShardCountSummary(in);
         } else {
-            reshardSplitShardCountSummary = SplitShardCountSummary.UNSET;
+            splitShardCountSummary = SplitShardCountSummary.UNSET;
         }
 
         originalIndices = OriginalIndices.readOriginalIndices(in);
@@ -429,7 +433,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             }
         }
         if (out.getTransportVersion().supports(SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
-            out.writeVInt(reshardSplitShardCountSummary.asInt());
+            splitShardCountSummary.writeTo(out);
         }
     }
 
@@ -586,6 +590,10 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
 
     public String getClusterAlias() {
         return clusterAlias;
+    }
+
+    public SplitShardCountSummary getSplitShardCountSummary() {
+        return splitShardCountSummary;
     }
 
     @Override

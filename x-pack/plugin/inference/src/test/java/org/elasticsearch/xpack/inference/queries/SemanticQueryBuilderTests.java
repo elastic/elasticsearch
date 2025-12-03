@@ -277,7 +277,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         Query innerQuery = assertOuterBooleanQuery(query);
 
         Class<? extends Query> expectedKnnQueryClass = switch (denseVectorElementType) {
-            case FLOAT -> KnnFloatVectorQuery.class;
+            case FLOAT, BFLOAT16 -> KnnFloatVectorQuery.class;
             case BYTE, BIT -> KnnByteVectorQuery.class;
         };
         assertThat(innerQuery, instanceOf(expectedKnnQueryClass));

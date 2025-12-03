@@ -59,6 +59,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
 
 /**
  * A field mapper for boolean fields.
@@ -79,7 +80,7 @@ public class BooleanFieldMapper extends FieldMapper {
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<Boolean> nullValue = new Parameter<>(
@@ -117,20 +118,9 @@ public class BooleanFieldMapper extends FieldMapper {
                 IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
             );
             this.script.precludesParameters(ignoreMalformed, nullValue);
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).fieldType().isDimension(), docValues::get);
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
             addScriptValidation(script, indexed, docValues);
-            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).fieldType().isDimension()).addValidator(v -> {
-                if (v && (indexed.getValue() == false || docValues.getValue() == false)) {
-                    throw new IllegalArgumentException(
-                        "Field ["
-                            + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM
-                            + "] requires that ["
-                            + indexed.name
-                            + "] and ["
-                            + docValues.name
-                            + "] are true"
-                    );
-                }
-            });
         }
 
         public Builder dimension(boolean dimension) {
@@ -152,6 +142,20 @@ public class BooleanFieldMapper extends FieldMapper {
                 dimension };
         }
 
+        private IndexType indexType() {
+            if (indexed.get() && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false) {
+                return IndexType.terms(true, docValues.getValue());
+            }
+            if (docValues.get() == false) {
+                return IndexType.NONE;
+            }
+            if (indexSettings.useDocValuesSkipper()
+                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
+                return IndexType.skippers();
+            }
+            return useTimeSeriesDocValuesSkippers(indexSettings, dimension.get()) ? IndexType.skippers() : IndexType.docValuesOnly();
+        }
+
         @Override
         public BooleanFieldMapper build(MapperBuilderContext context) {
             if (inheritDimensionParameterFromParentObject(context)) {
@@ -159,9 +163,8 @@ public class BooleanFieldMapper extends FieldMapper {
             }
             MappedFieldType ft = new BooleanFieldType(
                 context.buildFullName(leafName()),
-                indexed.getValue() && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false,
+                indexType(),
                 stored.getValue(),
-                docValues.getValue(),
                 nullValue.getValue(),
                 scriptValues(),
                 meta.getValue(),
@@ -215,16 +218,15 @@ public class BooleanFieldMapper extends FieldMapper {
 
         public BooleanFieldType(
             String name,
-            boolean isIndexed,
+            IndexType indexType,
             boolean isStored,
-            boolean hasDocValues,
             Boolean nullValue,
             FieldValues<Boolean> scriptValues,
             Map<String, String> meta,
             boolean isDimension,
             boolean isSyntheticSource
         ) {
-            super(name, isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, indexType, isStored, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
             this.isDimension = isDimension;
@@ -232,15 +234,11 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         public BooleanFieldType(String name) {
-            this(name, true);
+            this(name, IndexType.terms(true, true));
         }
 
-        public BooleanFieldType(String name, boolean isIndexed) {
-            this(name, isIndexed, true);
-        }
-
-        public BooleanFieldType(String name, boolean isIndexed, boolean hasDocValues) {
-            this(name, isIndexed, isIndexed, hasDocValues, false, null, Collections.emptyMap(), false, false);
+        public BooleanFieldType(String name, IndexType indexType) {
+            this(name, indexType, true, false, null, Collections.emptyMap(), false, false);
         }
 
         @Override
@@ -601,7 +599,11 @@ public class BooleanFieldMapper extends FieldMapper {
             context.doc().add(new StoredField(fieldType().name(), value ? "T" : "F"));
         }
         if (hasDocValues) {
-            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
+            if (fieldType().indexType.hasDocValuesSkipper()) {
+                context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), value ? 1 : 0));
+            } else {
+                context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
+            }
         } else {
             context.addToFieldNames(fieldType().name());
         }

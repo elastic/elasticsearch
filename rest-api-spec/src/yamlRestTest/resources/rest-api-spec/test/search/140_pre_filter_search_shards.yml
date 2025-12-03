@@ -240,8 +240,8 @@ setup:
 ---
 "prefilter on non-indexed date fields":
   - requires:
-      cluster_features: "gte_v8.1.0"
-      reason: "doc values search was added in 8.1.0"
+      cluster_features: [ "gte_v8.1.0", "mapper.skippers_on_unindexed_fields" ]
+      reason: "doc values search was added in 8.1.0; skippers allow pre-filtering"
 
   - do:
       index:
@@ -274,7 +274,7 @@ setup:
   - match: { _shards.failed: 0 }
   - match: { hits.total: 2 }
 
-  # this is a case where we would normally skip due to rewrite but we can't because we only have doc values
+  # this is a case where we can use docvalues skippers to pre-filter index_1
   - do:
       search:
         rest_total_hits_as_int: true
@@ -283,6 +283,6 @@ setup:
 
   - match: { _shards.total: 3 }
   - match: { _shards.successful: 3 }
-  - match: { _shards.skipped : 0 }
+  - match: { _shards.skipped : 1 }
   - match: { _shards.failed: 0 }
   - match: { hits.total: 2 }

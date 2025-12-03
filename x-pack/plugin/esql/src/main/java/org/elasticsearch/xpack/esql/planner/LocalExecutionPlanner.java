@@ -380,15 +380,15 @@ public class LocalExecutionPlanner {
         if (physicalOperationProviders instanceof EsPhysicalOperationProviders == false) {
             throw new EsqlIllegalArgumentException("EsStatsQuery should only occur against a Lucene backend");
         }
-        if (statsQuery.stats().size() > 1) {
-            throw new EsqlIllegalArgumentException("EsStatsQuery currently supports only one field statistic");
-        }
-
         // for now only one stat is supported
-        EsStatsQueryExec.Stat stat = statsQuery.stats().get(0);
+        EsStatsQueryExec.Stat stat = statsQuery.stat();
 
         EsPhysicalOperationProviders esProvider = (EsPhysicalOperationProviders) physicalOperationProviders;
-        final LuceneOperator.Factory luceneFactory = esProvider.countSource(context, stat.filter(statsQuery.query()), statsQuery.limit());
+        var queryFunction = switch (stat) {
+            case EsStatsQueryExec.BasicStat basic -> esProvider.querySupplier(basic.filter(statsQuery.query()));
+            case EsStatsQueryExec.ByStat byStat -> esProvider.querySupplier(byStat.queryBuilderAndTags());
+        };
+        final LuceneOperator.Factory luceneFactory = esProvider.countSource(context, queryFunction, stat.tagTypes(), statsQuery.limit());
 
         Layout.Builder layout = new Layout.Builder();
         layout.append(statsQuery.outputSet());

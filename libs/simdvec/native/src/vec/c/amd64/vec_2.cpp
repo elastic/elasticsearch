@@ -7,6 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+ // This file contains implementations for processors supporting "2nd level" vector
+ // capabilities; in the case of x64, this second level is support for AVX-512
+ // instructions.
+
 #include <stddef.h>
 #include <stdint.h>
 #include <math.h>
@@ -47,7 +51,7 @@ inline __m512i fma8(__m512i acc, const int8_t* p1, const int8_t* p2) {
     return _mm512_add_epi32(_mm512_madd_epi16(ones, dot), acc);
 }
 
-static inline int32_t dot7u_inner_avx512(int8_t* a, int8_t* b, size_t dims) {
+static inline int32_t dot7u_inner_avx512(int8_t* a, const int8_t* b, const int32_t dims) {
     constexpr int stride8 = 8 * STRIDE_BYTES_LEN;
     constexpr int stride4 = 4 * STRIDE_BYTES_LEN;
     const int8_t* p1 = a;
@@ -100,8 +104,7 @@ static inline int32_t dot7u_inner_avx512(int8_t* a, int8_t* b, size_t dims) {
     return _mm512_reduce_add_epi32(_mm512_add_epi32(acc0, acc4));
 }
 
-extern "C"
-EXPORT int32_t dot7u_2(int8_t* a, int8_t* b, size_t dims) {
+EXPORT int32_t vec_dot7u_2(int8_t* a, int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > STRIDE_BYTES_LEN) {
@@ -112,6 +115,31 @@ EXPORT int32_t dot7u_2(int8_t* a, int8_t* b, size_t dims) {
         res += a[i] * b[i];
     }
     return res;
+}
+
+EXPORT void vec_dot7u_bulk_2(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    int32_t res = 0;
+    if (dims > STRIDE_BYTES_LEN) {
+        const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
+        for (int32_t c = 0; c < count; c++) {
+            int i = limit;
+            res = dot7u_inner_avx512(a, b, i);
+            for (; i < dims; i++) {
+                res += a[i] * b[i];
+            }
+            results[c] = (f32_t)res;
+            a += dims;
+        }
+    } else {
+        for (int32_t c = 0; c < count; c++) {
+            res = 0;
+            for (int32_t i = 0; i < dims; i++) {
+                res += a[i] * b[i];
+            }
+            results[c] = (f32_t)res;
+            a += dims;
+        }
+    }
 }
 
 template<int offsetRegs>
@@ -128,7 +156,7 @@ inline __m512i sqr8(__m512i acc, const int8_t* p1, const int8_t* p2) {
     return _mm512_add_epi32(_mm512_madd_epi16(ones, sqr_add), acc);
 }
 
-static inline int32_t sqr7u_inner_avx512(int8_t *a, int8_t *b, size_t dims) {
+static inline int32_t sqr7u_inner_avx512(int8_t *a, int8_t *b, const int32_t dims) {
     constexpr int stride8 = 8 * STRIDE_BYTES_LEN;
     constexpr int stride4 = 4 * STRIDE_BYTES_LEN;
     const int8_t* p1 = a;
@@ -181,8 +209,7 @@ static inline int32_t sqr7u_inner_avx512(int8_t *a, int8_t *b, size_t dims) {
     return _mm512_reduce_add_epi32(_mm512_add_epi32(acc0, acc4));
 }
 
-extern "C"
-EXPORT int32_t sqr7u_2(int8_t* a, int8_t* b, size_t dims) {
+EXPORT int32_t vec_sqr7u_2(int8_t* a, int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > STRIDE_BYTES_LEN) {
@@ -198,11 +225,10 @@ EXPORT int32_t sqr7u_2(int8_t* a, int8_t* b, size_t dims) {
 
 // --- single precision floats
 
-// const float *a  pointer to the first float vector
-// const float *b  pointer to the second float vector
-// size_t elementCount  the number of floating point elements
-extern "C"
-EXPORT float cosf32_2(const float *a, const float *b, size_t elementCount) {
+// const f32_t *a  pointer to the first float vector
+// const f32_t *b  pointer to the second float vector
+// const int32_t elementCount  the number of floating point elements
+EXPORT f32_t vec_cosf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     __m512 dot0 = _mm512_setzero_ps();
     __m512 dot1 = _mm512_setzero_ps();
     __m512 dot2 = _mm512_setzero_ps();
@@ -218,9 +244,9 @@ EXPORT float cosf32_2(const float *a, const float *b, size_t elementCount) {
     __m512 norm_b2 = _mm512_setzero_ps();
     __m512 norm_b3 = _mm512_setzero_ps();
 
-    size_t i = 0;
+    int32_t i = 0;
     // Each __m512 holds 16 floats, so unroll 4x = 64 floats per loop
-    size_t unrolled_limit = elementCount & ~63UL;
+    int32_t unrolled_limit = elementCount & ~63UL;
     for (; i < unrolled_limit; i += 64) {
         // Load and compute 4 blocks of 16 elements
         __m512 a0 = _mm512_loadu_ps(a + i);
@@ -253,38 +279,37 @@ EXPORT float cosf32_2(const float *a, const float *b, size_t elementCount) {
     __m512 norm_a_total = _mm512_add_ps(_mm512_add_ps(norm_a0, norm_a1), _mm512_add_ps(norm_a2, norm_a3));
     __m512 norm_b_total = _mm512_add_ps(_mm512_add_ps(norm_b0, norm_b1), _mm512_add_ps(norm_b2, norm_b3));
 
-    float dot_result = _mm512_reduce_add_ps(dot_total);
-    float norm_a_result = _mm512_reduce_add_ps(norm_a_total);
-    float norm_b_result = _mm512_reduce_add_ps(norm_b_total);
+    f32_t dot_result = _mm512_reduce_add_ps(dot_total);
+    f32_t norm_a_result = _mm512_reduce_add_ps(norm_a_total);
+    f32_t norm_b_result = _mm512_reduce_add_ps(norm_b_total);
 
     // Handle remaining tail with scalar loop
     for (; i < elementCount; ++i) {
-        float ai = a[i];
-        float bi = b[i];
+        f32_t ai = a[i];
+        f32_t bi = b[i];
         dot_result += ai * bi;
         norm_a_result += ai * ai;
         norm_b_result += bi * bi;
     }
 
-    float denom = sqrtf(norm_a_result) * sqrtf(norm_b_result);
+    f32_t denom = sqrtf(norm_a_result) * sqrtf(norm_b_result);
     if (denom == 0.0f) {
         return 0.0f;
     }
     return dot_result / denom;
 }
 
-// const float *a  pointer to the first float vector
-// const float *b  pointer to the second float vector
-// size_t elementCount  the number of floating point elements
-extern "C"
-EXPORT float dotf32_2(const float *a, const float *b, size_t elementCount) {
+// const f32_t *a  pointer to the first float vector
+// const f32_t *b  pointer to the second float vector
+// const int32_t elementCount  the number of floating point elements
+EXPORT f32_t vec_dotf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     __m512 sum0 = _mm512_setzero_ps();
     __m512 sum1 = _mm512_setzero_ps();
     __m512 sum2 = _mm512_setzero_ps();
     __m512 sum3 = _mm512_setzero_ps();
 
-    size_t i = 0;
-    size_t unrolled_limit = elementCount & ~63UL;
+    int32_t i = 0;
+    int32_t unrolled_limit = elementCount & ~63UL;
     // Each __m512 holds 16 floats, so unroll 4x = 64 floats per loop
     for (; i < unrolled_limit; i += 64) {
         sum0 = _mm512_fmadd_ps(_mm512_loadu_ps(a + i),      _mm512_loadu_ps(b + i),      sum0);
@@ -295,7 +320,7 @@ EXPORT float dotf32_2(const float *a, const float *b, size_t elementCount) {
 
     // reduce all partial sums
     __m512 total_sum = _mm512_add_ps(_mm512_add_ps(sum0, sum1), _mm512_add_ps(sum2, sum3));
-    float result = _mm512_reduce_add_ps(total_sum);
+    f32_t result = _mm512_reduce_add_ps(total_sum);
 
     for (; i < elementCount; ++i) {
         result += a[i] * b[i];
@@ -304,18 +329,17 @@ EXPORT float dotf32_2(const float *a, const float *b, size_t elementCount) {
     return result;
 }
 
-// const float *a  pointer to the first float vector
-// const float *b  pointer to the second float vector
-// size_t elementCount  the number of floating point elements
-extern "C"
-EXPORT float sqrf32_2(const float *a, const float *b, size_t elementCount) {
+// const f32_t *a  pointer to the first float vector
+// const f32_t *b  pointer to the second float vector
+// const int32_t elementCount  the number of floating point elements
+EXPORT f32_t vec_sqrf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     __m512 sum0 = _mm512_setzero_ps();
     __m512 sum1 = _mm512_setzero_ps();
     __m512 sum2 = _mm512_setzero_ps();
     __m512 sum3 = _mm512_setzero_ps();
 
-    size_t i = 0;
-    size_t unrolled_limit = elementCount & ~63UL;
+    int32_t i = 0;
+    int32_t unrolled_limit = elementCount & ~63UL;
     // Each __m512 holds 16 floats, so unroll 4x = 64 floats per loop
     for (; i < unrolled_limit; i += 64) {
         __m512 d0 = _mm512_sub_ps(_mm512_loadu_ps(a + i),      _mm512_loadu_ps(b + i));
@@ -331,10 +355,10 @@ EXPORT float sqrf32_2(const float *a, const float *b, size_t elementCount) {
 
     // reduce all partial sums
     __m512 total_sum = _mm512_add_ps(_mm512_add_ps(sum0, sum1), _mm512_add_ps(sum2, sum3));
-    float result = _mm512_reduce_add_ps(total_sum);
+    f32_t result = _mm512_reduce_add_ps(total_sum);
 
     for (; i < elementCount; ++i) {
-        float diff = a[i] - b[i];
+        f32_t diff = a[i] - b[i];
         result += diff * diff;
     }
 

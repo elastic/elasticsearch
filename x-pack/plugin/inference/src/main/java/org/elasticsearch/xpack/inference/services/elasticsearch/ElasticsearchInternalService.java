@@ -74,6 +74,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.inference.InferenceString.toStringList;
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
@@ -1139,7 +1140,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             var inferenceRequest = buildInferenceRequest(
                 esModel.mlNodeDeploymentId(),
                 EmptyConfigUpdate.INSTANCE,
-                batch.batch().inputs().get(),
+                toStringList(batch.batch().inputs().get()),
                 inputType,
                 timeout
             );

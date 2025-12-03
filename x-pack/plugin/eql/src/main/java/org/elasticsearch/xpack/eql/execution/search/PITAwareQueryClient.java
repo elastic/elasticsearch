@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
@@ -136,10 +138,15 @@ public class PITAwareQueryClient extends BasicQueryClient {
     }
 
     private <Response> void openPIT(ActionListener<Response> listener, Runnable runnable, boolean allowPartialSearchResults) {
-        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
+        IndicesOptions indicesOptions = IndexResolver.FIELD_CAPS_INDICES_OPTIONS;
+        if (cfg.crossProjectEnabled()) {
+            indicesOptions = CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(indicesOptions);
+        }
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).indicesOptions(indicesOptions)
             .keepAlive(keepAlive)
             .allowPartialSearchResults(allowPartialSearchResults);
         request.indexFilter(filter);
+
         client.execute(TransportOpenPointInTimeAction.TYPE, request, listener.delegateFailureAndWrap((l, r) -> {
             pitId = r.getPointInTimeId();
             runnable.run();

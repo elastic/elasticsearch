@@ -348,17 +348,12 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
     }
 
     protected EsqlQueryResponse runQuery(String query, Boolean ccsMetadataInResponse) {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query(query);
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         request.profile(randomInt(5) == 2);
         request.columnar(randomBoolean());
         if (ccsMetadataInResponse != null) {
-            if (randomBoolean()) {
-                request.includeExecutionMetadata(ccsMetadataInResponse);
-            } else {
-                request.includeCCSMetadata(ccsMetadataInResponse);
-            }
+            request.includeCCSMetadata(ccsMetadataInResponse);
         }
         return runQuery(request);
     }

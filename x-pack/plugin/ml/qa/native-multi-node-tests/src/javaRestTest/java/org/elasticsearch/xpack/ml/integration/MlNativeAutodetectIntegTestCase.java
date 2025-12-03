@@ -303,6 +303,28 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
         });
     }
 
+    protected void assertThatNumberOfAnnotationsIsEqualTo(String jobId, int expectedNumberOfAnnotations) throws Exception {
+        // Refresh the annotations index so that recently indexed annotation docs are visible.
+        indicesAdmin().prepareRefresh(AnnotationIndex.LATEST_INDEX_NAME)
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+            .get();
+
+        SearchRequest searchRequest = client().prepareSearch(AnnotationIndex.READ_ALIAS_NAME)
+            .setQuery(QueryBuilders.termQuery("job_id", jobId))
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+            .request();
+
+        assertCheckedResponse(client().search(searchRequest), searchResponse -> {
+            List<Annotation> annotations = new ArrayList<>();
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                try (XContentParser parser = createParser(jsonXContent, hit.getSourceRef())) {
+                    annotations.add(Annotation.fromXContent(parser, null));
+                }
+            }
+            assertThat("Annotations were: " + annotations, annotations, hasSize(expectedNumberOfAnnotations));
+        });
+    }
+
     protected List<Annotation> getAnnotations() throws Exception {
         List<Annotation> annotations = new ArrayList<>();
         // Refresh the annotations index so that recently indexed annotation docs are visible.

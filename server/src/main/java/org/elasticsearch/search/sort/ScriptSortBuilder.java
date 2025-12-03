@@ -11,6 +11,7 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -26,7 +27,6 @@ import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -339,7 +339,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                         // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
                         NumberSortScript leafScript = numberSortScriptFactory.newInstance(new DocValuesDocReader(searchLookup, context));
                         leafScripts.put(context.id(), leafScript);
-                        final NumericDoubleValues values = new NumericDoubleValues() {
+                        final DoubleValues values = new DoubleValues() {
                             @Override
                             public boolean advanceExact(int doc) {
                                 leafScript.setDocument(doc);

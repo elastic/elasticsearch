@@ -1883,17 +1883,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static Expression castStringLiteral(Expression from, DataType target, Configuration configuration) {
             assert from.foldable();
-
-            if (isTemporalAmount(target)) {
-                return castStringLiteralToTemporalAmount(from);
+            try {
+                return isTemporalAmount(target)
+                    ? castStringLiteralToTemporalAmount(from)
+                    : new Literal(
+                        from.source(),
+                        EsqlDataTypeConverter.convert(from.fold(FoldContext.small() /* TODO remove me */), target, configuration),
+                        target
+                    );
+            } catch (Exception e) {
+                return unresolvedAttribute(from, target.toString(), e);
             }
-
-            var converterToFactory = EsqlDataTypeConverter.converterFunctionFactory(target);
-            var source = from.source();
-            if (converterToFactory == null) {
-                return unresolvedAttribute(from, target.toString());
-            }
-            return converterToFactory.apply(source, from, configuration);
         }
 
         @SuppressWarnings("unchecked")

@@ -87,7 +87,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
@@ -266,56 +265,66 @@ public class EsqlDataTypeConverter {
     public static final String INVALID_INTERVAL_ERROR =
         "Invalid interval value in [{}], expected integer followed by one of {} but got [{}]";
 
-    public static Converter converterFor(DataType from, DataType to) {
+    public static Converter converterFor(DataType from, DataType to, Configuration configuration) {
         // TODO move EXPRESSION_TO_LONG here if there is no regression
         if (isString(from)) {
             if (to == DataType.DATETIME) {
-                return EsqlConverter.STRING_TO_DATETIME;
+                return l -> l == null
+                    ? null
+                    : EsqlDataTypeConverter.dateTimeToLong(
+                        BytesRefs.toString(l),
+                        DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
+                    );
             }
             if (to == DATE_NANOS) {
-                return EsqlConverter.STRING_TO_DATE_NANOS;
+                return l -> l == null
+                    ? null
+                    : EsqlDataTypeConverter.dateNanosToLong(
+                        BytesRefs.toString(l),
+                        DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
+                    );
             }
             if (to == DataType.IP) {
-                return EsqlConverter.STRING_TO_IP;
+                return l -> l == null ? null : EsqlDataTypeConverter.stringToIP(BytesRefs.toString(l));
             }
             if (to == DataType.VERSION) {
-                return EsqlConverter.STRING_TO_VERSION;
+                return l -> l == null ? null : EsqlDataTypeConverter.stringToVersion(BytesRefs.toString(l));
             }
             if (to == DataType.DOUBLE) {
-                return EsqlConverter.STRING_TO_DOUBLE;
+                return l -> l == null ? null : EsqlDataTypeConverter.stringToDouble(BytesRefs.toString(l));
             }
             if (to == DataType.LONG) {
-                return EsqlConverter.STRING_TO_LONG;
+                return l -> l == null ? null : EsqlDataTypeConverter.stringToLong(BytesRefs.toString(l));
             }
             if (to == DataType.INTEGER) {
-                return EsqlConverter.STRING_TO_INT;
+                return l -> l == null ? null : EsqlDataTypeConverter.stringToInt(BytesRefs.toString(l));
             }
             if (to == DataType.BOOLEAN) {
-                return EsqlConverter.STRING_TO_BOOLEAN;
+                return l -> l == null ? null : EsqlDataTypeConverter.stringToBoolean(BytesRefs.toString(l));
             }
             if (DataType.isSpatialGeo(to)) {
-                return EsqlConverter.STRING_TO_GEO;
+                return l -> l == null ? null : EsqlDataTypeConverter.stringToGeo(BytesRefs.toString(l));
             }
             if (DataType.isSpatial(to)) {
-                return EsqlConverter.STRING_TO_SPATIAL;
+                return l -> l == null ? null : EsqlDataTypeConverter.stringToSpatial(BytesRefs.toString(l));
             }
             if (to == DataType.GEOHASH) {
-                return EsqlConverter.STRING_TO_GEOHASH;
+                return l -> l == null ? null : Geohash.longEncode(BytesRefs.toString(l));
             }
             if (to == DataType.GEOTILE) {
-                return EsqlConverter.STRING_TO_GEOTILE;
+                return l -> l == null ? null : GeoTileUtils.longEncode(BytesRefs.toString(l));
             }
             if (to == DataType.GEOHEX) {
-                return EsqlConverter.STRING_TO_GEOHEX;
+                return l -> l == null ? null : H3.stringToH3(BytesRefs.toString(l));
             }
             if (to == DataType.TIME_DURATION) {
-                return EsqlConverter.STRING_TO_TIME_DURATION;
+                return l -> l == null ? null : EsqlDataTypeConverter.parseTemporalAmount(l, DataType.TIME_DURATION);
             }
             if (to == DataType.DATE_PERIOD) {
-                return EsqlConverter.STRING_TO_DATE_PERIOD;
+                return l -> l == null ? null : EsqlDataTypeConverter.parseTemporalAmount(l, DataType.DATE_PERIOD);
             }
             if (to == DENSE_VECTOR) {
-                return EsqlConverter.STRING_TO_DENSE_VECTOR;
+                return l -> l == null ? null : EsqlDataTypeConverter.stringToDenseVector(BytesRefs.toString(l));
             }
         }
         Converter converter = DataTypeConverter.converterFor(from, to);
@@ -431,14 +440,15 @@ public class EsqlDataTypeConverter {
     /**
      * Converts arbitrary object to the desired data type.
      * <p>
-     * Throws QlIllegalArgumentException if such conversion is not possible
+     *     Throws QlIllegalArgumentException if such conversion is not possible
+     * </p>
      */
-    public static Object convert(Object value, DataType dataType) {
+    public static Object convert(Object value, DataType dataType, Configuration configuration) {
         DataType detectedType = DataType.fromJava(value);
         if (detectedType == dataType || value == null) {
             return value;
         }
-        Converter converter = converterFor(detectedType, dataType);
+        Converter converter = converterFor(detectedType, dataType, configuration);
 
         if (converter == null) {
             throw new QlIllegalArgumentException(
@@ -536,7 +546,7 @@ public class EsqlDataTypeConverter {
     /**
      * The following conversions are used by DateExtract.
      */
-    private static ChronoField stringToChrono(Object field) {
+    public static ChronoField stringToChrono(Object field) {
         ChronoField chronoField = null;
         try {
             BytesRef br = BytesRefs.toBytesRef(field);
@@ -882,41 +892,6 @@ public class EsqlDataTypeConverter {
             }
         }
         return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(min, max, sum, count);
-    }
-
-    public enum EsqlConverter implements Converter {
-
-        STRING_TO_DATE_PERIOD(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataType.DATE_PERIOD)),
-        STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataType.TIME_DURATION)),
-        STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono),
-        STRING_TO_DATETIME(x -> EsqlDataTypeConverter.dateTimeToLong(BytesRefs.toString(x))),
-        STRING_TO_DATE_NANOS(x -> EsqlDataTypeConverter.dateNanosToLong(BytesRefs.toString(x))),
-        STRING_TO_IP(x -> EsqlDataTypeConverter.stringToIP(BytesRefs.toString(x))),
-        STRING_TO_VERSION(x -> EsqlDataTypeConverter.stringToVersion(BytesRefs.toString(x))),
-        STRING_TO_DOUBLE(x -> EsqlDataTypeConverter.stringToDouble(BytesRefs.toString(x))),
-        STRING_TO_LONG(x -> EsqlDataTypeConverter.stringToLong(BytesRefs.toString(x))),
-        STRING_TO_INT(x -> EsqlDataTypeConverter.stringToInt(BytesRefs.toString(x))),
-        STRING_TO_BOOLEAN(x -> EsqlDataTypeConverter.stringToBoolean(BytesRefs.toString(x))),
-        STRING_TO_GEO(x -> EsqlDataTypeConverter.stringToGeo(BytesRefs.toString(x))),
-        STRING_TO_SPATIAL(x -> EsqlDataTypeConverter.stringToSpatial(BytesRefs.toString(x))),
-        STRING_TO_GEOHASH(x -> Geohash.longEncode(BytesRefs.toString(x))),
-        STRING_TO_GEOTILE(x -> GeoTileUtils.longEncode(BytesRefs.toString(x))),
-        STRING_TO_GEOHEX(x -> H3.stringToH3(BytesRefs.toString(x))),
-        STRING_TO_DENSE_VECTOR(x -> EsqlDataTypeConverter.stringToDenseVector(BytesRefs.toString(x)));
-
-        private final Function<Object, Object> converter;
-
-        EsqlConverter(Function<Object, Object> converter) {
-            this.converter = converter;
-        }
-
-        @Override
-        public Object convert(Object l) {
-            if (l == null) {
-                return null;
-            }
-            return converter.apply(l);
-        }
     }
 
     public static TriFunction<Source, Expression, Configuration, AbstractConvertFunction> converterFunctionFactory(DataType toType) {

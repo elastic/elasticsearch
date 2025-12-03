@@ -41,27 +41,24 @@ public class GetReindexRequest extends ActionRequest {
         return taskId;
     }
 
-    public GetReindexRequest setTaskId(TaskId taskId) {
+    public void setTaskId(TaskId taskId) {
         this.taskId = taskId;
-        return this;
     }
 
     public boolean getWaitForCompletion() {
         return waitForCompletion;
     }
 
-    public GetReindexRequest setWaitForCompletion(boolean waitForCompletion) {
+    public void setWaitForCompletion(boolean waitForCompletion) {
         this.waitForCompletion = waitForCompletion;
-        return this;
     }
 
     public TimeValue getTimeout() {
         return timeout;
     }
 
-    public GetReindexRequest setTimeout(TimeValue timeout) {
+    public void setTimeout(TimeValue timeout) {
         this.timeout = timeout;
-        return this;
     }
 
     @Override

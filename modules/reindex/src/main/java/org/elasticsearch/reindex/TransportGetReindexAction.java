@@ -43,20 +43,21 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
 
     @Override
     protected void doExecute(Task thisTask, GetReindexRequest request, ActionListener<GetReindexResponse> listener) {
-        // Use the existing GetTaskAction to retrieve the task
+        // Use GetTaskAction to retrieve the reindex task
         GetTaskRequest getTaskRequest = new GetTaskRequest();
         getTaskRequest.setTaskId(request.getTaskId());
         getTaskRequest.setWaitForCompletion(request.getWaitForCompletion());
         getTaskRequest.setTimeout(request.getTimeout());
 
-        // TODO: Search on other nodes after task relocation is added
+        // Look for reindex task on the node inferred from the task id for running reindex task,
+        // or from the ".tasks" system index for completed tasks
+        // TODO: Add searching for reallocated running reindex task on other nodes after relocation is added
         client.admin().cluster().getTask(getTaskRequest, new ActionListener<>() {
             @Override
             public void onResponse(GetTaskResponse response) {
                 TaskResult taskResult = response.getTask();
                 if (ReindexAction.NAME.equals(taskResult.getTask().action()) == false) {
-                    // Found a matching task by id, but it's not a reindex task, treat it as not found to hide
-                    // task implementation details
+                    // Found a matching task by id, but it's not a reindex task, treat it as not found to prevent leaking other task details
                     listener.onFailure(notFoundException(request.getTaskId()));
                     return;
                 }
@@ -75,7 +76,7 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
         });
     }
 
-    private ResourceNotFoundException notFoundException(TaskId taskId) {
+    static ResourceNotFoundException notFoundException(TaskId taskId) {
         return new ResourceNotFoundException("Reindex operation [{}] not found", taskId);
     }
 }

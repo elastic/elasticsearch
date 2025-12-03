@@ -1021,6 +1021,7 @@ max_deriv:double | max_rate:double | time_bucket:datetime     | cluster:keyword
 datenanos_derivative_of_gauge_metric
 required_capability: ts_command_v0
 required_capability: ts_linreg_derivative
+required_capability: ts_deriv_datenanos
 
 // tag::deriv[]
 TS datenanos-k8s

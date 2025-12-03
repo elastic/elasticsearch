@@ -63,8 +63,6 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
 
     public record BatchRequestAndListener(BatchRequest batch, ActionListener<InferenceServiceResults> listener) {}
 
-    private static final ChunkingSettings DEFAULT_CHUNKING_SETTINGS = new WordBoundaryChunkingSettings(250, 100);
-
     // The maximum number of chunks that are stored for any input text.
     // If the configured chunker chunks the text into more chunks, each
     // chunk is sent to the inference service separately, but the results
@@ -79,14 +77,6 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
     private final List<AtomicReferenceArray<E>> resultEmbeddings;
     private final AtomicArray<Exception> resultsErrors;
     private ActionListener<List<ChunkedInference>> finalListener;
-
-    public EmbeddingRequestChunker(List<ChunkInferenceInput> inputs, int maxNumberOfInputsPerBatch) {
-        this(inputs, maxNumberOfInputsPerBatch, true, null);
-    }
-
-    public EmbeddingRequestChunker(List<ChunkInferenceInput> inputs, int maxNumberOfInputsPerBatch, int wordsPerChunk, int chunkOverlap) {
-        this(inputs, maxNumberOfInputsPerBatch, true, new WordBoundaryChunkingSettings(wordsPerChunk, chunkOverlap));
-    }
 
     public EmbeddingRequestChunker(
         List<ChunkInferenceInput> inputs,
@@ -108,7 +98,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
         this.resultsErrors = new AtomicArray<>(inputs.size());
 
         if (defaultChunkingSettings == null) {
-            defaultChunkingSettings = DEFAULT_CHUNKING_SETTINGS;
+            defaultChunkingSettings = ChunkingSettingsBuilder.DEFAULT_SETTINGS;
         }
 
         Map<ChunkingStrategy, Chunker> chunkers = inputs.stream()

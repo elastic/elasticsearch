@@ -478,6 +478,19 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCaseMultipleFailuresIT
   method: test {p0=/20_multiple_failures/Test with multiple failures}
   issue: https://github.com/elastic/elasticsearch/issues/138896
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/610_function_score/formulating a function score query with a negative number returns bad request}
+  issue: https://github.com/elastic/elasticsearch/issues/138908
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_byte_quantized/Test create, merge, and search cosine}
+  issue: https://github.com/elastic/elasticsearch/issues/138909
+- class: org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitorTests
+  method: testRerouteIsNotCalledWhenNoNodesAreHotSpotting
+  issue: https://github.com/elastic/elasticsearch/issues/138924
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/60_dense_vector_dynamic_mapping/Sub-objects mapped as dense_vector without dims dynamically map the dim size to the first
+    indexed document}
+  issue: https://github.com/elastic/elasticsearch/issues/138945
 
 # Examples:
 #

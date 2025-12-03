@@ -400,9 +400,14 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         private IndexType indexType(String fullFieldName) {
-            boolean hasDocValuesSkipper = shouldUseDocValuesSkipper(indexSettings, docValues.getValue(), fullFieldName);
-            if (hasDocValuesSkipper) {
+            if (shouldUseDocValuesSkipper(indexSettings, docValues.getValue(), fullFieldName)) {
                 return IndexType.skippers();
+            }
+            if (index.get() == false && docValues.get()) {
+                if (indexSettings.useDocValuesSkipper()
+                    && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
+                    return IndexType.skippers();
+                }
             }
             if (indexCreatedVersion.isLegacyIndexVersion()) {
                 return IndexType.archivedPoints();

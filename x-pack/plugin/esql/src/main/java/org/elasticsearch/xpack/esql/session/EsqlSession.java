@@ -975,8 +975,7 @@ public class EsqlSession {
     ) {
 
         public PreAnalysisResult(Set<String> fieldNames, Set<String> wildcardJoinIndices) {
-            this(fieldNames, wildcardJoinIndices, null, new HashMap<>(), null, InferenceResolution.EMPTY,
-                TransportVersion.current());
+            this(fieldNames, wildcardJoinIndices, null, new HashMap<>(), null, InferenceResolution.EMPTY, TransportVersion.current());
         }
 
         PreAnalysisResult withIndices(IndexResolution indices) {

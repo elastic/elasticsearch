@@ -422,4 +422,9 @@ public class TransportVersionTests extends ESTestCase {
             equalTo(8_797_0_05)
         );
     }
+
+    public void testIsPatchVersion() {
+        assertThat(TransportVersion.fromId(8_00_00_00).isPatchVersion(), is(false));
+        assertThat(TransportVersion.fromId(8_00_00_01).isPatchVersion(), is(true));
+    }
 }

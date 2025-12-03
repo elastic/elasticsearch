@@ -195,9 +195,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
         // We override equals and hashcode to ignore options when comparing two function instances
         if (o == null || getClass() != o.getClass()) return false;
         SingleFieldFullTextFunction that = (SingleFieldFullTextFunction) o;
-        return Objects.equals(field(), that.field())
-            && Objects.equals(query(), that.query())
-            && queryBuilder() == that.queryBuilder();
+        return Objects.equals(field(), that.field()) && Objects.equals(query(), that.query()) && queryBuilder() == that.queryBuilder();
     }
 
     @Override

@@ -538,10 +538,7 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
             | lookup join languages_lookup ON languages and salary > 1000
             """;
 
-        expectError(
-            queryString,
-            "2:32: JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [languages]"
-        );
+        expectError(queryString, "2:32: JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [languages]");
     }
 
     public void testLookupJoinExpressionFieldBasePlusRightFilterComma() {

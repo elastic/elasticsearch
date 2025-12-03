@@ -17,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.inference.external.request.RequestUtils;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
@@ -48,6 +49,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 public class CCMServiceIT extends CCMSingleNodeIT {
+    private static final String API_KEY = "secret";
     private static final AtomicReference<CCMService> ccmService = new AtomicReference<>();
 
     private static final MockWebServer webServer = new MockWebServer();
@@ -157,7 +159,7 @@ public class CCMServiceIT extends CCMSingleNodeIT {
         webServer.clearRequests();
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE));
         var listener = new TestPlainActionFuture<Void>();
-        ccmService.get().storeConfiguration(new CCMModel(new SecureString("secret".toCharArray())), listener);
+        ccmService.get().storeConfiguration(new CCMModel(new SecureString(API_KEY.toCharArray())), listener);
         listener.actionGet(TimeValue.THIRTY_SECONDS);
 
         // Force a cluster state update to ensure the authorization task is created
@@ -175,7 +177,7 @@ public class CCMServiceIT extends CCMSingleNodeIT {
         assertBusy(() -> {
             var requests = webServer.requests();
             assertThat(requests.size(), is(1));
-            assertThat(requests.get(0).getHeader(HttpHeaders.AUTHORIZATION), is("Bearer secret"));
+            assertThat(requests.get(0).getHeader(HttpHeaders.AUTHORIZATION), is(RequestUtils.apiKey(API_KEY)));
         });
     }
 
@@ -192,7 +194,7 @@ public class CCMServiceIT extends CCMSingleNodeIT {
         webServer.clearRequests();
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMPTY_AUTH_RESPONSE));
         var listener = new TestPlainActionFuture<Void>();
-        ccmService.get().storeConfiguration(new CCMModel(new SecureString("secret".toCharArray())), listener);
+        ccmService.get().storeConfiguration(new CCMModel(new SecureString(API_KEY.toCharArray())), listener);
         listener.actionGet(TimeValue.THIRTY_SECONDS);
 
         // Force a cluster state update to ensure the authorization task is created

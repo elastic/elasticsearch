@@ -89,7 +89,7 @@ public class LinkedProjectConfigTests extends ESTestCase {
             randomIntBetween(1, 1000),
             randomIntBetween(1, 100),
             node -> true,
-            randomSubsetOf(seedNodes),
+            randomNonEmptySubsetOf(seedNodes),
             randomFrom(seedNodes)
         );
 
@@ -126,10 +126,15 @@ public class LinkedProjectConfigTests extends ESTestCase {
         assertThrows(NullPointerException.class, () -> new ProxyLinkedProjectConfigBuilder("alias").connectionCompressionScheme(null));
         assertThrows(NullPointerException.class, () -> new ProxyLinkedProjectConfigBuilder("alias").clusterPingSchedule(null));
         assertThrows(NullPointerException.class, () -> new ProxyLinkedProjectConfigBuilder("alias").initialConnectionTimeout(null));
-        assertThrows(NullPointerException.class, () -> new SniffLinkedProjectConfigBuilder("alias").seedNodes(null));
         assertThrows(NullPointerException.class, () -> new SniffLinkedProjectConfigBuilder("alias").nodePredicate(null));
+        assertThrows(NullPointerException.class, () -> new ProxyLinkedProjectConfigBuilder("alias").proxyAddress(null));
+        assertThrows(IllegalArgumentException.class, () -> new ProxyLinkedProjectConfigBuilder("alias").proxyAddress(""));
         assertThrows(IllegalArgumentException.class, () -> new ProxyLinkedProjectConfigBuilder("alias").proxyAddress("invalid:port"));
+        assertThrows(NullPointerException.class, () -> new SniffLinkedProjectConfigBuilder("alias").seedNodes(null));
+        assertThrows(IllegalArgumentException.class, () -> new SniffLinkedProjectConfigBuilder("alias").seedNodes(List.of()));
         assertThrows(IllegalArgumentException.class, () -> new SniffLinkedProjectConfigBuilder("alias").seedNodes(List.of("invalid:port")));
+        assertThrows(NullPointerException.class, () -> new ProxyLinkedProjectConfigBuilder("alias").serverName(null));
+        assertThrows(IllegalArgumentException.class, () -> new ProxyLinkedProjectConfigBuilder("alias").serverName(""));
         assertThrows(
             IllegalArgumentException.class,
             () -> new ProxyLinkedProjectConfigBuilder("alias").maxNumConnections(-randomNonNegativeInt())

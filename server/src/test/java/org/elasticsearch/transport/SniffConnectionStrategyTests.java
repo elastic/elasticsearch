@@ -1223,9 +1223,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         Predicate<DiscoveryNode> nodePredicate,
         List<String> seedNodes
     ) {
-        return new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(linkedProjectAlias).maxNumConnections(maxNumConnections)
-            .nodePredicate(nodePredicate)
-            .seedNodes(seedNodes)
-            .build();
+        final var builder = new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(linkedProjectAlias).maxNumConnections(maxNumConnections)
+            .nodePredicate(nodePredicate);
+        if (seedNodes != null && seedNodes.isEmpty() == false) {
+            builder.seedNodes(seedNodes);
+        }
+        return builder.build();
     }
 }

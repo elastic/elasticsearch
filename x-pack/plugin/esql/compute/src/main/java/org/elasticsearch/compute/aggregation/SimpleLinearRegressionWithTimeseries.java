@@ -37,11 +37,11 @@ public class SimpleLinearRegressionWithTimeseries implements AggregatorState {
         this.sumTs = 0;
         this.sumTsVal = 0.0;
         this.sumTsSq = 0;
-        this.dateFactor = dateNanos ? 1_000_000_000.0 : 1_000.0;
+        this.dateFactor = dateNanos ? 1_000_000.0 : 1.0;
     }
 
     void add(long ts, double val) {
-        double dts = ts / dateFactor;
+        double dts = (double) ts / dateFactor;
         count++;
         sumVal += val;
         sumTs += dts;
@@ -58,7 +58,7 @@ public class SimpleLinearRegressionWithTimeseries implements AggregatorState {
         if (denominator == 0) {
             return Double.NaN;
         }
-        return numerator / denominator;
+        return numerator / denominator * 1000.0; // per second
     }
 
     public double intercept() {

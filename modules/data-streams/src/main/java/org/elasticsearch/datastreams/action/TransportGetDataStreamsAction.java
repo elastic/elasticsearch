@@ -282,9 +282,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                     /*
                      * Here we intentionally avoid the full MetadataDataStreamService::getEffectiveSettings and instead do a shortcut that
                      * does not merge all mappings together in order to fetch the settings from additional settings providers. The reason
-                     * is that this code can be called fairly frequently, and we do not need that information here -- we only need the
-                     * settings so that we can get some ilm information and the index mode, neither of which come from additional settings
-                     * providers.
+                     * is that this code can be called fairly frequently, and we do not need that information here -- we get settings from
+                     * additional settings providers below in resolveMode, and those settings do not require any information from mappings.
                      */
                     ComposableIndexTemplate template = MetadataCreateDataStreamService.lookupTemplateForDataStream(
                         dataStream.getName(),

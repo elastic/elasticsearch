@@ -584,7 +584,7 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
                 }
                 final double rate;
                 if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                    rate = extrapolateRate(state, tsContext.rangeStartInMillis(group), tsContext.rangeEndInMillis(group), isRateOverTime);
+                    rate = extrapolateRate(state, tsContext.rangeStartInMillis(group) / 1000.0, tsContext.rangeEndInMillis(group) / 1000.0, isRateOverTime);
                 } else {
                     rate = computeRateWithoutExtrapolate(state, isRateOverTime);
                 }
@@ -677,7 +677,7 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
      * We still extrapolate the rate in this case, but not all the way to the boundary, only by half of the average duration between
      * samples (which is our guess for where the series actually starts or ends).
      */
-    private static double extrapolateRate(ReducedState state, long rangeStart, long rangeEnd, boolean isRateOverTime) {
+    private static double extrapolateRate(ReducedState state, double rangeStartSec, double rangeEndSec, boolean isRateOverTime) {
         assert state.samples >= 2 : "rate requires at least two samples; got " + state.samples;
         final long firstTS = state.intervals[state.intervals.length - 1].t2;
         final long lastTS = state.intervals[0].t1;
@@ -686,14 +686,14 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
         final double sampleTS = lastTS - firstTS;
         final double averageSampleInterval = sampleTS / state.samples;
         final double slope = (lastValue - firstValue) / sampleTS;
-        double startGap = firstTS - rangeStart;
+        double startGap = firstTS - rangeStartSec * 1000.0;
         if (startGap > 0) {
             if (startGap > averageSampleInterval * 1.1) {
                 startGap = averageSampleInterval / 2.0;
             }
             firstValue = Math.max(0.0, firstValue - startGap * slope);
         }
-        double endGap = rangeEnd - lastTS;
+        double endGap = rangeEndSec * 1000.0 - lastTS;
         if (endGap > 0) {
             if (endGap > averageSampleInterval * 1.1) {
                 endGap = averageSampleInterval / 2.0;
@@ -701,7 +701,7 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
             lastValue = lastValue + endGap * slope;
         }
         if (isRateOverTime) {
-            return (lastValue - firstValue) * 1000.0 / (rangeEnd - rangeStart);
+            return (lastValue - firstValue) / (rangeEndSec - rangeStartSec);
         } else {
             return lastValue - firstValue;
         }

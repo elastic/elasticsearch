@@ -714,9 +714,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             // create a new batch from failed and new items, failed first
             final var batch = client().batch();
             for (var failure : failedItems) {
-                if (isRetryErrCode(failure.errCode)) {
-                    batchResults.add(new DeleteResult(failure.blobId, batch.delete(failure.blobId)));
-                }
+                batchResults.add(new DeleteResult(failure.blobId, batch.delete(failure.blobId)));
             }
             failedItems.clear();
             while (blobNames.hasNext() && batchResults.size() < MAX_DELETES_PER_BATCH) {
@@ -724,10 +722,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 batchResults.add(new DeleteResult(blobId, batch.delete(blobId)));
             }
 
-            // the whole bulk request uses GCS client's retry logic
-            // when individual item fails we need to retry with custom logic
-            // here we collect all retryable failures
-            // if there is at least one non-retryable failure we stop whole thing
+            // The whole bulk request uses GCS client's retry logic. When individual item fails we need to retry with custom logic.
+            // Here we collect all retryable failures or terminate on non-retryable error.
             batch.submit();
             for (var deleteResult : batchResults) {
                 try {

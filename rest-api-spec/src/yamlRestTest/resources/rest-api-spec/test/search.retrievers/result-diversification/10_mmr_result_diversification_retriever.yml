@@ -322,9 +322,9 @@ teardown:
 
   - match: { hits.total.value: 10 }
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._source.textbody: "second text" }
-  - match: { hits.hits.1._source.textbody: "sixth text" }
-  - match: { hits.hits.2._source.textbody: "ninth text" }
+  - match: { hits.hits.0._source.textbody: "sixth text" }
+  - match: { hits.hits.1._source.textbody: "ninth text" }
+  - match: { hits.hits.2._source.textbody: "fourth text" }
 
   - do:
       search:
@@ -346,9 +346,9 @@ teardown:
 
   - match: { hits.total.value: 10 }
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._source.textbody: "second text" }
-  - match: { hits.hits.1._source.textbody: "fourth text" }
-  - match: { hits.hits.2._source.textbody: "fifth text" }
+  - match: { hits.hits.0._source.textbody: "fourth text" }
+  - match: { hits.hits.1._source.textbody: "fifth text" }
+  - match: { hits.hits.2._source.textbody: "seventh text" }
 
 ---
 "Test MMR result diversification byte vector type":
@@ -583,6 +583,27 @@ teardown:
 
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
+
+  - do:
+      catch: /\[diversify\] MMR result diversification \[size\] of -3 must be greater than zero/
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              size: -3
+              lambda: 0.7
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
 
   - do:
       catch: /\[diversify\] MMR result diversification must have a \[lambda\] between 0.0 and 1.0. The value provided was null/

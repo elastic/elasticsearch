@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompleti
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 
 /**
- * Handles streaming chat completion responses and error parsing for OpenShift AI inference endpoints.
- * Adapts the OpenAI handler to support OpenShift AI's error schema.
+ * Handles streaming chat completion responses and error parsing for Azure OpenAI inference endpoints.
+ * Adapts the OpenAI handler to support Azure OpenAI's error schema.
  */
 public class AzureOpenAiChatCompletionResponseHandler extends OpenAiUnifiedChatCompletionResponseHandler {
 

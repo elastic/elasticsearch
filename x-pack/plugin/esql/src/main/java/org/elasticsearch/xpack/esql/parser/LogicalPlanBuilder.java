@@ -1174,7 +1174,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
         }
 
-
         return p -> {
             checkForRemoteClusters(p, source, "COMPLETION");
             return applyCompletionOptions(new Completion(source, p, prompt, targetField), ctx.commandNamedParameters()).withMaxRows(

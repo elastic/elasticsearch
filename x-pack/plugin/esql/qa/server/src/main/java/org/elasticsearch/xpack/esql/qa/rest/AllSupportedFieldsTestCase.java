@@ -899,12 +899,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield equalTo(List.of(0.5, 10.0, 5.9999995));
             }
             case DATE_RANGE -> {
-                if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false || minVersion().supports((ESQL_LONG_RANGES)) == false) {
+                // See expectedType for an explanation
+                if (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
+                    || minimumVersion.supports(ESQL_LONG_RANGES) == false) {
                     yield nullValue();
                 }
                 yield equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z");
-
             }
+
             default -> throw new AssertionError("unsupported field type [" + type + "]");
         };
     }

@@ -35,7 +35,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
-import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
 
 /**
  * This enum represents data types the ES|QL query processing layer is able to
@@ -276,7 +275,7 @@ public enum DataType implements Writeable {
     /**
      * Represents a half-inclusive range between two dates.
      */
-    DATE_RANGE(builder().esType("date_range").estimatedSize(2 * Long.BYTES).docValues().supportedSince(ESQL_LONG_RANGES)),
+    DATE_RANGE(builder().esType("date_range").estimatedSize(2 * Long.BYTES).docValues().underConstruction()),
     /**
      * IP addresses. IPv4 address are always
      * <a href="https://datatracker.ietf.org/doc/html/rfc4291#section-2.5.5">embedded</a>

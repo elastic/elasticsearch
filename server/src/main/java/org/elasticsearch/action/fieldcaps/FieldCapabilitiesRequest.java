@@ -280,7 +280,10 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         return resolvedIndexExpressions;
     }
 
-    public void projectRouting(String projectRouting) {
+    public void projectRouting(@Nullable String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing is already set to [" + this.projectRouting + "]");
+        }
         this.projectRouting = projectRouting;
     }
 

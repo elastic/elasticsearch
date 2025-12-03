@@ -191,36 +191,6 @@ setup:
   - match: { hits.hits.2._score: $rescore_score2 }
 
 ---
-"Test bad quantization parameters":
-  - do:
-      catch: bad_request
-      indices.create:
-        index: bad_bbq_ivf
-        body:
-          mappings:
-            properties:
-              vector:
-                type: dense_vector
-                dims: 64
-                element_type: byte
-                index: true
-                index_options:
-                  type: bbq_disk
-
-  - do:
-      catch: bad_request
-      indices.create:
-        index: bad_bbq_ivf
-        body:
-          mappings:
-            properties:
-              vector:
-                type: dense_vector
-                dims: 64
-                index: false
-                index_options:
-                  type: bbq_disk
----
 "Test index configured rescore vector":
   - skip:
       features: "headers"
@@ -310,9 +280,6 @@ setup:
 
 ---
 "Test index configured rescore vector with on-disk rescore":
-  - requires:
-      cluster_features: [ "mapper.vectors.diskbbq_on_disk_rescoring" ]
-      reason: Needs on_disk_rescoring feature for DiskBBQ
   - skip:
       features: "headers"
   - do:

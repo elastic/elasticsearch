@@ -27,7 +27,7 @@ public class GetSettingsIT extends ESIntegTestCase {
             .put("index.mapping.source.mode", "SYNTHETIC")
             .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
             .put("index.recovery.use_synthetic_source", true)
-            .put("index.use_logs_doc_values_format", true)
+            .put("index.use_time_series_doc_values_format", true)
             .put("index.mapping.ignore_above", 8191)
             .putList("index.sort.field", "@timestamp")
             .putList("index.sort.order", "desc")

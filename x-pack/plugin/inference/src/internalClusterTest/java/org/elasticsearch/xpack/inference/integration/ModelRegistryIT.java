@@ -931,7 +931,6 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         // Storing the model fails because it already exists, but the registry should now be aware of the inference id in
         // cluster state
         var cause = response.get(0).failureCause();
-        assertNotNull(cause);
         assertThat(cause, instanceOf(VersionConflictEngineException.class));
         assertThat(cause.getMessage(), containsString("[model_1]: version conflict, document already exists"));
 
@@ -1153,7 +1152,6 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     private void assertIndicesContainExpectedDocsCount(Model model, int numberOfDocs) {
         SearchRequest modelSearch = client().prepareSearch(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(Model.documentId(model.getInferenceEntityId()))))
-            .setSize(2)
             .setTrackTotalHits(false)
             .request();
         SearchResponse searchResponse = client().search(modelSearch).actionGet(TimeValue.THIRTY_SECONDS);

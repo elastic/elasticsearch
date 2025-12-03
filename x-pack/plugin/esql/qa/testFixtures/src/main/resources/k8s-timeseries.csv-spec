@@ -135,8 +135,8 @@ max_rate: double | time_bucket:date
 ;
 
 oneRateWithPromql
-required_capability: promql_pre_tech_preview_v3
-PROMQL k8s step 5m (max(rate(network.total_bytes_in[5m])))
+required_capability: promql_pre_tech_preview_v4
+PROMQL k8s step=5m (max(rate(network.total_bytes_in[5m])))
 | SORT step DESC | LIMIT 2;
 
 max(rate(network.total_bytes_in[5m])):double | step:datetime
@@ -157,9 +157,8 @@ max_rate: double | time_bucket:date
 ;
 
 oneRateWithSingleStepPromql
-required_capability: promql_pre_tech_preview_v3
-PROMQL k8s step 1h (max(rate(network.total_bytes_in[1h])))
-;
+required_capability: promql_pre_tech_preview_v4
+PROMQL k8s step=1h (max(rate(network.total_bytes_in[1h])));
 
 max(rate(network.total_bytes_in[1h])):double | step:datetime
 4.379885057471264                            | 2024-05-10T00:00:00.000Z

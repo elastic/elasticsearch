@@ -1,28 +1,41 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * Licensed to Elasticsearch B.V. under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch B.V. licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+ * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
 
-package org.elasticsearch.xpack.analytics.mapper;
+package org.elasticsearch.tdigest.parsing;
 
-import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.CENTROIDS_NAME;
-import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.COUNTS_NAME;
-import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.MAX_FIELD_NAME;
-import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.MIN_FIELD_NAME;
-import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.SUM_FIELD_NAME;
+import java.util.function.BiFunction;
 
 public class TDigestParser {
+    public static final String CENTROIDS_NAME = "centroids";
+    public static final String COUNTS_NAME = "counts";
+    public static final String SUM_FIELD_NAME = "sum";
+    public static final String MIN_FIELD_NAME = "min";
+    public static final String MAX_FIELD_NAME = "max";
 
     private static final ParseField COUNTS_FIELD = new ParseField(COUNTS_NAME);
     private static final ParseField CENTROIDS_FIELD = new ParseField(CENTROIDS_NAME);
@@ -91,9 +104,15 @@ public class TDigestParser {
      *
      * @param mappedFieldName the name of the field being parsed, used for error messages
      * @param parser the parser to use
+     * @param documentParsingExceptionProvider factory function for generating document parsing exceptions. Required for visibility.
      * @return the parsed histogram
      */
-    public static ParsedTDigest parse(String mappedFieldName, XContentParser parser) throws IOException {
+    public static ParsedTDigest parse(
+        String mappedFieldName,
+        XContentParser parser,
+        BiFunction<XContentLocation, String, RuntimeException> documentParsingExceptionProvider,
+        ParsingExceptionProvider parsingExceptionProvider
+    ) throws IOException {
         ArrayList<Double> centroids = null;
         ArrayList<Long> counts = null;
         Double sum = null;
@@ -102,26 +121,26 @@ public class TDigestParser {
         XContentParser.Token token = parser.currentToken();
         while (token != XContentParser.Token.END_OBJECT) {
             // should be a field
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser, parsingExceptionProvider);
             String fieldName = parser.currentName();
             if (fieldName.equals(CENTROIDS_FIELD.getPreferredName())) {
-                centroids = getCentroids(mappedFieldName, parser);
+                centroids = getCentroids(mappedFieldName, parser, documentParsingExceptionProvider, parsingExceptionProvider);
             } else if (fieldName.equals(COUNTS_FIELD.getPreferredName())) {
-                counts = getCounts(mappedFieldName, parser);
+                counts = getCounts(mappedFieldName, parser, documentParsingExceptionProvider, parsingExceptionProvider);
             } else if (fieldName.equals(SUM_FIELD.getPreferredName())) {
                 token = parser.nextToken();
-                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser, parsingExceptionProvider);
                 sum = parser.doubleValue();
             } else if (fieldName.equals(MIN_FIELD.getPreferredName())) {
                 token = parser.nextToken();
-                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser, parsingExceptionProvider);
                 min = parser.doubleValue();
             } else if (fieldName.equals(MAX_FIELD.getPreferredName())) {
                 token = parser.nextToken();
-                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser, parsingExceptionProvider);
                 max = parser.doubleValue();
             } else {
-                throw new DocumentParsingException(
+                throw documentParsingExceptionProvider.apply(
                     parser.getTokenLocation(),
                     "error parsing field [" + mappedFieldName + "], with unknown parameter [" + fieldName + "]"
                 );
@@ -129,19 +148,19 @@ public class TDigestParser {
             token = parser.nextToken();
         }
         if (centroids == null) {
-            throw new DocumentParsingException(
+            throw documentParsingExceptionProvider.apply(
                 parser.getTokenLocation(),
                 "error parsing field [" + mappedFieldName + "], expected field called [" + CENTROIDS_FIELD.getPreferredName() + "]"
             );
         }
         if (counts == null) {
-            throw new DocumentParsingException(
+            throw documentParsingExceptionProvider.apply(
                 parser.getTokenLocation(),
                 "error parsing field [" + mappedFieldName + "], expected field called [" + COUNTS_FIELD.getPreferredName() + "]"
             );
         }
         if (centroids.size() != counts.size()) {
-            throw new DocumentParsingException(
+            throw documentParsingExceptionProvider.apply(
                 parser.getTokenLocation(),
                 "error parsing field ["
                     + mappedFieldName
@@ -165,20 +184,25 @@ public class TDigestParser {
         return new ParsedTDigest(centroids, counts, sum, min, max);
     }
 
-    private static ArrayList<Long> getCounts(String mappedFieldName, XContentParser parser) throws IOException {
+    private static ArrayList<Long> getCounts(
+        String mappedFieldName,
+        XContentParser parser,
+        BiFunction<XContentLocation, String, RuntimeException> documentParsingExceptionProvider,
+        ParsingExceptionProvider parsingExceptionProvider
+    ) throws IOException {
         ArrayList<Long> counts;
         XContentParser.Token token;
         token = parser.nextToken();
         // should be an array
-        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser, parsingExceptionProvider);
         counts = new ArrayList<>();
         token = parser.nextToken();
         while (token != XContentParser.Token.END_ARRAY) {
             // should be a number
-            ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+            ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser, parsingExceptionProvider);
             long count = parser.longValue();
             if (count < 0) {
-                throw new DocumentParsingException(
+                throw documentParsingExceptionProvider.apply(
                     parser.getTokenLocation(),
                     "error parsing field [" + mappedFieldName + "], [" + COUNTS_FIELD + "] elements must be >= 0 but got " + count
                 );
@@ -189,22 +213,27 @@ public class TDigestParser {
         return counts;
     }
 
-    private static ArrayList<Double> getCentroids(String mappedFieldName, XContentParser parser) throws IOException {
+    private static ArrayList<Double> getCentroids(
+        String mappedFieldName,
+        XContentParser parser,
+        BiFunction<XContentLocation, String, RuntimeException> documentParsingExceptionProvider,
+        ParsingExceptionProvider parsingExceptionProvider
+    ) throws IOException {
         XContentParser.Token token;
         ArrayList<Double> centroids;
         token = parser.nextToken();
         // should be an array
-        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser, parsingExceptionProvider);
         centroids = new ArrayList<>();
         token = parser.nextToken();
         double previousVal = -Double.MAX_VALUE;
         while (token != XContentParser.Token.END_ARRAY) {
             // should be a number
-            ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+            ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser, parsingExceptionProvider);
             double val = parser.doubleValue();
             if (val < previousVal) {
                 // centroids must be in increasing order
-                throw new DocumentParsingException(
+                throw documentParsingExceptionProvider.apply(
                     parser.getTokenLocation(),
                     "error parsing field ["
                         + mappedFieldName
@@ -222,6 +251,25 @@ public class TDigestParser {
             token = parser.nextToken();
         }
         return centroids;
+    }
+
+    /**
+     * Interface for throwing a parsing exception, needed for visibility
+     */
+    @FunctionalInterface
+    public interface ParsingExceptionProvider {
+        RuntimeException apply(XContentParser parser, XContentParser.Token expected, XContentParser.Token actual) throws IOException;
+    }
+
+    public static void ensureExpectedToken(
+        XContentParser.Token expected,
+        XContentParser.Token actual,
+        XContentParser parser,
+        ParsingExceptionProvider parsingExceptionProvider
+    ) throws IOException {
+        if (actual != expected) {
+            throw parsingExceptionProvider.apply(parser, expected, actual);
+        }
     }
 
 }

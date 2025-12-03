@@ -26,7 +26,7 @@ import org.apache.lucene.search.KnnCollector;
 public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCollector {
 
     private static final double DEFAULT_DISCOVERY_RATE_SMOOTHING = 0.1;
-    private static final double DEFAULT_THRESHOLD_LOOSENESS = 1.0;
+    private static final double DEFAULT_THRESHOLD_LOOSENESS = 0.1;
     private static final double DEFAULT_PATIENCE_SCALING = 10.0;
 
     private final double discoveryRateSmoothing;
@@ -81,13 +81,13 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
     }
 
     public void nextCandidate() {
-        int discoveryRate = currentQueueSize - previousQueueSize / steps;
+        double discoveryRate = (currentQueueSize - previousQueueSize) / (1e-9 + steps);
         double rate = Math.max(0, discoveryRate);
 
         // exponentially smoothed discovery rate
         smoothedDiscoveryRate = discoveryRateSmoothing * rate + (1 - discoveryRateSmoothing) * smoothedDiscoveryRate;
 
-        // rolling average + variance
+        // rolling mean + variance
         samples++;
         double deltaMean = smoothedDiscoveryRate - mean;
         mean += deltaMean / samples;
@@ -112,6 +112,7 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
         }
 
         previousQueueSize = currentQueueSize;
+        steps = 0;
     }
 
 }

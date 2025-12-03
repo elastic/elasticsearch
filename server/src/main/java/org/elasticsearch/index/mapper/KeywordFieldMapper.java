@@ -1464,9 +1464,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             return SyntheticSourceSupport.FALLBACK;
         }
 
-        if (fieldType.stored()
-            || offsetsFieldName != null
-            || (indexSettings.sourceKeepMode() == SourceKeepMode.NONE && fieldType.docValuesType() != DocValuesType.NONE)) {
+        boolean docValuesSupportNativeSyntheticSource = docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.LOW
+            || indexSettings.sourceKeepMode() == SourceKeepMode.NONE;
+
+        if (fieldType.stored() || (docValuesParameters.enabled() && docValuesSupportNativeSyntheticSource)) {
             return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));
         }
 

@@ -86,7 +86,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
     }
 
     private CustomMustacheFactory(String mediaType, boolean detectMissingParams) {
-        super();
+        super(resourceName -> null); // we do not resolve templates via files or the classpath, etc.
         setObjectHandler(new CustomReflectionObjectHandler(detectMissingParams));
         this.encoder = createEncoder(mediaType);
     }
@@ -139,12 +139,17 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
         }
 
         @Override
-        public void dynamicPartial(TemplateContext tc, final String variable, String indent) {
-            // throwing a mustache exception here is important because this gets caught, handled (closing readers, etc),
+        public void partial(TemplateContext tc, String variable, String indent) {
+            // throwing a mustache exception here is important because this gets caught, handled (closing readers, etc.),
             // and re-thrown in the mustache parser itself
-            throw new MustacheException(
-                Strings.format("Template %s not found, because dynamic partial templates are not supported", variable)
-            );
+            throw new MustacheException(Strings.format("Cannot expand '%s' because partial templates are not supported", variable));
+        }
+
+        @Override
+        public void dynamicPartial(TemplateContext tc, final String variable, String indent) {
+            // throwing a mustache exception here is important because this gets caught, handled (closing readers, etc.),
+            // and re-thrown in the mustache parser itself
+            throw new MustacheException(Strings.format("Cannot expand '%s' because dynamic partial templates are not supported", variable));
         }
     }
 

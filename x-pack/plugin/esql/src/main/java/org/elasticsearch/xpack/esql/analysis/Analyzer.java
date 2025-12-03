@@ -1848,12 +1848,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return type == DATETIME || type == DATE_NANOS || type == IP || type == VERSION || type == BOOLEAN;
         }
 
-        private static UnresolvedAttribute unresolvedAttribute(Expression value, String type) {
-            String name = BytesRefs.toString(value.fold(FoldContext.small()) /* TODO remove me */);
-            String message = LoggerMessageFormat.format(null, "Cannot convert string [{}] to [{}]", name, type);
-            return new UnresolvedAttribute(value.source(), name, message);
-        }
-
         private static UnresolvedAttribute unresolvedAttribute(Expression value, String type, Exception e) {
             String name = BytesRefs.toString(value.fold(FoldContext.small()) /* TODO remove me */);
             String message = LoggerMessageFormat.format(

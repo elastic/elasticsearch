@@ -269,62 +269,58 @@ public class EsqlDataTypeConverter {
         // TODO move EXPRESSION_TO_LONG here if there is no regression
         if (isString(from)) {
             if (to == DataType.DATETIME) {
-                return l -> l == null
-                    ? null
-                    : EsqlDataTypeConverter.dateTimeToLong(
-                        BytesRefs.toString(l),
-                        DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
-                    );
+                return l -> EsqlDataTypeConverter.dateTimeToLong(
+                    BytesRefs.toString(l),
+                    DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
+                );
             }
             if (to == DATE_NANOS) {
-                return l -> l == null
-                    ? null
-                    : EsqlDataTypeConverter.dateNanosToLong(
-                        BytesRefs.toString(l),
-                        DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
-                    );
+                return l -> EsqlDataTypeConverter.dateNanosToLong(
+                    BytesRefs.toString(l),
+                    DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
+                );
             }
             if (to == DataType.IP) {
-                return l -> l == null ? null : EsqlDataTypeConverter.stringToIP(BytesRefs.toString(l));
+                return l -> EsqlDataTypeConverter.stringToIP(BytesRefs.toString(l));
             }
             if (to == DataType.VERSION) {
-                return l -> l == null ? null : EsqlDataTypeConverter.stringToVersion(BytesRefs.toString(l));
+                return l -> EsqlDataTypeConverter.stringToVersion(BytesRefs.toString(l));
             }
             if (to == DataType.DOUBLE) {
-                return l -> l == null ? null : EsqlDataTypeConverter.stringToDouble(BytesRefs.toString(l));
+                return l -> EsqlDataTypeConverter.stringToDouble(BytesRefs.toString(l));
             }
             if (to == DataType.LONG) {
-                return l -> l == null ? null : EsqlDataTypeConverter.stringToLong(BytesRefs.toString(l));
+                return l -> EsqlDataTypeConverter.stringToLong(BytesRefs.toString(l));
             }
             if (to == DataType.INTEGER) {
-                return l -> l == null ? null : EsqlDataTypeConverter.stringToInt(BytesRefs.toString(l));
+                return l -> EsqlDataTypeConverter.stringToInt(BytesRefs.toString(l));
             }
             if (to == DataType.BOOLEAN) {
-                return l -> l == null ? null : EsqlDataTypeConverter.stringToBoolean(BytesRefs.toString(l));
+                return l -> EsqlDataTypeConverter.stringToBoolean(BytesRefs.toString(l));
             }
             if (DataType.isSpatialGeo(to)) {
-                return l -> l == null ? null : EsqlDataTypeConverter.stringToGeo(BytesRefs.toString(l));
+                return l -> EsqlDataTypeConverter.stringToGeo(BytesRefs.toString(l));
             }
             if (DataType.isSpatial(to)) {
-                return l -> l == null ? null : EsqlDataTypeConverter.stringToSpatial(BytesRefs.toString(l));
+                return l -> EsqlDataTypeConverter.stringToSpatial(BytesRefs.toString(l));
             }
             if (to == DataType.GEOHASH) {
-                return l -> l == null ? null : Geohash.longEncode(BytesRefs.toString(l));
+                return l -> Geohash.longEncode(BytesRefs.toString(l));
             }
             if (to == DataType.GEOTILE) {
-                return l -> l == null ? null : GeoTileUtils.longEncode(BytesRefs.toString(l));
+                return l -> GeoTileUtils.longEncode(BytesRefs.toString(l));
             }
             if (to == DataType.GEOHEX) {
-                return l -> l == null ? null : H3.stringToH3(BytesRefs.toString(l));
+                return l -> H3.stringToH3(BytesRefs.toString(l));
             }
             if (to == DataType.TIME_DURATION) {
-                return l -> l == null ? null : EsqlDataTypeConverter.parseTemporalAmount(l, DataType.TIME_DURATION);
+                return l -> EsqlDataTypeConverter.parseTemporalAmount(l, DataType.TIME_DURATION);
             }
             if (to == DataType.DATE_PERIOD) {
-                return l -> l == null ? null : EsqlDataTypeConverter.parseTemporalAmount(l, DataType.DATE_PERIOD);
+                return l -> EsqlDataTypeConverter.parseTemporalAmount(l, DataType.DATE_PERIOD);
             }
             if (to == DENSE_VECTOR) {
-                return l -> l == null ? null : EsqlDataTypeConverter.stringToDenseVector(BytesRefs.toString(l));
+                return l -> EsqlDataTypeConverter.stringToDenseVector(BytesRefs.toString(l));
             }
         }
         Converter converter = DataTypeConverter.converterFor(from, to);

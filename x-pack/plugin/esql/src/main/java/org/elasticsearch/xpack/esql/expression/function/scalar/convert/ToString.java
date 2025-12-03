@@ -85,7 +85,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(GEOHEX, (source, fieldEval) -> new ToStringFromGeoGridEvaluator.Factory(source, fieldEval, GEOHEX)),
         Map.entry(AGGREGATE_METRIC_DOUBLE, ToStringFromAggregateMetricDoubleEvaluator.Factory::new),
 
-        // Evaluators dynamically updated in #factories()
+        // Evaluators dynamically created in #factories()
         Map.entry(DATETIME, (source, fieldEval) -> null),
         Map.entry(DATE_NANOS, (source, fieldEval) -> null)
     );

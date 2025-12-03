@@ -63,7 +63,7 @@ public class ToDateNanos extends AbstractConvertFunction implements Configuratio
          TO_DATE_NANOS(TO_LONG(intVal)) is still possible if someone really needs to do this.
          */
 
-        // Evaluators dynamically updated in #factories()
+        // Evaluators dynamically created in #factories()
         Map.entry(KEYWORD, (source, fieldEval) -> null),
         Map.entry(TEXT, (source, fieldEval) -> null)
     );

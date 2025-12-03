@@ -57,7 +57,7 @@ public class ToDatetime extends AbstractConvertFunction implements Configuration
         Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new), // CastIntToLongEvaluator would be a candidate, but not MV'd
 
-        // Evaluators dynamically updated in #factories()
+        // Evaluators dynamically created in #factories()
         Map.entry(KEYWORD, (source, fieldEval) -> null),
         Map.entry(TEXT, (source, fieldEval) -> null)
     );

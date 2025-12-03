@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
-import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiResponseHandler;
 
 /**
@@ -29,11 +27,6 @@ public class NvidiaEmbeddingsResponseHandler extends OpenAiResponseHandler {
      */
     public NvidiaEmbeddingsResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, ErrorResponse::fromResponse, false);
-    }
-
-    @Override
-    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
-        super.checkForFailureStatusCode(request, result);
     }
 
     @Override

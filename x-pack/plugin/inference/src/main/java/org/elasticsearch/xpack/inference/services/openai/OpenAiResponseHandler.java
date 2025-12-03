@@ -67,7 +67,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
     @Override
-    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+    public void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
         if (result.isSuccessfulResponse()) {
             return;
         }

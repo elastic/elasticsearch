@@ -63,12 +63,13 @@ public class TransportUpdateSplitStateAction extends TransportMasterNodeAction<S
     @Override
     protected void masterOperation(Task task, SplitStateRequest request, ClusterState state, ActionListener<ActionResponse.Empty> listener)
         throws Exception {
-        if (request.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.HANDOFF) {
-            reshardIndexService.transitionToHandoff(request, listener.map(ignored -> ActionResponse.Empty.INSTANCE));
-        } else {
-            assert request.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT
-                || request.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.DONE;
-            reshardIndexService.transitionTargetState(request, listener.map(ignored -> ActionResponse.Empty.INSTANCE));
+        switch (request.getNewTargetShardState()) {
+            case HANDOFF -> reshardIndexService.transitionToHandoff(request, listener.map(ignored -> ActionResponse.Empty.INSTANCE));
+            case SPLIT -> reshardIndexService.transitionToSplit(request, listener.map(ignored -> ActionResponse.Empty.INSTANCE));
+            default -> {
+                assert request.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.DONE;
+                reshardIndexService.transitionTargetState(request, listener.map(ignored -> ActionResponse.Empty.INSTANCE));
+            }
         }
     }
 

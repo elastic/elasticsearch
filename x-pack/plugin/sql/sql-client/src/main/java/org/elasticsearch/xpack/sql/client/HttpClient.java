@@ -90,6 +90,16 @@ public class HttpClient {
 
     public SqlQueryResponse basicQuery(String query, int fetchSize, boolean fieldMultiValueLeniency, boolean allowPartialSearchResults)
         throws SQLException {
+        return basicQuery(query, fetchSize, fieldMultiValueLeniency, allowPartialSearchResults, null);
+    }
+
+    public SqlQueryResponse basicQuery(
+        String query,
+        int fetchSize,
+        boolean fieldMultiValueLeniency,
+        boolean allowPartialSearchResults,
+        String projectRouting
+    ) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
         // method called only from CLI
         SqlQueryRequest sqlRequest = new SqlQueryRequest(
@@ -108,6 +118,7 @@ public class HttpClient {
             cfg.binaryCommunication(),
             allowPartialSearchResults
         );
+        // TODO add project routing
         return query(sqlRequest).response();
     }
 

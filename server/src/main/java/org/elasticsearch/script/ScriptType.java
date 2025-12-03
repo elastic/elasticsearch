@@ -9,6 +9,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -56,17 +57,14 @@ public enum ScriptType implements Writeable {
             return INLINE;
         } else {
             throw new IllegalStateException(
-                "Error reading ScriptType id ["
-                    + id
-                    + "] from stream, expected one of ["
-                    + STORED.id
-                    + " ["
-                    + STORED.parseField.getPreferredName()
-                    + "], "
-                    + INLINE.id
-                    + " ["
-                    + INLINE.parseField.getPreferredName()
-                    + "]]"
+                Strings.format(
+                    "Error reading ScriptType id [%s] from stream, expected one of [%s [%s], %s [%s]]",
+                    id,
+                    STORED.id,
+                    STORED.parseField.getPreferredName(),
+                    INLINE.id,
+                    INLINE.parseField.getPreferredName()
+                )
             );
         }
     }

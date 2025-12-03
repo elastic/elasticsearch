@@ -29,7 +29,6 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -126,7 +125,7 @@ public class ShardWriteLoadDistributionMetrics {
         final var clusterState = clusterService.state();
         final var shardWriteLoads = clusterInfo.getShardWriteLoads();
         final var ingestNodeCount = (int) clusterState.nodes().stream().filter(this::isIndexingNode).count();
-        final var writeLoadDistributionValues = new HashMap<Integer, List<DoubleWithAttributes>>(percentiles.length);
+        final var writeLoadDistributionValues = createPercentileArrays(percentiles.length, ingestNodeCount);
         final var writeLoadPrioritisationThresholdValues = new ArrayList<DoubleWithAttributes>(ingestNodeCount);
         final var shardCountsExceedingPrioritisationThresholdValues = new ArrayList<LongWithAttributes>(ingestNodeCount);
         final var shardWriteLoadSumValues = new ArrayList<DoubleWithAttributes>(ingestNodeCount);
@@ -173,8 +172,9 @@ public class ShardWriteLoadDistributionMetrics {
              */
             if (Double.isFinite(maxShardWriteLoad)) {
                 for (int i = 0; i < percentiles.length; i++) {
-                    writeLoadDistributionValues.computeIfAbsent(i, k -> new ArrayList<>(ingestNodeCount))
-                        .add(new DoubleWithAttributes(shardWeightHistogram.getValueAtPercentile(percentiles[i]), nodeAttrs));
+                    writeLoadDistributionValues[i].add(
+                        new DoubleWithAttributes(shardWeightHistogram.getValueAtPercentile(percentiles[i]), nodeAttrs)
+                    );
                 }
 
                 final double prioritisationThreshold = BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO
@@ -191,11 +191,20 @@ public class ShardWriteLoadDistributionMetrics {
         }
 
         for (int i = 0; i < percentiles.length; i++) {
-            lastWriteLoadDistributionValues.set(i, writeLoadDistributionValues.getOrDefault(i, List.of()));
+            lastWriteLoadDistributionValues.set(i, writeLoadDistributionValues[i]);
         }
         lastWriteLoadPrioritisationThresholdValues.set(writeLoadPrioritisationThresholdValues);
         lastShardCountExceedingPrioritisationThresholdValues.set(shardCountsExceedingPrioritisationThresholdValues);
         lastWriteLoadSumValues.set(shardWriteLoadSumValues);
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private List<DoubleWithAttributes>[] createPercentileArrays(int percentileCount, int ingestNodeCount) {
+        List<DoubleWithAttributes>[] lists = (List<DoubleWithAttributes>[]) new List[percentileCount];
+        for (int i = 0; i < percentileCount; i++) {
+            lists[i] = new ArrayList<>(ingestNodeCount);
+        }
+        return lists;
     }
 
     /**

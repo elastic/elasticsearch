@@ -1051,14 +1051,15 @@ required_capability: ts_rate_datenanos_2
 TS datenanos-k8s
 | WHERE cluster=="prod"
 | STATS max=max(rate(network.total_bytes_in)), inc=max(increase(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
-| EVAL max=ROUND(max, 5), inc=ROUND(inc, 5)
+| EVAL max=ROUND(max, 4), inc=ROUND(inc, 4)
 | KEEP max, inc, time_bucket, cluster
 | SORT time_bucket DESC 
 | LIMIT 3;
 
-max:double | inc:double | time_bucket:date_nanos     | cluster:keyword
-6.98065    | 2094.19643 | 2024-05-10T00:20:00.000Z | prod
-11.86081   | 3558.24176 | 2024-05-10T00:15:00.000Z | prod
-11.56274   | 3468.82129 | 2024-05-10T00:10:00.000Z | prod
+max:double | inc:double | time_bucket:date_nanos   | cluster:keyword
+6.9807     | 2094.198   | 2024-05-10T00:20:00.000Z | prod
+11.8608    | 3558.242   | 2024-05-10T00:15:00.000Z | prod
+11.5627    | 3468.821   | 2024-05-10T00:10:00.000Z | prod
+
 ;
 

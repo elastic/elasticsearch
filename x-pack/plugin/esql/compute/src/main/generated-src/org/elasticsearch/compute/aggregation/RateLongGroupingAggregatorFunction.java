@@ -39,8 +39,11 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
         // Overriding constructor to support isRateOverTime flag
         private final boolean isRateOverTime;
 
-        public FunctionSupplier(boolean isRateOverTime) {
+        public FunctionSupplier(boolean isRateOverTime, boolean isDateNanos) {
             this.isRateOverTime = isRateOverTime;
+            if (isDateNanos) {
+                throw new IllegalArgumentException("Nanos date type is not yet supported for rate aggregation");
+            }
         }
 
         @Override

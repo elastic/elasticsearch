@@ -247,10 +247,10 @@ public class TokenServiceTests extends ESTestCase {
         TransportVersion transportVersion;
         if (randomBoolean()) {
             version = Version.V_7_0_0;
-            transportVersion = TransportVersions.V_7_0_0;
+            transportVersion = TransportVersion.fromId(7_00_00_99);
         } else {
             version = Version.V_7_1_0;
-            transportVersion = TransportVersions.V_7_1_0;
+            transportVersion = TransportVersion.fromId(7_01_00_99);
         }
         return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
     }
@@ -838,8 +838,8 @@ public class TokenServiceTests extends ESTestCase {
         storeTokenHeader(
             requestContext,
             tokenService.prependVersionAndEncodeAccessToken(
-                TransportVersions.V_7_1_0,
-                tokenService.getRandomTokenBytes(TransportVersions.V_7_1_0, randomBoolean()).v1()
+                TransportVersion.fromId(7_01_00_99),
+                tokenService.getRandomTokenBytes(TransportVersion.fromId(7_01_00_99), randomBoolean()).v1()
             )
         );
 
@@ -860,7 +860,7 @@ public class TokenServiceTests extends ESTestCase {
             .build(false);
         mockGetTokenFromAccessTokenBytes(tokenService, tokenService.getRandomTokenBytes(randomBoolean()).v1(), authentication, false, null);
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        TransportVersion uuidTokenVersion = randomFrom(TransportVersions.V_7_2_0, TransportVersions.V_7_3_2);
+        TransportVersion uuidTokenVersion = randomFrom(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS, TransportVersion.fromId(7_03_02_99));
         storeTokenHeader(
             requestContext,
             tokenService.prependVersionAndEncodeAccessToken(

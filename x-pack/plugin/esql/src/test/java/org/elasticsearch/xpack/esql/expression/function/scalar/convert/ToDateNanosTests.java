@@ -162,7 +162,8 @@ public class ToDateNanosTests extends AbstractConfigurationFunctionTestCase {
                     List.of(inputType),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(new TestCaseSupplier.TypedData(dateString, inputType, "date")),
-                        "ToDateNanosFromStringEvaluator[in=Attribute[channel=0], formatter=format[strict_date_optional_time_nanos] locale[]]",
+                        "ToDateNanosFromStringEvaluator[in=Attribute[channel=0], "
+                            + "formatter=format[strict_date_optional_time_nanos] locale[]]",
                         DataType.DATE_NANOS,
                         matchesDateNanos(expectedDate)
                     ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))

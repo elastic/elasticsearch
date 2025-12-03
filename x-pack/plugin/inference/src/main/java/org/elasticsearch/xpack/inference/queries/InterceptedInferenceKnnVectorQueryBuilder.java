@@ -66,9 +66,9 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
-        boolean ccsRequest
+        boolean interceptedCcsRequest
     ) {
-        super(other, inferenceResultsMap, inferenceInfoFuture, ccsRequest);
+        super(other, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
     }
 
     @Override
@@ -115,7 +115,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         }
         if (filtersChanged) {
             originalQuery.setFilterQueries(rewrittenFilters);
-            return copy(inferenceResultsMap, inferenceInfoFuture, ccsRequest);
+            return copy(inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
         }
         return this;
     }
@@ -174,9 +174,9 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     protected InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> copy(
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
-        boolean ccsRequest
+        boolean interceptedCcsRequest
     ) {
-        return new InterceptedInferenceKnnVectorQueryBuilder(this, inferenceResultsMap, inferenceInfoFuture, ccsRequest);
+        return new InterceptedInferenceKnnVectorQueryBuilder(this, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
     }
 
     @Override

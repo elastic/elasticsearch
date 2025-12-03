@@ -63,9 +63,9 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
         InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
-        boolean ccsRequest
+        boolean interceptedCcsRequest
     ) {
-        super(other, inferenceResultsMap, inferenceInfoFuture, ccsRequest);
+        super(other, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
     }
 
     @Override
@@ -133,9 +133,9 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     protected InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> copy(
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
-        boolean ccsRequest
+        boolean interceptedCcsRequest
     ) {
-        return new InterceptedInferenceSparseVectorQueryBuilder(this, inferenceResultsMap, inferenceInfoFuture, ccsRequest);
+        return new InterceptedInferenceSparseVectorQueryBuilder(this, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
     }
 
     @Override

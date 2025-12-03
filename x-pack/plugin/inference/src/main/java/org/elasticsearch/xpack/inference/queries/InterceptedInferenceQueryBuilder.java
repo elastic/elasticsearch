@@ -66,7 +66,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     protected final T originalQuery;
     protected final Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap;
     protected final PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture;
-    protected final boolean ccsRequest;
+    protected final boolean interceptedCcsRequest;
 
     protected InterceptedInferenceQueryBuilder(T originalQuery) {
         this(originalQuery, null);
@@ -77,7 +77,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         this.originalQuery = originalQuery;
         this.inferenceResultsMap = inferenceResultsMap != null ? Map.copyOf(inferenceResultsMap) : null;
         this.inferenceInfoFuture = null;
-        this.ccsRequest = false;
+        this.interceptedCcsRequest = false;
     }
 
     @SuppressWarnings("unchecked")
@@ -94,9 +94,9 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             );
         }
         if (in.getTransportVersion().supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
-            this.ccsRequest = in.readBoolean();
+            this.interceptedCcsRequest = in.readBoolean();
         } else {
-            this.ccsRequest = false;
+            this.interceptedCcsRequest = false;
         }
 
         this.inferenceInfoFuture = null;
@@ -106,12 +106,12 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         InterceptedInferenceQueryBuilder<T> other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
-        boolean ccsRequest
+        boolean interceptedCcsRequest
     ) {
         this.originalQuery = other.originalQuery;
         this.inferenceResultsMap = inferenceResultsMap;
         this.inferenceInfoFuture = inferenceInfoFuture;
-        this.ccsRequest = ccsRequest;
+        this.interceptedCcsRequest = interceptedCcsRequest;
     }
 
     /**
@@ -152,13 +152,13 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      *
      * @param inferenceResultsMap         The inference results map
      * @param inferenceInfoFuture         The inference info future
-     * @param ccsRequest                  Flag indicating if this is a CCS request
+     * @param interceptedCcsRequest       Flag indicating if this is a CCS request
      * @return A copy of {@code this} with the provided inference results map
      */
     protected abstract QueryBuilder copy(
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
-        boolean ccsRequest
+        boolean interceptedCcsRequest
     );
 
     /**
@@ -238,8 +238,8 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             }, StreamOutput::writeNamedWriteable), inferenceResultsMap);
         }
         if (out.getTransportVersion().supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
-            out.writeBoolean(ccsRequest);
-        } else if (ccsRequest) {
+            out.writeBoolean(interceptedCcsRequest);
+        } else if (interceptedCcsRequest) {
             throw new IllegalArgumentException(
                 "One or more nodes does not support "
                     + originalQuery.getName()
@@ -267,12 +267,12 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         // Exclude inferenceInfoFuture from equality because it is transient
         return Objects.equals(originalQuery, other.originalQuery)
             && Objects.equals(inferenceResultsMap, other.inferenceResultsMap)
-            && Objects.equals(ccsRequest, other.ccsRequest);
+            && Objects.equals(interceptedCcsRequest, other.interceptedCcsRequest);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(originalQuery, inferenceResultsMap, ccsRequest);
+        return Objects.hash(originalQuery, inferenceResultsMap, interceptedCcsRequest);
     }
 
     @Override
@@ -335,20 +335,22 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             QueryBuilder rewritten = this;
             int inferenceFieldCount = inferenceInfo.inferenceFieldCount();
             var newInferenceResultsMap = inferenceInfo.inferenceResultsMap();
-            if (inferenceFieldCount == 0) {
-                // We aren't querying any inference fields and therefore do not need to intercept the query
+            if (inferenceFieldCount == 0 && interceptedCcsRequest == false) {
+                // We aren't querying any inference fields and this query wasn't intercepted in a previous coordinator node rewrite.
+                // Therefore, we don't need to intercept the query.
                 rewritten = originalQuery;
             } else if (Objects.equals(inferenceResultsMap, newInferenceResultsMap) == false) {
                 inferenceResultsErrorCheck(newInferenceResultsMap);
+                boolean newInterceptedCcsRequest = this.interceptedCcsRequest
+                    || resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
 
                 // Keep a reference to the future so that we can check that the inference results map doesn't change in further rewrite
                 // cycles
-                rewritten = copy(newInferenceResultsMap, inferenceInfoFuture, ccsRequest);
+                rewritten = copy(newInferenceResultsMap, inferenceInfoFuture, newInterceptedCcsRequest);
             }
             return rewritten;
         }
 
-        boolean ccsRequest = this.ccsRequest || resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> newInferenceInfoFuture = new PlainActionFuture<>();
         getInferenceInfo(
             queryRewriteContext,
@@ -362,7 +364,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             newInferenceInfoFuture
         );
 
-        return copy(inferenceResultsMap, newInferenceInfoFuture, ccsRequest);
+        return copy(inferenceResultsMap, newInferenceInfoFuture, interceptedCcsRequest);
     }
 
     private static Map<String, Float> getInferenceFieldsMap(

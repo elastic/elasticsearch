@@ -86,13 +86,13 @@ public class ShardWriteLoadDistributionMetrics {
         this.percentiles = percentiles;
         this.lastWriteLoadDistributionValues = new AtomicReferenceArray<>(percentiles.length);
         IntStream.range(0, percentiles.length).forEach(percentileIndex -> {
+            lastWriteLoadDistributionValues.set(percentileIndex, List.of());
             meterRegistry.registerDoublesGauge(
                 shardWriteLoadDistributionMetricName(percentiles[percentileIndex]),
                 percentiles[percentileIndex] + "th percentile of shard write-load values, broken down by node",
                 "write load",
                 () -> this.getWriteLoadDistributionMetrics(percentileIndex)
             );
-            lastWriteLoadDistributionValues.set(percentileIndex, List.of());
         });
         meterRegistry.registerDoublesGauge(
             WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME,

@@ -465,7 +465,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 Set.of(),
                 0L,
                 InternalFilesReplicatedRanges.EMPTY,
-                Map.of()
+                Map.of(),
+                null
             )
         );
         var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
@@ -580,7 +581,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 Set.of(),
                 0L,
                 InternalFilesReplicatedRanges.EMPTY,
-                Map.of()
+                Map.of(),
+                null
             )
         );
         var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
@@ -707,7 +709,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                         0,   // not used, stubbing value for translogRecoveryStartFile
                         0    // not used, stubbing value for translogReleaseEndFile
                     ),
-                    randomBoolean()
+                    randomBoolean(),
+                    null
                 );
 
                 vbcc.freeze();

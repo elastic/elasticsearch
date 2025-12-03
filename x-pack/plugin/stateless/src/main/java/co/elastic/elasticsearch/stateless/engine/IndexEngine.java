@@ -26,21 +26,30 @@ import co.elastic.elasticsearch.stateless.commits.CommitBCCResolver;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.ShardLocalReadersTracker;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -62,6 +71,7 @@ import org.elasticsearch.index.engine.LiveVersionMapArchive;
 import org.elasticsearch.index.engine.MergeMemoryEstimateProvider;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -87,6 +97,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 
@@ -209,6 +221,118 @@ public class IndexEngine extends InternalEngine {
             throw new EngineCreationFailureException(engineConfig.getShardId(), "Failed to create an index engine", e);
         }
         this.translogRecoveryMetrics = metrics.translogRecoveryMetrics();
+    }
+
+    /**
+     * Reads the value range for the field with the date mapping type {@param timestampFieldMappedType} from the underlying
+     * lucene directory {@code indexCommit#getDirectory}.
+     * It only considers a subset of the segments (i.e. {@param subsetSegmentNames}) among those reachable from the
+     * {@code indexCommit#getSegmentsFileName} commit file.
+     * Note that soft deletes, which are persisted in generational files, are not considered (unless all docs in a particular
+     * segment are deleted, which un-references the segment internally).
+     */
+    public static @Nullable StatelessCompoundCommit.TimestampFieldValueRange readTimestampFieldValueRangeAcrossSegments(
+        IndexCommit indexCommit,
+        Set<String> subsetSegmentNames,
+        @Nullable DateFieldMapper.DateFieldType timestampFieldMappedType
+    ) throws IOException {
+        if (timestampFieldMappedType == null || subsetSegmentNames.isEmpty()) {
+            return null;
+        }
+        long minTimestampValue = Long.MAX_VALUE;
+        long maxTimestampValue = Long.MIN_VALUE;
+        boolean found = false;
+        final var segmentInfos = Lucene.readSegmentInfos(indexCommit);
+        if (Assertions.ENABLED) {
+            Set<String> allSegmentNames = StreamSupport.stream(segmentInfos.spliterator(), false)
+                .map(segmentCommitInfo -> segmentCommitInfo.info.name)
+                .collect(Collectors.toUnmodifiableSet());
+            for (var segmentName : subsetSegmentNames) {
+                assert IndexFileNames.getExtension(segmentName) == null
+                    : "Expected a segment name not a lucene file name [" + segmentName + "]";
+                assert allSegmentNames.contains(segmentName)
+                    : "["
+                        + segmentName
+                        + "] is not among the segments referenced by ["
+                        + indexCommit.getSegmentsFileName()
+                        + "], i.e. "
+                        + allSegmentNames
+                        + ", from lucene directory ["
+                        + indexCommit.getDirectory()
+                        + "]";
+            }
+        }
+        for (var segmentCommitInfo : segmentInfos) {
+            if (subsetSegmentNames.contains(segmentCommitInfo.info.name) == false) {
+                continue;
+            }
+            var codec = segmentCommitInfo.info.getCodec();
+            Directory cfsIndexDirectory = null;
+            try {
+                if (segmentCommitInfo.info.getUseCompoundFile()) {
+                    cfsIndexDirectory = codec.compoundFormat().getCompoundReader(indexCommit.getDirectory(), segmentCommitInfo.info);
+                } else {
+                    cfsIndexDirectory = indexCommit.getDirectory();
+                }
+                var fieldsInfo = codec.fieldInfosFormat().read(cfsIndexDirectory, segmentCommitInfo.info, "", IOContext.DEFAULT);
+                var timestampFieldInfo = fieldsInfo.fieldInfo(timestampFieldMappedType.name());
+                if (timestampFieldInfo != null) {
+                    var segmentReadState = new SegmentReadState(cfsIndexDirectory, segmentCommitInfo.info, fieldsInfo, IOContext.DEFAULT);
+                    long segmentMinValue = minTimestampValue;
+                    long segmentMaxValue = maxTimestampValue;
+                    // logsdb and time_series index mode store the @timestamp field values as "doc values" (with a doc values skip index)
+                    if (timestampFieldInfo.docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE) {
+                        assert timestampFieldMappedType.indexType().hasDocValuesSkipper();
+                        try (var fieldsProducer = codec.docValuesFormat().fieldsProducer(segmentReadState)) {
+                            var docValuesSkipper = fieldsProducer.getSkipper(timestampFieldInfo);
+                            segmentMinValue = docValuesSkipper.minValue();
+                            segmentMaxValue = docValuesSkipper.maxValue();
+                        }
+                        found = true;
+                    } else if (timestampFieldInfo.getPointDimensionCount() == 1) {
+                        // standard index mode stores the @timestamp field values as uni-dimensional points data
+                        assert timestampFieldMappedType.indexType().hasPoints();
+                        try (var fieldsReader = codec.pointsFormat().fieldsReader(segmentReadState)) {
+                            var pointsReader = fieldsReader.getValues(timestampFieldMappedType.name());
+                            segmentMinValue = LongPoint.decodeDimension(pointsReader.getMinPackedValue(), 0);
+                            segmentMaxValue = LongPoint.decodeDimension(pointsReader.getMaxPackedValue(), 0);
+                        }
+                        found = true;
+                    } else {
+                        assert false : "Could not parse field value for [" + timestampFieldMappedType.name() + "] field";
+                    }
+                    assert segmentMinValue <= segmentMaxValue
+                        : "Invalid timestamp values interval for commit ["
+                            + segmentCommitInfo
+                            + "], ["
+                            + segmentMinValue
+                            + ", "
+                            + segmentMaxValue
+                            + "]";
+                    minTimestampValue = Math.min(minTimestampValue, segmentMinValue);
+                    maxTimestampValue = Math.max(maxTimestampValue, segmentMaxValue);
+                }
+            } finally {
+                if (cfsIndexDirectory != null && segmentCommitInfo.info.getUseCompoundFile()) {
+                    assert cfsIndexDirectory != indexCommit.getDirectory();
+                    cfsIndexDirectory.close();
+                }
+            }
+        }
+        if (found) {
+            if (timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
+                return new StatelessCompoundCommit.TimestampFieldValueRange(minTimestampValue, maxTimestampValue);
+            } else {
+                // Resolution#roundDownToMillis doesn't handle negative values
+                assert timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.NANOSECONDS;
+                return new StatelessCompoundCommit.TimestampFieldValueRange(
+                    Math.floorDiv(minTimestampValue, 1_000_000L),
+                    Math.ceilDiv(maxTimestampValue, 1_000_000L)
+                );
+            }
+        } else {
+            return null;
+        }
     }
 
     @Override

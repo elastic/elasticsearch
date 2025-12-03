@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -60,6 +61,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -191,6 +193,7 @@ public class StatelessCommitNotificationsIT extends AbstractServerlessStatelessP
             ShardId shardId,
             long primaryTerm,
             BooleanSupplier inititalizingNoSearchSupplier,
+            Supplier<MappingLookup> mappingLookupSupplier,
             TriConsumer<Long, GlobalCheckpointListeners.GlobalCheckpointListener, TimeValue> addGlobalCheckpointListenerFunction,
             Runnable triggerTranslogReplicator
         ) {
@@ -198,6 +201,7 @@ public class StatelessCommitNotificationsIT extends AbstractServerlessStatelessP
                 shardId,
                 primaryTerm,
                 inititalizingNoSearchSupplier,
+                mappingLookupSupplier,
                 addGlobalCheckpointListenerFunction,
                 triggerTranslogReplicator
             ) {

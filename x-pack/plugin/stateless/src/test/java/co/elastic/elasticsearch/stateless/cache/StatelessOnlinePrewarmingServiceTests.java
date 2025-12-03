@@ -86,7 +86,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
             );
 
             for (StatelessCommitRef ref : indexCommits) {
-                assertTrue(vbcc.appendCommit(ref, randomBoolean()));
+                assertTrue(vbcc.appendCommit(ref, randomBoolean(), null));
             }
             vbcc.freeze();
             // upload vbcc
@@ -203,7 +203,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
             );
 
             for (StatelessCommitRef ref : indexCommits) {
-                assertTrue(vbcc.appendCommit(ref, randomBoolean()));
+                assertTrue(vbcc.appendCommit(ref, randomBoolean(), null));
             }
             vbcc.freeze();
             // upload vbcc

@@ -263,7 +263,8 @@ public class SearchDirectoryTests extends ESTestCase {
                         files.stream().map(ChecksummedFile::fileName).collect(Collectors.toSet()),
                         0L,
                         InternalFilesReplicatedRanges.EMPTY,
-                        Map.of()
+                        Map.of(),
+                        null
                     )
                 );
                 generation += 1L;
@@ -427,7 +428,8 @@ public class SearchDirectoryTests extends ESTestCase {
             commitFiles.keySet(),
             0L,
             InternalFilesReplicatedRanges.EMPTY,
-            Map.of()
+            Map.of(),
+            null
         );
     }
 
@@ -444,7 +446,8 @@ public class SearchDirectoryTests extends ESTestCase {
             commitFiles.keySet(),
             0L,
             InternalFilesReplicatedRanges.EMPTY,
-            Map.of()
+            Map.of(),
+            null
         );
     }
 

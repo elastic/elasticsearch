@@ -21,6 +21,7 @@ package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.InternalFile;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
@@ -41,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -84,7 +86,6 @@ import java.util.stream.Stream;
 
 import static co.elastic.elasticsearch.stateless.commits.ReplicatedContent.ALWAYS_REPLICATE;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.isGenerationalFile;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.CURRENT_VERSION;
 import static java.util.stream.Collectors.groupingBy;
 import static org.elasticsearch.common.io.Streams.limitStream;
 
@@ -105,7 +106,8 @@ import static org.elasticsearch.common.io.Streams.limitStream;
  * </p>
  *
  * <p>
- *     This class facilitates the appending of multiple compound commits via {@link #appendCommit(StatelessCommitRef, boolean)}.
+ *     This class facilitates the appending of multiple compound commits via
+ *     {@link #appendCommit(StatelessCommitRef, boolean, TimestampFieldValueRange)}.
  *     When the caller intends to write these commits to the blob store it should use {@link #getFrozenInputStreamForUpload()}.
  * </p>
  *
@@ -155,7 +157,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         LongSupplier timeInMillisSupplier,
         int cacheRegionSize,
         int estimatedMaxHeaderSizeInBytes
-
     ) {
         this.shardId = shardId;
         this.nodeEphemeralId = nodeEphemeralId;
@@ -210,10 +211,14 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
      * No synchronization is needed for this method because its sole caller is itself synchronized
      * @return {@code true} if the append is successful or {@code false} if the VBCC is frozen and cannot be appended to
      */
-    public boolean appendCommit(StatelessCommitRef reference, boolean useInternalFilesReplicatedContent) {
+    public boolean appendCommit(
+        StatelessCommitRef reference,
+        boolean useInternalFilesReplicatedContent,
+        @Nullable TimestampFieldValueRange timestampFieldValueRange
+    ) {
         assert assertCompareAndSetFreezeOrAppendingCommitThread(null, Thread.currentThread());
         try {
-            return doAppendCommit(reference, useInternalFilesReplicatedContent);
+            return doAppendCommit(reference, useInternalFilesReplicatedContent, timestampFieldValueRange);
         } catch (IOException e) {
             throw new UncheckedIOException(
                 "Unable to append commit [" + reference.getPrimaryTerm() + ", " + reference.getGeneration() + "]",
@@ -232,7 +237,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return frozen;
     }
 
-    private boolean doAppendCommit(StatelessCommitRef reference, boolean useInternalFilesReplicatedContent) throws IOException {
+    private boolean doAppendCommit(
+        StatelessCommitRef reference,
+        boolean useInternalFilesReplicatedContent,
+        @Nullable TimestampFieldValueRange timestampFieldValueRange
+    ) throws IOException {
         assert primaryTermAndGeneration.primaryTerm() == reference.getPrimaryTerm();
         assert (pendingCompoundCommits.isEmpty() && primaryTermAndGeneration.generation() == reference.getGeneration())
             || (pendingCompoundCommits.isEmpty() == false && primaryTermAndGeneration.generation() < reference.getGeneration());
@@ -295,7 +304,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             replicatedContentHeader,
             referencedFiles,
             useInternalFilesReplicatedContent,
-            extraContentFiles
+            extraContentFiles,
+            timestampFieldValueRange
         );
 
         final long sizeInBytes = header.length + replicatedContentHeader.dataSizeInBytes() + internalFilesSize + extraContentSize;
@@ -402,7 +412,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                     internalFiles.stream().map(InternalFile::name).collect(Collectors.toUnmodifiableSet()),
                     header.length,
                     replicatedContent.header(),
-                    Collections.unmodifiableMap(extraContent)
+                    Collections.unmodifiableMap(extraContent),
+                    timestampFieldValueRange
                 )
                 : new StatelessCompoundCommit(
                     shardId,
@@ -414,7 +425,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                     internalFiles.stream().map(InternalFile::name).collect(Collectors.toUnmodifiableSet()),
                     header.length,
                     replicatedContent.header(),
-                    Collections.unmodifiableMap(extraContent)
+                    Collections.unmodifiableMap(extraContent),
+                    timestampFieldValueRange
                 ),
             Long.parseLong(reference.getIndexCommit().getUserData().get(SequenceNumbers.MAX_SEQ_NO))
         );
@@ -811,7 +823,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         InternalFilesReplicatedRanges replicatedRanges,
         Map<String, BlobLocation> referencedFiles,
         boolean useInternalFilesReplicatedContent,
-        Iterable<InternalFile> extraContent
+        Iterable<InternalFile> extraContent,
+        @Nullable TimestampFieldValueRange timestampFieldValueRange
     ) throws IOException {
         assert getBlobName() != null;
         try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
@@ -822,10 +835,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 reference.getPrimaryTerm(),
                 reference.isHollow() ? "" : nodeEphemeralId,
                 reference.getTranslogRecoveryStartFile(),
+                timestampFieldValueRange,
                 referencedFiles,
                 internalFiles,
                 replicatedRanges,
-                CURRENT_VERSION,
                 positionTrackingOutputStreamStreamOutput,
                 useInternalFilesReplicatedContent,
                 extraContent

@@ -166,7 +166,7 @@ public class CacheBlobReaderTests extends ESTestCase {
         private void appendCommitsToVbcc(List<StatelessCommitRef> commits, boolean useInternalFilesReplicatedContent) {
             assert virtualBatchedCompoundCommit != null;
             for (StatelessCommitRef statelessCommitRef : commits) {
-                assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, useInternalFilesReplicatedContent));
+                assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, useInternalFilesReplicatedContent, null));
                 var pendingCompoundCommits = VirtualBatchedCompoundCommitTestUtils.getPendingStatelessCompoundCommits(
                     virtualBatchedCompoundCommit
                 );

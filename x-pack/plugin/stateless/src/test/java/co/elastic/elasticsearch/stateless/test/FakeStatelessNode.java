@@ -93,6 +93,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -309,9 +310,16 @@ public class FakeStatelessNode implements Closeable {
             );
             commitService = createCommitService();
             commitService.start();
-            commitService.register(shardId, getPrimaryTerm(), () -> false, (checkpoint, gcpListener, timeout) -> {
-                gcpListener.accept(Long.MAX_VALUE, null);
-            }, () -> {});
+            commitService.register(
+                shardId,
+                getPrimaryTerm(),
+                () -> false,
+                () -> MappingLookup.EMPTY,
+                (checkpoint, gcpListener, timeout) -> {
+                    gcpListener.accept(Long.MAX_VALUE, null);
+                },
+                () -> {}
+            );
             localCloseables.add(commitService);
             indexingDirectory = localCloseables.add(
                 new IndexDirectory(
@@ -473,24 +481,35 @@ public class FakeStatelessNode implements Closeable {
         boolean includeDeletions,
         LongConsumer onCommitClosed
     ) throws IOException {
-        List<StatelessCommitRef> commits = new ArrayList<>(commitsNumber);
-        Set<String> previousCommit;
-
-        final var indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+        var indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
         indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
-        indexWriterConfig.setMergePolicy(new TieredMergePolicy().setSegmentsPerTier(10));   // lucene 10.3 changed default to 8
-        String deleteId = ESTestCase.randomAlphaOfLength(10);
+        indexWriterConfig.setMergePolicy(new TieredMergePolicy().setSegmentsPerTier(10)); // lucene 10.3 changed default to 8
+        return generateIndexCommits(commitsNumber, merge, includeDeletions, onCommitClosed, (commitNumber) -> {
+            LuceneDocument document = new LuceneDocument();
+            document.add(new KeywordField("field0", "term", Field.Store.YES));
+            return document;
+        }, indexWriterConfig);
+    }
 
+    public List<StatelessCommitRef> generateIndexCommits(
+        int commitsNumber,
+        boolean merge,
+        boolean includeDeletions,
+        LongConsumer onCommitClosed,
+        Function<Integer, LuceneDocument> newDocForCommitFunction,
+        IndexWriterConfig indexWriterConfig
+    ) throws IOException {
+        List<StatelessCommitRef> commits = new ArrayList<>(commitsNumber);
+        IndexCommit previousCommit;
         try (var indexWriter = new IndexWriter(indexingStore.directory(), indexWriterConfig)) {
             try (var indexReader = DirectoryReader.open(indexingStore.directory())) {
-                IndexCommit indexCommit = indexReader.getIndexCommit();
-                previousCommit = new HashSet<>(indexCommit.getFileNames());
+                previousCommit = indexReader.getIndexCommit();
             }
             for (int i = 0; i < commitsNumber; i++) {
-                LuceneDocument document = new LuceneDocument();
-                document.add(new KeywordField("field0", "term", Field.Store.YES));
+                LuceneDocument document = newDocForCommitFunction.apply(i);
                 indexWriter.addDocument(document.getFields());
                 if (includeDeletions && ESTestCase.randomBoolean()) {
+                    String deleteId = ESTestCase.randomAlphaOfLength(10);
                     final ParsedDocument tombstone = ParsedDocument.deleteTombstone(indexSettings.seqNoIndexOptions(), deleteId);
                     LuceneDocument delete = tombstone.docs().get(0);
                     NumericDocValuesField field = Lucene.newSoftDeletesField();
@@ -508,9 +527,8 @@ public class FakeStatelessNode implements Closeable {
                 indexWriter.commit();
                 try (var indexReader = DirectoryReader.open(indexingStore.directory())) {
                     IndexCommit indexCommit = indexReader.getIndexCommit();
-                    Set<String> commitFiles = new HashSet<>(indexCommit.getFileNames());
-                    Set<String> additionalFiles = Sets.difference(commitFiles, previousCommit);
-                    previousCommit = commitFiles;
+                    final Set<String> additionalFiles = Lucene.additionalFileNames(previousCommit, indexCommit);
+                    previousCommit = indexCommit;
 
                     StatelessCommitRef statelessCommitRef = new StatelessCommitRef(
                         shardId,

@@ -1249,6 +1249,7 @@ public class ServerlessStatelessPlugin extends Plugin
                         indexShard.shardId(),
                         indexShard.getOperationPrimaryTerm(),
                         () -> isInitializingNoSearchShards(indexShard),
+                        () -> indexShard.mapperService().mappingLookup(),
                         indexShard::addGlobalCheckpointListener,
                         () -> {
                             Engine engineOrNull = indexShard.getEngineOrNull();

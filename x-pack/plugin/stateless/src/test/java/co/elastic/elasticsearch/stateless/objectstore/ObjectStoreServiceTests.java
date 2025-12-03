@@ -255,7 +255,6 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     final var indexReader = closeables.add(DirectoryReader.open(indexWriter));
                     final var indexCommit = indexReader.getIndexCommit();
                     final var commitFiles = testHarness.indexingStore.getMetadata(indexCommit).fileMetadataMap().keySet();
-                    ;
                     final var additionalFiles = Sets.difference(commitFiles, previousCommitFiles);
                     previousCommitFiles = commitFiles;
                     if (commit == 0 || mergesEnabled == false) {
@@ -415,7 +414,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     )
                 ) {
                     for (StatelessCommitRef statelessCommitRef : indexCommits) {
-                        assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean()));
+                        assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean(), null));
                     }
                     virtualBatchedCompoundCommit.freeze();
                     try (var vbccInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
@@ -492,7 +491,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     )
                 ) {
                     for (var indexCommit : indexCommits) {
-                        assertTrue(virtualBatchedCompoundCommit.appendCommit(indexCommit, useReplicatedRanges));
+                        assertTrue(virtualBatchedCompoundCommit.appendCommit(indexCommit, useReplicatedRanges, null));
                         assertThat(getCommitSize(indexCommit), greaterThan(regionSize.getBytes()));
                     }
                     virtualBatchedCompoundCommit.freeze();

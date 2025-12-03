@@ -85,12 +85,12 @@ public class HttpClient {
     }
 
     public SqlQueryResponse basicQuery(String query, int fetchSize, boolean fieldMultiValueLeniency) throws SQLException {
-        return basicQuery(query, fetchSize, fieldMultiValueLeniency, cfg.allowPartialSearchResults());
+        return basicQuery(query, fetchSize, fieldMultiValueLeniency, cfg.allowPartialSearchResults(), cfg.projectRouting());
     }
 
     public SqlQueryResponse basicQuery(String query, int fetchSize, boolean fieldMultiValueLeniency, boolean allowPartialSearchResults)
         throws SQLException {
-        return basicQuery(query, fetchSize, fieldMultiValueLeniency, allowPartialSearchResults, null);
+        return basicQuery(query, fetchSize, fieldMultiValueLeniency, allowPartialSearchResults, cfg.projectRouting());
     }
 
     public SqlQueryResponse basicQuery(
@@ -116,7 +116,8 @@ public class HttpClient {
             fieldMultiValueLeniency,
             false,
             cfg.binaryCommunication(),
-            allowPartialSearchResults
+            allowPartialSearchResults,
+            projectRouting
         );
         // TODO add project routing
         return query(sqlRequest).response();
@@ -134,7 +135,8 @@ public class HttpClient {
             TimeValue.timeValueMillis(cfg.pageTimeout()),
             new RequestInfo(Mode.CLI),
             cfg.binaryCommunication(),
-            cfg.allowPartialSearchResults()
+            cfg.allowPartialSearchResults(),
+            cfg.projectRouting()
         );
         return post(CoreProtocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, Payloads::parseQueryResponse).response();
     }
@@ -190,7 +192,8 @@ public class HttpClient {
             cfg.authPass(),
             cfg.sslConfig(),
             cfg.proxyConfig(),
-            CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS
+            CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS,
+            cfg.projectRouting()
         );
         try {
             return java.security.AccessController.doPrivileged(

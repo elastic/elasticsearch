@@ -31,7 +31,7 @@ public class AzureOpenAiChatCompletionRequestEntity implements ToXContentObject 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        requestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxCompletionTokensTokens(params));
+        requestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxCompletionTokens(params));
 
         if (Strings.isNullOrEmpty(user) == false) {
             builder.field(USER_FIELD, user);

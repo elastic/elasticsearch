@@ -256,14 +256,7 @@ public class SemanticChunkScorerTests extends MapperServiceTestCase {
         );
 
         // Test with maxResults greater than available chunks
-        assertScoreChunksOneDoc(
-            mapperService,
-            shardRequest,
-            sourceToParse,
-            SEMANTIC_FIELD_E5,
-            100,
-            expectedScoreChunks
-        );
+        assertScoreChunksOneDoc(mapperService, shardRequest, sourceToParse, SEMANTIC_FIELD_E5, 100, expectedScoreChunks);
     }
 
     private MapperService createDefaultMapperService(boolean useLegacyFormat) throws IOException {

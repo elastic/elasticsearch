@@ -191,7 +191,6 @@ public class SemanticTextChunkUtils {
         return queries;
     }
 
-
     public static List<Query> extractSparseVectorQueries(SparseVectorFieldMapper.SparseVectorFieldType fieldType, Query querySection) {
         List<Query> queries = new ArrayList<>();
         querySection.visit(new QueryVisitor() {

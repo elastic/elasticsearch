@@ -1021,11 +1021,10 @@ TS datenanos-k8s
 | SORT time_bucket DESC 
 | LIMIT 3;
 
-max:double | inc:double  | time_bucket:date_nanos   | cluster:keyword
-6.980661   | 2094.198198 | 2024-05-10T00:20:00.000Z | prod
-11.860806  | 3558.241758 | 2024-05-10T00:15:00.000Z | prod
-11.562738  | 3468.821293 | 2024-05-10T00:10:00.000Z | prod
-
+max:double | inc:double | time_bucket:date_nanos   | cluster:keyword
+6.98066    | 2094.1982  | 2024-05-10T00:20:00.000Z | prod
+11.86081   | 3558.24176 | 2024-05-10T00:15:00.000Z | prod
+11.56274   | 3468.82129 | 2024-05-10T00:10:00.000Z | prod
 ;
 
 oneRateIncreaseWithBucketAndClusterThenFilter

@@ -40,7 +40,7 @@ class PatienceCollectorManager implements KnnCollectorManager {
     }
 
     static KnnCollectorManager wrap(KnnCollectorManager knnCollectorManager, int k) {
-        return new PatienceCollectorManager(knnCollectorManager, Math.max(7, (int) (k * 0.3)), DEFAULT_SATURATION_THRESHOLD);
+        return new PatienceCollectorManager(knnCollectorManager, Math.max(7, (int) (k * 0.1)), DEFAULT_SATURATION_THRESHOLD);
     }
 
     @Override

@@ -149,7 +149,7 @@ public class ShardWriteLoadDistributionMetrics {
                      * they sometimes end up being calculated as very small (e.g. 3.3123178228374412E-21). These values
                      * don't play nice with the HdrHistogram because it works best when there is a relatively small difference
                      * in the scale of the values inserted into it.
-                     * They also provide little value, so we round them down to zero before adding them to the histogram.
+                     * They're also not very interesting, so we round them down to zero before adding them to the histogram.
                      */
                     shardWeightHistogram.recordValue(roundTinyValuesToZero(writeLoad));
                     maxShardWriteLoad = Math.max(maxShardWriteLoad, writeLoad);

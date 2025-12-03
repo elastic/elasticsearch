@@ -17,9 +17,9 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBe
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.AmazonBedrockResponseHandler;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.AmazonBedrockResponseListener;
 
-public class AmazonBedrockChatCompletionResponseListener extends AmazonBedrockResponseListener implements ActionListener<ConverseResponse> {
+public class AmazonBedrockCompletionResponseListener extends AmazonBedrockResponseListener implements ActionListener<ConverseResponse> {
 
-    public AmazonBedrockChatCompletionResponseListener(
+    public AmazonBedrockCompletionResponseListener(
         AmazonBedrockRequest request,
         AmazonBedrockResponseHandler responseHandler,
         ActionListener<InferenceServiceResults> inferenceResultsListener

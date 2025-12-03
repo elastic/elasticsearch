@@ -213,7 +213,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                     {
                          "service": "amazonbedrock",
                          "name": "Amazon Bedrock",
-                         "task_types": ["text_embedding", "completion"],
+                         "task_types": ["text_embedding", "completion", "chat_completion"],
                          "configurations": {
                               "dimensions": {
                                  "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-titan-embed-text.html.",
@@ -231,7 +231,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                                  "sensitive": true,
                                  "updatable": true,
                                  "type": "str",
-                                 "supported_task_types": ["text_embedding", "completion"]
+                                 "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                              },
                              "provider": {
                                  "description": "The model provider for your deployment.",
@@ -240,7 +240,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                                  "sensitive": false,
                                  "updatable": false,
                                  "type": "str",
-                                 "supported_task_types": ["text_embedding", "completion"]
+                                 "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                              },
                              "access_key": {
                                  "description": "A valid AWS access key that has permissions to use Amazon Bedrock.",
@@ -249,7 +249,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                                  "sensitive": true,
                                  "updatable": true,
                                  "type": "str",
-                                 "supported_task_types": ["text_embedding", "completion"]
+                                 "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                              },
                              "model": {
                                  "description": "The base model ID or an ARN to a custom model based on a foundational model.",
@@ -258,7 +258,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                                  "sensitive": false,
                                  "updatable": false,
                                  "type": "str",
-                                 "supported_task_types": ["text_embedding", "completion"]
+                                 "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                              },
                              "rate_limit.requests_per_minute": {
                                  "description": "By default, the amazonbedrock service sets the number of requests allowed per minute to 240.",
@@ -267,7 +267,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                                  "sensitive": false,
                                  "updatable": false,
                                  "type": "int",
-                                 "supported_task_types": ["text_embedding", "completion"]
+                                 "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                              },
                              "region": {
                                  "description": "The region that your model or ARN is deployed in.",
@@ -276,7 +276,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                                  "sensitive": false,
                                  "updatable": false,
                                  "type": "str",
-                                 "supported_task_types": ["text_embedding", "completion"]
+                                 "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                              }
                          }
                      }
@@ -1290,7 +1290,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new AmazonBedrockService(mock(), mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
-            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
     }

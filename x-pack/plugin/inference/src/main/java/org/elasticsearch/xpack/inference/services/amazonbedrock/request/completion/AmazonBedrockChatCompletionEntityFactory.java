@@ -58,7 +58,7 @@ public final class AmazonBedrockChatCompletionEntityFactory {
             .map(
                 message -> new UnifiedCompletionRequest.Message(
                     message.content(),
-                    toBedrockRole(message.role()),
+                    message.role(),
                     message.toolCallId(),
                     message.toolCalls()
                 )
@@ -82,9 +82,5 @@ public final class AmazonBedrockChatCompletionEntityFactory {
                 return null;
             }
         }
-    }
-
-    private static String toBedrockRole(String role) {
-        return role == null ? "user" : role;
     }
 }

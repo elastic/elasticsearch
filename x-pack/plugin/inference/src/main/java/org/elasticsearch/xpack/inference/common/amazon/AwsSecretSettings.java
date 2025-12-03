@@ -136,7 +136,7 @@ public class AwsSecretSettings implements SecretSettings {
 
         private static final LazyInitializable<Map<String, SettingsConfiguration>, RuntimeException> configuration =
             new LazyInitializable<>(
-                () -> configuration(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).collect(
+                () -> configuration(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION)).collect(
                     Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)
                 )
             );

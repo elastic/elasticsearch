@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockChatCompletionResponseListener;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockCompletionResponseListener;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.c
 
 public class AmazonBedrockCompletionRequest extends AmazonBedrockRequest {
     private final AmazonBedrockCompletionRequestEntity requestEntity;
-    private AmazonBedrockChatCompletionResponseListener listener;
+    private AmazonBedrockCompletionResponseListener listener;
     private final boolean stream;
 
     public AmazonBedrockCompletionRequest(
@@ -75,9 +75,9 @@ public class AmazonBedrockCompletionRequest extends AmazonBedrockRequest {
 
     public void executeCompletionRequest(
         AmazonBedrockBaseClient awsBedrockClient,
-        AmazonBedrockChatCompletionResponseListener chatCompletionResponseListener
+        AmazonBedrockCompletionResponseListener completionResponseListener
     ) {
-        this.listener = chatCompletionResponseListener;
+        this.listener = completionResponseListener;
         this.executeRequest(awsBedrockClient);
     }
 

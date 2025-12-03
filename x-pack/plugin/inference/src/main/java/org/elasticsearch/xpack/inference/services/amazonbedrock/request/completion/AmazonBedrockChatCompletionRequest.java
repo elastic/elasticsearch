@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockChatCompletionResponseListener;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockCompletionResponseListener;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.c
 public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
     public static final String USER_ROLE = "user";
     private final AmazonBedrockChatCompletionRequestEntity requestEntity;
-    private AmazonBedrockChatCompletionResponseListener listener;
+    private AmazonBedrockCompletionResponseListener listener;
     private final boolean stream;
 
     public AmazonBedrockChatCompletionRequest(
@@ -56,7 +56,7 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
 
     public void executeChatCompletionRequest(
         AmazonBedrockBaseClient awsBedrockClient,
-        AmazonBedrockChatCompletionResponseListener chatCompletionResponseListener
+        AmazonBedrockCompletionResponseListener chatCompletionResponseListener
     ) {
         this.listener = chatCompletionResponseListener;
         this.executeRequest(awsBedrockClient);

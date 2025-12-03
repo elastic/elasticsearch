@@ -241,10 +241,6 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         }
     }
 
-
-
-
-
     /**
      * Parse a MessageStartEvent into a ChatCompletionChunk stream
      * @param event the MessageStartEvent data

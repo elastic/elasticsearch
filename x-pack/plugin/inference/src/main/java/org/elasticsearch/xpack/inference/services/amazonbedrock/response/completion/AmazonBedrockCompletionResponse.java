@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion;
 
-import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockCompletionRequest;
-
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
 
@@ -16,13 +14,14 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.AmazonBedrockResponse;
 
-public class AmazonBedrockChatCompletionResponse extends AmazonBedrockResponse {
+public class AmazonBedrockCompletionResponse extends AmazonBedrockResponse {
 
     private final ConverseResponse result;
 
-    public AmazonBedrockChatCompletionResponse(ConverseResponse responseResult) {
+    public AmazonBedrockCompletionResponse(ConverseResponse responseResult) {
         this.result = responseResult;
     }
 

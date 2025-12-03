@@ -78,7 +78,7 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         return null;
     }
 
-    static class DetectMissingParamsGuardedBinding extends GuardedBinding {
+    private static final class DetectMissingParamsGuardedBinding extends GuardedBinding {
         private final Code code;
 
         DetectMissingParamsGuardedBinding(ObjectHandler oh, String name, TemplateContext tc, Code code) {
@@ -95,7 +95,7 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         }
     }
 
-    static final class ArrayMap extends AbstractMap<Object, Object> implements Iterable<Object> {
+    private static final class ArrayMap extends AbstractMap<Object, Object> implements Iterable<Object> {
 
         private final Object array;
         private final int length;
@@ -155,7 +155,7 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
 
     }
 
-    static final class CollectionMap extends AbstractMap<Object, Object> implements Iterable<Object> {
+    private static final class CollectionMap extends AbstractMap<Object, Object> implements Iterable<Object> {
 
         private final Collection<Object> col;
 

@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -227,6 +228,43 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
             assertNoMetricsPublished(countAboveThresholdMeasurements, node.getId());
             assertNoMetricsPublished(shardWriteLoadSumMeasurements, node.getId());
         }
+    }
+
+    public void testMetricsAreNotRecalculatedWhenThereAreUncollectedMetrics() {
+        final var testInfrastructure = createTestInfrastructure();
+
+        // Calculate metrics
+        testInfrastructure.shardWriteLoadDistributionMetrics.onNewInfo(testInfrastructure.clusterInfo);
+
+        // Calculate again with all very low write-loads - should be a no-op and not overwrite previous values
+        final var clusterInfoWithLowWriteLoads = ClusterInfo.builder()
+            .shardWriteLoads(Maps.transformValues(testInfrastructure.clusterInfo.getShardWriteLoads(), v -> 0.1))
+            .build();
+        testInfrastructure.shardWriteLoadDistributionMetrics.onNewInfo(clusterInfoWithLowWriteLoads);
+
+        // Collect should publish the first set of (not low) write-loads
+        testInfrastructure.meterRegistry.getRecorder().collect();
+
+        final var writeLoadDistributionMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_DISTRIBUTION_METRIC_NAME);
+
+        assertRoughlyInRange(
+            testInfrastructure.numberOfSignificantDigits,
+            measurementForPercentile(writeLoadDistributionMeasurements, "index_0", 100.0),
+            testInfrastructure.maxP90,
+            testInfrastructure.maxP100
+        );
+
+        // This time the metrics should be updated
+        testInfrastructure.shardWriteLoadDistributionMetrics.onNewInfo(clusterInfoWithLowWriteLoads);
+
+        testInfrastructure.meterRegistry.getRecorder().resetCalls();
+        testInfrastructure.meterRegistry.getRecorder().collect();
+
+        final var lowerWriteLoadDistributionMetrics = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_DISTRIBUTION_METRIC_NAME);
+
+        assertEquals(measurementForPercentile(lowerWriteLoadDistributionMetrics, "index_0", 100), 0.1, 0.01);
     }
 
     private static void assertNoMetricsPublished(List<Measurement> measurements, String nodeId) {

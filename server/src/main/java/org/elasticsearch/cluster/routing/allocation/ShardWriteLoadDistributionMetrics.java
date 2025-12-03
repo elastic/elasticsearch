@@ -110,7 +110,8 @@ public class ShardWriteLoadDistributionMetrics {
         // We need a cluster state and shard write loads to compute these metrics
         if (metricsEnabled == false
             || clusterService.lifecycleState() != Lifecycle.State.STARTED
-            || clusterInfo.getShardWriteLoads().isEmpty()) {
+            || clusterInfo.getShardWriteLoads().isEmpty()
+            || thereAreUncollectedMetrics()) {
             return;
         }
 
@@ -190,6 +191,23 @@ public class ShardWriteLoadDistributionMetrics {
         lastWriteLoadPrioritisationThresholdValues.set(writeLoadPrioritisationThresholdValues);
         lastShardCountExceedingPrioritisationThresholdValues.set(shardCountsExceedingPrioritisationThresholdValues);
         lastWriteLoadSumValues.set(shardWriteLoadSumValues);
+    }
+
+    /**
+     * We receive ClusterInfo more often than we publish metrics, so don't recalculate
+     * the metrics if the last ones haven't been published yet.
+     * <p>
+     * This means the metrics can lag by ~30s, but it avoids calculating metrics that are
+     * discarded. An alternative would be to calculate the metrics on the metrics thread,
+     * but it could be quite expensive for larger clusters.
+     *
+     * @return true if there are uncollected metrics, false otherwise.
+     */
+    private boolean thereAreUncollectedMetrics() {
+        return lastWriteLoadDistributionValues.get().isEmpty() == false
+            || lastWriteLoadPrioritisationThresholdValues.get().isEmpty() == false
+            || lastShardCountExceedingPrioritisationThresholdValues.get().isEmpty() == false
+            || lastWriteLoadSumValues.get().isEmpty() == false;
     }
 
     private double roundTinyValuesToZero(double value) {

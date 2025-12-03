@@ -1016,6 +1016,7 @@ id_left:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:in
 
 lookupJoinExpressionWithKqlAndTimezones
 required_capability: join_lookup_v12
+required_capability: lookup_join_with_full_text_function
 required_capability: kql_qstr_timezone_support
 
 SET time_zone = "Europe/Madrid"\;
@@ -1036,6 +1037,7 @@ id_left:integer | date:date                | date_nanos:date_nanos
 
 lookupJoinExpressionWithQstrAndTimezones
 required_capability: join_lookup_v12
+required_capability: lookup_join_with_full_text_function
 required_capability: kql_qstr_timezone_support
 
 SET time_zone = "Europe/Madrid"\;

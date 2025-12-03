@@ -4,7 +4,7 @@ steps:
   - group: platform-support-unix
     steps:
       - label: "{{matrix.image}} / platform-support-unix"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true functionalTests
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true functionalTests
         timeout_in_minutes: 420
         matrix:
           setup:
@@ -44,7 +44,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-windows"
         command: |
-          .\.buildkite\scripts\run-script.ps1 bash .buildkite/scripts/windows-run-gradle.sh
+          .\.buildkite\scripts\run-script.ps1 bash .buildkite/scripts/windows-run-gradle.sh --continue
         timeout_in_minutes: 420
         matrix:
           setup:
@@ -79,7 +79,7 @@ steps:
   - group: platform-support-arm
     steps:
       - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-arm"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true {{matrix.GRADLE_TASK}}
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true {{matrix.GRADLE_TASK}}
         timeout_in_minutes: 420
         matrix:
           setup:
@@ -115,7 +115,7 @@ steps:
   - group: platform-support-unix-aws
     steps:
       - label: "{{matrix.image}} / platform-support-aws"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true functionalTests
+        command: .ci/scripts/run-gradle.sh --continue  -Dbwc.checkout.align=true functionalTests
         timeout_in_minutes: 420
         matrix:
           setup:

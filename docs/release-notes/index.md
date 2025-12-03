@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.2.2 [elasticsearch-9.2.2-release-notes]
-```{applies_to}
-stack: ga 9.2.2
-```
 
 ### Features and enhancements [elasticsearch-9.2.2-features-enhancements]
 
@@ -118,9 +115,6 @@ Vector Search:
 * [Vector Search] Fix  wrong vector docvalue_fields [#137862](https://github.com/elastic/elasticsearch/pull/137862)
 
 ## 9.1.8 [elasticsearch-9.1.8-release-notes]
-```{applies_to}
-stack: ga 9.1.8
-```
 
 ### Features and enhancements [elasticsearch-9.1.8-features-enhancements]
 

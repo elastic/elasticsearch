@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.recovery.RemedialAllocationSettingService.RemedialAllocationSettingTask;
 import co.elastic.elasticsearch.stateless.recovery.RemedialAllocationSettingService.RemediateAllocationSettingClusterStateExecutor;
 
@@ -72,7 +72,7 @@ public class RemedialAllocationSettingServiceTests extends ESTestCase {
 
         // Settings for both having and not having the required allocation setting
         Settings hasAllocation = Settings.builder()
-            .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), Stateless.NAME)
+            .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), ServerlessStatelessPlugin.NAME)
             .build();
 
         // Single data stream project, failure store enabled, but has the allocation settings
@@ -176,7 +176,7 @@ public class RemedialAllocationSettingServiceTests extends ESTestCase {
                 assertThat(
                     idxMetadata.getIndex().getName(),
                     ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(idxMetadata.getSettings()),
-                    equalTo(Stateless.NAME)
+                    equalTo(ServerlessStatelessPlugin.NAME)
                 );
             });
         // None of the other resources in project are touched - they aren't the target of this fix
@@ -285,7 +285,7 @@ public class RemedialAllocationSettingServiceTests extends ESTestCase {
 
         // Required allocation setting
         Settings hasAllocation = Settings.builder()
-            .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), Stateless.NAME)
+            .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), ServerlessStatelessPlugin.NAME)
             .build();
 
         // Single data stream project, no remediation needed
@@ -367,7 +367,7 @@ public class RemedialAllocationSettingServiceTests extends ESTestCase {
         // Settings for both having and not having the required allocation setting
         Settings missingAllocation = Settings.EMPTY;
         Settings hasAllocation = Settings.builder()
-            .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), Stateless.NAME)
+            .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), ServerlessStatelessPlugin.NAME)
             .build();
 
         // Single data stream project, failure store enabled, but has the allocation settings

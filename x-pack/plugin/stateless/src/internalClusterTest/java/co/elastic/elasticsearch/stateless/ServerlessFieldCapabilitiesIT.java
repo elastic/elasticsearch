@@ -31,7 +31,7 @@ import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STA
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ServerlessFieldCapabilitiesIT extends AbstractStatelessIntegTestCase {
+public class ServerlessFieldCapabilitiesIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     private final String mapping = """
         {

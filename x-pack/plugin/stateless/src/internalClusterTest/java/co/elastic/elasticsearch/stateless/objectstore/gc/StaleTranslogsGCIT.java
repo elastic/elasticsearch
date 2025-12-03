@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.objectstore.gc;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
@@ -57,13 +57,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public class StaleTranslogsGCIT extends AbstractStatelessIntegTestCase {
+public class StaleTranslogsGCIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
-    public static class TestStateless extends Stateless {
+    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
 
         public ObjectStoreGCTaskExecutor taskExecutor;
 
-        public TestStateless(Settings settings) {
+        public TestServerlessStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -89,7 +89,9 @@ public class StaleTranslogsGCIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(
-            super.nodePlugins().stream().map(c -> c.equals(Stateless.class) ? TestStateless.class : c).toList(),
+            super.nodePlugins().stream()
+                .map(c -> c.equals(ServerlessStatelessPlugin.class) ? TestServerlessStatelessPlugin.class : c)
+                .toList(),
             MockRepository.Plugin.class
         );
     }

@@ -53,7 +53,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class StatelessConcurrentRefreshIT extends AbstractStatelessIntegTestCase {
+public class StatelessConcurrentRefreshIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected Settings.Builder nodeSettings() {
@@ -65,12 +65,12 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessIntegTestCase
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(TestStateless.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(TestServerlessStatelessPlugin.class);
         return plugins;
     }
 
-    public static class TestStateless extends Stateless {
+    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
 
         public final AtomicReference<CyclicBarrier> commitIndexWriterBarrierReference = new AtomicReference<>();
         public final AtomicReference<CyclicBarrier> indexBarrierReference = new AtomicReference<>();
@@ -78,7 +78,7 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessIntegTestCase
         public final AtomicReference<CountDownLatch> refreshCompletedLatchReference = new AtomicReference<>();
         public final AtomicInteger indexCounter = new AtomicInteger();
 
-        public TestStateless(Settings settings) {
+        public TestServerlessStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -178,7 +178,7 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessIntegTestCase
         final String newIndexNode = startIndexNode();
         ensureStableCluster(4);
 
-        final var testStateless = findPlugin(indexNode, TestStateless.class);
+        final var testStateless = findPlugin(indexNode, TestServerlessStatelessPlugin.class);
 
         final var indexBarrier = new CyclicBarrier(2);
         testStateless.indexBarrierReference.set(indexBarrier);
@@ -236,7 +236,7 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessIntegTestCase
         bulkIndexDocsWithRefresh(indexName, 20, WriteRequest.RefreshPolicy.IMMEDIATE);
         bulkIndexDocsWithRefresh(indexName, 20, WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        final var testStateless = findPlugin(indexNode, TestStateless.class);
+        final var testStateless = findPlugin(indexNode, TestServerlessStatelessPlugin.class);
 
         final var indexBarrier = new CyclicBarrier(2);
         testStateless.indexBarrierReference.set(indexBarrier);
@@ -309,7 +309,7 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessIntegTestCase
 
         final String newIndexNode = startIndexNode();
         ensureStableCluster(4);
-        final var testStateless = findPlugin(indexNode, TestStateless.class);
+        final var testStateless = findPlugin(indexNode, TestServerlessStatelessPlugin.class);
 
         // 1. Issue an indexing request with wait_until. It should register a refresh listener and wait for it to be notified.
         // It holds 1 index operation permits while waiting

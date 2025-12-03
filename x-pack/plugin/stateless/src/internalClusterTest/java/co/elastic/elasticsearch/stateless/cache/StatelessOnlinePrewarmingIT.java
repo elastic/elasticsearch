@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.cache;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -71,7 +71,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase {
+public class StatelessOnlinePrewarmingIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     public static final ByteSizeValue REGION_SIZE = ByteSizeValue.ofKb(16);
     private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofMb(2);
@@ -98,8 +98,8 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(TestCacheStatelessNoRecoveryPrewarming.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(TestCacheServerlessStatelessPluginNoRecoveryPrewarming.class);
         plugins.add(MockRepository.Plugin.class);
         plugins.add(InternalSettingsPlugin.class);
         plugins.add(ShutdownPlugin.class);
@@ -132,7 +132,7 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
         // this is the executor Lucene uses to fetch data from the object store in the cache in an on-demand manner
         // (e.g. when a reader is opened or when a search operation is executed)
-        String shardReadThreadPool = Stateless.SHARD_READ_THREAD_POOL;
+        String shardReadThreadPool = ServerlessStatelessPlugin.SHARD_READ_THREAD_POOL;
         // let's get the number of completed tasks before we start indexing so when we wait for the downloads to finish
         // we can assert that the number of completed tasks is higher, to make sure downloads actually occurred
         long preRefreshCompletedDownloadTasks = getNumberOfCompletedTasks(threadPool, shardReadThreadPool);
@@ -309,9 +309,9 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
             && attributes.get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY) == cachePopulationSource.name();
     }
 
-    public static final class TestCacheStatelessNoRecoveryPrewarming extends Stateless {
+    public static final class TestCacheServerlessStatelessPluginNoRecoveryPrewarming extends ServerlessStatelessPlugin {
 
-        public TestCacheStatelessNoRecoveryPrewarming(Settings settings) {
+        public TestCacheServerlessStatelessPluginNoRecoveryPrewarming(Settings settings) {
             super(settings);
         }
 

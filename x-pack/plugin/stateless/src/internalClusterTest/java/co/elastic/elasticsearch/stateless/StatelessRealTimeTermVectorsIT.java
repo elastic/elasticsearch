@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class StatelessRealTimeTermVectorsIT extends AbstractStatelessIntegTestCase {
+public class StatelessRealTimeTermVectorsIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected Settings.Builder nodeSettings() {

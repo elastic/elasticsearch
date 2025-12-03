@@ -19,7 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheFileReader;
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
@@ -66,7 +66,7 @@ public class BlobCacheIndexInputStressTests extends ESIndexInputTestCase {
     public void testConcurrentReadsUnderHighContention() throws InterruptedException, IOException {
         final TestThreadPool threadPool = new TestThreadPool(
             "testConcurrentReadsUnderHighContention",
-            Stateless.statelessExecutorBuilders(Settings.EMPTY, true)
+            ServerlessStatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
         );
 
         // The shared cache write buffer size is set to 8kb in build.gradle.kts

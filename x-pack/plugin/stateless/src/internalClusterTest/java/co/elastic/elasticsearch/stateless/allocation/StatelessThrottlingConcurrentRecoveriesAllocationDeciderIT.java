@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.allocation;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
@@ -42,7 +42,7 @@ import static co.elastic.elasticsearch.stateless.allocation.StatelessThrottlingC
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
-public class StatelessThrottlingConcurrentRecoveriesAllocationDeciderIT extends AbstractStatelessIntegTestCase {
+public class StatelessThrottlingConcurrentRecoveriesAllocationDeciderIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     public void testConcurrentRecoveriesNotAllowedOnSmallNodes() throws Exception {
         String minHeapRequiredLargeValue = "256gb";

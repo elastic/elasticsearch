@@ -130,7 +130,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
+public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     // Given an index with a certain number of shards, it can be resharded only
     // using a multiple of 2. Here we test some valid and invalid combinations.

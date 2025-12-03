@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.action;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizeCollector;
 import co.elastic.elasticsearch.stateless.engine.NewCommitNotification;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
@@ -56,7 +56,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
     NewCommitNotificationResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportNewCommitNotificationAction.class);
-    public static final String NAME = "internal:admin/" + Stateless.NAME + "/search/new/commit";
+    public static final String NAME = "internal:admin/" + ServerlessStatelessPlugin.NAME + "/search/new/commit";
     public static final ActionType<NewCommitNotificationResponse> TYPE = new ActionType<>(NAME);
 
     private final IndicesService indicesService;

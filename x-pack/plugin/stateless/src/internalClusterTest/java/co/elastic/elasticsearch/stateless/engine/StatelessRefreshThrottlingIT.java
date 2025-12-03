@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -37,7 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class StatelessRefreshThrottlingIT extends AbstractStatelessIntegTestCase {
+public class StatelessRefreshThrottlingIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     private RefreshNodeCreditManager getRegularIndicesCreditManager(String indexingNode) {
         var refreshThrottlingService = internalCluster().getInstance(RefreshThrottlingService.class, indexingNode);

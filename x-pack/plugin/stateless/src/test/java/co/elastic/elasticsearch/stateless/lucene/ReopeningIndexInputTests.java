@@ -19,7 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
@@ -395,7 +395,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
     }
 
     private static TestThreadPool getThreadPool(String name) {
-        return new TestThreadPool(name, Stateless.statelessExecutorBuilders(Settings.EMPTY, true));
+        return new TestThreadPool(name, ServerlessStatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
     }
 
     private void randomRead(IndexInput input, byte[] bytes) throws IOException {

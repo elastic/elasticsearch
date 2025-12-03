@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.elasticsearch.action.ActionListener;
@@ -46,7 +46,7 @@ public class IndexingShardCacheBlobReaderTests extends ESTestCase {
 
     private final ThreadPool threadPool = new TestThreadPool(
         getClass().getName(),
-        Stateless.statelessExecutorBuilders(Settings.EMPTY, false)
+        ServerlessStatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, false)
     );
 
     @After
@@ -86,7 +86,7 @@ public class IndexingShardCacheBlobReaderTests extends ESTestCase {
                     assertThat(
                         completingThread.getName(),
                         EsExecutors.executorName(completingThread),
-                        equalTo(Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL)
+                        equalTo(ServerlessStatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL)
                     );
                     ll.onFailure(e);
                 })

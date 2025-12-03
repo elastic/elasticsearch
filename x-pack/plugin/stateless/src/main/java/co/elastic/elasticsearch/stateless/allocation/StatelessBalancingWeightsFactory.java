@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static co.elastic.elasticsearch.stateless.Stateless.STATELESS_SHARD_ROLES;
+import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.STATELESS_SHARD_ROLES;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING;
 

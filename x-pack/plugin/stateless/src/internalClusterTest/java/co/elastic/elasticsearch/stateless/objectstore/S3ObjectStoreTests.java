@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.objectstore;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
@@ -125,8 +125,8 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(TestStateless.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(TestServerlessStatelessPlugin.class);
         plugins.add(S3RepositoryPlugin.class);
         return plugins;
     }
@@ -702,9 +702,9 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         boolean intercept(HttpExchange exchange) throws IOException;
     }
 
-    public static class TestStateless extends Stateless {
+    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
 
-        public TestStateless(Settings settings) {
+        public TestServerlessStatelessPlugin(Settings settings) {
             super(settings);
         }
 

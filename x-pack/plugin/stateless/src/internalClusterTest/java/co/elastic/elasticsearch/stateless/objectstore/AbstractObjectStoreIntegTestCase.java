@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.objectstore;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodeResponse;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesRequest;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesResponse;
@@ -83,7 +83,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Integration tests for {@link ObjectStoreService} types.
  */
-public abstract class AbstractObjectStoreIntegTestCase extends AbstractStatelessIntegTestCase {
+public abstract class AbstractObjectStoreIntegTestCase extends AbstractServerlessStatelessPluginIntegTestCase {
 
     protected abstract String repositoryType();
 
@@ -156,7 +156,7 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
         assertThat(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "backup", "snapshot").get().isAcknowledged(), is(true));
 
         GetBlobStoreStatsNodesResponse getBlobStoreStatsNodesResponse = client().execute(
-            Stateless.GET_BLOB_STORE_STATS_ACTION,
+            ServerlessStatelessPlugin.GET_BLOB_STORE_STATS_ACTION,
             new GetBlobStoreStatsNodesRequest()
         ).actionGet();
 

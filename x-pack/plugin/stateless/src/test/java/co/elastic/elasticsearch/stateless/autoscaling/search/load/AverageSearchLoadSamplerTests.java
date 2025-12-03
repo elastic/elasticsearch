@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search.load;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
@@ -30,7 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
+import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.SHARD_READ_THREAD_POOL;
 import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.DEFAULT_SEARCH_EWMA_ALPHA;
 import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.DEFAULT_SHARD_READ_EWMA_ALPHA;
 import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.SEARCH_EXECUTOR;
@@ -54,7 +54,7 @@ public class AverageSearchLoadSamplerTests extends ESTestCase {
     );
 
     private static TestThreadPool getThreadPool(String name) {
-        return new TestThreadPool(name, Stateless.statelessExecutorBuilders(Settings.EMPTY, true));
+        return new TestThreadPool(name, ServerlessStatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
     }
 
     public void testAverageSearchLoadInitialValue() throws Exception {

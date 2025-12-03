@@ -275,7 +275,7 @@ import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING;
 
-public class Stateless extends Plugin
+public class ServerlessStatelessPlugin extends Plugin
     implements
         EnginePlugin,
         ActionPlugin,
@@ -285,7 +285,7 @@ public class Stateless extends Plugin
         HealthPlugin,
         PersistentTaskPlugin {
 
-    private static final Logger logger = LogManager.getLogger(Stateless.class);
+    private static final Logger logger = LogManager.getLogger(ServerlessStatelessPlugin.class);
 
     public static final String NAME = "stateless";
 
@@ -398,7 +398,7 @@ public class Stateless extends Plugin
         return Objects.requireNonNull(this.commitService.get());
     }
 
-    public Stateless(Settings settings) {
+    public ServerlessStatelessPlugin(Settings settings) {
         validateSettings(settings);
         logSettings(settings);
         // It is dangerous to retain these settings because they will be further modified after this ctor due

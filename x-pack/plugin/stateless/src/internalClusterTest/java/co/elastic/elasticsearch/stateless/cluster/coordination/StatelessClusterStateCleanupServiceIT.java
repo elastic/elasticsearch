@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cluster.coordination;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.is;
  * See e.g. https://github.com/elastic/elasticsearch-serverless/issues/1998
  */
 @LuceneTestCase.SuppressFileSystems(value = { "WindowsFS", "ExtrasFS" })
-public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessIntegTestCase {
+public class StatelessClusterStateCleanupServiceIT extends AbstractServerlessStatelessPluginIntegTestCase {
     private static final Logger logger = LogManager.getLogger(StatelessClusterStateCleanupServiceIT.class);
     private final long NUM_NODES = 3;
     private MockLog mockLog;

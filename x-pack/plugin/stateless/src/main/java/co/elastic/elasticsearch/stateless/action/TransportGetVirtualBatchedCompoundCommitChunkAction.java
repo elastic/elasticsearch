@@ -19,7 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.action;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 
@@ -77,7 +77,7 @@ import java.nio.file.NoSuchFileException;
 public class TransportGetVirtualBatchedCompoundCommitChunkAction extends TransportAction<
     GetVirtualBatchedCompoundCommitChunkRequest,
     GetVirtualBatchedCompoundCommitChunkResponse> {
-    public static final String NAME = "internal:admin/" + Stateless.NAME + "/vbcc/get/chunk";
+    public static final String NAME = "internal:admin/" + ServerlessStatelessPlugin.NAME + "/vbcc/get/chunk";
     public static final ActionType<GetVirtualBatchedCompoundCommitChunkResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportGetVirtualBatchedCompoundCommitChunkAction.class);
     protected final String transportPrimaryAction;
@@ -106,13 +106,15 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
 
         transportService.registerRequestHandler(
             transportPrimaryAction,
-            transportService.getThreadPool().executor(Stateless.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL),
+            transportService.getThreadPool().executor(ServerlessStatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL),
             GetVirtualBatchedCompoundCommitChunkRequest::new,
             (request, channel, task) -> {
                 final ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener = new ChannelActionListener<>(channel);
                 ActionListener.run(listener, (l) -> {
                     assert transportService.getLocalNode().hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()) : "not an indexing node";
-                    assert ThreadPool.assertCurrentThreadPool(Stateless.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL);
+                    assert ThreadPool.assertCurrentThreadPool(
+                        ServerlessStatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL
+                    );
                     final ShardId shardId = request.getShardId();
                     final Index index = shardId.getIndex();
                     final IndexShard shard = indicesService.indexServiceSafe(index).getShard(request.getShardId().id());

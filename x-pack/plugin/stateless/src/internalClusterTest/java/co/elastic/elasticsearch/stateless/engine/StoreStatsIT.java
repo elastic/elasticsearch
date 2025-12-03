@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.greaterThan;
 // Disabling WindowsFS because it prevents file deletions and ExtrasFS because it adds unnecessary files in Lucene index and tests in this
 // class verify the content of Lucene directories
 @LuceneTestCase.SuppressFileSystems(value = { "WindowsFS", "ExtrasFS" })
-public class StoreStatsIT extends AbstractStatelessIntegTestCase {
+public class StoreStatsIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {

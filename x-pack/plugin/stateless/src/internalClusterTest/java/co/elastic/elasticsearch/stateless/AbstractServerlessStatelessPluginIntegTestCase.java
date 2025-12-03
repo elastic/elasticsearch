@@ -165,7 +165,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
+public abstract class AbstractServerlessStatelessPluginIntegTestCase extends ESIntegTestCase {
 
     private int uploadMaxCommits;
 
@@ -250,7 +250,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         var plugins = new ArrayList<Class<? extends Plugin>>();
         plugins.add(SystemIndexTestPlugin.class);
         plugins.add(BlobCachePlugin.class);
-        plugins.add(Stateless.class);
+        plugins.add(ServerlessStatelessPlugin.class);
         plugins.add(MockTransportService.TestPlugin.class);
         if (addMockFsRepository) {
             plugins.add(ConcurrentMultiPartUploadsMockFsRepository.Plugin.class);
@@ -380,7 +380,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
     protected Settings.Builder nodeSettings() {
         final Settings.Builder builder = Settings.builder()
-            .put(Stateless.STATELESS_ENABLED.getKey(), true)
+            .put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true)
             .put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), StatelessElectionStrategy.NAME)
             .put(RecoverySettings.INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey(), false)
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), getFsRepoSanitizedBucketName())

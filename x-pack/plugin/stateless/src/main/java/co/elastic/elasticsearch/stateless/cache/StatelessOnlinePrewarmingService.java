@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cache;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.cache.reader.LazyRangeMissingHandler;
 import co.elastic.elasticsearch.stateless.cache.reader.SequentialRangeMissingHandler;
 import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
@@ -45,8 +45,8 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static co.elastic.elasticsearch.stateless.Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL;
-import static co.elastic.elasticsearch.stateless.Stateless.PREWARM_THREAD_POOL;
+import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL;
+import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.PREWARM_THREAD_POOL;
 import static org.apache.logging.log4j.Level.DEBUG;
 import static org.apache.logging.log4j.Level.INFO;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
@@ -79,8 +79,8 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
     private static final Logger logger = LogManager.getLogger(StatelessOnlinePrewarmingService.class);
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> {
         assert ThreadPool.assertCurrentThreadPool(
-            Stateless.PREWARM_THREAD_POOL,
-            Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+            ServerlessStatelessPlugin.PREWARM_THREAD_POOL,
+            ServerlessStatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
         ) : "writeBuffer should only be used in the prewarm or fill vbcc thread pool but used in " + Thread.currentThread().getName();
         return ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE);
     });

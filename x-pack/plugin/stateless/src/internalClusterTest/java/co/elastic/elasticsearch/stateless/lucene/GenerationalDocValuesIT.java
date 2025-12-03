@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
@@ -123,16 +123,16 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
+public class GenerationalDocValuesIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     /**
      * Plugin to track Lucene opened generational files.
      */
-    public static class GenerationalFilesTrackingStatelessPlugin extends Stateless {
+    public static class GenerationalFilesTrackingServerlessStatelessPlugin extends ServerlessStatelessPlugin {
         static final AtomicReference<MergeFinder> mergeFinderRef = new AtomicReference<>(MergeFinder.EMPTY);
         static final AtomicBoolean useCustomMergePolicy = new AtomicBoolean(false);
 
-        public GenerationalFilesTrackingStatelessPlugin(Settings settings) {
+        public GenerationalFilesTrackingServerlessStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -471,8 +471,8 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(GenerationalFilesTrackingStatelessPlugin.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(GenerationalFilesTrackingServerlessStatelessPlugin.class);
         plugins.add(StatelessMockRepositoryPlugin.class);
         return plugins;
     }
@@ -486,7 +486,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
 
     @After
     public void disableCustomMergePolicy() {
-        GenerationalFilesTrackingStatelessPlugin.disableCustomMergePolicy();
+        GenerationalFilesTrackingServerlessStatelessPlugin.disableCustomMergePolicy();
     }
 
     /**
@@ -505,7 +505,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testBackgroundMergeCanRetainDeletedGenerationalFile() throws Exception {
-        GenerationalFilesTrackingStatelessPlugin.enableCustomMergePolicy();
+        GenerationalFilesTrackingServerlessStatelessPlugin.enableCustomMergePolicy();
         var nodeName = startMasterAndIndexNode(
             // Disable the cache, so we force all reads to fetch data from the blob store
             Settings.builder()
@@ -649,7 +649,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         // a generational file with generation 1 attached to it. That should trigger a read against the blob store while the
         // three segments are merged.
         var firstMergeTriggered = new AtomicBoolean(false);
-        GenerationalFilesTrackingStatelessPlugin.setMergeFinder((mergeTrigger, segmentInfos, mergeContext) -> {
+        GenerationalFilesTrackingServerlessStatelessPlugin.setMergeFinder((mergeTrigger, segmentInfos, mergeContext) -> {
             if (firstMergeTriggered.compareAndSet(false, true)) {
                 var mergeSpecification = new MergePolicy.MergeSpecification();
                 var toMerge = StreamSupport.stream(segmentInfos.spliterator(), false)
@@ -768,7 +768,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         // to be merged away with the next segment (_5) so the BCC7 is not referenced anymore and can be deleted
         // (until the gen files bug is solved).
         var lastMergeTriggered = new AtomicBoolean(false);
-        GenerationalFilesTrackingStatelessPlugin.setMergeFinder((mergeTrigger, segmentInfos, mergeContext) -> {
+        GenerationalFilesTrackingServerlessStatelessPlugin.setMergeFinder((mergeTrigger, segmentInfos, mergeContext) -> {
             if (lastMergeTriggered.compareAndSet(false, true)) {
                 var toMerge = StreamSupport.stream(segmentInfos.spliterator(), false)
                     .filter(segmentCommitInfo -> segmentCommitInfo.info.name.equals("_3") || segmentCommitInfo.info.name.equals("_5"))

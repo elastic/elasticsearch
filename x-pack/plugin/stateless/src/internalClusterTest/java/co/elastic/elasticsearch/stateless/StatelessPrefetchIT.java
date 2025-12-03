@@ -35,7 +35,7 @@ import java.util.Locale;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-public class StatelessPrefetchIT extends AbstractStatelessIntegTestCase {
+public class StatelessPrefetchIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {

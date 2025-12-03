@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.lucene.stats;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.StatelessComponents;
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -48,7 +48,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ShardSizeStatsReaderImplIT extends AbstractStatelessIntegTestCase {
+public class ShardSizeStatsReaderImplIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     private static final TimeValue DEFAULT_BOOST_WINDOW = TimeValue.timeValueDays(7);
 

@@ -92,7 +92,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
-public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
+public class StatelessRealTimeGetIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Before
     public void init() {

@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.multiproject;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.utils.TransferableCloseables;
 
@@ -62,13 +62,13 @@ public class ProjectLifeCycleServiceTests extends ESTestCase {
             var pathHome = LuceneTestCase.createTempDir().toAbsolutePath();
             var repoPath = LuceneTestCase.createTempDir();
             var nodeSettings = Settings.builder()
-                .put(Stateless.STATELESS_ENABLED.getKey(), true)
+                .put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true)
                 .put(Environment.PATH_HOME_SETTING.getKey(), pathHome)
                 .put(PATH_REPO_SETTING.getKey(), repoPath)
                 .put(BUCKET_SETTING.getKey(), repoPath)
                 .build();
             var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            var threadPool = new TestThreadPool("test", Stateless.statelessExecutorBuilders(Settings.EMPTY, true));
+            var threadPool = new TestThreadPool("test", ServerlessStatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
             closeable.add(() -> TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             var clusterService = closeable.add(
                 ClusterServiceUtils.createClusterService(

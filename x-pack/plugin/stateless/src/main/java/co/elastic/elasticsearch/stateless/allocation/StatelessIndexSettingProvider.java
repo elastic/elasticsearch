@@ -18,7 +18,7 @@
 package co.elastic.elasticsearch.stateless.allocation;
 
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -98,7 +98,7 @@ public class StatelessIndexSettingProvider implements IndexSettingProvider {
         assert systemNamePredicate != null : "object is not initialized properly";
         // TODO find a prover way to bypass index template validation
         if (Objects.equals(indexName, "validate-index-name") == false) {
-            additionalSettings.put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), Stateless.NAME);
+            additionalSettings.put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), ServerlessStatelessPlugin.NAME);
         }
 
         final Settings.Builder indexModeSettingsBuilder = Settings.builder();

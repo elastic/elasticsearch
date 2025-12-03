@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
@@ -55,7 +55,7 @@ public class LazyRangeMissingHandlerTests extends ESTestCase {
                 cacheBlobReader,
                 () -> null,
                 copiedBytes -> {},
-                Stateless.SHARD_READ_THREAD_POOL
+                ServerlessStatelessPlugin.SHARD_READ_THREAD_POOL
             ) {
                 @Override
                 public void fillCacheRange(

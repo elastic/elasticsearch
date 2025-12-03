@@ -40,13 +40,13 @@ import java.util.concurrent.CountDownLatch;
 import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 
-public class StatelessComponentsOrderIT extends AbstractStatelessIntegTestCase {
+public class StatelessComponentsOrderIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(TestStateless.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(TestServerlessStatelessPlugin.class);
         return plugins;
     }
 
@@ -63,7 +63,7 @@ public class StatelessComponentsOrderIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
 
-        final TestStateless plugin = findPlugin(indexNode, TestStateless.class);
+        final TestServerlessStatelessPlugin plugin = findPlugin(indexNode, TestServerlessStatelessPlugin.class);
         final var indicesService = internalCluster().getInstance(IndicesService.class, indexNode);
         final var indexShard = findIndexShard(indexName);
 
@@ -102,13 +102,13 @@ public class StatelessComponentsOrderIT extends AbstractStatelessIntegTestCase {
         assertFalse(shuttingDownThread.isAlive());
     }
 
-    public static class TestStateless extends Stateless {
+    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
 
         private final CountDownLatch mergeReadStartedLatch = new CountDownLatch(1);
         private final CountDownLatch cacheEvictedLatch = new CountDownLatch(1);
         private final CountDownLatch statelessCloseCalledLatch = new CountDownLatch(1);
 
-        public TestStateless(Settings settings) {
+        public TestServerlessStatelessPlugin(Settings settings) {
             super(settings);
         }
 

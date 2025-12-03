@@ -48,7 +48,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static co.elastic.elasticsearch.stateless.Stateless.CLEAR_BLOB_CACHE_ACTION;
+import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.CLEAR_BLOB_CACHE_ACTION;
 import static co.elastic.elasticsearch.stateless.StatelessMergeIT.blockMergePool;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
@@ -57,7 +57,7 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-public class StatelessMergePreWarmingIT extends AbstractStatelessIntegTestCase {
+public class StatelessMergePreWarmingIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {
@@ -67,16 +67,16 @@ public class StatelessMergePreWarmingIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(DeterministicMergesStatelessTestPlugin.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(DeterministicMergesServerlessStatelessPluginTestPlugin.class);
         plugins.add(StatelessMockRepositoryPlugin.class);
         return plugins;
     }
 
-    public static class DeterministicMergesStatelessTestPlugin extends Stateless {
+    public static class DeterministicMergesServerlessStatelessPluginTestPlugin extends ServerlessStatelessPlugin {
         private static AtomicReference<MergeFinder> mergeFinderRef = new AtomicReference<>();
 
-        public DeterministicMergesStatelessTestPlugin(Settings settings) {
+        public DeterministicMergesServerlessStatelessPluginTestPlugin(Settings settings) {
             super(settings);
         }
 
@@ -128,7 +128,7 @@ public class StatelessMergePreWarmingIT extends AbstractStatelessIntegTestCase {
 
         var segmentCountMergedTogether = 2;
         var mergeScheduled = new AtomicBoolean(false);
-        DeterministicMergesStatelessTestPlugin.setTestMergeFinder((segmentInfos, mergeContext) -> {
+        DeterministicMergesServerlessStatelessPluginTestPlugin.setTestMergeFinder((segmentInfos, mergeContext) -> {
             var mergeCandidates = segmentInfos.asList()
                 .stream()
                 .filter(segmentCommitInfo -> mergeContext.getMergingSegments().contains(segmentCommitInfo) == false)
@@ -192,7 +192,8 @@ public class StatelessMergePreWarmingIT extends AbstractStatelessIntegTestCase {
                 long position,
                 long length
             ) throws IOException {
-                assert (blobName.equals(bccToUpload) && Thread.currentThread().getName().contains(Stateless.PREWARM_THREAD_POOL)) == false
+                assert (blobName.equals(bccToUpload)
+                    && Thread.currentThread().getName().contains(ServerlessStatelessPlugin.PREWARM_THREAD_POOL)) == false
                     : "Unexpected read from the pre-warmed thread";
                 return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
             }

@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.cache;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.SequentialRangeMissingHandler;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
@@ -67,14 +67,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.IntConsumer;
 
-import static co.elastic.elasticsearch.stateless.Stateless.PREWARM_THREAD_POOL;
+import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.PREWARM_THREAD_POOL;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class StatelessBlobCacheServiceIT extends AbstractStatelessIntegTestCase {
+public class StatelessBlobCacheServiceIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     public static final ByteSizeValue REGION_SIZE = ByteSizeValue.ofBytes(6 * PAGE_SIZE);
     private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofMb(8);
@@ -95,8 +95,8 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessIntegTestCase 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(TestCacheStateless.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(TestCacheServerlessStatelessPlugin.class);
         plugins.add(MockRepository.Plugin.class);
         plugins.add(InternalSettingsPlugin.class);
         plugins.add(ShutdownPlugin.class);
@@ -186,7 +186,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessIntegTestCase 
                     blobReader,
                     () -> writeBuffer.get().clear(),
                     bytes -> {},
-                    Stateless.PREWARM_THREAD_POOL
+                    ServerlessStatelessPlugin.PREWARM_THREAD_POOL
                 ) {
                     @Override
                     public void fillCacheRange(
@@ -272,7 +272,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessIntegTestCase 
                 blobReader,
                 () -> writeBuffer.get().clear(),
                 bytes -> {},
-                Stateless.PREWARM_THREAD_POOL
+                ServerlessStatelessPlugin.PREWARM_THREAD_POOL
             ),
             threadPool.executor(PREWARM_THREAD_POOL),
             future
@@ -285,9 +285,9 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessIntegTestCase 
         () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
     );
 
-    public static final class TestCacheStateless extends Stateless {
+    public static final class TestCacheServerlessStatelessPlugin extends ServerlessStatelessPlugin {
 
-        public TestCacheStateless(Settings settings) {
+        public TestCacheServerlessStatelessPlugin(Settings settings) {
             super(settings);
         }
 

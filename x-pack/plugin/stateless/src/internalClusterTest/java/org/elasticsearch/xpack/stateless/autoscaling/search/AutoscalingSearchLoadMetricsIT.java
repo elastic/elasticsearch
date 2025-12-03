@@ -19,7 +19,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.serverless.autoscaling.ServerlessAutoscalingPlugin;
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler;
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
@@ -74,7 +74,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCase {
+public class AutoscalingSearchLoadMetricsIT extends AbstractServerlessStatelessPluginIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.concatLists(List.of(ShutdownPlugin.class, ServerlessAutoscalingPlugin.class), super.nodePlugins());

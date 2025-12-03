@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class StatelessRestoreIT extends AbstractStatelessIntegTestCase {
+public class StatelessRestoreIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Before
     public void init() {

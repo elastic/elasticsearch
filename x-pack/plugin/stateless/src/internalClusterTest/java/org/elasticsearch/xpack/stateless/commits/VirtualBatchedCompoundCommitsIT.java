@@ -19,8 +19,8 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
@@ -129,7 +129,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
-public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestCase {
+public class VirtualBatchedCompoundCommitsIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     /**
      * A plugin that:
@@ -141,9 +141,9 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
      *   <li>Disables pre warming.</li>
      * </ul>
      */
-    public static class TestStateless extends Stateless {
+    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
 
-        public TestStateless(Settings settings) {
+        public TestServerlessStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -257,8 +257,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(TestStateless.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(TestServerlessStatelessPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
         return plugins;
     }

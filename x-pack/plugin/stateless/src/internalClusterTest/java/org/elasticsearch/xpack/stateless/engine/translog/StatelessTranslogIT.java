@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.engine.translog;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -85,7 +85,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
+public class StatelessTranslogIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     public void testTranslogFileHoldDirectoryOfReferencedFiles() throws Exception {
         startMasterOnlyNode();

@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests that resharding operations are resilient in presence of failures.
  */
-public class StatelessReshardDisruptionIT extends AbstractStatelessIntegTestCase {
+public class StatelessReshardDisruptionIT extends AbstractServerlessStatelessPluginIntegTestCase {
     public void testReshardWithDisruption() throws IOException, InterruptedException {
         var masterNode = startMasterOnlyNode();
 

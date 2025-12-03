@@ -126,7 +126,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.stateless.Stateless.CLEAR_BLOB_CACHE_ACTION;
+import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.CLEAR_BLOB_CACHE_ACTION;
 import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
@@ -159,16 +159,16 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
+public class StatelessSearchIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     /**
      * A testing stateless plugin that extends the {@link Engine.IndexCommitListener} to count created number of commits.
      */
-    public static class TestStateless extends Stateless {
+    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
 
         private final AtomicInteger createdCommits = new AtomicInteger(0);
 
-        public TestStateless(Settings settings) {
+        public TestServerlessStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -295,8 +295,8 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(TestStateless.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(TestServerlessStatelessPlugin.class);
         plugins.add(MockRepository.Plugin.class);
         plugins.add(TestTelemetryPlugin.class);
         return plugins;
@@ -305,7 +305,10 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     private static int getNumberOfCreatedCommits() {
         int numberOfCreatedCommits = 0;
         for (String node : internalCluster().getNodeNames()) {
-            var plugin = internalCluster().getInstance(PluginsService.class, node).filterPlugins(TestStateless.class).findFirst().get();
+            var plugin = internalCluster().getInstance(PluginsService.class, node)
+                .filterPlugins(TestServerlessStatelessPlugin.class)
+                .findFirst()
+                .get();
             numberOfCreatedCommits += plugin.getCreatedCommits();
         }
         return numberOfCreatedCommits;

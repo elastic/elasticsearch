@@ -26,7 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.Executor;
 
-import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
+import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.SHARD_READ_THREAD_POOL;
 
 /**
  * Executor that limits concurrent BCC header reads to the shard read thread pool size

@@ -19,7 +19,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
 import co.elastic.elasticsearch.serverless.autoscaling.ServerlessAutoscalingPlugin;
 import co.elastic.elasticsearch.serverless.autoscaling.action.GetIndexTierMetrics;
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 
@@ -97,7 +97,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
-public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase {
+public class AutoscalingIndexingMetricsIT extends AbstractServerlessStatelessPluginIntegTestCase {
     public static final double EPSILON = 0.0000001;
 
     @Override

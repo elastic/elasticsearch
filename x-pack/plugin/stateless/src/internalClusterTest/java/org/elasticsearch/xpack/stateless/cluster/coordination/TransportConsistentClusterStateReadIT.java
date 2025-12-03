@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cluster.coordination;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TransportConsistentClusterStateReadIT extends AbstractStatelessIntegTestCase {
+public class TransportConsistentClusterStateReadIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     public void testConsistentClusterStateRead() throws Exception {
         var masterNode = startMasterOnlyNode();

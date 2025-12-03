@@ -47,7 +47,7 @@ import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERV
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class StatelessClusterConsistencyServiceIT extends AbstractStatelessIntegTestCase {
+public class StatelessClusterConsistencyServiceIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected boolean multiProjectIntegrationTest() {

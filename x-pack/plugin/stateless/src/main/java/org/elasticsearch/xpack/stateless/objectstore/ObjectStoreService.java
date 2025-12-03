@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.objectstore;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
@@ -296,13 +296,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.clusterService = clusterService;
         this.uploadTranslogTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-translog-file-task-runner",
-            threadPool.info(Stateless.TRANSLOG_THREAD_POOL).getMax(),
-            threadPool.executor(Stateless.TRANSLOG_THREAD_POOL)
+            threadPool.info(ServerlessStatelessPlugin.TRANSLOG_THREAD_POOL).getMax(),
+            threadPool.executor(ServerlessStatelessPlugin.TRANSLOG_THREAD_POOL)
         );
         this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-task-runner",
-            threadPool.info(Stateless.SHARD_WRITE_THREAD_POOL).getMax(),
-            threadPool.executor(Stateless.SHARD_WRITE_THREAD_POOL)
+            threadPool.info(ServerlessStatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax(),
+            threadPool.executor(ServerlessStatelessPlugin.SHARD_WRITE_THREAD_POOL)
         );
         this.projectResolver = projectResolver;
         if (projectResolver.supportsMultipleProjects()) {
@@ -341,7 +341,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 if (e instanceof RepositoryException repositoryException) {
                     projectObjectStoreExceptions.put(projectId, repositoryException);
                 } else {
-                    projectObjectStoreExceptions.put(projectId, new RepositoryException(Stateless.NAME, message, e));
+                    projectObjectStoreExceptions.put(projectId, new RepositoryException(ServerlessStatelessPlugin.NAME, message, e));
                 }
             }
         }
@@ -379,12 +379,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     // package private for tests
     BlobStoreRepository getProjectObjectStore(ProjectId projectId) {
         if (projectObjectStores == null) {
-            throw new RepositoryException(Stateless.NAME, "project object stores not initialized");
+            throw new RepositoryException(ServerlessStatelessPlugin.NAME, "project object stores not initialized");
         }
         final var projectObjectStore = projectObjectStores.get(projectId);
         if (projectObjectStore != null) {
             if (projectObjectStore.lifecycleState() != Lifecycle.State.STARTED) {
-                throw new RepositoryException(Stateless.NAME, "project [{}] object store not started", projectId);
+                throw new RepositoryException(ServerlessStatelessPlugin.NAME, "project [{}] object store not started", projectId);
             }
             return projectObjectStore;
         }
@@ -394,7 +394,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         if (repoException != null) {
             throw repoException;
         } else {
-            throw new RepositoryException(Stateless.NAME, "project [{}] object store not found", projectId);
+            throw new RepositoryException(ServerlessStatelessPlugin.NAME, "project [{}] object store not found", projectId);
         }
     }
 
@@ -539,7 +539,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     private RepositoryMetadata getRepositoryMetadata(Settings settings) {
         ObjectStoreType type = TYPE_SETTING.get(settings);
-        return new RepositoryMetadata(Stateless.NAME, type.toString(), getRepositorySettings(type, settings));
+        return new RepositoryMetadata(ServerlessStatelessPlugin.NAME, type.toString(), getRepositorySettings(type, settings));
     }
 
     @Override
@@ -652,18 +652,19 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         asyncDeleteFile(() -> {
             translogBlobsToDelete.add(fileToDelete);
             if (translogDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(Stateless.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(this::getTranslogBlobContainer));
+                threadPool.executor(ServerlessStatelessPlugin.TRANSLOG_THREAD_POOL)
+                    .execute(new FileDeleteTask(this::getTranslogBlobContainer));
             }
-        }, Stateless.TRANSLOG_THREAD_POOL);
+        }, ServerlessStatelessPlugin.TRANSLOG_THREAD_POOL);
     }
 
     public void asyncDeleteShardFile(StaleCompoundCommit staleCompoundCommit) {
         asyncDeleteFile(() -> {
             commitBlobsToDelete.add(staleCompoundCommit);
             if (shardFileDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(Stateless.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
+                threadPool.executor(ServerlessStatelessPlugin.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
             }
-        }, Stateless.SHARD_WRITE_THREAD_POOL);
+        }, ServerlessStatelessPlugin.SHARD_WRITE_THREAD_POOL);
     }
 
     private void asyncDeleteFile(Runnable deleteFileRunnable, String executor) {
@@ -948,7 +949,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 ) {
                     for (var blobContainerWithTerm : blobContainersWithTerms) {
                         // use the prewarm thread pool to avoid exceeding the connection pool size with blob listings
-                        threadPool.executor(Stateless.PREWARM_THREAD_POOL)
+                        threadPool.executor(ServerlessStatelessPlugin.PREWARM_THREAD_POOL)
                             .execute(
                                 ActionRunnable.run(
                                     listeners.acquire(),
@@ -1517,7 +1518,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         public void onAfter() {
             translogDeleteSchedulePermit.release();
             if (translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(Stateless.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
+                threadPool.executor(ServerlessStatelessPlugin.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
             }
         }
 
@@ -1577,7 +1578,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         public void onAfter() {
             shardFileDeleteSchedulePermit.release();
             if (lifecycle.started() && commitBlobsToDelete.isEmpty() == false && shardFileDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(Stateless.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
+                threadPool.executor(ServerlessStatelessPlugin.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
             }
         }
 

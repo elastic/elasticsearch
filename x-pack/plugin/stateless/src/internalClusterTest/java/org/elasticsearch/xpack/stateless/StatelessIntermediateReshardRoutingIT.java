@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.equalTo;
 // When the coordinator that is coordinating a replication request has stale cluster state (w.r.t resharding state),
 // the replication request has to be forwarded to the target shard(s) at the primary node. This test is for
 // testing such scenarios for various replication requests such as indexing, refresh and flush.
-public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessIntegTestCase {
+public class StatelessIntermediateReshardRoutingIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected Settings.Builder nodeSettings() {

@@ -33,7 +33,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
-import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
+import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.SHARD_READ_THREAD_POOL;
 
 public class AverageSearchLoadSampler {
     static final double DEFAULT_SEARCH_EWMA_ALPHA = 0.2;

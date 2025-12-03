@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cluster.coordination;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.support.SubscribableListener;
@@ -46,7 +46,7 @@ import java.util.concurrent.CountDownLatch;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class StatelessLeaseIT extends AbstractStatelessIntegTestCase {
+public class StatelessLeaseIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

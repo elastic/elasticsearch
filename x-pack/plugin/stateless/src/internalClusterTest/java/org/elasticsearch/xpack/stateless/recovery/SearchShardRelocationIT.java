@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.coordination.Coordinator;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public class SearchShardRelocationIT extends AbstractStatelessIntegTestCase {
+public class SearchShardRelocationIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     public void testSearchShardRelocationWhenHostingNodeTerminates() throws Exception {
         // MAX_MISSED_HEARTBEATS x HEARTBEAT_FREQUENCY is how long it takes for the last master heartbeat to expire.

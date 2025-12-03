@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.allocation;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.HeapMemoryUsage;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.PublishHeapMemoryMetricsRequest;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.ShardMappingSize;
@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessIntegTestCase {
+public class EstimatedHeapUsageAllocationDeciderIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

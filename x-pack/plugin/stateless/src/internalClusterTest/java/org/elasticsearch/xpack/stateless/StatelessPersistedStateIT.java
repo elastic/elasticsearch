@@ -33,7 +33,7 @@ import java.io.InputStream;
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
 import static org.hamcrest.Matchers.equalTo;
 
-public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
+public class StatelessPersistedStateIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     static final Settings fastFullClusterRestartSettings = Settings.builder()
         // MAX_MISSED_HEARTBEATS x HEARTBEAT_FREQUENCY is how long it takes for the last master heartbeat to expire.

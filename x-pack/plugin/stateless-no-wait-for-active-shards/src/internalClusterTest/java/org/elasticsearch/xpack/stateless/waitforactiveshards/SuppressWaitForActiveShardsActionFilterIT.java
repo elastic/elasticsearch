@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.api.waitforactiveshards;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -28,7 +28,7 @@ import org.elasticsearch.plugins.Plugin;
 import java.util.Collection;
 import java.util.function.UnaryOperator;
 
-public class SuppressWaitForActiveShardsActionFilterIT extends AbstractStatelessIntegTestCase {
+public class SuppressWaitForActiveShardsActionFilterIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

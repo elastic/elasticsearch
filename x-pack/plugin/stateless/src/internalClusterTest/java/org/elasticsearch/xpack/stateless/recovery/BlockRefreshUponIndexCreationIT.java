@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
@@ -63,7 +63,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class BlockRefreshUponIndexCreationIT extends AbstractStatelessIntegTestCase {
+public class BlockRefreshUponIndexCreationIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     public void testIndexCreatedWithRefreshBlock() throws Exception {
         startMasterAndIndexNode(useRefreshBlockSetting(true));
@@ -502,6 +502,6 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessIntegTestC
     }
 
     private static Settings useRefreshBlockSetting(boolean value) {
-        return Settings.builder().put(Stateless.USE_INDEX_REFRESH_BLOCK_SETTING.getKey(), value).build();
+        return Settings.builder().put(ServerlessStatelessPlugin.USE_INDEX_REFRESH_BLOCK_SETTING.getKey(), value).build();
     }
 }

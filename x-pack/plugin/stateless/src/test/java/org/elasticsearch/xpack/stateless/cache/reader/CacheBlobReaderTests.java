@@ -19,7 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
@@ -82,7 +82,7 @@ import java.util.function.IntSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
-import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
+import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.SHARD_READ_THREAD_POOL;
 import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
@@ -187,7 +187,7 @@ public class CacheBlobReaderTests extends ESTestCase {
         public synchronized BatchedCompoundCommit uploadVirtualBatchedCompoundCommit() throws IOException {
             PlainActionFuture<BatchedCompoundCommit> future = new PlainActionFuture<>();
             // move to a thread pool that allows reading data from vbcc.
-            threadPool.executor(Stateless.SHARD_WRITE_THREAD_POOL).execute(ActionRunnable.supply(future, () -> {
+            threadPool.executor(ServerlessStatelessPlugin.SHARD_WRITE_THREAD_POOL).execute(ActionRunnable.supply(future, () -> {
                 if (virtualBatchedCompoundCommit.freeze() == false) {
                     return null;
                 }
@@ -303,7 +303,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             assertEquals(virtualBatchedCompoundCommit.getPrimaryTermAndGeneration(), virtualBccTermAndGen);
             int finalLength = Math.min(length, Math.toIntExact(virtualBatchedCompoundCommit.getTotalSizeInBytes() - offset));
             var bytesStreamOutput = new BytesStreamOutput(finalLength);
-            threadPool.executor(Stateless.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL).execute(() -> {
+            threadPool.executor(ServerlessStatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL).execute(() -> {
                 ActionListener.run(listener, l -> {
                     virtualBatchedCompoundCommit.getBytesByRange(offset, finalLength, bytesStreamOutput);
                     l.onResponse(new ReleasableBytesReference(bytesStreamOutput.bytes(), bytesStreamOutput::close));
@@ -390,7 +390,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     blobReads.incrementAndGet();
                     if (blobName.contains(StatelessCompoundCommit.PREFIX)) {
-                        assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
+                        assert ThreadPool.assertCurrentThreadPool(ServerlessStatelessPlugin.SHARD_READ_THREAD_POOL);
                     }
                     logger.debug("reading {} from blob store", blobName);
                     return super.readBlob(purpose, blobName);
@@ -400,7 +400,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
                     blobReads.incrementAndGet();
                     if (blobName.contains(StatelessCompoundCommit.PREFIX)) {
-                        assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
+                        assert ThreadPool.assertCurrentThreadPool(ServerlessStatelessPlugin.SHARD_READ_THREAD_POOL);
                     }
                     logger.debug("reading {} from blob store, position: {} length: {}", blobName, position, length);
                     return super.readBlob(purpose, blobName, position, length);

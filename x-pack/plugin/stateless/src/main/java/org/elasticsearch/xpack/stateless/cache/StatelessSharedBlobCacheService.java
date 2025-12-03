@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cache;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -45,7 +45,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         BlobCacheMetrics blobCacheMetrics
     ) {
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics);
-        this.shardReadThreadPoolExecutor = threadPool.executor(Stateless.SHARD_READ_THREAD_POOL);
+        this.shardReadThreadPoolExecutor = threadPool.executor(ServerlessStatelessPlugin.SHARD_READ_THREAD_POOL);
     }
 
     // for tests

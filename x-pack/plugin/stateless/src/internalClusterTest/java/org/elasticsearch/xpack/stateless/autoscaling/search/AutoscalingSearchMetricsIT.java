@@ -18,7 +18,7 @@
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
+public class AutoscalingSearchMetricsIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     private static final long DEFAULT_BOOST_WINDOW = TimeValue.timeValueDays(7).millis();
     private static final long ONE_DAY = TimeValue.timeValueDays(1).millis();

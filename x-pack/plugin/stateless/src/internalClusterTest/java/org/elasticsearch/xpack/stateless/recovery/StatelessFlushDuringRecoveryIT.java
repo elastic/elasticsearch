@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
@@ -46,7 +46,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class StatelessFlushDuringRecoveryIT extends AbstractStatelessIntegTestCase {
+public class StatelessFlushDuringRecoveryIT extends AbstractServerlessStatelessPluginIntegTestCase {
     public void testFlushDuringTranslogReplay() throws IOException, InterruptedException {
         startMasterOnlyNode();
         String indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
@@ -63,7 +63,7 @@ public class StatelessFlushDuringRecoveryIT extends AbstractStatelessIntegTestCa
         indexDocs(indexName, documentCount);
 
         String newIndexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
-        TestStateless testStateless = findPlugin(newIndexNode, TestStateless.class);
+        TestServerlessStatelessPlugin testStateless = findPlugin(newIndexNode, TestServerlessStatelessPlugin.class);
 
         // Block translog replay during future recovery after some documents are applied.
         // And fail after the flush to observe recovery after the flush during translog replay.
@@ -135,15 +135,15 @@ public class StatelessFlushDuringRecoveryIT extends AbstractStatelessIntegTestCa
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(TestStateless.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(TestServerlessStatelessPlugin.class);
         return plugins;
     }
 
-    public static class TestStateless extends Stateless {
+    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
         public volatile Consumer<Void> translogNextCallback = null;
 
-        public TestStateless(Settings settings) {
+        public TestServerlessStatelessPlugin(Settings settings) {
             super(settings);
         }
 

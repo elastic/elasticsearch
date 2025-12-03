@@ -19,7 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcher;
 import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
@@ -121,8 +121,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
-import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
-import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL_SETTING;
+import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.SHARD_READ_THREAD_POOL;
+import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.SHARD_READ_THREAD_POOL_SETTING;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
@@ -326,7 +326,10 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         var translogConfig = new TranslogConfig(shardId, createTempDir(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         var indexWriterConfig = newIndexWriterConfig();
         var threadPool = registerThreadPool(
-            new TestThreadPool(getTestName() + "[" + shardId + "][index]", Stateless.statelessExecutorBuilders(Settings.EMPTY, true))
+            new TestThreadPool(
+                getTestName() + "[" + shardId + "][index]",
+                ServerlessStatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
         );
         var threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,

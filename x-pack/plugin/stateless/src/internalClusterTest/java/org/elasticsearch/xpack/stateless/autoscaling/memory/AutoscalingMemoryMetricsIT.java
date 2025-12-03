@@ -21,7 +21,7 @@ import co.elastic.elasticsearch.serverless.autoscaling.ServerlessAutoscalingPlug
 import co.elastic.elasticsearch.serverless.autoscaling.action.GetIndexTierMetrics;
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
@@ -123,7 +123,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
+public class AutoscalingMemoryMetricsIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     private static final Logger logger = LogManager.getLogger(AutoscalingMemoryMetricsIT.class);
 

@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.metrics;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.search.SearchResponse;
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class IndicesMetricsIT extends AbstractStatelessIntegTestCase {
+public class IndicesMetricsIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     public static class TestAPMInternalSettings extends Plugin {
         @Override

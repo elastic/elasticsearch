@@ -74,7 +74,7 @@ import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.not;
 
-public class StatelessFileDeletionHollowIT extends AbstractStatelessIntegTestCase {
+public class StatelessFileDeletionHollowIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {

@@ -151,7 +151,7 @@ public class PolicyManager {
     }
 
     private FileAccessTree getDefaultFileAccess(Collection<Path> componentPaths) {
-        return FileAccessTree.withoutExclusivePaths(FilesEntitlement.EMPTY, pathLookup, componentPaths);
+        return FileAccessTree.withoutExclusivePaths(FilesEntitlement.EMPTY, pathLookup, forbiddenPaths, componentPaths);
     }
 
     // pkg private for testing
@@ -176,7 +176,7 @@ public class PolicyManager {
             componentName,
             moduleName,
             entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-            FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, componentPaths, exclusivePaths)
+            FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, componentPaths, exclusivePaths, forbiddenPaths)
         );
     }
 
@@ -226,6 +226,20 @@ public class PolicyManager {
      */
     private final List<ExclusivePath> exclusivePaths;
 
+    /**
+     * Paths for which we never want to allow access to, from any component
+     */
+    private final Set<String> forbiddenPaths;
+
+    private static Set<String> createForbiddenPaths(PathLookup pathLookup) {
+        return pathLookup.getBaseDirPaths(PathLookup.BaseDir.CONFIG)
+            .flatMap(
+                baseDir -> Stream.of(baseDir.resolve("elasticsearch.yml"), baseDir.resolve("jvm.options"), baseDir.resolve("jvm.options.d"))
+            )
+            .map(FileAccessTree::normalizePath)
+            .collect(Collectors.toSet());
+    }
+
     public PolicyManager(
         Policy serverPolicy,
         List<Entitlement> apmAgentEntitlements,
@@ -260,6 +274,7 @@ public class PolicyManager {
         );
         FileAccessTree.validateExclusivePaths(exclusivePaths, FileAccessTree.DEFAULT_COMPARISON);
         this.exclusivePaths = exclusivePaths;
+        this.forbiddenPaths = createForbiddenPaths(pathLookup);
     }
 
     private static Map<String, List<Entitlement>> buildScopeEntitlementsMap(Policy policy) {

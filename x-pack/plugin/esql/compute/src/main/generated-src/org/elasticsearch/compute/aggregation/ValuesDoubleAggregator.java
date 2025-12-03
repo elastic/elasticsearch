@@ -164,14 +164,12 @@ class ValuesDoubleAggregator {
             this.selectedCounts = new int[selectedCountsLen];
 
             for (int id = 0; id < hashes.size(); id++) {
-                // sanity
-
-                // I do not like this templating code of mine
                 int group = (int) hashes.getKey1(id);
                 if (group < selectedCounts.length) {
                     selectedCounts[group]--;
                 }
             }
+
             /*
              * Total the selected groups and turn the counts into the start index into a sort-of
              * off-by-one running count. It's really the number of values that have been inserted
@@ -222,7 +220,6 @@ class ValuesDoubleAggregator {
             this.ids = new int[total];
 
             for (int id = 0; id < hashes.size(); id++) {
-
                 int group = (int) hashes.getKey1(id);
                 ids[selectedCounts[group]++] = id;
             }

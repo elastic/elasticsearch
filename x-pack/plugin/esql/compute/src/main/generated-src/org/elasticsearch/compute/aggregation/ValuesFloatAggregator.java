@@ -169,9 +169,6 @@ class ValuesFloatAggregator {
             this.selectedCounts = new int[selectedCountsLen];
 
             for (int id = 0; id < hashes.size(); id++) {
-                // sanity
-
-                // I do not like this templating code of mine
                 long both = hashes.get(id);
                 int group = (int) (both >>> Float.SIZE);
                 if (group < selectedCounts.length) {
@@ -229,7 +226,6 @@ class ValuesFloatAggregator {
             this.ids = new int[total];
 
             for (int id = 0; id < hashes.size(); id++) {
-
                 long both = hashes.get(id);
                 int group = (int) (both >>> Float.SIZE);
                 ids[selectedCounts[group]++] = id;

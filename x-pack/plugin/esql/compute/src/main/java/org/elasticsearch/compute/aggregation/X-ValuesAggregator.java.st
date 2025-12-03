@@ -288,28 +288,14 @@ $if(int)$
                     selectedCounts[group]--;
                 }
             }
-//            for (int id = 0; id < hashes.size(); id++) {
-//                long both = hashes.get(id);
-//                int group = (int) (both >>> Float.SIZE);
-//                if (group < selectedCounts.length) {
-//                    selectedCounts[group]--;
-//                }
-//            }
 $else$
             for (int id = 0; id < hashes.size(); id++) {
-            // sanity
-$endif$
-
-// I do not like this templating code of mine
 $if(long||double)$
                 int group = (int) hashes.getKey1(id);
-                if (group < selectedCounts.length) {
-                    selectedCounts[group]--;
-                }
-            }
-$elseif(float||BytesRef)$
+$elseif(float||int||BytesRef)$
                 long both = hashes.get(id);
                 int group = (int) (both >>> Float.SIZE);
+$endif$
                 if (group < selectedCounts.length) {
                     selectedCounts[group]--;
                 }
@@ -374,24 +360,23 @@ $if(int)$
                 ids[selectedCounts[group]++] = itr.slot();
             }
         }
+
 $else$
             for (int id = 0; id < hashes.size(); id++) {
-$endif$
-
-
 $if(long||double)$
                 int group = (int) hashes.getKey1(id);
                 ids[selectedCounts[group]++] = id;
             }
         }
+
 $elseif(float||BytesRef)$
                 long both = hashes.get(id);
                 int group = (int) (both >>> Float.SIZE);
-                        ids[selectedCounts[group]++] = id;
-                    }
-                }
+                ids[selectedCounts[group]++] = id;
+            }
+        }
 $endif$
-
+$endif$
 
         @Override
         public void close() {

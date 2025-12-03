@@ -177,14 +177,6 @@ class ValuesIntAggregator {
                     selectedCounts[group]--;
                 }
             }
-            // for (int id = 0; id < hashes.size(); id++) {
-            // long both = hashes.get(id);
-            // int group = (int) (both >>> Float.SIZE);
-            // if (group < selectedCounts.length) {
-            // selectedCounts[group]--;
-            // }
-            // }
-            // I do not like this templating code of mine
             /*
              * Total the selected groups and turn the counts into the start index into a sort-of
              * off-by-one running count. It's really the number of values that have been inserted

@@ -11,10 +11,7 @@ import org.apache.lucene.util.ArrayUtil;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BytesRefHash;
-$elseif(int)$
-import org.elasticsearch.swisshash.Ordinator64;
-$elseif(long)$
-import org.elasticsearch.swisshash.Ordinator64;
+$elseif(Ordinator64)$
 $else$
 import org.elasticsearch.common.util.LongHash;
 $endif$
@@ -24,16 +21,18 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 $if(int)$
 import org.elasticsearch.compute.data.IntBlock;
-
 $elseif(long)$
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-
 $else$
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.IntBlock;
 
 $endif$
+$if(Ordinator64)$
+import org.elasticsearch.swisshash.Ordinator64;
+$endif$
+
 import java.util.Arrays;
 
 /**
@@ -228,9 +227,7 @@ $endif$
      */
 $if(BytesRef)$
     public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, BytesRefHash hash) {
-$elseif(int)$
-    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, Ordinator64 hash) {
-$elseif(long)$
+$elseif(Ordinator64)$
     public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, Ordinator64 hash) {
 $else$
     public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, LongHash hash) {
@@ -274,9 +271,7 @@ $endif$
      */
 $if(BytesRef)$
     public IntBlock hashLookup(BlockFactory blockFactory, BytesRefHash hash) {
-$elseif(int)$
-    public IntBlock hashLookup(BlockFactory blockFactory, Ordinator64 hash) {
-$elseif(long)$
+$elseif(Ordinator64)$
     public IntBlock hashLookup(BlockFactory blockFactory, Ordinator64 hash) {
 $else$
     public IntBlock hashLookup(BlockFactory blockFactory, LongHash hash) {
@@ -504,9 +499,7 @@ $endif$
      */
 $if(BytesRef)$
     private void hashAddUniquedWork(BytesRefHash hash, IntBlock.Builder builder) {
-$elseif(int)$
-    private void hashAddUniquedWork(Ordinator64 hash, IntBlock.Builder builder) {
-$elseif(long)$
+$elseif(Ordinator64)$
     private void hashAddUniquedWork(Ordinator64 hash, IntBlock.Builder builder) {
 $else$
     private void hashAddUniquedWork(LongHash hash, IntBlock.Builder builder) {
@@ -527,9 +520,7 @@ $endif$
      */
 $if(BytesRef)$
     private void hashAddSortedWork(BytesRefHash hash, IntBlock.Builder builder) {
-$elseif(int)$
-    private void hashAddSortedWork(Ordinator64 hash, IntBlock.Builder builder) {
-$elseif(long)$
+$elseif(Ordinator64)$
     private void hashAddSortedWork(Ordinator64 hash, IntBlock.Builder builder) {
 $else$
     private void hashAddSortedWork(LongHash hash, IntBlock.Builder builder) {
@@ -555,9 +546,7 @@ $endif$
      */
 $if(BytesRef)$
     private void hashLookupUniquedWork(BytesRefHash hash, IntBlock.Builder builder) {
-$elseif(int)$
-    private void hashLookupUniquedWork(Ordinator64 hash, IntBlock.Builder builder) {
-$elseif(long)$
+$elseif(Ordinator64)$
     private void hashLookupUniquedWork(Ordinator64 hash, IntBlock.Builder builder) {
 $else$
     private void hashLookupUniquedWork(LongHash hash, IntBlock.Builder builder) {
@@ -622,9 +611,7 @@ $endif$
      */
 $if(BytesRef)$
     private void hashLookupSortedWork(BytesRefHash hash, IntBlock.Builder builder) {
-$elseif(int)$
-    private void hashLookupSortedWork(Ordinator64 hash, IntBlock.Builder builder) {
-$elseif(long)$
+$elseif(Ordinator64)$
     private void hashLookupSortedWork(Ordinator64 hash, IntBlock.Builder builder) {
 $else$
     private void hashLookupSortedWork(LongHash hash, IntBlock.Builder builder) {
@@ -751,10 +738,8 @@ $endif$
 
 $if(BytesRef)$
     private void hashAdd(IntBlock.Builder builder, BytesRefHash hash, BytesRef v) {
-$elseif(int)$
-    private void hashAdd(IntBlock.Builder builder, Ordinator64 hash, int v) {
-$elseif(long)$
-    private void hashAdd(IntBlock.Builder builder, Ordinator64 hash, long v) {
+$elseif(Ordinator64)$
+    private void hashAdd(IntBlock.Builder builder, Ordinator64 hash, $type$ v) {
 $else$
     private void hashAdd(IntBlock.Builder builder, LongHash hash, $type$ v) {
 $endif$
@@ -767,10 +752,8 @@ $endif$
 
 $if(BytesRef)$
     private long hashLookup(BytesRefHash hash, BytesRef v) {
-$elseif(int)$
-    private long hashLookup(Ordinator64 hash, int v) {
-$elseif(long)$
-    private long hashLookup(Ordinator64 hash, long v) {
+$elseif(Ordinator64)$
+    private long hashLookup(Ordinator64 hash, $type$ v) {
 $else$
     private long hashLookup(LongHash hash, $type$ v) {
 $endif$
@@ -783,10 +766,8 @@ $endif$
 
 $if(BytesRef)$
     private void hashLookupSingle(IntBlock.Builder builder, BytesRefHash hash, BytesRef v) {
-$elseif(int)$
-    private void hashLookupSingle(IntBlock.Builder builder, Ordinator64 hash, int v) {
-$elseif(long)$
-    private void hashLookupSingle(IntBlock.Builder builder, Ordinator64 hash, long v) {
+$elseif(Ordinator64)$
+    private void hashLookupSingle(IntBlock.Builder builder, Ordinator64 hash, $type$ v) {
 $else$
     private void hashLookupSingle(IntBlock.Builder builder, LongHash hash, $type$ v) {
 $endif$

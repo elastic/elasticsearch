@@ -13,9 +13,10 @@ $endif$
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.common.util.LongLongHash;
+$if(Ordinator64)$
+$else$
+import org.elasticsearch.common.util.$Hash$;
+$endif$
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 $if(BytesRef)$
@@ -38,7 +39,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.swisshash.Ordinator64;
 $elseif(long)$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -46,7 +46,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
-import org.elasticsearch.swisshash.Ordinator64;
 $endif$
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
@@ -55,6 +54,11 @@ $if(BytesRef)$
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 $endif$
 import org.elasticsearch.core.ReleasableIterator;
+$if(Ordinator64)$
+import org.elasticsearch.swisshash.Ordinator64;
+
+$else$
+$endif$
 
 $if(BytesRef)$
 $else$
@@ -67,9 +71,7 @@ $endif$
  */
 final class $Type$BlockHash extends BlockHash {
     private final int channel;
-$if(int)$
-    final Ordinator64 hash;
-$elseif(long)$
+$if(Ordinator64)$
     final Ordinator64 hash;
 $else$
     final $Hash$ hash;
@@ -87,9 +89,7 @@ $endif$
     $Type$BlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-$if(int)$
-        this.hash = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker(), new Ordinator64.IdSpace());
-$elseif(long)$
+$if(Ordinator64)$
         this.hash = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker(), new Ordinator64.IdSpace());
 $else$
         this.hash = new $Hash$(1, blockFactory.bigArrays());
@@ -296,15 +296,10 @@ $else$
         if (seenNull) {
             final int size = Math.toIntExact(hash.size() + 1);
             final $type$[] keys = new $type$[size];
-$if(int)$
+$if(Ordinator64)$
             Ordinator64.Itr itr = hash.iterator();
             while (itr.next()) {
-                keys[itr.id() + 1] = (int) itr.key();
-            }
-$elseif(long)$
-            Ordinator64.Itr itr = hash.iterator();
-            while (itr.next()) {
-                keys[itr.id() + 1] = itr.key();
+                keys[itr.id() + 1] = $if(int)$(int) $endif$itr.key();
             }
 $else$
             for (int i = 1; i < size; i++) {
@@ -322,15 +317,10 @@ $endif$
         }
         final int size = Math.toIntExact(hash.size());
         final $type$[] keys = new $type$[size];
-$if(int)$
+$if(Ordinator64)$
         Ordinator64.Itr itr = hash.iterator();
         while (itr.next()) {
-            keys[itr.id()] = (int) itr.key();
-        }
-$elseif(long)$
-        Ordinator64.Itr itr = hash.iterator();
-        while (itr.next()) {
-            keys[itr.id()] = itr.key();
+            keys[itr.id()] = $if(int)$(int) $endif$itr.key();
         }
 $else$
         for (int i = 0; i < size; i++) {

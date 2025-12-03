@@ -81,6 +81,7 @@ def prop(Name, Type, type, Wrapper, TYPE, BYTES, Array, Hash) {
     "boolean" : Name == "Boolean" ? "true" : "",
     "BytesRef": Name == "BytesRef" ? "true" : "",
     "Ip"      : Name == "Ip" ? "true" : "",
+    "Ordinator64" : Hash == "Ordinator64" ? "true" : "",
   ]
 }
 
@@ -96,7 +97,7 @@ def addOccurrence(props, Occurrence) {
 tasks.named('stringTemplates').configure {
   var intProperties = prop("Int", "Int", "int", "Integer", "INT", "Integer.BYTES", "IntArray", "Ordinator64")
   var floatProperties = prop("Float", "Float", "float", "Float", "FLOAT", "Float.BYTES", "FloatArray", "LongHash")
-  var longProperties = prop("Long", "Long", "long", "Long", "LONG", "Long.BYTES", "LongArray", "LongHash")
+  var longProperties = prop("Long", "Long", "long", "Long", "LONG", "Long.BYTES", "LongArray", "Ordinator64")
   var doubleProperties = prop("Double", "Double", "double", "Double", "DOUBLE", "Double.BYTES", "DoubleArray", "LongHash")
   var booleanProperties = prop("Boolean", "Boolean", "boolean", "Boolean", "BOOLEAN", "Byte.BYTES", "BitArray", "")
   var bytesRefProperties = prop(

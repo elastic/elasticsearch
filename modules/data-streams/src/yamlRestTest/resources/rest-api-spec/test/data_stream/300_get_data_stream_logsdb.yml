@@ -1,5 +1,5 @@
 ---
-"Test change data stream mode":
+"Test logsdb index mode is returned":
   # This test makes sure that when we get a data stream that does not explicitly have an index mode set on it, the API
   # correctly calls additional settings providers (in this case, LogsdbIndexModeSettingsProvider) that set the index
   # mode

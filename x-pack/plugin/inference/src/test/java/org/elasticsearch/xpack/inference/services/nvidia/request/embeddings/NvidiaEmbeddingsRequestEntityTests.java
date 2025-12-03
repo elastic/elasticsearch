@@ -27,13 +27,13 @@ public class NvidiaEmbeddingsRequestEntityTests extends ESTestCase {
     private static final String FIRST_INPUT_VALUE = "some input";
     private static final String SECOND_INPUT_VALUE = "some more input";
     private static final List<String> INPUT_VALUE = List.of(FIRST_INPUT_VALUE, SECOND_INPUT_VALUE);
-    private static final InputType INPUT_TYPE_EXPEDIA_VALUE = InputType.INGEST;
-    private static final Truncation TRUNCATE_EXPEDIA_VALUE = Truncation.START;
+    private static final InputType INPUT_TYPE_ELASTIC_VALUE = InputType.INGEST;
+    private static final Truncation TRUNCATE_ELASTIC_VALUE = Truncation.START;
     private static final String INPUT_TYPE_NVIDIA_VALUE = "passage";
     private static final String TRUNCATE_NVIDIA_VALUE = "start";
 
     public void testXContent_AllFields() throws IOException {
-        var entity = new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, INPUT_TYPE_EXPEDIA_VALUE, TRUNCATE_EXPEDIA_VALUE);
+        var entity = new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, INPUT_TYPE_ELASTIC_VALUE, TRUNCATE_ELASTIC_VALUE);
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
@@ -49,7 +49,7 @@ public class NvidiaEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_OnlyMandatoryFields() throws IOException {
-        var entity = new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, INPUT_TYPE_EXPEDIA_VALUE, null);
+        var entity = new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, INPUT_TYPE_ELASTIC_VALUE, null);
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
@@ -66,21 +66,21 @@ public class NvidiaEmbeddingsRequestEntityTests extends ESTestCase {
     public void testCreateRequestEntity_NoInput_ThrowsException() {
         expectThrows(
             NullPointerException.class,
-            () -> new NvidiaEmbeddingsRequestEntity(null, MODEL_VALUE, INPUT_TYPE_EXPEDIA_VALUE, TRUNCATE_EXPEDIA_VALUE)
+            () -> new NvidiaEmbeddingsRequestEntity(null, MODEL_VALUE, INPUT_TYPE_ELASTIC_VALUE, TRUNCATE_ELASTIC_VALUE)
         );
     }
 
     public void testCreateRequestEntity_NoModelId_ThrowsException() {
         expectThrows(
             NullPointerException.class,
-            () -> new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, null, INPUT_TYPE_EXPEDIA_VALUE, TRUNCATE_EXPEDIA_VALUE)
+            () -> new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, null, INPUT_TYPE_ELASTIC_VALUE, TRUNCATE_ELASTIC_VALUE)
         );
     }
 
     public void testCreateRequestEntity_NoInputType_ThrowsException() {
         expectThrows(
             NullPointerException.class,
-            () -> new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, null, TRUNCATE_EXPEDIA_VALUE)
+            () -> new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, null, TRUNCATE_ELASTIC_VALUE)
         );
     }
 

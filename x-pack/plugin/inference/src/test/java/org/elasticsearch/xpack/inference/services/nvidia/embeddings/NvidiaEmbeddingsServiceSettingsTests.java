@@ -34,8 +34,9 @@ import static org.hamcrest.Matchers.is;
 
 public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<NvidiaEmbeddingsServiceSettings> {
     private static final String MODEL_VALUE = "some_model";
-    private static final String CORRECT_URL_VALUE = "http://www.abc.com";
-    private static final String INVALID_URL_VALUE = "^^^";
+    private static final String URL_VALUE = "http://www.abc.com";
+    private static final String URL_DEFAULT_VALUE = "https://integrate.api.nvidia.com/v1/embeddings";
+    private static final String URL_INVALID_VALUE = "^^^";
     private static final int DIMENSIONS_VALUE = 384;
     private static final SimilarityMeasure SIMILARITY_MEASURE_VALUE = SimilarityMeasure.DOT_PRODUCT;
     private static final int MAX_INPUT_TOKENS_VALUE = 128;
@@ -49,7 +50,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
                 MODEL_VALUE,
-                CORRECT_URL_VALUE,
+                URL_VALUE,
                 SIMILARITY_MEASURE_VALUE.toString(),
                 DIMENSIONS_VALUE,
                 MAX_INPUT_TOKENS_VALUE,
@@ -63,7 +64,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             is(
                 new NvidiaEmbeddingsServiceSettings(
                     MODEL_VALUE,
-                    CORRECT_URL_VALUE,
+                    URL_VALUE,
                     DIMENSIONS_VALUE,
                     SIMILARITY_MEASURE_VALUE,
                     MAX_INPUT_TOKENS_VALUE,
@@ -79,7 +80,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     null,
-                    CORRECT_URL_VALUE,
+                    URL_VALUE,
                     SIMILARITY_MEASURE_VALUE.toString(),
                     DIMENSIONS_VALUE,
                     MAX_INPUT_TOKENS_VALUE,
@@ -113,7 +114,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             is(
                 new NvidiaEmbeddingsServiceSettings(
                     MODEL_VALUE,
-                    createOptionalUri(null),
+                    URL_DEFAULT_VALUE,
                     DIMENSIONS_VALUE,
                     SIMILARITY_MEASURE_VALUE,
                     MAX_INPUT_TOKENS_VALUE,
@@ -150,7 +151,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     MODEL_VALUE,
-                    INVALID_URL_VALUE,
+                    URL_INVALID_VALUE,
                     SIMILARITY_MEASURE_VALUE.toString(),
                     DIMENSIONS_VALUE,
                     MAX_INPUT_TOKENS_VALUE,
@@ -161,14 +162,14 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
         assertThat(thrownException.getMessage(), containsString(Strings.format("""
             Validation Failed: 1: [service_settings] Invalid url [%s] received for field [url]. \
-            Error: unable to parse url [%s]. Reason: Illegal character in path;""", INVALID_URL_VALUE, INVALID_URL_VALUE)));
+            Error: unable to parse url [%s]. Reason: Illegal character in path;""", URL_INVALID_VALUE, URL_INVALID_VALUE)));
     }
 
     public void testFromMap_NoSimilarity_Success() {
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
                 MODEL_VALUE,
-                CORRECT_URL_VALUE,
+                URL_VALUE,
                 null,
                 DIMENSIONS_VALUE,
                 MAX_INPUT_TOKENS_VALUE,
@@ -182,7 +183,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             is(
                 new NvidiaEmbeddingsServiceSettings(
                     MODEL_VALUE,
-                    CORRECT_URL_VALUE,
+                    URL_VALUE,
                     DIMENSIONS_VALUE,
                     null,
                     MAX_INPUT_TOKENS_VALUE,
@@ -198,7 +199,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     MODEL_VALUE,
-                    CORRECT_URL_VALUE,
+                    URL_VALUE,
                     SIMILARITY_INVALID_VALUE,
                     DIMENSIONS_VALUE,
                     MAX_INPUT_TOKENS_VALUE,
@@ -218,7 +219,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     MODEL_VALUE,
-                    CORRECT_URL_VALUE,
+                    URL_VALUE,
                     SIMILARITY_MEASURE_VALUE.toString(),
                     null,
                     MAX_INPUT_TOKENS_VALUE,
@@ -234,7 +235,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
                 MODEL_VALUE,
-                CORRECT_URL_VALUE,
+                URL_VALUE,
                 SIMILARITY_MEASURE_VALUE.toString(),
                 null,
                 MAX_INPUT_TOKENS_VALUE,
@@ -248,7 +249,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             is(
                 new NvidiaEmbeddingsServiceSettings(
                     MODEL_VALUE,
-                    CORRECT_URL_VALUE,
+                    URL_VALUE,
                     null,
                     SIMILARITY_MEASURE_VALUE,
                     MAX_INPUT_TOKENS_VALUE,
@@ -262,7 +263,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
                 MODEL_VALUE,
-                CORRECT_URL_VALUE,
+                URL_VALUE,
                 SIMILARITY_MEASURE_VALUE.toString(),
                 DIMENSIONS_VALUE,
                 MAX_INPUT_TOKENS_VALUE,
@@ -276,7 +277,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             is(
                 new NvidiaEmbeddingsServiceSettings(
                     MODEL_VALUE,
-                    CORRECT_URL_VALUE,
+                    URL_VALUE,
                     null,
                     SIMILARITY_MEASURE_VALUE,
                     MAX_INPUT_TOKENS_VALUE,
@@ -292,7 +293,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     MODEL_VALUE,
-                    CORRECT_URL_VALUE,
+                    URL_VALUE,
                     SIMILARITY_MEASURE_VALUE.toString(),
                     0,
                     MAX_INPUT_TOKENS_VALUE,
@@ -313,7 +314,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     MODEL_VALUE,
-                    CORRECT_URL_VALUE,
+                    URL_VALUE,
                     SIMILARITY_MEASURE_VALUE.toString(),
                     DIMENSIONS_NEGATIVE_VALUE,
                     MAX_INPUT_TOKENS_VALUE,
@@ -337,7 +338,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
                 MODEL_VALUE,
-                CORRECT_URL_VALUE,
+                URL_VALUE,
                 SIMILARITY_MEASURE_VALUE.toString(),
                 DIMENSIONS_VALUE,
                 null,
@@ -351,7 +352,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             is(
                 new NvidiaEmbeddingsServiceSettings(
                     MODEL_VALUE,
-                    CORRECT_URL_VALUE,
+                    URL_VALUE,
                     DIMENSIONS_VALUE,
                     SIMILARITY_MEASURE_VALUE,
                     null,
@@ -367,7 +368,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     MODEL_VALUE,
-                    CORRECT_URL_VALUE,
+                    URL_VALUE,
                     SIMILARITY_MEASURE_VALUE.toString(),
                     DIMENSIONS_VALUE,
                     0,
@@ -388,7 +389,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     MODEL_VALUE,
-                    CORRECT_URL_VALUE,
+                    URL_VALUE,
                     SIMILARITY_MEASURE_VALUE.toString(),
                     DIMENSIONS_VALUE,
                     MAX_INPUT_TOKENS_NEGATIVE_VALUE,
@@ -412,7 +413,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
                 MODEL_VALUE,
-                CORRECT_URL_VALUE,
+                URL_VALUE,
                 SIMILARITY_MEASURE_VALUE.toString(),
                 DIMENSIONS_VALUE,
                 MAX_INPUT_TOKENS_VALUE,
@@ -426,7 +427,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             is(
                 new NvidiaEmbeddingsServiceSettings(
                     MODEL_VALUE,
-                    CORRECT_URL_VALUE,
+                    URL_VALUE,
                     DIMENSIONS_VALUE,
                     SIMILARITY_MEASURE_VALUE,
                     MAX_INPUT_TOKENS_VALUE,
@@ -439,7 +440,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     public void testToXContent_WritesAllValues() throws IOException {
         var entity = new NvidiaEmbeddingsServiceSettings(
             MODEL_VALUE,
-            CORRECT_URL_VALUE,
+            URL_VALUE,
             DIMENSIONS_VALUE,
             SIMILARITY_MEASURE_VALUE,
             MAX_INPUT_TOKENS_VALUE,
@@ -468,7 +469,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                             }
                             """,
                         MODEL_VALUE,
-                        CORRECT_URL_VALUE,
+                        URL_VALUE,
                         RATE_LIMIT_VALUE,
                         DIMENSIONS_VALUE,
                         SIMILARITY_MEASURE_VALUE.toString(),
@@ -477,6 +478,24 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                 )
             )
         );
+    }
+
+    public void testToXContent_WritesDefaultValues() throws IOException {
+        var entity = new NvidiaEmbeddingsServiceSettings(MODEL_VALUE, createOptionalUri(null), null, null, null, null);
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+                "model_id": "%s",
+                "url": "%s",
+                "rate_limit": {
+                    "requests_per_minute": %d
+                }
+            }
+            """, MODEL_VALUE, URL_DEFAULT_VALUE, RATE_LIMIT_DEFAULT_VALUE))));
     }
 
     @Override

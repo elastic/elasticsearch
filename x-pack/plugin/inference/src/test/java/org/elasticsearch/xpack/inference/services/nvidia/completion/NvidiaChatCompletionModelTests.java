@@ -21,7 +21,7 @@ public class NvidiaChatCompletionModelTests extends ESTestCase {
     private static final String MODEL_VALUE = "some_model";
     private static final String API_KEY_VALUE = "test_api_key";
     private static final String URL_VALUE = "http://www.abc.com";
-    private static final String INVALID_URL_VALUE = "^^^";
+    private static final String URL_INVALID_VALUE = "^^^";
     private static final String ALTERNATE_MODEL_VALUE = "other_model";
     private static final String URL_DEFAULT_VALUE = "https://integrate.api.nvidia.com/v1/chat/completions";
 
@@ -77,11 +77,11 @@ public class NvidiaChatCompletionModelTests extends ESTestCase {
     public void testCreateModel_InvalidUrl_ThrowsException() {
         var thrownException = expectThrows(
             IllegalArgumentException.class,
-            () -> createCompletionModel(INVALID_URL_VALUE, API_KEY_VALUE, MODEL_VALUE)
+            () -> createCompletionModel(URL_INVALID_VALUE, API_KEY_VALUE, MODEL_VALUE)
         );
         assertThat(
             thrownException.getMessage(),
-            is(Strings.format("unable to parse url [%s]. Reason: Illegal character in path", INVALID_URL_VALUE))
+            is(Strings.format("unable to parse url [%s]. Reason: Illegal character in path", URL_INVALID_VALUE))
         );
     }
 }

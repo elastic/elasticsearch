@@ -37,7 +37,7 @@ public class NvidiaRerankServiceSettingsTests extends AbstractBWCWireSerializati
     private static final String MODEL_VALUE = "some_model";
     private static final String URL_VALUE = "http://www.abc.com";
     private static final String URL_DEFAULT_VALUE = "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking";
-    private static final String INVALID_URL_VALUE = "^^^";
+    private static final String URL_INVALID_VALUE = "^^^";
     private static final int RATE_LIMIT_VALUE = 2;
     private static final int RATE_LIMIT_DEFAULT_VALUE = 3000;
 
@@ -83,7 +83,7 @@ public class NvidiaRerankServiceSettingsTests extends AbstractBWCWireSerializati
         );
         assertThat(
             serviceSettings,
-            is(new NvidiaRerankServiceSettings(MODEL_VALUE, createOptionalUri(null), new RateLimitSettings(RATE_LIMIT_VALUE)))
+            is(new NvidiaRerankServiceSettings(MODEL_VALUE, URL_DEFAULT_VALUE, new RateLimitSettings(RATE_LIMIT_VALUE)))
         );
 
     }
@@ -92,12 +92,12 @@ public class NvidiaRerankServiceSettingsTests extends AbstractBWCWireSerializati
         testFromMap_InvalidUrl(
             buildServiceSettingsMap(
                 MODEL_VALUE,
-                INVALID_URL_VALUE,
+                URL_INVALID_VALUE,
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
             ),
             Strings.format("""
                 Validation Failed: 1: [service_settings] Invalid url [%s] received for field [url]. \
-                Error: unable to parse url [%s]. Reason: Illegal character in path;""", INVALID_URL_VALUE, INVALID_URL_VALUE)
+                Error: unable to parse url [%s]. Reason: Illegal character in path;""", URL_INVALID_VALUE, URL_INVALID_VALUE)
         );
     }
 

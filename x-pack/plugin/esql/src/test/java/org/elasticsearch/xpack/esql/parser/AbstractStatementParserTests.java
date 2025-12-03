@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -58,6 +59,10 @@ public abstract class AbstractStatementParserTests extends ESTestCase {
 
     LogicalPlan statement(String e, QueryParams params) {
         return parser.createStatement(e, params);
+    }
+
+    EsqlStatement query(String e, QueryParams params) {
+        return parser.createQuery(e, params);
     }
 
     LogicalPlan processingCommand(String e) {

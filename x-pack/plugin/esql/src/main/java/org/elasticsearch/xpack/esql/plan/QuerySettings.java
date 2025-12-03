@@ -28,7 +28,7 @@ public class QuerySettings {
         false,
         true,
         true,
-        "Enable query approximation.",
+        "Enable approximating analytical queries.",
         (value) -> (Boolean) Foldables.literalValueOf(value),
         false
     );

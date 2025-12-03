@@ -125,26 +125,21 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
         SubscribableListener.<ElasticInferenceServiceAuthorizationModel>newForked(authModelListener -> {
             // Executing on a separate thread because there's a chance the authorization call needs to do some initialization for the Sender
             threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> getEisAuthorization(authModelListener, eisSender));
-        }).<List<InferenceServiceConfiguration>>andThen((configurationListener, authorizationModel) -> {
+        }).andThenApply((authorizationModel) -> {
             var serviceConfigs = getServiceConfigurationsForServices(availableServices);
-            serviceConfigs.sort(Comparator.comparing(InferenceServiceConfiguration::getService));
 
-            if (authorizationModel.isAuthorized() == false) {
-                configurationListener.onResponse(serviceConfigs);
-                return;
-            }
-
-            // If there was a requested task type and the authorization response from EIS doesn't support it, we'll exclude EIS as a valid
-            // service
-            if (requestedTaskType != null && authorizationModel.getTaskTypes().contains(requestedTaskType) == false) {
-                configurationListener.onResponse(serviceConfigs);
-                return;
+            if (authorizationModel.isAuthorized() == false
+                // If there was a requested task type and the authorization response from EIS doesn't support it, we'll exclude EIS as a
+                // valid service
+                || (requestedTaskType != null && authorizationModel.getTaskTypes().contains(requestedTaskType) == false)) {
+                serviceConfigs.sort(Comparator.comparing(InferenceServiceConfiguration::getService));
+                return serviceConfigs;
             }
 
             var config = ElasticInferenceService.createConfiguration(authorizationModel.getTaskTypes());
             serviceConfigs.add(config);
             serviceConfigs.sort(Comparator.comparing(InferenceServiceConfiguration::getService));
-            configurationListener.onResponse(serviceConfigs);
+            return serviceConfigs;
         })
             .addListener(
                 listener.delegateFailureAndWrap(

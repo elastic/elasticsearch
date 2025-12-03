@@ -39,7 +39,6 @@ public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             .jvmArg("--add-opens=org.apache.lucene.core/org.apache.lucene.internal.vectorization=org.elasticsearch.server")
             .feature(FeatureFlag.GPU_FORMAT);
 
-
         var libraryPath = System.getenv("LD_LIBRARY_PATH");
         if (libraryPath != null) {
             builder.environment("LD_LIBRARY_PATH", libraryPath);

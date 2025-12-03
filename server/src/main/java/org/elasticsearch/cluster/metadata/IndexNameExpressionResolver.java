@@ -418,7 +418,7 @@ public class IndexNameExpressionResolver {
             baseExpression = DateMathExpressionResolver.resolveExpression(baseExpression, context::getStartTime);
 
             // Validate base expression
-            validateResourceExpression(baseExpression, expressions);
+            validateResourceExpression(context, baseExpression, expressions);
 
             // Check if it's wildcard
             boolean isWildcard = expandWildcards && WildcardExpressionResolver.isWildcard(baseExpression);
@@ -457,7 +457,7 @@ public class IndexNameExpressionResolver {
      * - Ensure it doesn't start with `_`
      * - Ensure it's not a remote expression unless the allow unavailable targets is enabled.
      */
-    private static void validateResourceExpression(String current, String[] expressions) {
+    private static void validateResourceExpression(Context context, String current, String[] expressions) {
         if (Strings.isEmpty(current)) {
             throw notFoundException(current);
         }
@@ -468,14 +468,14 @@ public class IndexNameExpressionResolver {
         if (current.charAt(0) == '_') {
             throw new InvalidIndexNameException(current, "must not start with '_'.");
         }
-        ensureRemoteExpressionRequireIgnoreUnavailable(current, expressions);
+        checkForRemoteIndexExpression(context, current, expressions);
     }
 
     /**
-     * Throws an exception if the expression is a remote expression and we do not allow unavailable targets
+     * Throws an exception if the expression is a remote expression
      */
-    private static void ensureRemoteExpressionRequireIgnoreUnavailable(String current, String[] expressions) {
-        if (RemoteClusterAware.isRemoteIndexName(current)) {
+    private static void checkForRemoteIndexExpression(Context context, String current, String[] expressions) {
+        if (context.isAllowRemoteIndices() == false && RemoteClusterAware.isRemoteIndexName(current)) {
             List<String> crossClusterIndices = RemoteClusterAware.getRemoteIndexExpressions(expressions);
             throw new IllegalArgumentException(
                 "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
@@ -576,6 +576,7 @@ public class IndexNameExpressionResolver {
             false,
             false,
             request.includeDataStreams(),
+            false,
             false,
             getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(),
@@ -1002,7 +1003,7 @@ public class IndexNameExpressionResolver {
      * Resolve an array of expressions to the set of indices and aliases that these expressions match.
      */
     public Set<ResolvedExpression> resolveExpressions(ProjectMetadata project, String... expressions) {
-        return resolveExpressions(project, IndicesOptions.lenientExpandOpen(), false, expressions);
+        return resolveExpressions(project, IndicesOptions.lenientExpandOpen(), false, true, expressions);
     }
 
     /**
@@ -1014,15 +1015,18 @@ public class IndexNameExpressionResolver {
         ProjectMetadata project,
         IndicesOptions indicesOptions,
         boolean preserveDataStreams,
+        boolean allowRemoteIndices,
         String... expressions
     ) {
         Context context = new Context(
             project,
             indicesOptions,
+            System.currentTimeMillis(),
             true,
             false,
             true,
             preserveDataStreams,
+            allowRemoteIndices,
             getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
@@ -1221,7 +1225,10 @@ public class IndexNameExpressionResolver {
         Context context = new Context(
             project,
             IndicesOptions.lenientExpandOpen(),
+            System.currentTimeMillis(),
             false,
+            false,
+            true,
             false,
             true,
             getSystemIndexAccessLevel(),
@@ -1526,6 +1533,7 @@ public class IndexNameExpressionResolver {
         private final boolean resolveToWriteIndex;
         private final boolean includeDataStreams;
         private final boolean preserveDataStreams;
+        private final boolean allowRemoteIndices;
         private final SystemIndexAccessLevel systemIndexAccessLevel;
         private final Predicate<String> systemIndexAccessPredicate;
         private final Predicate<String> netNewSystemIndexPredicate;
@@ -1569,6 +1577,7 @@ public class IndexNameExpressionResolver {
                 resolveToWriteIndex,
                 includeDataStreams,
                 false,
+                false,
                 systemIndexAccessLevel,
                 systemIndexAccessPredicate,
                 netNewSystemIndexPredicate
@@ -1594,6 +1603,7 @@ public class IndexNameExpressionResolver {
                 resolveToWriteIndex,
                 includeDataStreams,
                 preserveDataStreams,
+                false,
                 systemIndexAccessLevel,
                 systemIndexAccessPredicate,
                 netNewSystemIndexPredicate
@@ -1616,6 +1626,7 @@ public class IndexNameExpressionResolver {
                 false,
                 false,
                 false,
+                false,
                 systemIndexAccessLevel,
                 systemIndexAccessPredicate,
                 netNewSystemIndexPredicate
@@ -1630,6 +1641,7 @@ public class IndexNameExpressionResolver {
             boolean resolveToWriteIndex,
             boolean includeDataStreams,
             boolean preserveDataStreams,
+            boolean allowRemoteIndices,
             SystemIndexAccessLevel systemIndexAccessLevel,
             Predicate<String> systemIndexAccessPredicate,
             Predicate<String> netNewSystemIndexPredicate
@@ -1641,6 +1653,7 @@ public class IndexNameExpressionResolver {
             this.resolveToWriteIndex = resolveToWriteIndex;
             this.includeDataStreams = includeDataStreams;
             this.preserveDataStreams = preserveDataStreams;
+            this.allowRemoteIndices = allowRemoteIndices;
             this.systemIndexAccessLevel = systemIndexAccessLevel;
             this.systemIndexAccessPredicate = systemIndexAccessPredicate;
             this.netNewSystemIndexPredicate = netNewSystemIndexPredicate;
@@ -1681,6 +1694,10 @@ public class IndexNameExpressionResolver {
 
         public boolean isPreserveDataStreams() {
             return preserveDataStreams;
+        }
+
+        public boolean isAllowRemoteIndices() {
+            return allowRemoteIndices;
         }
 
         /**

@@ -53,6 +53,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
@@ -74,6 +75,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -93,6 +95,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure.CHUNK_REQUESTS_REJECTED_METRIC;
 import static co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure.CURRENT_CHUNKS_BYTES_METRIC;
@@ -127,6 +130,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class VirtualBatchedCompoundCommitsIT extends AbstractServerlessStatelessPluginIntegTestCase {
@@ -235,6 +239,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractServerlessStateless
             ShardId shardId,
             long primaryTerm,
             BooleanSupplier inititalizingNoSearchSupplier,
+            Supplier<MappingLookup> mappingLookupSupplier,
             TriConsumer<Long, GlobalCheckpointListeners.GlobalCheckpointListener, TimeValue> addGlobalCheckpointListenerFunction,
             Runnable triggerTranslogReplicator
         ) {
@@ -242,6 +247,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractServerlessStateless
                 shardId,
                 primaryTerm,
                 inititalizingNoSearchSupplier,
+                mappingLookupSupplier,
                 addGlobalCheckpointListenerFunction,
                 triggerTranslogReplicator
             ) {
@@ -476,6 +482,58 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractServerlessStateless
         assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
         for (Thread thread : threads) {
             thread.join();
+        }
+    }
+
+    public void testTimestampFieldValueRange() throws Exception {
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        ensureStableCluster(2);
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+        assertAcked(client().admin().indices().preparePutMapping(indexName).setSource("""
+                     {
+                       "properties": {
+                         "@timestamp": {
+                           "type": "date",
+                           "format": "epoch_millis"
+                         }
+                       }
+                     }
+            """, XContentType.JSON).get());
+
+        List<Long> minInCommits = new ArrayList<>();
+        List<Long> maxInCommits = new ArrayList<>();
+        int commitsCount = randomIntBetween(1, 5);
+        for (int i = 0; i < commitsCount; i++) {
+            int newDocsCount = randomIntBetween(1, 10);
+            long minPerCommit = Long.MAX_VALUE;
+            long maxPerCommit = Long.MIN_VALUE;
+            var bulkRequest = client().prepareBulk();
+            for (int j = 0; j < newDocsCount; j++) {
+                long timestamp = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE);
+                minPerCommit = Math.min(minPerCommit, timestamp);
+                maxPerCommit = Math.max(maxPerCommit, timestamp);
+                bulkRequest.add(new IndexRequest(indexName).source("@timestamp", timestamp));
+            }
+            assertNoFailures(bulkRequest.get());
+            assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
+            minInCommits.add(minPerCommit);
+            maxInCommits.add(maxPerCommit);
+        }
+
+        var shardId = findIndexShard(indexName).shardId();
+        var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        var vBcc = statelessCommitService.getCurrentVirtualBcc(shardId);
+        assertNotNull(vBcc);
+        assertThat(vBcc.getPendingCompoundCommits().size(), is(commitsCount));
+        for (int i = 0; i < commitsCount; i++) {
+            var pendingCC = vBcc.getPendingCompoundCommits().get(i);
+            assertNotNull(pendingCC.getStatelessCompoundCommit().timestampFieldValueRange());
+            assertThat(pendingCC.getStatelessCompoundCommit().timestampFieldValueRange().minMillis(), is(minInCommits.get(i)));
+            assertThat(pendingCC.getStatelessCompoundCommit().timestampFieldValueRange().maxMillis(), is(maxInCommits.get(i)));
         }
     }
 

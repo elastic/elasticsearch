@@ -88,7 +88,8 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
                         compoundCommit.internalFiles(),
                         compoundCommit.headerSizeInBytes(),
                         compoundCommit.internalFilesReplicatedRanges(),
-                        compoundCommit.extraContent()
+                        compoundCommit.extraContent(),
+                        compoundCommit.timestampFieldValueRange()
                     ),
                     newCcTermAndGen.generation(),
                     instance.getLatestUploadedBatchedCompoundCommitTermAndGen(),
@@ -157,7 +158,8 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
             Set.of(),
             randomNonNegativeLong(),
             InternalFilesReplicatedRanges.EMPTY,
-            Map.of()
+            Map.of(),
+            null
         );
 
         final var request1 = new NewCommitNotificationRequest(

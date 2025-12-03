@@ -38,6 +38,7 @@ setup:
       bulk:
         refresh: true
         body:
+# need to have enough docs to have a doc in every shard - for the illegal date tests to succeed
           - '{ "index" : { "_index" : "dates", "_id" : "1" } }'
           - '{"date" : "1900-01-01T12:12:12.123456789Z", "field" : 1 }'
           - '{ "index" : { "_index" : "dates", "_id" : "2" } }'
@@ -48,6 +49,14 @@ setup:
           - '{"date" : "1500-01-01T12:12:12.123456789Z", "field" : 4 }'
           - '{ "index" : { "_index" : "dates", "_id" : "5" } }'
           - '{"date" : "1500-01-05T12:12:12.123456789Z", "field" : 5 }'
+          - '{ "index" : { "_index" : "dates", "_id" : "6" } }'
+          - '{"date" : "1400-01-05T12:12:12.123456789Z", "field" : 6 }'
+          - '{ "index" : { "_index" : "dates", "_id" : "7" } }'
+          - '{"date" : "1400-01-06T12:12:12.123456789Z", "field" : 7 }'
+          - '{ "index" : { "_index" : "dates", "_id" : "8" } }'
+          - '{"date" : "1400-01-07T12:12:12.123456789Z", "field" : 8 }'
+          - '{ "index" : { "_index" : "dates", "_id" : "9" } }'
+          - '{"date" : "1400-01-08T12:12:12.123456789Z", "field" : 9 }'
 
 ---
 "test range query for all docs with year uuuu":
@@ -64,8 +73,8 @@ setup:
                 lte: 2023
                 format: uuuu
 
-  - match: { hits.total: 5 }
-  - length: { hits.hits: 5 }
+  - match: { hits.total: 9 }
+  - length: { hits.hits: 9 }
 
 ---
 "test match query gte and lt for single result with year uuuu":

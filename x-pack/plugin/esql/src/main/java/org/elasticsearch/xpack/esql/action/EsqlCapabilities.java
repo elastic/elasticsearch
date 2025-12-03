@@ -1519,6 +1519,7 @@ public class EsqlCapabilities {
         VARIANCE_STDDEV_OVER_TIME,
         TS_LINREG_DERIVATIVE,
         TS_RATE_DATENANOS,
+        TS_RATE_DATENANOS_2,
         /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011

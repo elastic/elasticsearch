@@ -325,9 +325,6 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testRemoteClusterOnlyCCSWithFailuresOnAllShards
   issue: https://github.com/elastic/elasticsearch/issues/136894
-- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichTopNTests
-  method: testTopNSortExpressionWithinRemoteEnrichAliasing
-  issue: https://github.com/elastic/elasticsearch/issues/136957
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/117208

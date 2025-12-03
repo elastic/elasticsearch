@@ -227,7 +227,7 @@ public class GetReindexResponseTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeOptionalWriteable(null);
         StreamInput in = out.bytes().streamInput();
-        
+
         // This should handle null gracefully
         GetReindexResponse deserialized = new GetReindexResponse(in);
         assertThat(deserialized.getTask(), nullValue());

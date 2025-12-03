@@ -56,8 +56,13 @@ public class TransportGetReindexActionTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private Client getAssertingClient(GetReindexRequest getReindexRequest
-        , @Nullable GetTaskResponse toRespond, @Nullable Exception toThrow) {
+    private Client getAssertingClient(
+        TaskId taskId,
+        boolean waitForCompletion,
+        TimeValue timeout,
+        @Nullable GetTaskResponse toRespond,
+        @Nullable Exception toThrow
+    ) {
         return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -68,9 +73,9 @@ public class TransportGetReindexActionTests extends ESTestCase {
                 assertEquals(TransportGetTaskAction.TYPE, action);
                 assertThat(request, instanceOf(GetTaskRequest.class));
                 GetTaskRequest getTaskRequest = (GetTaskRequest) request;
-                assertEquals(getReindexRequest.getTaskId(), getTaskRequest.getTaskId());
-                assertEquals(getReindexRequest.getTimeout(), getTaskRequest.getTimeout());
-                assertEquals(getReindexRequest.getWaitForCompletion(), getTaskRequest.getWaitForCompletion());
+                assertEquals(taskId, getTaskRequest.getTaskId());
+                assertEquals(timeout, getTaskRequest.getTimeout());
+                assertEquals(waitForCompletion, getTaskRequest.getWaitForCompletion());
 
                 if (toThrow != null) {
                     listener.onFailure(toThrow);
@@ -101,12 +106,17 @@ public class TransportGetReindexActionTests extends ESTestCase {
         TaskResult taskResult = new TaskResult(true, reindexTask);
         GetTaskResponse getTaskResponse = new GetTaskResponse(taskResult);
 
+        TaskId taskId = new TaskId("node1", 123);
         GetReindexRequest request = new GetReindexRequest();
-        request.setTaskId(new TaskId("node1", 123));
+        request.setTaskId(taskId);
         request.setWaitForCompletion(true);
         request.setTimeout(TimeValue.timeValueSeconds(30));
 
-        TransportGetReindexAction action = new TransportGetReindexAction(mock(), mock(), getAssertingClient(request, getTaskResponse, null));
+        TransportGetReindexAction action = new TransportGetReindexAction(
+            mock(),
+            mock(),
+            getAssertingClient(taskId, getTaskResponse, null)
+        );
         ActionListener<GetReindexResponse> listener = mock();
 
         action.doExecute(mock(Task.class), request, listener);
@@ -136,14 +146,18 @@ public class TransportGetReindexActionTests extends ESTestCase {
         GetReindexRequest request = new GetReindexRequest();
         request.setTaskId(new TaskId("node1", 123));
 
-        TransportGetReindexAction action = new TransportGetReindexAction(mock(), mock(), getAssertingClient(request, getTaskResponse,
-            null));
+        TransportGetReindexAction action = new TransportGetReindexAction(
+            mock(),
+            mock(),
+            getAssertingClient(request, getTaskResponse, null)
+        );
         ActionListener<GetReindexResponse> listener = mock();
         action.doExecute(mock(Task.class), request, listener);
 
         ResourceNotFoundException expectedException = notFoundException(request.getTaskId());
-        verify(listener).onFailure(argThat(e -> e instanceof ResourceNotFoundException &&
-            e.getMessage().equals(expectedException.getMessage())));
+        verify(listener).onFailure(
+            argThat(e -> e instanceof ResourceNotFoundException && e.getMessage().equals(expectedException.getMessage()))
+        );
     }
 
     public void testGetReindexTaskNotFound() {
@@ -152,14 +166,18 @@ public class TransportGetReindexActionTests extends ESTestCase {
         request.setWaitForCompletion(true);
         request.setTimeout(TimeValue.timeValueSeconds(30));
 
-        TransportGetReindexAction action = new TransportGetReindexAction(mock(), mock(), getAssertingClient(request, null,
-            new ResourceNotFoundException("task not found")));
+        TransportGetReindexAction action = new TransportGetReindexAction(
+            mock(),
+            mock(),
+            getAssertingClient(request, null, new ResourceNotFoundException("task not found"))
+        );
         ActionListener<GetReindexResponse> listener = mock();
 
         action.doExecute(mock(Task.class), request, listener);
 
         ResourceNotFoundException expectedException = notFoundException(request.getTaskId());
-        verify(listener).onFailure(argThat(e -> e instanceof ResourceNotFoundException &&
-            e.getMessage().equals(expectedException.getMessage())));
+        verify(listener).onFailure(
+            argThat(e -> e instanceof ResourceNotFoundException && e.getMessage().equals(expectedException.getMessage()))
+        );
     }
 }

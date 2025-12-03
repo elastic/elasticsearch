@@ -31,7 +31,7 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportGetReindexAction extends HandledTransportAction<GetReindexRequest, GetReindexResponse> {
 
-    public static final ActionType<GetReindexResponse> TYPE = new ActionType<>("cluster:reindex/get");
+    public static final ActionType<GetReindexResponse> TYPE = new ActionType<>("cluster:monitor/reindex/get");
 
     private final Client client;
 
@@ -43,11 +43,11 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
 
     @Override
     protected void doExecute(Task thisTask, GetReindexRequest request, ActionListener<GetReindexResponse> listener) {
-        // Use GetTaskAction to retrieve the reindex task
-        GetTaskRequest getTaskRequest = new GetTaskRequest();
-        getTaskRequest.setTaskId(request.getTaskId());
-        getTaskRequest.setWaitForCompletion(request.getWaitForCompletion());
-        getTaskRequest.setTimeout(request.getTimeout());
+        // We first issue a get task request with wait_for_completion=false to check if the task exists and is a reindex task, to avoid
+        // waiting for tasks that are not reindex. If the original request has wait_for_completion=true, we issue a second get task request
+        // with wait_for_completion=true to wait for the reindex task to complete.
+        TaskId taskId = request.getTaskId();
+        GetTaskRequest getTaskRequest = new GetTaskRequest().setTaskId(taskId).setWaitForCompletion(false).setTimeout(request.getTimeout());
 
         // Look for reindex task on the node inferred from the task id for running reindex task,
         // or from the ".tasks" system index for completed tasks
@@ -57,8 +57,33 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
             public void onResponse(GetTaskResponse response) {
                 TaskResult taskResult = response.getTask();
                 if (ReindexAction.NAME.equals(taskResult.getTask().action()) == false) {
-                    // Found a matching task by id, but it's not a reindex task, treat it as not found to prevent leaking other task details
-                    listener.onFailure(notFoundException(request.getTaskId()));
+                    // Found a matching task by id, but it's not a reindex task, treat it as not found to prevent leaking other tasks
+                    listener.onFailure(notFoundException(taskId));
+                    return;
+                }
+
+                // If waiting for uncompleted task, we reissue the get request to wait for the reindex task to complete
+                if (taskResult.isCompleted() == false && request.getWaitForCompletion()) {
+                    GetTaskRequest waitForTaskRequest = new GetTaskRequest().setTaskId(taskId)
+                        .setWaitForCompletion(true)
+                        .setTimeout(request.getTimeout());
+
+                    client.admin().cluster().getTask(waitForTaskRequest, new ActionListener<>() {
+                        @Override
+                        public void onResponse(GetTaskResponse waitForTaskResponse) {
+                            listener.onResponse(new GetReindexResponse(waitForTaskResponse.getTask()));
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (e instanceof ResourceNotFoundException) {
+                                // Wraps the task not found exception to hide task details
+                                listener.onFailure(notFoundException(taskId));
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }
+                    });
                     return;
                 }
                 listener.onResponse(new GetReindexResponse(taskResult));
@@ -68,7 +93,7 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
             public void onFailure(Exception e) {
                 if (e instanceof ResourceNotFoundException) {
                     // Wraps the task not found exception to hide task details
-                    listener.onFailure(notFoundException(request.getTaskId()));
+                    listener.onFailure(notFoundException(taskId));
                 } else {
                     listener.onFailure(e);
                 }

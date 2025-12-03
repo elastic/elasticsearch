@@ -47,11 +47,7 @@ public class RestGetReindexAction extends BaseRestHandler {
         getReindexRequest.setWaitForCompletion(waitForCompletion);
         getReindexRequest.setTimeout(timeout);
 
-        return channel -> client.execute(
-            TransportGetReindexAction.TYPE,
-            getReindexRequest,
-            new RestToXContentListener<>(channel)
-        );
+        return channel -> client.execute(TransportGetReindexAction.TYPE, getReindexRequest, new RestToXContentListener<>(channel));
     }
 
     private static TimeValue getTimeout(RestRequest request) {

@@ -11,8 +11,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.index.reindex.ReindexAction;
-import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.GetReindexRequest;
 import org.elasticsearch.reindex.GetReindexResponse;
@@ -28,7 +26,6 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -61,10 +58,7 @@ public class GetReindexIT extends ESIntegTestCase {
         reindexBuilder.source(SOURCE_INDEX).destination(DEST_INDEX).execute();
 
         // Find the task ID by listing tasks
-        ListTasksResponse listResponse = clusterAdmin().prepareListTasks()
-            .setActions(ReindexAction.NAME)
-            .setDetailed(true)
-            .get();
+        ListTasksResponse listResponse = clusterAdmin().prepareListTasks().setActions(ReindexAction.NAME).setDetailed(true).get();
         assertThat(listResponse.getTasks().isEmpty(), equalTo(false));
         TaskInfo taskInfo = listResponse.getTasks().get(0);
         TaskId taskId = taskInfo.taskId();
@@ -97,10 +91,7 @@ public class GetReindexIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(DEST_INDEX).setSize(0).setTrackTotalHits(true), numDocs);
 
         // Find the completed task by listing tasks
-        ListTasksResponse listResponse = clusterAdmin().prepareListTasks()
-            .setActions(ReindexAction.NAME)
-            .setDetailed(true)
-            .get();
+        ListTasksResponse listResponse = clusterAdmin().prepareListTasks().setActions(ReindexAction.NAME).setDetailed(true).get();
         if (listResponse.getTasks().isEmpty() == false) {
             TaskInfo taskInfo = listResponse.getTasks().get(0);
             TaskId taskId = taskInfo.taskId();
@@ -172,10 +163,7 @@ public class GetReindexIT extends ESIntegTestCase {
         reindexBuilder.source(SOURCE_INDEX).destination(DEST_INDEX).execute();
 
         // Find the task ID by listing tasks
-        ListTasksResponse listResponse = clusterAdmin().prepareListTasks()
-            .setActions(ReindexAction.NAME)
-            .setDetailed(true)
-            .get();
+        ListTasksResponse listResponse = clusterAdmin().prepareListTasks().setActions(ReindexAction.NAME).setDetailed(true).get();
         assertThat(listResponse.getTasks().isEmpty(), equalTo(false));
         TaskInfo taskInfo = listResponse.getTasks().get(0);
         TaskId taskId = taskInfo.taskId();

@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
 
 import java.io.IOException;
@@ -28,7 +29,7 @@ import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceFie
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<NvidiaEmbeddingsTaskSettings> {
+public class NvidiaEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializationTestCase<NvidiaEmbeddingsTaskSettings> {
     private static final InputType INPUT_TYPE_INITIAL_VALUE = InputType.INGEST;
     private static final Truncation TRUNCATE_INITIAL_VALUE = Truncation.START;
     private static final InputType INPUT_TYPE_OVERRIDDEN_VALUE = InputType.SEARCH;
@@ -229,4 +230,8 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         return map;
     }
 
+    @Override
+    protected NvidiaEmbeddingsTaskSettings mutateInstanceForVersion(NvidiaEmbeddingsTaskSettings instance, TransportVersion version) {
+        return instance;
+    }
 }

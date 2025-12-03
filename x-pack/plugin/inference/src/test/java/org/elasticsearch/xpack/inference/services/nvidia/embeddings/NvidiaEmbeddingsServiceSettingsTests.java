@@ -7,16 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -32,7 +33,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<NvidiaEmbeddingsServiceSettings> {
+public class NvidiaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<NvidiaEmbeddingsServiceSettings> {
     private static final String MODEL_VALUE = "some_model";
     private static final String URL_VALUE = "http://www.abc.com";
     private static final String URL_DEFAULT_VALUE = "https://integrate.api.nvidia.com/v1/embeddings";
@@ -583,5 +584,10 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             result.put(RateLimitSettings.FIELD_NAME, rateLimitSettings);
         }
         return result;
+    }
+
+    @Override
+    protected NvidiaEmbeddingsServiceSettings mutateInstanceForVersion(NvidiaEmbeddingsServiceSettings instance, TransportVersion version) {
+        return instance;
     }
 }

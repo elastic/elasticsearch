@@ -1125,6 +1125,41 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertIndicesContainExpectedDocsCount(model, 2);
     }
 
+    public void testContainsPreconfiguredInferenceEndpointId() {
+        var preconfiguredModelId = ".elser-2-elastic";
+        var preconfiguredModel = new TestModel(
+            preconfiguredModelId,
+            TaskType.SPARSE_EMBEDDING,
+            ElasticInferenceService.NAME,
+            new TestModel.TestServiceSettings(null, null, null, null),
+            new TestModel.TestTaskSettings(randomInt(3)),
+            new TestModel.TestSecretSettings("secret")
+        );
+
+        var userModelId = "user-model-1";
+        var userModel = new TestModel(
+            userModelId,
+            TaskType.SPARSE_EMBEDDING,
+            ElasticInferenceService.NAME,
+            new TestModel.TestServiceSettings(null, null, null, null),
+            new TestModel.TestTaskSettings(randomInt(3)),
+            new TestModel.TestSecretSettings("secret")
+        );
+
+        var listener = new PlainActionFuture<List<ModelStoreResponse>>();
+        modelRegistry.storeModels(List.of(preconfiguredModel, userModel), listener, TimeValue.THIRTY_SECONDS);
+
+        var response = listener.actionGet(TimeValue.THIRTY_SECONDS);
+        assertThat(response.size(), is(2));
+        assertFalse(response.get(0).failed());
+        assertFalse(response.get(1).failed());
+
+        assertTrue(modelRegistry.containsPreconfiguredInferenceEndpointId(preconfiguredModelId));
+        assertFalse(modelRegistry.containsPreconfiguredInferenceEndpointId(userModelId));
+
+        assertThat(modelRegistry.getInferenceIds(), is(Set.of(preconfiguredModelId, userModelId)));
+    }
+
     private void storeCorruptedModelThenStoreModel(boolean storeSecrets) {
         var model = new TestModel(
             "corrupted-model-id",

@@ -29,11 +29,9 @@ public final class DerivIntAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("count", ElementType.LONG),
       new IntermediateStateDesc("sumVal", ElementType.DOUBLE),
-      new IntermediateStateDesc("sumTs", ElementType.LONG),
+      new IntermediateStateDesc("sumTs", ElementType.DOUBLE),
       new IntermediateStateDesc("sumTsVal", ElementType.DOUBLE),
-      new IntermediateStateDesc("sumTsSq", ElementType.LONG),
-      new IntermediateStateDesc("maxTs", ElementType.LONG),
-      new IntermediateStateDesc("valueAtMaxTs", ElementType.DOUBLE)  );
+      new IntermediateStateDesc("sumTsSq", ElementType.DOUBLE)  );
 
   private final DriverContext driverContext;
 
@@ -41,24 +39,19 @@ public final class DerivIntAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  private final SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn;
-
   private final boolean dateNanos;
 
   public DerivIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      SimpleLinearRegressionWithTimeseries state,
-      SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn, boolean dateNanos) {
+      SimpleLinearRegressionWithTimeseries state, boolean dateNanos) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
-    this.fn = fn;
     this.dateNanos = dateNanos;
   }
 
   public static DerivIntAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn,
-      boolean dateNanos) {
-    return new DerivIntAggregatorFunction(driverContext, channels, DerivIntAggregator.initSingle(driverContext, fn, dateNanos), fn, dateNanos);
+      List<Integer> channels, boolean dateNanos) {
+    return new DerivIntAggregatorFunction(driverContext, channels, DerivIntAggregator.initSingle(driverContext, dateNanos), dateNanos);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -203,7 +196,7 @@ public final class DerivIntAggregatorFunction implements AggregatorFunction {
     if (sumTsUncast.areAllValuesNull()) {
       return;
     }
-    LongVector sumTs = ((LongBlock) sumTsUncast).asVector();
+    DoubleVector sumTs = ((DoubleBlock) sumTsUncast).asVector();
     assert sumTs.getPositionCount() == 1;
     Block sumTsValUncast = page.getBlock(channels.get(3));
     if (sumTsValUncast.areAllValuesNull()) {
@@ -215,21 +208,9 @@ public final class DerivIntAggregatorFunction implements AggregatorFunction {
     if (sumTsSqUncast.areAllValuesNull()) {
       return;
     }
-    LongVector sumTsSq = ((LongBlock) sumTsSqUncast).asVector();
+    DoubleVector sumTsSq = ((DoubleBlock) sumTsSqUncast).asVector();
     assert sumTsSq.getPositionCount() == 1;
-    Block maxTsUncast = page.getBlock(channels.get(5));
-    if (maxTsUncast.areAllValuesNull()) {
-      return;
-    }
-    LongVector maxTs = ((LongBlock) maxTsUncast).asVector();
-    assert maxTs.getPositionCount() == 1;
-    Block valueAtMaxTsUncast = page.getBlock(channels.get(6));
-    if (valueAtMaxTsUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector valueAtMaxTs = ((DoubleBlock) valueAtMaxTsUncast).asVector();
-    assert valueAtMaxTs.getPositionCount() == 1;
-    DerivIntAggregator.combineIntermediate(state, count.getLong(0), sumVal.getDouble(0), sumTs.getLong(0), sumTsVal.getDouble(0), sumTsSq.getLong(0), maxTs.getLong(0), valueAtMaxTs.getDouble(0));
+    DerivIntAggregator.combineIntermediate(state, count.getLong(0), sumVal.getDouble(0), sumTs.getDouble(0), sumTsVal.getDouble(0), sumTsSq.getDouble(0));
   }
 
   @Override

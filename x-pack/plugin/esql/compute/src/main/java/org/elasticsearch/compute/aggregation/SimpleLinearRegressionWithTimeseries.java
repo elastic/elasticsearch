@@ -14,9 +14,9 @@ public class SimpleLinearRegressionWithTimeseries implements AggregatorState {
     public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
         blocks[offset + 0] = driverContext.blockFactory().newConstantLongBlockWith(count, 1);
         blocks[offset + 1] = driverContext.blockFactory().newConstantDoubleBlockWith(sumVal, 1);
-        blocks[offset + 2] = driverContext.blockFactory().newConstantLongBlockWith(sumTs, 1);
+        blocks[offset + 2] = driverContext.blockFactory().newConstantDoubleBlockWith(sumTs, 1);
         blocks[offset + 3] = driverContext.blockFactory().newConstantDoubleBlockWith(sumTsVal, 1);
-        blocks[offset + 4] = driverContext.blockFactory().newConstantLongBlockWith(sumTsSq, 1);
+        blocks[offset + 4] = driverContext.blockFactory().newConstantDoubleBlockWith(sumTsSq, 1);
     }
 
     @Override
@@ -26,49 +26,27 @@ public class SimpleLinearRegressionWithTimeseries implements AggregatorState {
 
     long count;
     double sumVal;
-    long sumTs;
+    double sumTs;
     double sumTsVal;
-    long sumTsSq;
-    long maxTs;
-    double valueAtMaxTs;
+    double sumTsSq;
     double dateFactor;
-    final SimpleLinearModelFunction fn;
 
-    public interface SimpleLinearModelFunction {
-        double predict(SimpleLinearRegressionWithTimeseries model);
-    }
-
-    SimpleLinearRegressionWithTimeseries(SimpleLinearModelFunction fn, boolean dateNanos) {
+    SimpleLinearRegressionWithTimeseries(boolean dateNanos) {
         this.count = 0;
         this.sumVal = 0.0;
         this.sumTs = 0;
         this.sumTsVal = 0.0;
         this.sumTsSq = 0;
-        this.maxTs = Long.MIN_VALUE;
-        this.valueAtMaxTs = Double.NaN;
         this.dateFactor = dateNanos ? 1_000_000_000.0 : 1_000.0;
-        this.fn = fn;
     }
 
     void add(long ts, double val) {
-        ts = ts / (long) dateFactor;
+        double dts = ts / dateFactor;
         count++;
         sumVal += val;
-        sumTs += ts;
-        sumTsVal += ts * val;
-        sumTsSq += ts * ts;
-        if (ts > maxTs) {
-            maxTs = ts;
-            valueAtMaxTs = val;
-        }
-    }
-
-    public double lastTimestamp() {
-        return maxTs;
-    }
-
-    public double valueAtLastTimestamp() {
-        return valueAtMaxTs;
+        sumTs += dts;
+        sumTsVal += dts * val;
+        sumTsSq += dts * dts;
     }
 
     public double slope() {

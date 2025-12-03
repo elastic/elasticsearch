@@ -1049,6 +1049,7 @@ datenanos_derivative_compared_to_rate
 required_capability: ts_command_v0
 required_capability: ts_linreg_derivative
 required_capability: ts_rate_datenanos_2
+required_capability: ts_deriv_datenanos
 
 TS datenanos-k8s
 | STATS max_deriv = max(deriv(to_long(network.total_bytes_in))), max_rate = max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster

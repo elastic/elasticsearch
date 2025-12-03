@@ -12,7 +12,6 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DerivDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DerivIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DerivLongAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.SimpleLinearRegressionWithTimeseries;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -117,12 +116,11 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, 
     @Override
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
-        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn = (SimpleLinearRegressionWithTimeseries model) -> model.slope();
         final boolean isDateNanos = timestamp.dataType() == DataType.DATE_NANOS;
         return switch (type) {
-            case DOUBLE -> new DerivDoubleAggregatorFunctionSupplier(fn, isDateNanos);
-            case LONG -> new DerivLongAggregatorFunctionSupplier(fn, isDateNanos);
-            case INTEGER -> new DerivIntAggregatorFunctionSupplier(fn, isDateNanos);
+            case DOUBLE -> new DerivDoubleAggregatorFunctionSupplier(isDateNanos);
+            case LONG -> new DerivLongAggregatorFunctionSupplier(isDateNanos);
+            case INTEGER -> new DerivIntAggregatorFunctionSupplier(isDateNanos);
             default -> throw new IllegalArgumentException("Unsupported data type for deriv aggregation: " + type);
         };
     }

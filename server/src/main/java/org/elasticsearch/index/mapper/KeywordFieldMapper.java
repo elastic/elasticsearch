@@ -484,6 +484,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 fieldtype.setDocValuesType(DocValuesType.SORTED_SET);
             } else {
                 fieldtype.setDocValuesType(DocValuesType.NONE);
+                fieldtype.setDocValuesSkipIndexType(DocValuesSkipIndexType.NONE);
             }
 
             if (fieldtype.equals(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES) == false) {

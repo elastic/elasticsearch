@@ -197,12 +197,12 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
         SingleFieldFullTextFunction that = (SingleFieldFullTextFunction) o;
         return Objects.equals(field(), that.field())
             && Objects.equals(query(), that.query())
-            && Objects.equals(queryBuilder(), that.queryBuilder());
+            && queryBuilder() == that.queryBuilder();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), queryBuilder());
+        return Objects.hash(field(), query(), System.identityHashCode(queryBuilder()));
     }
 
     /**

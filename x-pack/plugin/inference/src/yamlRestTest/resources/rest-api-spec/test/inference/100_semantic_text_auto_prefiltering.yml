@@ -1,0 +1,792 @@
+setup:
+  - requires:
+      cluster_features: "semantic_text.auto_prefiltering"
+      reason: implemented auto prefiltering
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              dense_field_1:
+                type: semantic_text
+                inference_id: dense-inference-id
+              dense_field_2:
+                type: semantic_text
+                inference_id: dense-inference-id
+              keyword_field_1:
+                type: keyword
+              keyword_field_2:
+                type: keyword
+              nested_field:
+                type: nested
+                properties:
+                  keyword_field_sub:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body: |
+          {"index": { "_index" : "test-index" }}
+          {"dense_field_1": "violins", "dense_field_2": "cats", "keyword_field_1": "label_1", "keyword_field_2": "label_1", "nested_field": {"keyword_field_sub": "label_1"}}
+          {"index": { "_index" : "test-index" }}
+          {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_1", "nested_field": {"keyword_field_sub": "label_2"}}
+          {"index": { "_index" : "test-index" }}
+          {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_1", "nested_field": {"keyword_field_sub": "label_2"}}
+          {"index": { "_index" : "test-index" }}
+          {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_2", "nested_field": {"keyword_field_sub": "label_2"}}
+          {"index": { "_index" : "test-index" }}
+          {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_2", "nested_field": {"keyword_field_sub": "label_2"}}
+          {"index": { "_index" : "test-index" }}
+          {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_2", "nested_field": {"keyword_field_sub": "label_2"}}
+          {"index": { "_index" : "test-index" }}
+          {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_2", "nested_field": {"keyword_field_sub": "label_2"}}
+          {"index": { "_index" : "test-index" }}
+          {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_2", "nested_field": {"keyword_field_sub": "label_2"}}
+          {"index": { "_index" : "test-index" }}
+          {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_2", "nested_field": {"keyword_field_sub": "label_2"}}
+          {"index": { "_index" : "test-index" }}
+          {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_2", "nested_field": {"keyword_field_sub": "label_2"}}
+          {"index": { "_index" : "test-index" }}
+          {"dense_field_1": "pianos", "dense_field_2": "cats", "keyword_field_1": "label_1", "keyword_field_2": "label_1", "nested_field": {"keyword_field_sub": "label_1"}}
+
+---
+"Test filter term is used as prefilter to a must semantic match":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "match": {
+                      "dense_field_1": {
+                        "query": "violins"
+                      }
+                    }
+                  }
+                ],
+                "filter": [
+                  {
+                    "term": {
+                      "keyword_field_1": {
+                        "value": "label_1"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.dense_field_1: "violins" }
+  - match: { hits.hits.1._source.dense_field_1: "pianos" }
+
+---
+"Test must_not term is used as prefilter to a must semantic match":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "match": {
+                      "dense_field_1": {
+                        "query": "violins"
+                      }
+                    }
+                  }
+                ],
+                "must_not": [
+                  {
+                    "term": {
+                      "keyword_field_1": {
+                        "value": "label_2"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.dense_field_1: "violins" }
+  - match: { hits.hits.1._source.dense_field_1: "pianos" }
+
+---
+"Test must term is used as prefilter to a must semantic match":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "match": {
+                      "dense_field_1": {
+                        "query": "violins"
+                      }
+                    }
+                  },
+                  {
+                    "term": {
+                      "keyword_field_1": {
+                        "value": "label_1"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.dense_field_1: "violins" }
+  - match: { hits.hits.1._source.dense_field_1: "pianos" }
+
+---
+"Test two level bool query with inner semantic match and term filters":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "bool": {
+                      "must": [
+                        {
+                          "match": {
+                            "dense_field_1": {
+                              "query": "violins"
+                            }
+                          }
+                        }
+                      ],
+                      "filter": [
+                        {
+                          "term": {
+                            "keyword_field_2": {
+                              "value": "label_1"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "filter": [
+                  {
+                    "term": {
+                      "keyword_field_1": {
+                        "value": "label_1"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.dense_field_1: "violins" }
+  - match: { hits.hits.1._source.dense_field_1: "pianos" }
+
+---
+"Test filter term is used as prefilter to a should semantic match":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "should": [
+                  {
+                    "match": {
+                      "dense_field_1": {
+                        "query": "violins"
+                      }
+                    }
+                  }
+                ],
+                "filter": [
+                  {
+                    "term": {
+                      "keyword_field_1": {
+                        "value": "label_1"
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.dense_field_1: "violins" }
+  - match: { hits.hits.1._source.dense_field_1: "pianos" }
+
+---
+"Test must_not term is used as prefilter to a should semantic match":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "should": [
+                  {
+                    "match": {
+                      "dense_field_1": {
+                        "query": "violins"
+                      }
+                    }
+                  }
+                ],
+                "must_not": [
+                  {
+                    "term": {
+                      "keyword_field_1": {
+                        "value": "label_2"
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.dense_field_1: "violins" }
+  - match: { hits.hits.1._source.dense_field_1: "pianos" }
+
+---
+"Test must term is used as prefilter to a should semantic match":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "keyword_field_1": {
+                        "value": "label_1"
+                      }
+                    }
+                  }
+                ],
+                "should": [
+                  {
+                    "match": {
+                      "dense_field_1": {
+                        "query": "violins"
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.dense_field_1: "violins" }
+  - match: { hits.hits.1._source.dense_field_1: "pianos" }
+
+---
+"Test 2 must semantic matches":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "match": {
+                      "dense_field_1": {
+                        "query": "violins"
+                      }
+                    }
+                  },
+                  {
+                    "bool": {
+                      "must": [
+                        {
+                          "match": {
+                            "dense_field_2": {
+                              "query": "cats"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.dense_field_1: "violins" }
+  - match: { hits.hits.0._source.dense_field_2: "cats" }
+
+---
+"Test 2 must semantic matches in their own bool queries":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "bool": {
+                      "must": [
+                        {
+                          "match": {
+                            "dense_field_1": {
+                              "query": "violins"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "bool": {
+                      "must": [
+                        {
+                          "match": {
+                            "dense_field_2": {
+                              "query": "cats"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.dense_field_1: "violins" }
+  - match: { hits.hits.0._source.dense_field_2: "cats" }
+
+---
+"Test must term is used as prefilter to a filter semantic match":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "keyword_field_1": {
+                        "value": "label_1"
+                      }
+                    }
+                  }
+                ],
+                "filter": [
+                  {
+                    "match": {
+                      "dense_field_1": {
+                        "query": "violins"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.dense_field_1: "violins" }
+  - match: { hits.hits.0._source.keyword_field_1: "label_1" }
+  - match: { hits.hits.1._source.dense_field_1: "pianos" }
+  - match: { hits.hits.1._source.keyword_field_1: "label_1" }
+
+---
+"Test filter term is used as prefilter to a filter semantic match":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "match": {
+                      "dense_field_1": {
+                        "query": "violins"
+                      }
+                    }
+                  },
+                  {
+                    "term": {
+                      "keyword_field_1": {
+                        "value": "label_1"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.dense_field_1: "violins" }
+  - match: { hits.hits.0._source.keyword_field_1: "label_1" }
+  - match: { hits.hits.1._source.dense_field_1: "pianos" }
+  - match: { hits.hits.1._source.keyword_field_1: "label_1" }
+
+---
+"Test must_not term is used as prefilter to a filter semantic match":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must_not": [
+                  {
+                    "term": {
+                      "keyword_field_1": {
+                        "value": "label_2"
+                      }
+                    }
+                  }
+                ],
+                "filter": [
+                  {
+                    "match": {
+                      "dense_field_1": {
+                        "query": "violins"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.dense_field_1: "violins" }
+  - match: { hits.hits.0._source.keyword_field_1: "label_1" }
+  - match: { hits.hits.1._source.dense_field_1: "pianos" }
+  - match: { hits.hits.1._source.keyword_field_1: "label_1" }
+
+---
+"Test auto prefiltering is applied to sibling filter clause":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "keyword_field_1": {
+                        "value": "label_1"
+                      }
+                    }
+                  },
+                  {
+                    "bool": {
+                      "filter": [
+                        {
+                          "match": {
+                            "dense_field_1": {
+                              "query": "violins"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.dense_field_1: "violins" }
+  - match: { hits.hits.0._source.keyword_field_1: "label_1" }
+  - match: { hits.hits.1._source.dense_field_1: "pianos" }
+  - match: { hits.hits.1._source.keyword_field_1: "label_1" }
+
+---
+"Test must term is used as prefilter to a must_not semantic match":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "keyword_field_1": {
+                        "value": "label_1"
+                      }
+                    }
+                  }
+                ],
+                "must_not": [
+                  {
+                    "match": {
+                      "dense_field_1": {
+                        "query": "violins"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 0 }
+
+---
+"Test filter term is used as prefilter to a must_not semantic match":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "term": {
+                      "keyword_field_1": {
+                        "value": "label_1"
+                      }
+                    }
+                  }
+                ],
+                "must_not": [
+                  {
+                    "match": {
+                      "dense_field_1": {
+                        "query": "violins"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 0 }
+
+---
+"Test must_not term is used as prefilter to a must_not semantic match":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must_not": [
+                  {
+                    "match": {
+                      "dense_field_1": {
+                        "query": "violins"
+                      }
+                    }
+                  },
+                  {
+                    "term": {
+                      "keyword_field_1": {
+                        "value": "label_1"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 0 }
+
+---
+"Test should term is not used as prefilter":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "match": {
+                      "dense_field_1": {
+                        "query": "violins"
+                      }
+                    }
+                  }
+                ],
+                "should": [
+                  {
+                    "term": {
+                      "keyword_field_1": {
+                        "value": "label_1"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 10 }
+
+---
+"Test filter nested term is not used as prefilter":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "match": {
+                      "dense_field_1": {
+                        "query": "violins"
+                      }
+                    }
+                  }
+                ],
+                "filter": [
+                  {
+                    "nested": {
+                      "path": "nested_field",
+                      "query": {
+                        "term": {
+                          "nested_field.keyword_field_sub": {
+                            "value": "label_1"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 1 }
+
+---
+"Test semantic knn query should not be auto prefiltered":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "knn": {
+                      "field": "dense_field_1",
+                      "k": 10,
+                      "num_candidates": 10,
+                      "query_vector_builder": {
+                        "text_embedding": {
+                          "model_text": "violins"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "filter": [
+                  {
+                    "term": {
+                      "keyword_field_1": {
+                        "value": "label_1"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.dense_field_1: "violins" }

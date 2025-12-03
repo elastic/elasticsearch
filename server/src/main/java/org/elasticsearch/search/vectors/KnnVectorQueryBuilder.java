@@ -11,6 +11,7 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -56,6 +57,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * {@link org.apache.lucene.search.KnnByteVectorQuery}.
  */
 public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBuilder> {
+
+    public static final TransportVersion AUTO_PREFILTERING = TransportVersion.fromName("knn_vector_query_auto_prefiltering");
+
     public static final String NAME = "knn";
     private static final int NUM_CANDS_LIMIT = 10_000;
     private static final float NUM_CANDS_MULTIPLICATIVE_FACTOR = 1.5f;
@@ -121,7 +125,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return PARSER.apply(parser, null);
     }
 
-    private static final TransportVersion VISIT_PERCENTAGE = TransportVersion.fromName("visit_percentage");
+    public static final TransportVersion VISIT_PERCENTAGE = TransportVersion.fromName("visit_percentage");
 
     private final String fieldName;
     private final VectorData queryVector;
@@ -133,6 +137,18 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     private final QueryVectorBuilder queryVectorBuilder;
     private final Supplier<float[]> queryVectorSupplier;
     private final RescoreVectorBuilder rescoreVectorBuilder;
+
+    /**
+     * True if auto pre-filtering should be applied.
+     */
+    private boolean isAutoPrefilteringEnabled = false;
+
+    /**
+     * True if the query is in the middle of applying auto pre-filtering.
+     * This is used to prevent infinite loops while applying auto pre-filtering as it is possible
+     * to have two knn queries where the one is a prefilter to the other.
+     */
+    private boolean isInTheMiddleOfAutoPrefiltering = false;
 
     public KnnVectorQueryBuilder(
         String fieldName,
@@ -298,6 +314,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             this.queryVectorBuilder = null;
         }
         this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
+        if (in.getTransportVersion().supports(AUTO_PREFILTERING)) {
+            this.isAutoPrefilteringEnabled = in.readBoolean();
+        }
+
         this.queryVectorSupplier = null;
     }
 
@@ -359,6 +379,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return this;
     }
 
+    public boolean isAutoPrefilteringEnabled() {
+        return isAutoPrefilteringEnabled;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         if (queryVectorSupplier != null) {
@@ -417,6 +441,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             out.writeOptionalNamedWriteable(queryVectorBuilder);
         }
         out.writeOptionalWriteable(rescoreVectorBuilder);
+        if (out.getTransportVersion().supports(AUTO_PREFILTERING)) {
+            out.writeBoolean(isAutoPrefilteringEnabled);
+        }
     }
 
     @Override
@@ -479,7 +506,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 visitPercentage,
                 rescoreVectorBuilder,
                 vectorSimilarity
-            ).boost(boost).queryName(queryName).addFilterQueries(filterQueries);
+            ).boost(boost).queryName(queryName).addFilterQueries(filterQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
@@ -509,7 +536,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 visitPercentage,
                 rescoreVectorBuilder,
                 vectorSimilarity
-            ).boost(boost).queryName(queryName).addFilterQueries(filterQueries);
+            ).boost(boost).queryName(queryName).addFilterQueries(filterQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         boolean changed = false;
         List<QueryBuilder> rewrittenQueries = new ArrayList<>(filterQueries.size());
@@ -534,7 +561,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 visitPercentage,
                 rescoreVectorBuilder,
                 vectorSimilarity
-            ).boost(boost).queryName(queryName).addFilterQueries(rewrittenQueries);
+            ).boost(boost).queryName(queryName).addFilterQueries(rewrittenQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         if (ctx.convertToInnerHitsRewriteContext() != null) {
             QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity);
@@ -557,6 +584,12 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        if (isInTheMiddleOfAutoPrefiltering) {
+            // There is a circular dependency where this knn is used as an auto prefilter to
+            // an auto prefilter of its own. We break the cycle by returning a MatchAllDocsQuery.
+            return new MatchAllDocsQuery();
+        }
+
         MappedFieldType fieldType = context.getFieldType(fieldName);
         int k;
         if (this.k != null) {
@@ -579,13 +612,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
 
-        List<Query> filtersInitial = new ArrayList<>(filterQueries.size());
-        for (QueryBuilder query : this.filterQueries) {
-            filtersInitial.add(query.toQuery(context));
-        }
-        if (context.getAliasFilter() != null) {
-            filtersInitial.add(context.getAliasFilter().toQuery(context));
-        }
+        List<Query> filtersInitial = doFiltersToQuery(context);
 
         String parentPath = context.nestedLookup().getNestedParent(fieldName);
         BitSetProducer parentBitSet = null;
@@ -650,6 +677,40 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         );
     }
 
+    private List<Query> doFiltersToQuery(SearchExecutionContext context) throws IOException {
+        final List<Query> autoPrefilters = applyAutoPrefilteringIfEnabled(context);
+        final List<Query> allFilters = new ArrayList<>(
+            filterQueries.size() + autoPrefilters.size() + (context.getAliasFilter() == null ? 0 : 1)
+        );
+        allFilters.addAll(autoPrefilters);
+        for (QueryBuilder queryBuilder : filterQueries) {
+            allFilters.add(queryBuilder.toQuery(context));
+        }
+        if (context.getAliasFilter() != null) {
+            allFilters.add(context.getAliasFilter().toQuery(context));
+        }
+        return allFilters;
+    }
+
+    private List<Query> applyAutoPrefilteringIfEnabled(SearchExecutionContext context) throws IOException {
+        if (isAutoPrefilteringEnabled == false) {
+            return List.of();
+        }
+        try {
+            isInTheMiddleOfAutoPrefiltering = true;
+            final List<Query> autoPrefilters = new ArrayList<>();
+            for (QueryBuilder queryBuilder : context.autoPrefilteringScope().getPrefilters().stream().filter(f -> this != f).toList()) {
+                Query query = queryBuilder.toQuery(context);
+                if (NestedHelper.containsNestedQuery(query) == false) {
+                    autoPrefilters.add(query);
+                }
+            }
+            return autoPrefilters;
+        } finally {
+            isInTheMiddleOfAutoPrefiltering = false;
+        }
+    }
+
     private static Query buildFilterQuery(List<Query> filters) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (Query f : filters) {
@@ -671,7 +732,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             filterQueries,
             vectorSimilarity,
             queryVectorBuilder,
-            rescoreVectorBuilder
+            rescoreVectorBuilder,
+            isAutoPrefilteringEnabled
         );
     }
 
@@ -685,11 +747,17 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             && Objects.equals(filterQueries, other.filterQueries)
             && Objects.equals(vectorSimilarity, other.vectorSimilarity)
             && Objects.equals(queryVectorBuilder, other.queryVectorBuilder)
-            && Objects.equals(rescoreVectorBuilder, other.rescoreVectorBuilder);
+            && Objects.equals(rescoreVectorBuilder, other.rescoreVectorBuilder)
+            && isAutoPrefilteringEnabled == other.isAutoPrefilteringEnabled;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_0_0;
+    }
+
+    public KnnVectorQueryBuilder setAutoPrefilteringEnabled(boolean isAutoPrefilteringEnabled) {
+        this.isAutoPrefilteringEnabled = isAutoPrefilteringEnabled;
+        return this;
     }
 }

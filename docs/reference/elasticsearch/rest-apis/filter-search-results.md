@@ -7,6 +7,8 @@ applies_to:
 
 # Filter search results [filter-search-results]
 
+The [search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) lets you filter results using either boolean `filter` clauses or the `post_filter` parameter.
+
 You can use two methods to filter search results:
 
 * Use a boolean query with a `filter` clause. Search requests apply [boolean filters](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to both search hits and [aggregations](/reference/aggregations/index.md).

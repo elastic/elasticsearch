@@ -87,7 +87,7 @@ static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_
     return vaddvq_s32(vaddq_s32(acc5, acc6));
 }
 
-EXPORT int32_t vec_dot7u(int8_t* a, int8_t* b, const int32_t dims) {
+EXPORT int32_t vec_dot7u(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > DOT7U_STRIDE_BYTES_LEN) {
@@ -100,29 +100,119 @@ EXPORT int32_t vec_dot7u(int8_t* a, int8_t* b, const int32_t dims) {
     return res;
 }
 
-EXPORT void vec_dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    int32_t res = 0;
-    if (dims > DOT7U_STRIDE_BYTES_LEN) {
-        const int limit = dims & ~(DOT7U_STRIDE_BYTES_LEN - 1);
-        for (int32_t c = 0; c < count; c++) {
-            int i = limit;
-            res = dot7u_inner(a, b, i);
-            for (; i < dims; i++) {
-                res += a[i] * b[i];
-            }
-            results[c] = (f32_t)res;
-            a += dims;
+template <int64_t(*mapper)(const int32_t, const int32_t*)>
+static inline void dot7u_inner_bulk(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    size_t blk = dims & ~15;
+    size_t c = 0;
+
+    // f32_t first_offset = int_bits_to_float(*((const int32_t*)(b + dims)));
+
+    // Process 4 vectors at a time
+    for (; c + 3 < count; c += 4) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        const int8_t* a1 = a + mapper(c + 1, offsets) * pitch;
+        const int8_t* a2 = a + mapper(c + 2, offsets) * pitch;
+        const int8_t* a3 = a + mapper(c + 3, offsets) * pitch;
+
+        int32x4_t acc0 = vdupq_n_s32(0);
+        int32x4_t acc1 = vdupq_n_s32(0);
+        int32x4_t acc2 = vdupq_n_s32(0);
+        int32x4_t acc3 = vdupq_n_s32(0);
+        int32x4_t acc4 = vdupq_n_s32(0);
+        int32x4_t acc5 = vdupq_n_s32(0);
+        int32x4_t acc6 = vdupq_n_s32(0);
+        int32x4_t acc7 = vdupq_n_s32(0);
+
+        for (size_t i = 0; i < blk; i += 16) {
+            int8x16_t vb = vld1q_s8(b + i);
+
+            int8x16_t v0 = vld1q_s8(a0 + i);
+            int16x8_t lo0 = vmull_s8(vget_low_s8(v0), vget_low_s8(vb));
+            int16x8_t hi0 = vmull_s8(vget_high_s8(v0), vget_high_s8(vb));
+            acc0 = vpadalq_s16(acc0, lo0);
+            acc1 = vpadalq_s16(acc1, hi0);
+
+            int8x16_t v1 = vld1q_s8(a1 + i);
+            int16x8_t lo1 = vmull_s8(vget_low_s8(v1), vget_low_s8(vb));
+            int16x8_t hi1 = vmull_s8(vget_high_s8(v1), vget_high_s8(vb));
+            acc2 = vpadalq_s16(acc2, lo1);
+            acc3 = vpadalq_s16(acc3, hi1);
+
+            int8x16_t v2 = vld1q_s8(a2 + i);
+            int16x8_t lo2 = vmull_s8(vget_low_s8(v2), vget_low_s8(vb));
+            int16x8_t hi2 = vmull_s8(vget_high_s8(v2), vget_high_s8(vb));
+            acc4 = vpadalq_s16(acc4, lo2);
+            acc5 = vpadalq_s16(acc5, hi2);
+
+            int8x16_t v3 = vld1q_s8(a3 + i);
+            int16x8_t lo3 = vmull_s8(vget_low_s8(v3), vget_low_s8(vb));
+            int16x8_t hi3 = vmull_s8(vget_high_s8(v3), vget_high_s8(vb));
+            acc6 = vpadalq_s16(acc6, lo3);
+            acc7 = vpadalq_s16(acc7, hi3);
         }
-    } else {
-        for (int32_t c = 0; c < count; c++) {
-            res = 0;
-            for (int32_t i = 0; i < dims; i++) {
-                res += a[i] * b[i];
+        int32x4_t acc01 = vaddq_s32(acc0, acc1);
+        int32x4_t acc23 = vaddq_s32(acc2, acc3);
+        int32x4_t acc45 = vaddq_s32(acc4, acc5);
+        int32x4_t acc67 = vaddq_s32(acc6, acc7);
+
+        int32_t acc_scalar0 = vaddvq_s32(acc01);
+        int32_t acc_scalar1 = vaddvq_s32(acc23);
+        int32_t acc_scalar2 = vaddvq_s32(acc45);
+        int32_t acc_scalar3 = vaddvq_s32(acc67);
+        if (blk != dims) {
+            // scalar tail
+            for (size_t t = blk; t < dims; t++) {
+                const int8_t bb = b[t];
+                acc_scalar0 += a0[t] * bb;
+                acc_scalar1 += a1[t] * bb;
+                acc_scalar2 += a2[t] * bb;
+                acc_scalar3 += a3[t] * bb;
             }
-            results[c] = (f32_t)res;
-            a += dims;
         }
+        // f32_t second_offset_0 = int_bits_to_float(*((const int32_t*)(a0 + dims)));
+        results[c + 0] = (f32_t)acc_scalar0;
+        results[c + 1] = (f32_t)acc_scalar1;
+        results[c + 2] = (f32_t)acc_scalar2;
+        results[c + 3] = (f32_t)acc_scalar3;
     }
+
+    // Tail-handling: remaining 0..3 vectors
+    for (; c < count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        results[c] = (f32_t)vec_dot7u(a0, b, dims);
+    }
+}
+
+static inline int64_t identity(const int32_t i, const int32_t* offsets) {
+   return i;
+}
+
+static inline int64_t index(const int32_t i, const int32_t* offsets) {
+   return offsets[i];
+}
+
+EXPORT void vec_dot7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    dot7u_inner_bulk<identity>(a, b, dims, dims, NULL, count, results);
+}
+
+
+EXPORT void vec_dot7u_bulk_offsets(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    dot7u_inner_bulk<index>(a, b, dims, pitch, offsets, count, results);
 }
 
 static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, const int32_t dims) {

@@ -355,6 +355,13 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         if (fields == null || fields.length == 0) {
             validationException = ValidateActions.addValidationError("no fields specified", validationException);
         }
+        if (projectRouting != null && indicesOptions.resolveCrossProjectIndexExpression() == false) {
+            validationException = ValidateActions.addValidationError(
+                "Unknown key for a VALUE_STRING in [project_routing]",
+                validationException
+            );
+
+        }
         return validationException;
     }
 

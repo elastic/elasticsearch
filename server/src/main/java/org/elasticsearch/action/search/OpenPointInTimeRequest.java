@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -103,6 +104,13 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
         }
         if (keepAlive == null) {
             validationException = addValidationError("[keep_alive] is not specified", validationException);
+        }
+        if (projectRouting != null && indicesOptions.resolveCrossProjectIndexExpression() == false) {
+            validationException = ValidateActions.addValidationError(
+                "Unknown key for a VALUE_STRING in [project_routing]",
+                validationException
+            );
+
         }
         return validationException;
     }

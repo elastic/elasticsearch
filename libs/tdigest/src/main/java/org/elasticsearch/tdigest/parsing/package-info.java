@@ -15,14 +15,13 @@
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
+ *
+ * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
 
-module org.elasticsearch.tdigest {
-    requires org.elasticsearch.base;
-    requires org.apache.lucene.core;
-    requires org.elasticsearch.xcontent;
+/**
+ * Parsing package contains Elasticsearch specific classes for serializing and deserializing
+ * t-digests from various formats via Elasticsearch's XContent abstraction layer.
+ */
 
-    exports org.elasticsearch.tdigest;
-    exports org.elasticsearch.tdigest.arrays;
-    exports org.elasticsearch.tdigest.parsing;
-}
+package org.elasticsearch.tdigest.parsing;

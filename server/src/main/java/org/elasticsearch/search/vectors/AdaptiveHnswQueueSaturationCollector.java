@@ -20,6 +20,8 @@ import org.apache.lucene.search.KnnCollector;
  * maintains a rolling mean and variance of the rate (using Welford's algorithm).
  * Those are used to define an adaptive saturation threshold = mean + looseness * stddev
  * and an adaptive patience = patience-scaling / (1 + stddev).
+ * Adaptive patience scales inversely with volatility (stddev) and looseness.
+ * Patience-scaling defines patience order of magnitude.
  * Saturation happens when the discovery rate is lower than the adaptive saturation threshold.
  * The collector early exits once saturation persists for longer than adaptive patience.
  */
@@ -80,6 +82,7 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
     }
 
     public void nextCandidate() {
+        // rate of newly discovered neighbors for the current candidate
         float discoveryRate = (float) ((currentQueueSize - previousQueueSize) / (1e-9 + steps));
         float rate = Math.max(0, discoveryRate);
 
@@ -88,6 +91,8 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
 
         // rolling mean + variance
         samples++;
+
+        // update rolling mean and variance using Welford's algorithm
         float deltaMean = smoothedDiscoveryRate - mean;
         mean += deltaMean / samples;
         m2 += deltaMean * (smoothedDiscoveryRate - mean);
@@ -99,7 +104,6 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
 
         double adaptivePatience = patienceScaling / (1.0 + stddev);
 
-        // saturation happens when discovery is low
         if (smoothedDiscoveryRate < adaptiveThreshold) {
             saturatedCount++;
         } else {

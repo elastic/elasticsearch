@@ -17,6 +17,11 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.index.shard.ShardId;
 
-public record FileCacheKey(ShardId shardId, long primaryTerm, String fileName) {}
+public record FileCacheKey(ShardId shardId, long primaryTerm, String fileName) implements SharedBlobCacheService.KeyBase {
+    public FileCacheKey {
+        assert shardId != null;
+    }
+}

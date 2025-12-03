@@ -175,6 +175,9 @@ public class ThreadPoolMergeExecutorService implements Closeable {
      * Initial value for IO write rate limit of individual merge tasks when doAutoIOThrottle is true
      */
     static final ByteSizeValue START_IO_RATE = ByteSizeValue.ofMb(20L);
+
+    private static final Logger logger = LogManager.getLogger(ThreadPoolMergeExecutorService.class);
+
     /**
      * Total number of submitted merge tasks that support IO auto throttling and that have not yet been run (or aborted).
      * This includes merge tasks that are currently running and that are backlogged (by their respective merge schedulers).
@@ -863,6 +866,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 MIN_IO_RATE.getBytes(),
                 currentTargetIORateBytesPerSec - currentTargetIORateBytesPerSec / 10L
             );
+            logger.info("Decreasing target IO rate for merges to {}", newTargetIORateBytesPerSec);
         } else if (currentlySubmittedIOThrottledMergeTasks > concurrentMergesCeilLimitForThrottling
             && currentTargetIORateBytesPerSec < MAX_IO_RATE.getBytes()) {
                 // increase target IO rate by 20% (capped)
@@ -870,6 +874,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                     MAX_IO_RATE.getBytes(),
                     currentTargetIORateBytesPerSec + currentTargetIORateBytesPerSec / 5L
                 );
+                logger.info("Increasing target IO rate for merges to {}", newTargetIORateBytesPerSec);
             } else {
                 newTargetIORateBytesPerSec = currentTargetIORateBytesPerSec;
             }

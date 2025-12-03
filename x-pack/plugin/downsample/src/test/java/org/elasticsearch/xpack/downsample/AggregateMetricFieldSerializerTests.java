@@ -18,13 +18,13 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.downsample.LastValueFieldProducerTests.createValuesInstance;
-import static org.elasticsearch.xpack.downsample.MetricFieldProducerTests.createNumericValuesInstance;
+import static org.elasticsearch.xpack.downsample.NumericMetricFieldProducerTests.createNumericValuesInstance;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AggregateMetricFieldSerializerTests extends ESTestCase {
 
     public void testAggregatedGaugeFieldSerialization() throws IOException {
-        MetricFieldProducer producer = new MetricFieldProducer.AggregateGaugeMetricFieldProducer("my-gauge");
+        NumericMetricFieldProducer producer = new NumericMetricFieldProducer.AggregateGaugeMetricFieldProducer("my-gauge");
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var valuesInstance = createNumericValuesInstance(docIdBuffer, 55.0, 12.2, 5.5);
         producer.collect(valuesInstance, docIdBuffer);
@@ -50,28 +50,28 @@ public class AggregateMetricFieldSerializerTests extends ESTestCase {
     }
 
     public void testAggregatePreAggregatedFieldSerialization() throws IOException {
-        MetricFieldProducer minProducer = new MetricFieldProducer.AggregateSubMetricFieldProducer(
+        NumericMetricFieldProducer minProducer = new NumericMetricFieldProducer.AggregateSubMetricFieldProducer(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.min
         );
         var docIdBuffer = IntArrayList.from(0, 1);
         var valuesInstance = createNumericValuesInstance(docIdBuffer, 10, 5.5);
         minProducer.collect(valuesInstance, docIdBuffer);
-        MetricFieldProducer maxProducer = new MetricFieldProducer.AggregateSubMetricFieldProducer(
+        NumericMetricFieldProducer maxProducer = new NumericMetricFieldProducer.AggregateSubMetricFieldProducer(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.max
         );
         docIdBuffer = IntArrayList.from(0, 1);
         valuesInstance = createNumericValuesInstance(docIdBuffer, 30, 55.0);
         maxProducer.collect(valuesInstance, docIdBuffer);
-        MetricFieldProducer sumProducer = new MetricFieldProducer.AggregateSubMetricFieldProducer(
+        NumericMetricFieldProducer sumProducer = new NumericMetricFieldProducer.AggregateSubMetricFieldProducer(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.sum
         );
         docIdBuffer = IntArrayList.from(0, 1);
         valuesInstance = createNumericValuesInstance(docIdBuffer, 30, 72.7);
         sumProducer.collect(valuesInstance, docIdBuffer);
-        MetricFieldProducer countProducer = new MetricFieldProducer.AggregateSubMetricFieldProducer(
+        NumericMetricFieldProducer countProducer = new NumericMetricFieldProducer.AggregateSubMetricFieldProducer(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.value_count
         );

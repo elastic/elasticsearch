@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexRequest;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
 import co.elastic.elasticsearch.stateless.reshard.SplitSourceService;
+import co.elastic.elasticsearch.stateless.reshard.SplitStateRequest;
 import co.elastic.elasticsearch.stateless.reshard.SplitTargetService;
 import co.elastic.elasticsearch.stateless.reshard.TransportReshardAction;
 import co.elastic.elasticsearch.stateless.reshard.TransportReshardSplitAction;
@@ -48,6 +49,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -84,10 +86,12 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -2447,6 +2451,80 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         assertHitCount(prepareSearch(indexName), numDocs);
         if (testFailure.get() != null) {
             fail(testFailure.get());
+        }
+    }
+
+    public void testSplitStateNeedsToBeAcked() throws Exception {
+        startMasterOnlyNode();
+        String indexNode = startIndexNode();
+        startSearchNodes(1);
+        String nodeWithBlockedClusterStateProcessing = startSearchNode();
+        ensureStableCluster(4);
+
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", nodeWithBlockedClusterStateProcessing));
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        Index index = resolveIndex(indexName);
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), numDocs);
+
+        var splitAttempted = new CountDownLatch(1);
+        var splitBlocked = new CountDownLatch(1);
+        var doneAttempted = new CountDownLatch(1);
+        var indexNodeTransportService = MockTransportService.getInstance(indexNode);
+        indexNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitStateAction.TYPE.name().equals(action)) {
+                TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+
+                if (actualRequest instanceof SplitStateRequest splitStateRequest) {
+                    try {
+                        if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                            splitAttempted.countDown();
+                            splitBlocked.await();
+                        } else if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.DONE) {
+                            if (doneAttempted.getCount() > 0) {
+                                doneAttempted.countDown();
+                            }
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
+
+        // Wait for HANDOFF to complete normally and then block cluster state updates on one node.
+        splitAttempted.await();
+
+        var blockClusterStateProcessing = new BlockClusterStateProcessing(nodeWithBlockedClusterStateProcessing, random());
+        internalCluster().setDisruptionScheme(blockClusterStateProcessing);
+        blockClusterStateProcessing.startDisrupting();
+
+        try {
+            // Unblock application of SPLIT state - it should not succeed because we are waiting for an ack.
+            splitBlocked.countDown();
+
+            assertFalse(doneAttempted.await(50, TimeUnit.MILLISECONDS));
+
+            // Unblock stuck node to ack the update.
+            blockClusterStateProcessing.stopDisrupting();
+
+            waitForReshardCompletion(indexName);
+            ensureGreen(indexName);
+            assertHitCount(prepareSearchAll(indexName), numDocs);
+
+        } finally {
+            blockClusterStateProcessing.stopDisrupting();
         }
     }
 

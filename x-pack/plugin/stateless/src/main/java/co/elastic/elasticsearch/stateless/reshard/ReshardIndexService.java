@@ -23,10 +23,14 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -54,6 +58,8 @@ import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 
+import java.util.function.Function;
+
 import static org.elasticsearch.core.Strings.format;
 
 public class ReshardIndexService {
@@ -63,7 +69,8 @@ public class ReshardIndexService {
     private final IndicesService indicesService;
 
     private final MasterServiceTaskQueue<ReshardTask> reshardQueue;
-    private final MasterServiceTaskQueue<TransitionToHandoffStateTask> transitionToHandOffStateQueue;
+    private final MasterServiceTaskQueue<TransitionTargetToHandoffStateTask> transitionTargetToHandOffStateQueue;
+    private final MasterServiceTaskQueue<TransitionTargetToSplitStateTask> transitionTargetToSplitStateQueue;
     private final MasterServiceTaskQueue<TransitionTargetStateTask> transitionTargetStateQueue;
     private final MasterServiceTaskQueue<TransitionSourceStateTask> transitionSourceStateQueue;
 
@@ -80,20 +87,25 @@ public class ReshardIndexService {
             Priority.NORMAL,
             new ReshardIndexExecutor(shardRoutingRoleStrategy, rerouteService)
         );
-        this.transitionToHandOffStateQueue = clusterService.createTaskQueue(
-            "transition-reshard-target-state-to-handoff",
+        this.transitionTargetToHandOffStateQueue = clusterService.createTaskQueue(
+            "transition-split-target-state-to-handoff",
             // This is high priority because indexing is blocked while this updated is applied
             // and we would like to unblock it quickly.
             Priority.HIGH,
-            new TransitionToHandoffStateExecutor()
+            new TransitionTargetToHandoffStateExecutor()
+        );
+        this.transitionTargetToSplitStateQueue = clusterService.createTaskQueue(
+            "transition-split-target-state-to-split",
+            Priority.NORMAL,
+            new TransitionTargetToSplitStateExecutor()
         );
         this.transitionTargetStateQueue = clusterService.createTaskQueue(
-            "transition-reshard-target-state",
+            "transition-split-target-state",
             Priority.NORMAL,
             new TransitionTargetStateExecutor()
         );
         this.transitionSourceStateQueue = clusterService.createTaskQueue(
-            "transition-reshard-source-state",
+            "transition-split-source-state",
             Priority.NORMAL,
             new TransitionSourceStateExecutor()
         );
@@ -173,16 +185,24 @@ public class ReshardIndexService {
     }
 
     public void transitionToHandoff(SplitStateRequest splitStateRequest, ActionListener<Void> listener) {
-        transitionToHandOffStateQueue.submitTask(
-            "transition-reshard-index-to-handoff [" + splitStateRequest.getShardId().getIndex().getName() + "]",
-            new TransitionToHandoffStateTask(splitStateRequest, listener),
+        transitionTargetToHandOffStateQueue.submitTask(
+            "transition-split-target-shard-to-handoff [" + splitStateRequest.getShardId() + "]",
+            new TransitionTargetToHandoffStateTask(splitStateRequest, listener),
             splitStateRequest.masterNodeTimeout()
+        );
+    }
+
+    public void transitionToSplit(SplitStateRequest splitStateRequest, ActionListener<Void> listener) {
+        transitionTargetToSplitStateQueue.submitTask(
+            "transition-split-target-shard-to-split [" + splitStateRequest.getShardId() + "]",
+            new TransitionTargetToSplitStateTask(splitStateRequest, listener),
+            null
         );
     }
 
     public void transitionTargetState(SplitStateRequest splitStateRequest, ActionListener<Void> listener) {
         transitionTargetStateQueue.submitTask(
-            "transition-reshard-index-target-state [" + splitStateRequest.getShardId().getIndex().getName() + "]",
+            "transition-split-target-shard-state [" + splitStateRequest.getShardId() + "]",
             new TransitionTargetStateTask(splitStateRequest, listener),
             splitStateRequest.masterNodeTimeout()
         );
@@ -190,7 +210,7 @@ public class ReshardIndexService {
 
     public void transitionSourceState(ShardId shardId, IndexReshardingState.Split.SourceShardState state, ActionListener<Void> listener) {
         transitionSourceStateQueue.submitTask(
-            "transition-reshard-index-source-state [" + shardId.getIndex().getName() + "]",
+            "transition-split-source-shard-state [" + shardId + "]",
             new TransitionSourceStateTask(shardId, state, listener),
             null
         );
@@ -246,6 +266,8 @@ public class ReshardIndexService {
         ShardId shardId,
         SplitStateRequest splitStateRequest
     ) {
+        // This request is stale since target shard primary term advanced from the primary term provided in the request.
+        // We reject it and expect target shard to retry after recovery.
         String message = format(
             "%s cannot transition target state [%s] because target primary term advanced [%s>%s]",
             shardId,
@@ -378,8 +400,6 @@ public class ReshardIndexService {
         }
     }
 
-    // TODO investigate if this executor can be non-acked. There should be no need to wait for all nodes to ack the
-    // cluster state update performed here.
     private static class ReshardIndexExecutor extends SimpleBatchedExecutor<ReshardTask, Void> {
         private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
         private final RerouteService rerouteService;
@@ -442,7 +462,7 @@ public class ReshardIndexService {
         );
     }
 
-    private record TransitionTargetStateTask(SplitStateRequest splitStateRequest, ActionListener<Void> listener)
+    private record TransitionTargetToHandoffStateTask(SplitStateRequest splitStateRequest, ActionListener<Void> listener)
         implements
             ClusterStateTaskListener {
         @Override
@@ -451,12 +471,78 @@ public class ReshardIndexService {
         }
     }
 
-    private static class TransitionTargetStateExecutor extends SimpleBatchedExecutor<TransitionTargetStateTask, Void> {
+    private static class TransitionTargetToHandoffStateExecutor extends SimpleBatchedExecutor<TransitionTargetToHandoffStateTask, Void> {
         @Override
-        public Tuple<ClusterState, Void> executeTask(TransitionTargetStateTask task, ClusterState clusterState) throws Exception {
+        public Tuple<ClusterState, Void> executeTask(TransitionTargetToHandoffStateTask task, ClusterState clusterState) throws Exception {
+            final SplitStateRequest splitStateRequest = task.splitStateRequest;
+            final ShardId shardId = splitStateRequest.getShardId();
+
+            return modifyReshardingMetadata(clusterState, shardId.getIndex(), indexMetadata -> {
+                IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+
+                long currentTargetPrimaryTerm = indexMetadata.primaryTerm(shardId.id());
+                long requestTargetPrimaryTerm = splitStateRequest.getTargetPrimaryTerm();
+                long currentSourcePrimaryTerm = indexMetadata.primaryTerm(reshardingMetadata.getSplit().sourceShard(shardId.id()));
+                long requestSourcePrimaryTerm = splitStateRequest.getSourcePrimaryTerm();
+                if (requestTargetPrimaryTerm != currentTargetPrimaryTerm) {
+                    handleTargetPrimaryTermAdvanced(currentTargetPrimaryTerm, requestTargetPrimaryTerm, shardId, splitStateRequest);
+                } else if (requestSourcePrimaryTerm != currentSourcePrimaryTerm) {
+                    String message = format(
+                        "%s cannot transition target state [%s] because source primary term advanced [%s>%s]",
+                        shardId,
+                        splitStateRequest.getNewTargetShardState(),
+                        currentSourcePrimaryTerm,
+                        requestSourcePrimaryTerm
+                    );
+                    logger.debug(message);
+                    assert currentSourcePrimaryTerm > requestSourcePrimaryTerm;
+                    throw new IllegalStateException(message);
+                }
+
+                return reshardingMetadata.transitionSplitTargetToNewState(shardId, IndexReshardingState.Split.TargetShardState.HANDOFF);
+            });
+        }
+
+        @Override
+        public void taskSucceeded(TransitionTargetToHandoffStateTask task, Void unused) {
+            task.listener.onResponse(null);
+        }
+    }
+
+    private static class TransitionTargetToSplitStateTask extends AckedBatchedClusterStateUpdateTask {
+        private final SplitStateRequest splitStateRequest;
+
+        TransitionTargetToSplitStateTask(SplitStateRequest splitStateRequest, ActionListener<Void> listener) {
+            // This update needs to be acknowledged by all nodes for correctness of search results produced during split.
+            // Therefore we use infinite timeout.
+            // We also fail the operation if there are any nodes that didn't ack this update forcing the caller to retry
+            // since again this is needed for correctness of search.
+            super(TimeValue.MINUS_ONE, listener.delegateFailure((l, acknowledged) -> {
+                if (acknowledged.isAcknowledged() == false) {
+                    l.onFailure(
+                        new ElasticsearchException(
+                            "Couldn't apply acked cluster state update to move split target shard "
+                                + splitStateRequest.getShardId()
+                                + " to SPLIT state."
+                        )
+                    );
+                } else {
+                    l.onResponse(null);
+                }
+            }));
+            this.splitStateRequest = splitStateRequest;
+        }
+    }
+
+    private static class TransitionTargetToSplitStateExecutor extends SimpleBatchedAckListenerTaskExecutor<
+        TransitionTargetToSplitStateTask> {
+        @Override
+        public Tuple<ClusterState, ClusterStateAckListener> executeTask(TransitionTargetToSplitStateTask task, ClusterState clusterState) {
             final SplitStateRequest splitStateRequest = task.splitStateRequest;
             final ShardId shardId = splitStateRequest.getShardId();
             final Index index = shardId.getIndex();
+
+            assert splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT;
 
             final ProjectMetadata project = clusterState.metadata().projectFor(index);
             final ProjectState projectState = clusterState.projectState(project.id());
@@ -474,23 +560,12 @@ public class ReshardIndexService {
 
             assert reshardingMetadata.isSplit();
             IndexReshardingState.Split.TargetShardState currentState = reshardingMetadata.getSplit().getTargetShardState(shardId.id());
-            IndexReshardingState.Split.TargetShardState targetState = task.splitStateRequest.getNewTargetShardState();
 
-            assert currentState.ordinal() <= targetState.ordinal() : "Skipped state transition of target shard";
+            assert currentState.ordinal() >= IndexReshardingState.Split.TargetShardState.HANDOFF.ordinal()
+                : "Attempting to transition to SPLIT before handoff happened";
 
-            if (currentState == targetState) {
-                // This is possible if target shard failed after submitting this state update request.
-                // Then during recovery the state transition was not done and a second request to do it was submitted,
-                // and we are handling that second request now.
-                logger.info(
-                    format(
-                        "Attempting to advance target shard %s to [%s] but it is already in [%s]. Proceeding.",
-                        shardId,
-                        targetState,
-                        currentState
-                    )
-                );
-                return new Tuple<>(clusterState, null);
+            if (currentState == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                return new Tuple<>(clusterState, task);
             }
 
             ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
@@ -498,17 +573,94 @@ public class ReshardIndexService {
             ProjectMetadata.Builder projectMetadata = projectMetadataBuilder.put(
                 IndexMetadata.builder(indexMetadata)
                     .reshardingMetadata(
-                        reshardingMetadata.transitionSplitTargetToNewState(shardId, splitStateRequest.getNewTargetShardState())
+                        reshardingMetadata.transitionSplitTargetToNewState(shardId, IndexReshardingState.Split.TargetShardState.SPLIT)
                     )
             );
 
-            return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata.build()).build(), null);
+            return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata.build()).build(), task);
+        }
+    }
+
+    private record TransitionTargetStateTask(SplitStateRequest splitStateRequest, ActionListener<Void> listener)
+        implements
+            ClusterStateTaskListener {
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static class TransitionTargetStateExecutor extends SimpleBatchedExecutor<TransitionTargetStateTask, Void> {
+        @Override
+        public Tuple<ClusterState, Void> executeTask(TransitionTargetStateTask task, ClusterState clusterState) throws Exception {
+            final SplitStateRequest splitStateRequest = task.splitStateRequest;
+            final ShardId shardId = splitStateRequest.getShardId();
+
+            return modifyReshardingMetadata(clusterState, shardId.getIndex(), indexMetadata -> {
+                long currentTargetPrimaryTerm = indexMetadata.primaryTerm(shardId.id());
+                long startingTargetPrimaryTerm = splitStateRequest.getTargetPrimaryTerm();
+                if (startingTargetPrimaryTerm != currentTargetPrimaryTerm) {
+                    handleTargetPrimaryTermAdvanced(currentTargetPrimaryTerm, startingTargetPrimaryTerm, shardId, splitStateRequest);
+                }
+
+                IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+
+                assert reshardingMetadata.isSplit();
+                IndexReshardingState.Split.TargetShardState currentState = reshardingMetadata.getSplit().getTargetShardState(shardId.id());
+                IndexReshardingState.Split.TargetShardState targetState = task.splitStateRequest.getNewTargetShardState();
+
+                assert currentState.ordinal() <= targetState.ordinal() : "Skipped state transition of target shard";
+
+                if (currentState == targetState) {
+                    // This is possible if target shard failed after submitting this state update request.
+                    // Then during recovery the state transition was not done and a second request to do it was submitted,
+                    // and we are handling that second request now.
+                    logger.info(
+                        format(
+                            "Attempting to advance target shard %s to [%s] but it is already in [%s]. Proceeding.",
+                            shardId,
+                            targetState,
+                            currentState
+                        )
+                    );
+                    return null;
+                }
+
+                return reshardingMetadata.transitionSplitTargetToNewState(shardId, splitStateRequest.getNewTargetShardState());
+            });
         }
 
         @Override
         public void taskSucceeded(TransitionTargetStateTask task, Void unused) {
             task.listener.onResponse(null);
         }
+    }
+
+    private static Tuple<ClusterState, Void> modifyReshardingMetadata(
+        ClusterState clusterState,
+        Index index,
+        Function<IndexMetadata, IndexReshardingMetadata> changeFunction
+    ) {
+        final ProjectMetadata project = clusterState.metadata().projectFor(index);
+        final ProjectState projectState = clusterState.projectState(project.id());
+        final IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(index);
+        IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+        if (reshardingMetadata == null) {
+            throw new IllegalStateException("no existing resharding operation on " + index + ".");
+        }
+
+        IndexReshardingMetadata newReshardingMetadata = changeFunction.apply(indexMetadata);
+        if (newReshardingMetadata == null) {
+            return new Tuple<>(clusterState, null);
+        }
+
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
+
+        ProjectMetadata.Builder projectMetadata = projectMetadataBuilder.put(
+            IndexMetadata.builder(indexMetadata).reshardingMetadata(newReshardingMetadata)
+        );
+
+        return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata.build()).build(), null);
     }
 
     record TransitionSourceStateTask(ShardId shardId, IndexReshardingState.Split.SourceShardState state, ActionListener<Void> listener)
@@ -589,66 +741,6 @@ public class ReshardIndexService {
 
         @Override
         public void taskSucceeded(TransitionSourceStateTask task, Void unused) {
-            task.listener.onResponse(null);
-        }
-    }
-
-    private record TransitionToHandoffStateTask(SplitStateRequest splitStateRequest, ActionListener<Void> listener)
-        implements
-            ClusterStateTaskListener {
-        @Override
-        public void onFailure(Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
-    private static class TransitionToHandoffStateExecutor extends SimpleBatchedExecutor<TransitionToHandoffStateTask, Void> {
-        @Override
-        public Tuple<ClusterState, Void> executeTask(TransitionToHandoffStateTask task, ClusterState clusterState) throws Exception {
-            final SplitStateRequest splitStateRequest = task.splitStateRequest;
-            final ShardId shardId = splitStateRequest.getShardId();
-            final Index index = shardId.getIndex();
-
-            final ProjectMetadata project = clusterState.metadata().projectFor(shardId.getIndex());
-            final ProjectState projectState = clusterState.projectState(project.id());
-            IndexReshardingMetadata reshardingMetadata = projectState.metadata().getIndexSafe(index).getReshardingMetadata();
-            if (reshardingMetadata == null) {
-                throw new IllegalStateException("no existing resharding operation on " + index + ".");
-            }
-
-            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
-            IndexMetadata indexMetadata = projectMetadataBuilder.getSafe(index);
-            long currentTargetPrimaryTerm = indexMetadata.primaryTerm(shardId.id());
-            long startingTargetPrimaryTerm = splitStateRequest.getTargetPrimaryTerm();
-            long currentSourcePrimaryTerm = indexMetadata.primaryTerm(reshardingMetadata.getSplit().sourceShard(shardId.id()));
-            long startingSourcePrimaryTerm = splitStateRequest.getSourcePrimaryTerm();
-            if (startingTargetPrimaryTerm != currentTargetPrimaryTerm) {
-                handleTargetPrimaryTermAdvanced(currentTargetPrimaryTerm, startingTargetPrimaryTerm, shardId, splitStateRequest);
-            } else if (startingSourcePrimaryTerm != currentSourcePrimaryTerm) {
-                String message = format(
-                    "%s cannot transition target state [%s] because source primary term advanced [%s>%s]",
-                    shardId,
-                    splitStateRequest.getNewTargetShardState(),
-                    currentSourcePrimaryTerm,
-                    startingSourcePrimaryTerm
-                );
-                logger.debug(message);
-                assert currentSourcePrimaryTerm > startingSourcePrimaryTerm;
-                throw new IllegalStateException(message);
-            }
-
-            ProjectMetadata.Builder projectMetadata = projectMetadataBuilder.put(
-                IndexMetadata.builder(indexMetadata)
-                    .reshardingMetadata(
-                        reshardingMetadata.transitionSplitTargetToNewState(shardId, IndexReshardingState.Split.TargetShardState.HANDOFF)
-                    )
-            );
-
-            return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata).build(), null);
-        }
-
-        @Override
-        public void taskSucceeded(TransitionToHandoffStateTask task, Void unused) {
             task.listener.onResponse(null);
         }
     }

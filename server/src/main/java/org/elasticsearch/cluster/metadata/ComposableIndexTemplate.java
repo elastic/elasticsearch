@@ -555,10 +555,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 boolean value = in.readBoolean();
                 assert value == false : "expected false, because this used to be an optional enum that never got set";
             }
-            if (in.getTransportVersion().supports(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)
-                && in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-                in.readBoolean();
-            }
         }
 
         /**
@@ -593,12 +589,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             out.writeBoolean(allowCustomRouting);
             if (out.getTransportVersion().between(TransportVersions.V_8_1_0, TransportVersions.V_8_3_0)) {
                 // See comment in constructor.
-                out.writeBoolean(false);
-            }
-            if (out.getTransportVersion().supports(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)
-                && out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-                // Previous versions expect the failure store to be configured via the DataStreamTemplate. We add it here, so we don't break
-                // the serialisation, but we do not care to preserve the value because this feature is still behind a feature flag.
                 out.writeBoolean(false);
             }
         }

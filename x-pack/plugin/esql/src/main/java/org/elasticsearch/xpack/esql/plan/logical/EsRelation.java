@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -62,36 +61,20 @@ public class EsRelation extends LeafPlan {
         Source source = Source.readFrom((PlanStreamInput) in);
         String indexPattern;
         Map<String, IndexMode> indexNameWithModes;
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            indexPattern = in.readString();
-            indexNameWithModes = in.readMap(IndexMode::readFrom);
-        } else {
-            var index = EsIndex.readFrom(in);
-            indexPattern = index.name();
-            indexNameWithModes = index.indexNameWithModes();
-        }
+        indexPattern = in.readString();
+        indexNameWithModes = in.readMap(IndexMode::readFrom);
         List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         IndexMode indexMode = IndexMode.fromString(in.readString());
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-            in.readBoolean();
-        }
         return new EsRelation(source, indexPattern, indexMode, indexNameWithModes, attributes);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeString(indexPattern);
-            out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
-        } else {
-            new EsIndex(indexPattern, Map.of(), indexNameWithModes).writeTo(out);
-        }
+        out.writeString(indexPattern);
+        out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
         out.writeNamedWriteableCollection(attrs);
         out.writeString(indexMode.getName());
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-            out.writeBoolean(false);
-        }
     }
 
     @Override

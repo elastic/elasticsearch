@@ -8,6 +8,7 @@ dependencies {
     api project(':server')
     compileOnly project(path: xpackModule('core'))
 
+    testImplementation project(":libs:swisshash")
     testImplementation(testArtifact(project(xpackModule('core'))))
     // runtime only - since the test source should not explicitly depend
     // upon any types from ES|QL (only xpack core)

@@ -15,20 +15,20 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
-import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.common.io.stream.StreamOutput.GENERIC_LIST_HEADER;
+import java.util.Set;
 
 /**
  * Encapsulates view definitions as custom metadata inside ProjectMetadata within cluster state.
@@ -43,53 +43,48 @@ public final class ViewMetadata extends AbstractNamedDiffable<Metadata.ProjectCu
 
     static final ParseField VIEWS = new ParseField("views");
 
-    public static final ViewMetadata EMPTY = new ViewMetadata(Collections.emptyList());
+    public static final ViewMetadata EMPTY = new ViewMetadata(Collections.emptyMap());
 
     @SuppressWarnings("unchecked")
-    private static final ObjectParser<ViewMetadata, Void> PARSER = new ObjectParser<>("view_metadata", ViewMetadata::new);
+    private static final ConstructingObjectParser<ViewMetadata, Void> PARSER = new ConstructingObjectParser<>(
+        "view_metadata",
+        false,
+        (args, ctx) -> new ViewMetadata((Map<String, View>) args[0])
+    );
 
     static {
-        PARSER.declareObjectArrayOrNull((viewMetadata, views) -> views.forEach(viewMetadata::add), (p, c) -> View.fromXContent(p), VIEWS);
+        PARSER.declareObjectArrayOrNull(ConstructingObjectParser.constructorArg(), (p, c) -> View.fromXContent(p), VIEWS);
     }
 
     public static ViewMetadata fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    private final ArrayList<View> views;
+    private final Map<String, View> views;
 
     public static ViewMetadata readFromStream(StreamInput in) throws IOException {
-        assert in.readByte() == GENERIC_LIST_HEADER;
-        int count = in.readVInt();
-        ArrayList<View> views = new ArrayList<>(count);
-        for (int i = 0; i < count; i++) {
-            views.add(new View(in));
-        }
-        return new ViewMetadata(views);
+        return new ViewMetadata(in.readMap(View::new));
     }
 
     public ViewMetadata() {
-        this(List.of());
+        this(Map.of());
     }
 
-    public ViewMetadata(List<View> views) {
-        this.views = new ArrayList<>(views);
+    public ViewMetadata(Map<String, View> views) {
+        this.views = Collections.unmodifiableMap(views);
     }
 
-    public void add(View view) {
-        views.add(view);
-    }
-
-    public List<View> views() {
+    public Map<String, View> views() {
         return views;
     }
 
-    public List<String> viewNames() {
-        return views.stream().map(View::name).toList();
+    public Set<String> viewNames() {
+        return views.keySet();
     }
 
+    @Nullable
     public View getView(String name) {
-        return views.stream().filter(v -> v.name().equals(name)).findAny().orElse(null);
+        return views.get(name);
     }
 
     @Override
@@ -109,12 +104,12 @@ public final class ViewMetadata extends AbstractNamedDiffable<Metadata.ProjectCu
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeGenericList(views, StreamOutput::writeWriteable);
+        out.writeMap(this.views, StreamOutput::writeWriteable);
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.array(VIEWS.getPreferredName(), new ViewIterator(views));
+        return ChunkedToXContentHelper.array(VIEWS.getPreferredName(), views.values().iterator());
     }
 
     public static class ViewIterator implements Iterator<ToXContent> {

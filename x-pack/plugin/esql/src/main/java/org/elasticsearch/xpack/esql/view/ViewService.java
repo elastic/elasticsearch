@@ -28,8 +28,11 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 public abstract class ViewService {
@@ -152,7 +155,7 @@ public abstract class ViewService {
             View view = request.view();
             validatePutView(projectId, view);
             updateViewMetadata("PUT", projectId, request, callback, current -> {
-                List<View> updated = new ArrayList<>(current.views());
+                Map<String, View> updated = new HashMap<>(current.views());
                 View exists = current.getView(view.name());
                 if (exists != null) {
                     // View already exists
@@ -161,9 +164,8 @@ public abstract class ViewService {
                         return current.views();
                     }
                     // Remove the existing view
-                    updated.remove(exists);
+                    updated.put(view.name(), view);
                 }
-                updated.add(view);
                 return updated;
             });
         }
@@ -216,8 +218,8 @@ public abstract class ViewService {
     /**
      * List current view names.
      */
-    public List<String> list(ProjectId projectId) {
-        return viewsFeatureEnabled() ? getMetadata(projectId).viewNames() : List.of();
+    public Set<String> list(ProjectId projectId) {
+        return viewsFeatureEnabled() ? getMetadata(projectId).viewNames() : Set.of();
     }
 
     /**
@@ -236,8 +238,8 @@ public abstract class ViewService {
                 if (original == null) {
                     throw new ResourceNotFoundException("view [{}] not found", name);
                 }
-                List<View> updated = new ArrayList<>(current.views());
-                updated.remove(original);
+                Map<String, View> updated = new HashMap<>(current.views());
+                updated.remove(name);
                 return updated;
             });
         }
@@ -254,6 +256,6 @@ public abstract class ViewService {
         ProjectId projectId,
         AcknowledgedRequest<?> request,
         ActionListener<? extends AcknowledgedResponse> callback,
-        Function<ViewMetadata, List<View>> function
+        Function<ViewMetadata, Map<String, View>> function
     );
 }

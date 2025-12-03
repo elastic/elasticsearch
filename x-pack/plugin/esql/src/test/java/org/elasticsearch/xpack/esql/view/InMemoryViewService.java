@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 
-import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -58,9 +58,9 @@ public class InMemoryViewService extends ViewService {
         ProjectId projectId,
         AcknowledgedRequest<?> request,
         ActionListener<? extends AcknowledgedResponse> callback,
-        Function<ViewMetadata, List<View>> function
+        Function<ViewMetadata, Map<String, View>> function
     ) {
-        List<View> updated = function.apply(metadata);
+        Map<String, View> updated = function.apply(metadata);
         this.metadata = new ViewMetadata(updated);
     }
 

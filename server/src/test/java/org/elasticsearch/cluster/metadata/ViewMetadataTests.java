@@ -14,12 +14,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.ViewTestsUtils.randomName;
 import static org.elasticsearch.cluster.metadata.ViewTestsUtils.randomView;
-import static org.hamcrest.Matchers.equalTo;
 
 public class ViewMetadataTests extends AbstractChunkedSerializingTestCase<ViewMetadata> {
 
@@ -35,8 +34,8 @@ public class ViewMetadataTests extends AbstractChunkedSerializingTestCase<ViewMe
 
     @Override
     protected ViewMetadata mutateInstance(ViewMetadata instance) {
-        ArrayList<View> views = new ArrayList<>(instance.views());
-        views.replaceAll((view) -> randomView(randomName()));
+        Map<String, View> views = new HashMap<>(instance.views());
+        views.replaceAll((name, view) -> randomView(name));
         return new ViewMetadata(views);
     }
 
@@ -47,9 +46,10 @@ public class ViewMetadataTests extends AbstractChunkedSerializingTestCase<ViewMe
 
     private static ViewMetadata randomViewMetadata() {
         int numViews = randomIntBetween(8, 64);
-        List<View> views = new ArrayList<>(numViews);
+        Map<String, View> views = new HashMap<>(numViews);
         for (int i = 0; i < numViews; i++) {
-            views.add(randomView(randomName()));
+            final String name = randomName();
+            views.put(name, randomView(name));
         }
         return new ViewMetadata(views);
     }
@@ -57,15 +57,5 @@ public class ViewMetadataTests extends AbstractChunkedSerializingTestCase<ViewMe
     @Override
     protected Writeable.Reader<ViewMetadata> instanceReader() {
         return ViewMetadata::readFromStream;
-    }
-
-    @Override
-    protected void assertEqualInstances(ViewMetadata expectedInstance, ViewMetadata newInstance) {
-        assertNotSame(expectedInstance, newInstance);
-        assertThat(newInstance.views().size(), equalTo(expectedInstance.views().size()));
-        for (View actual : newInstance.views()) {
-            View expected = expectedInstance.getView(actual.name());
-            ViewTests.assertEqualViews(expected, actual);
-        }
     }
 }

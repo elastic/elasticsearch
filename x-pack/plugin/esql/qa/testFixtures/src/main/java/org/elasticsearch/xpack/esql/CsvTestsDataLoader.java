@@ -159,6 +159,8 @@ public class CsvTestsDataLoader {
     private static final TestDataset MULTIVALUE_POINTS = new TestDataset("multivalue_points");
     private static final TestDataset DISTANCES = new TestDataset("distances");
     private static final TestDataset K8S = new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
+    private static final TestDataset K8S_DATENANOS = new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv")
+        .withSetting("k8s-settings.json");
     private static final TestDataset K8S_DOWNSAMPLED = new TestDataset(
         "k8s-downsampled",
         "k8s-downsampled-mappings.json",
@@ -172,7 +174,11 @@ public class CsvTestsDataLoader {
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
     private static final TestDataset COLORS = new TestDataset("colors");
     private static final TestDataset COLORS_CMYK_LOOKUP = new TestDataset("colors_cmyk").withSetting("lookup-settings.json");
-    private static final TestDataset EXP_HISTO_SAMPLE = new TestDataset("exp_histo_sample");
+    private static final TestDataset EXP_HISTO_SAMPLE = new TestDataset(
+        "exp_histo_sample",
+        "exp_histo_sample-mappings.json",
+        "exp_histo_sample.csv"
+    ).withSetting("exp_histo_sample-settings.json");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -229,6 +235,7 @@ public class CsvTestsDataLoader {
         Map.entry(DATE_NANOS.indexName, DATE_NANOS),
         Map.entry(DATE_NANOS_UNION_TYPES.indexName, DATE_NANOS_UNION_TYPES),
         Map.entry(K8S.indexName, K8S),
+        Map.entry(K8S_DATENANOS.indexName, K8S_DATENANOS),
         Map.entry(K8S_DOWNSAMPLED.indexName, K8S_DOWNSAMPLED),
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
@@ -253,6 +260,7 @@ public class CsvTestsDataLoader {
     private static final EnrichConfig CITY_NAMES_ENRICH = new EnrichConfig("city_names", "enrich-policy-city_names.json");
     private static final EnrichConfig CITY_BOUNDARIES_ENRICH = new EnrichConfig("city_boundaries", "enrich-policy-city_boundaries.json");
     private static final EnrichConfig CITY_AIRPORTS_ENRICH = new EnrichConfig("city_airports", "enrich-policy-city_airports.json");
+    private static final EnrichConfig CITY_LOCATIONS_ENRICH = new EnrichConfig("city_locations", "enrich-policy-city_locations.json");
     private static final EnrichConfig COLORS_ENRICH = new EnrichConfig("colors_policy", "enrich-policy-colors_cmyk.json");
 
     public static final List<String> ENRICH_SOURCE_INDICES = List.of(
@@ -275,6 +283,7 @@ public class CsvTestsDataLoader {
         CITY_NAMES_ENRICH,
         CITY_BOUNDARIES_ENRICH,
         CITY_AIRPORTS_ENRICH,
+        CITY_LOCATIONS_ENRICH,
         COLORS_ENRICH
     );
     public static final String NUMERIC_REGEX = "-?\\d+(\\.\\d+)?";

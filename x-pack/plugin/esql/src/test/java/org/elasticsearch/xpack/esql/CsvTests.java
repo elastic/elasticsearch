@@ -300,6 +300,10 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TS_COMMAND_V0.capabilityName())
             );
             assumeFalse(
+                "can't load metrics in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V4.capabilityName())
+            );
+            assumeFalse(
                 "can't use QSTR function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.QSTR_FUNCTION.capabilityName())
             );
@@ -357,11 +361,11 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "CSV tests cannot currently handle CHUNK function",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.CHUNK_FUNCTION.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.CHUNK_FUNCTION_V2.capabilityName())
             );
             assumeFalse(
                 "can't use PromQL in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_V0.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V4.capabilityName())
             );
 
             if (Build.current().isSnapshot()) {
@@ -452,7 +456,14 @@ public class CsvTests extends ESTestCase {
             .toList();
         var mergedMappings = mergeMappings(mappings);
         return IndexResolution.valid(
-            new EsIndex(datasets.indexPattern(), mergedMappings.mapping, indexModes, mergedMappings.partiallyUnmappedFields)
+            new EsIndex(
+                datasets.indexPattern(),
+                mergedMappings.mapping,
+                indexModes,
+                Map.of(),
+                Map.of(),
+                mergedMappings.partiallyUnmappedFields
+            )
         );
     }
 
@@ -535,7 +546,10 @@ public class CsvTests extends ESTestCase {
             // this could practically work, but it's wrong:
             // EnrichPolicyResolution should contain the policy (system) index, not the source index
             EsIndex esIndex = loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset.of(sourceIndex.withTypeMapping(Map.of()))).get();
-            var concreteIndices = Map.of(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, Iterables.get(esIndex.concreteIndices(), 0));
+            var concreteIndices = Map.of(
+                RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
+                Iterables.get(esIndex.concreteQualifiedIndices(), 0)
+            );
             enrichResolution.addResolvedPolicy(
                 policyConfig.policyName(),
                 Enrich.Mode.ANY,
@@ -666,6 +680,7 @@ public class CsvTests extends ESTestCase {
         FoldContext foldCtx = FoldContext.small();
         EsqlSession session = new EsqlSession(
             getTestName(),
+            TransportVersion.current(),
             queryClusterSettings(),
             null,
             null,

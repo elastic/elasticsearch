@@ -158,7 +158,7 @@ public class TDigestParser {
             );
         }
         if (centroids.isEmpty()) {
-            sum = 0.0;
+            sum = null;
             min = null;
             max = null;
         }

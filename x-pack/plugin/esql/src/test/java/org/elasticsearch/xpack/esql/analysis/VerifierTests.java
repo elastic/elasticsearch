@@ -1174,7 +1174,8 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("FROM test | STATS count(network.bytes_out)", tsdb),
             equalTo(
-                "1:19: argument of [count(network.bytes_out)] must be [any type except counter types or dense_vector],"
+                "1:19: argument of [count(network.bytes_out)] must be"
+                    + " [any type except counter types, dense_vector or exponential_histogram],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -1338,28 +1339,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTimeseriesAggregate() {
-        assertThat(
-            error("TS test  | STATS rate(network.bytes_in)", tsdb),
-            equalTo(
-                "1:18: time-series aggregate function [rate(network.bytes_in)] can only be used with the TS command "
-                    + "and inside another aggregate function"
-            )
-        );
-        assertThat(
-            error("TS test  | STATS avg_over_time(network.connections)", tsdb),
-            equalTo(
-                "1:18: time-series aggregate function [avg_over_time(network.connections)] can only be used "
-                    + "with the TS command and inside another aggregate function"
-            )
-        );
-        assertThat(
-            error("TS test  | STATS avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
-            equalTo(
-                "1:47: time-series aggregate function [rate(network.bytes_in)] can only be used "
-                    + "with the TS command and inside another aggregate function"
-            )
-        );
-
         assertThat(error("TS test  | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
             1:22: nested aggregations [avg(rate(network.bytes_in))] \
             not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
@@ -1372,13 +1351,6 @@ public class VerifierTests extends ESTestCase {
             line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
             inside over-time aggregation function [rate(network.bytes_in)]"""));
 
-        assertThat(
-            error("TS test  | STATS rate(network.bytes_in) BY bucket(@timestamp, 1 hour)", tsdb),
-            equalTo(
-                "1:18: time-series aggregate function [rate(network.bytes_in)] can only be used "
-                    + "with the TS command and inside another aggregate function"
-            )
-        );
         assertThat(
             error("TS test  | STATS COUNT(*)", tsdb),
             equalTo("1:18: count_star [COUNT(*)] can't be used with TS command; use count on a field instead")
@@ -3322,40 +3294,45 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testChunkFunctionInvalidInputs() {
-        if (EsqlCapabilities.Cap.CHUNK_FUNCTION.isEnabled()) {
-            assertThat(
-                error(
-                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": null, \"chunk_size\": 20})",
-                    fullTextAnalyzer,
-                    ParsingException.class
-                ),
-                equalTo("1:39: Invalid named parameter [\"num_chunks\":null], NULL is not supported")
-            );
-            assertThat(
-                error(
-                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": 3, \"chunk_size\": null})",
-                    fullTextAnalyzer,
-                    ParsingException.class
-                ),
-                equalTo("1:39: Invalid named parameter [\"chunk_size\":null], NULL is not supported")
-            );
-            assertThat(
-                error("from test | EVAL chunks = CHUNK(body, {\"num_chunks\":\"foo\"})", fullTextAnalyzer),
-                equalTo("1:27: Invalid option [num_chunks] in [CHUNK(body, {\"num_chunks\":\"foo\"})], cannot cast [foo] to [integer]")
-            );
-            assertThat(
-                error("from test | EVAL chunks = CHUNK(body, {\"chunk_size\":\"foo\"})", fullTextAnalyzer),
-                equalTo("1:27: Invalid option [chunk_size] in [CHUNK(body, {\"chunk_size\":\"foo\"})], cannot cast [foo] to [integer]")
-            );
-            assertThat(
-                error("from test | EVAL chunks = CHUNK(body, {\"num_chunks\":-1})", fullTextAnalyzer),
-                equalTo("1:27: [num_chunks] cannot be negative, found [-1]")
-            );
-            assertThat(
-                error("from test | EVAL chunks = CHUNK(body, {\"chunk_size\":-1})", fullTextAnalyzer),
-                equalTo("1:27: [chunk_size] cannot be negative, found [-1]")
-            );
-        }
+        assertThat(
+            error("from test | EVAL chunks = CHUNK(body, null)", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:27: invalid chunking_settings, found [null]")
+        );
+        assertThat(
+            error("from test | EVAL chunks = CHUNK(body, {\"strategy\": \"invalid\"})", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:27: Invalid chunkingStrategy invalid")
+        );
+        assertThat(
+            error(
+                "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 5, \"sentence_overlap\": 1})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo(
+                "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
+                    + "[max_chunk_size] must be a greater than or equal to [20.0];"
+            )
+        );
+        assertThat(
+            error(
+                "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 5, \"sentence_overlap\": 5})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo(
+                "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
+                    + "[max_chunk_size] must be a greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
+            )
+        );
+        assertThat(
+            error(
+                "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 20, "
+                    + "\"sentence_overlap\": 1, \"extra_value\": \"foo\"})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:27: Validation Failed: 1: Sentence based chunking settings can not have the following settings: [extra_value];")
+        );
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

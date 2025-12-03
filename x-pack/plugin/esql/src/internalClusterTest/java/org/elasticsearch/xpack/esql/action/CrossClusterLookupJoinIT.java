@@ -571,7 +571,7 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         createIndexWithDocument(REMOTE_CLUSTER_1, "data", defaultSettings, Map.of("key", 2, "f2", 2));
         createIndexWithDocument(REMOTE_CLUSTER_2, "data", defaultSettings, Map.of("key", 3, "f3", 3));
 
-        try (var r = runQuery(syncEsqlQueryRequest().query("FROM data,*:data | WHERE f1 == 1").filter(new TermQueryBuilder("f2", 2)))) {
+        try (var r = runQuery(syncEsqlQueryRequest("FROM data,*:data | WHERE f1 == 1").filter(new TermQueryBuilder("f2", 2)))) {
             assertThat(getValuesList(r), hasSize(0));
         }
     }
@@ -599,8 +599,7 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             VerificationException.class,
             containsString("lookup index [lookup] is not available in remote cluster [remote-b]"),
             () -> runQuery(
-                syncEsqlQueryRequest().query("FROM data,*:data | LOOKUP JOIN lookup ON key | WHERE f1 == 1")
-                    .filter(new TermQueryBuilder("f2", 2))
+                syncEsqlQueryRequest("FROM data,*:data | LOOKUP JOIN lookup ON key | WHERE f1 == 1").filter(new TermQueryBuilder("f2", 2))
             )
         );
     }

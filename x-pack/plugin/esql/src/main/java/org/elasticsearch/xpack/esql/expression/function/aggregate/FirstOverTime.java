@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstDoubleByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstExponentialHistogramByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstFloatByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstIntByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstLongByTimestampAggregatorFunctionSupplier;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -50,7 +52,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
     // TODO: support all types
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        returnType = { "long", "integer", "double" },
+        returnType = { "long", "integer", "double", "exponential_histogram" },
         description = "Calculates the earliest value of a field, where recency determined by the `@timestamp` field.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         preview = true,
@@ -60,11 +62,17 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
         Source source,
         @Param(
             name = "field",
-            type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double" }
+            type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double", "exponential_histogram" }
         ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the first over time value",
+            optional = true
+        ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
     }
 
     public FirstOverTime(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
@@ -111,7 +119,9 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> (dt.noCounter().isNumeric() && dt != DataType.UNSIGNED_LONG) || dt == DataType.AGGREGATE_METRIC_DOUBLE,
+            dt -> (dt.noCounter().isNumeric() && dt != DataType.UNSIGNED_LONG)
+                || dt == DataType.AGGREGATE_METRIC_DOUBLE
+                || dt == DataType.EXPONENTIAL_HISTOGRAM,
             sourceText(),
             DEFAULT,
             "numeric except unsigned_long"
@@ -130,6 +140,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
             case INTEGER, COUNTER_INTEGER -> new FirstIntByTimestampAggregatorFunctionSupplier();
             case DOUBLE, COUNTER_DOUBLE -> new FirstDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new FirstFloatByTimestampAggregatorFunctionSupplier();
+            case EXPONENTIAL_HISTOGRAM -> new FirstExponentialHistogramByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

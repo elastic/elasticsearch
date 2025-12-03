@@ -36,6 +36,7 @@ public class InternalPreconfiguredEndpoints {
     // gp-llm-v2
     public static final String GP_LLM_V2_MODEL_ID = "gp-llm-v2";
     public static final String GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID = ".gp-llm-v2-chat_completion";
+    public static final String GP_LLM_V2_COMPLETION_ENDPOINT_ID = ".gp-llm-v2-completion";
 
     // elser-2
     public static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";
@@ -46,9 +47,9 @@ public class InternalPreconfiguredEndpoints {
     public static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "jina-embeddings-v3";
     public static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = ".jina-embeddings-v3";
 
-    // rerank-v1
-    public static final String DEFAULT_RERANK_MODEL_ID_V1 = "elastic-rerank-v1";
-    public static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = ".elastic-rerank-v1";
+    // jina-reranker-v2
+    public static final String DEFAULT_RERANK_MODEL_ID = "jina-reranker-v2";
+    public static final String DEFAULT_RERANK_ENDPOINT_ID = ".jina-reranker-v2";
 
     public record MinimalModel(
         ModelConfigurations configurations,
@@ -69,7 +70,7 @@ public class InternalPreconfiguredEndpoints {
             null
         );
     private static final ElasticInferenceServiceRerankServiceSettings RERANK_SERVICE_SETTINGS =
-        new ElasticInferenceServiceRerankServiceSettings(DEFAULT_RERANK_MODEL_ID_V1);
+        new ElasticInferenceServiceRerankServiceSettings(DEFAULT_RERANK_MODEL_ID);
 
     // A single model name can map to multiple inference endpoints, so we need a String to a List
     private static final Map<String, List<MinimalModel>> MODEL_NAME_TO_MINIMAL_MODELS = Map.of(
@@ -80,8 +81,7 @@ public class InternalPreconfiguredEndpoints {
                     DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
                     TaskType.CHAT_COMPLETION,
                     ElasticInferenceService.NAME,
-                    COMPLETION_SERVICE_SETTINGS,
-                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                    COMPLETION_SERVICE_SETTINGS
                 ),
                 COMPLETION_SERVICE_SETTINGS
             )
@@ -93,8 +93,16 @@ public class InternalPreconfiguredEndpoints {
                     GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID,
                     TaskType.CHAT_COMPLETION,
                     ElasticInferenceService.NAME,
-                    GP_LLM_V2_COMPLETION_SERVICE_SETTINGS,
-                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                    GP_LLM_V2_COMPLETION_SERVICE_SETTINGS
+                ),
+                GP_LLM_V2_COMPLETION_SERVICE_SETTINGS
+            ),
+            new MinimalModel(
+                new ModelConfigurations(
+                    GP_LLM_V2_COMPLETION_ENDPOINT_ID,
+                    TaskType.COMPLETION,
+                    ElasticInferenceService.NAME,
+                    GP_LLM_V2_COMPLETION_SERVICE_SETTINGS
                 ),
                 GP_LLM_V2_COMPLETION_SERVICE_SETTINGS
             )
@@ -125,11 +133,11 @@ public class InternalPreconfiguredEndpoints {
                 DENSE_TEXT_EMBEDDINGS_SERVICE_SETTINGS
             )
         ),
-        DEFAULT_RERANK_MODEL_ID_V1,
+        DEFAULT_RERANK_MODEL_ID,
         List.of(
             new MinimalModel(
                 new ModelConfigurations(
-                    DEFAULT_RERANK_ENDPOINT_ID_V1,
+                    DEFAULT_RERANK_ENDPOINT_ID,
                     TaskType.RERANK,
                     ElasticInferenceService.NAME,
                     RERANK_SERVICE_SETTINGS,

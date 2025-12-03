@@ -101,6 +101,8 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_UNTHROTTLE_REPLICA_ASSIGNMENT_IN_SIMULATION;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -1437,7 +1439,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         // Some runs of this test try to simulate a long desired balance computation. Setting a high value on the following setting
         // prevents interrupting a long computation.
         var clusterSettings = createBuiltInClusterSettings(
-            Settings.builder().put(DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING.getKey(), "2m").build()
+            Settings.builder().put(MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING.getKey(), "2m").build()
         );
         var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, timeProvider, new ShardsAllocator() {
             @Override
@@ -1907,6 +1909,85 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedShard, null);
             verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedRelocatingShard, relocationTuple.v1().currentNodeId());
             verifyNoMoreInteractions(clusterInfoSimulator);
+        }
+    }
+
+    /**
+     * Checks that the {@link DesiredBalanceComputer#compute} method returns early (gives a reason of
+     * {@link DesiredBalance.ComputationFinishReason#STOP_EARLY}) and DESPITE throttling settings has assigned all the replica shard copies
+     * (in addition to the primary shard copies) in a single internal round of calling the {@link BalancedShardsAllocator#allocate}.
+     *
+     * This test ensures that all unassigned shards become assigned ASAP, and then the desired balance will be early published so that shard
+     * assignments can get started ASAP as well.
+     */
+    public void testThatASingleComputationIterationAssignedAllUnassignedPrimaryAndReplicaShards() {
+        Settings settings = Settings.builder()
+            // Allow computation to return immediately, no minimum time interval.
+            .put(MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING.getKey(), 0)
+            // Turn on unthrottled replica assignment.
+            .put(CLUSTER_ROUTING_ALLOCATION_UNTHROTTLE_REPLICA_ASSIGNMENT_IN_SIMULATION.getKey(), true)
+            .build();
+
+        var desiredBalanceComputer = new DesiredBalanceComputer(
+            createBuiltInClusterSettings(settings),
+            TimeProviderUtils.create(() -> 0L),
+            new BalancedShardsAllocator(),
+            TEST_ONLY_EXPLAINER
+        );
+
+        var clusterState = createInitialClusterState(4, 4, 3);
+
+        final var routingAllocation = new RoutingAllocation(
+            // Create all the deciders.
+            randomAllocationDeciders(settings, createBuiltInClusterSettings(settings)),
+            clusterState.mutableRoutingNodes(),
+            clusterState,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            0L,
+            // Turn on simulation mode, like the DesiredBalance computation uses. Replica assignment is
+            // only unthrottled in planning / desired balance computation, not reconciliation.
+            true
+        );
+
+        try (MockLog mockLog = MockLog.capture(DesiredBalanceComputer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "a single BalancedShardsAllocator#allocate round and then early return for unassigned shard allocation",
+                    DesiredBalanceComputer.class.getCanonicalName(),
+                    Level.INFO,
+                    "*[1] iterations in order to not delay assignment of newly created index shards*"
+                )
+            );
+
+            // Run the DesiredBalance computation.
+            var desiredBalance = desiredBalanceComputer.compute(
+                DesiredBalance.BECOME_MASTER_INITIAL,
+                DesiredBalanceInput.create(randomNonNegativeLong(), routingAllocation),
+                queue(),
+                input -> true
+            );
+
+            // Verify computation logged that only a single round occurred before early return.
+            mockLog.assertAllExpectationsMatched();
+
+            var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
+
+            // Check for early return, and all shards, primary and replica, are assigned.
+            assertThat(desiredBalance.finishReason(), equalTo(DesiredBalance.ComputationFinishReason.STOP_EARLY));
+            assertDesiredAssignments(
+                desiredBalance,
+                Map.of(
+                    new ShardId(index, 0),
+                    new ShardAssignment(Set.of("node-0", "node-1", "node-2", "node-3"), 4, 0, 0),
+                    new ShardId(index, 1),
+                    new ShardAssignment(Set.of("node-0", "node-1", "node-2", "node-3"), 4, 0, 0),
+                    new ShardId(index, 2),
+                    new ShardAssignment(Set.of("node-0", "node-1", "node-2", "node-3"), 4, 0, 0),
+                    new ShardId(index, 3),
+                    new ShardAssignment(Set.of("node-0", "node-1", "node-2", "node-3"), 4, 0, 0)
+                )
+            );
         }
     }
 

@@ -1299,7 +1299,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     ShardRouting shard = primary[i];
                     final ProjectIndex index = projectIndex(shard);
                     final AllocateUnassignedDecision allocationDecision = decideAllocateUnassigned(index, shard);
-
                     assert allocationDecision.isDecisionTaken() : "decision not taken for unassigned shard [" + shard + "]";
 
                     // If we see a THROTTLE decision, it's either:
@@ -1380,7 +1379,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
-         * Make a decision for allocating an unassigned shard. This method returns a two values in a tuple: the
+         * Make a decision for allocating an unassigned shard. This method returns two values in a tuple: the
          * first value is the {@link Decision} taken to allocate the unassigned shard, the second value is the
          * {@link ModelNode} representing the node that the shard should be assigned to. If the decision returned
          * is of type {@link Type#NO}, then the assigned node will be null.
@@ -1410,7 +1409,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             List<Tuple<String, Float>> nodeWeights = explain ? new ArrayList<>() : null;
             for (ModelNode node : nodes.values()) {
                 if (node.containsShard(index, shard) && explain == false) {
-                    // decision is NO without needing to check anything further, so short circuit
+                    // The node already has copy of this shard, so the decision is NO without needing to check anything further.
                     continue;
                 }
 
@@ -1504,10 +1503,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // Decision types are the same, take the lower weight
                 return newWeight < existingWeight;
             } else {
-                // Decision types are different, take the lower weight unless it's NOT_PREFERRED
-                float adjustedNewWeight = newDecision.type() == Type.NOT_PREFERRED ? Float.POSITIVE_INFINITY : newWeight;
-                float adjustedExistingWeight = existingDecision.type() == Type.NOT_PREFERRED ? Float.POSITIVE_INFINITY : existingWeight;
-                return adjustedNewWeight < adjustedExistingWeight;
+                if (newDecision.type() == Type.NOT_PREFERRED) {
+                    assert existingDecision.type() != Type.NOT_PREFERRED;
+                    // The new decision is not-preferred and there's already a THROTTLE or YES option.
+                    return false;
+                }
+                return newWeight < existingWeight;
             }
         }
 

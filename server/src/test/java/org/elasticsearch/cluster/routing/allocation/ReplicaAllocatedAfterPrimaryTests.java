@@ -19,17 +19,38 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+
+import java.util.Arrays;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
+
+    public void testSimulationDisables() {
+        var decider = new ReplicaAfterPrimaryActiveAllocationDecider();
+        RoutingAllocation allocation = new RoutingAllocation(
+            new AllocationDeciders(Arrays.asList(decider)),
+            null,
+            ClusterState.EMPTY_STATE,
+            null,
+            null,
+            0,
+            true
+        );
+        allocation.debugDecision(true);
+        var decision = decider.canAllocate(null, allocation);
+        assertEquals(decision.type(), Decision.Type.YES);
+        assertEquals(decision.getExplanation(), "decider inactive for planning simulation");
+    }
 
     public void testBackupIsAllocatedAfterPrimary() {
         AllocationService strategy = createAllocationService(
@@ -46,8 +67,6 @@ public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
             .addAsNew(metadata.getProject().index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
-
         assertThat(routingTable.index("test").size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).shard(0).state(), equalTo(UNASSIGNED));
@@ -56,7 +75,9 @@ public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
         assertThat(routingTable.index("test").shard(0).shard(1).currentNodeId(), nullValue());
 
         logger.info("Adding one node and performing rerouting");
-        clusterState = ClusterState.builder(clusterState)
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
 
@@ -65,7 +86,7 @@ public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         final String nodeHoldingPrimary = routingTable.index("test").shard(0).primaryShard().currentNodeId();
 
-        assertThat(prevRoutingTable != routingTable, equalTo(true));
+        assertNotEquals(prevRoutingTable, routingTable);
         assertThat(routingTable.index("test").size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(INITIALIZING));
@@ -79,8 +100,8 @@ public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
         prevRoutingTable = routingTable;
         routingTable = startInitializingShardsAndReroute(strategy, clusterState, routingNodes.node(nodeHoldingPrimary)).routingTable();
         final String nodeHoldingReplica = routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId();
-        assertThat(nodeHoldingPrimary, not(equalTo(nodeHoldingReplica)));
-        assertThat(prevRoutingTable != routingTable, equalTo(true));
+        assertNotEquals(nodeHoldingPrimary, nodeHoldingReplica);
+        assertNotEquals(prevRoutingTable, routingTable);
         assertThat(routingTable.index("test").size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(STARTED));

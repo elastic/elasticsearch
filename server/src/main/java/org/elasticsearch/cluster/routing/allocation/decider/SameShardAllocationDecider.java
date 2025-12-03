@@ -76,12 +76,20 @@ public class SameShardAllocationDecider extends AllocationDecider {
         Iterable<ShardRouting> assignedShards = allocation.routingNodes().assignedShards(shardRouting.shardId());
         Decision decision = decideSameNode(shardRouting, node, allocation, assignedShards);
         if (decision.type() == Decision.Type.NO || sameHost == false) {
-            // if its already a NO decision looking at the node, or we aren't configured to look at the host, return the decision
+            // In case the sameHost check is disabled, so there will _not_ be a check that multiple copies are not assigned to the same IP
+            // address. If sameHost is enabled, but there's already a shard copy assigned to the node (a NO decision), then there's no need
+            // to further run an IP address check.
             return decision;
         }
+
+        // There is no limit to the number of shard copies with auto-expand enabled, so in that case it is not necessary to smartly
+        // distribute a limited number of copies and the check to prevent sameHost (same IP address) will be skipped.
         if (allocation.metadata().indexMetadata(shardRouting.index()).getAutoExpandReplicas().expandToAllNodes()) {
             return YES_AUTO_EXPAND_ALL;
         }
+
+        // sameHost is set to true, and the given node does not already own a shard copy, so we will further check that a shard is not
+        // assigned to a node with the same IP address.
         if (node.node() != null) {
             assert Strings.hasLength(node.node().getHostAddress()) : node;
             for (ShardRouting assignedShard : assignedShards) {

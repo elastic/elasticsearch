@@ -701,7 +701,8 @@ public class CsvTests extends ESTestCase {
         var logicalPlanOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx, minimumVersion));
         session.preOptimizedPlan(analyzed, logicalPlanPreOptimizer, listener.delegateFailureAndWrap((l, preOptimized) -> {
             session.executeOptimizedPlan(
-                new EsqlQueryRequest().approximate(testCase.approximate),
+                new EsqlQueryRequest(),
+                statement,
                 new EsqlExecutionInfo(randomBoolean()),
                 planRunner(bigArrays, physicalOperationProviders),
                 session.optimizedPlan(preOptimized, logicalPlanOptimizer),

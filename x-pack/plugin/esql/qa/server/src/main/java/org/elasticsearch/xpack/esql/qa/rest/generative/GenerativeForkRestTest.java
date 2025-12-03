@@ -60,7 +60,10 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
             testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())
         );
 
-        assumeFalse("Tests using PROMQL are not supported for now", testCase.requiredCapabilities.contains(PROMQL_V0.capabilityName()));
+        assumeFalse(
+            "Tests using PROMQL are not supported for now",
+            testCase.requiredCapabilities.contains(PROMQL_PRE_TECH_PREVIEW_V3.capabilityName())
+        );
 
         assumeFalse(
             "Tests using GROUP_BY_ALL are skipped since we add a new _timeseries field",

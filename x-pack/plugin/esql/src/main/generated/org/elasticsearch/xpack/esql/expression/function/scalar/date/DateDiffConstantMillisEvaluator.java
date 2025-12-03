@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.time.ZoneId;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
@@ -35,17 +36,20 @@ public final class DateDiffConstantMillisEvaluator implements EvalOperator.Expre
 
   private final EvalOperator.ExpressionEvaluator endTimestamp;
 
+  private final ZoneId zoneId;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public DateDiffConstantMillisEvaluator(Source source, DateDiff.Part datePartFieldUnit,
       EvalOperator.ExpressionEvaluator startTimestamp,
-      EvalOperator.ExpressionEvaluator endTimestamp, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator endTimestamp, ZoneId zoneId, DriverContext driverContext) {
     this.source = source;
     this.datePartFieldUnit = datePartFieldUnit;
     this.startTimestamp = startTimestamp;
     this.endTimestamp = endTimestamp;
+    this.zoneId = zoneId;
     this.driverContext = driverContext;
   }
 
@@ -103,7 +107,7 @@ public final class DateDiffConstantMillisEvaluator implements EvalOperator.Expre
         long startTimestamp = startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p));
         long endTimestamp = endTimestampBlock.getLong(endTimestampBlock.getFirstValueIndex(p));
         try {
-          result.appendInt(DateDiff.processMillis(this.datePartFieldUnit, startTimestamp, endTimestamp));
+          result.appendInt(DateDiff.processMillis(this.datePartFieldUnit, startTimestamp, endTimestamp, this.zoneId));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -120,7 +124,7 @@ public final class DateDiffConstantMillisEvaluator implements EvalOperator.Expre
         long startTimestamp = startTimestampVector.getLong(p);
         long endTimestamp = endTimestampVector.getLong(p);
         try {
-          result.appendInt(DateDiff.processMillis(this.datePartFieldUnit, startTimestamp, endTimestamp));
+          result.appendInt(DateDiff.processMillis(this.datePartFieldUnit, startTimestamp, endTimestamp, this.zoneId));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -132,7 +136,7 @@ public final class DateDiffConstantMillisEvaluator implements EvalOperator.Expre
 
   @Override
   public String toString() {
-    return "DateDiffConstantMillisEvaluator[" + "datePartFieldUnit=" + datePartFieldUnit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + "]";
+    return "DateDiffConstantMillisEvaluator[" + "datePartFieldUnit=" + datePartFieldUnit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + ", zoneId=" + zoneId + "]";
   }
 
   @Override
@@ -161,23 +165,26 @@ public final class DateDiffConstantMillisEvaluator implements EvalOperator.Expre
 
     private final EvalOperator.ExpressionEvaluator.Factory endTimestamp;
 
+    private final ZoneId zoneId;
+
     public Factory(Source source, DateDiff.Part datePartFieldUnit,
         EvalOperator.ExpressionEvaluator.Factory startTimestamp,
-        EvalOperator.ExpressionEvaluator.Factory endTimestamp) {
+        EvalOperator.ExpressionEvaluator.Factory endTimestamp, ZoneId zoneId) {
       this.source = source;
       this.datePartFieldUnit = datePartFieldUnit;
       this.startTimestamp = startTimestamp;
       this.endTimestamp = endTimestamp;
+      this.zoneId = zoneId;
     }
 
     @Override
     public DateDiffConstantMillisEvaluator get(DriverContext context) {
-      return new DateDiffConstantMillisEvaluator(source, datePartFieldUnit, startTimestamp.get(context), endTimestamp.get(context), context);
+      return new DateDiffConstantMillisEvaluator(source, datePartFieldUnit, startTimestamp.get(context), endTimestamp.get(context), zoneId, context);
     }
 
     @Override
     public String toString() {
-      return "DateDiffConstantMillisEvaluator[" + "datePartFieldUnit=" + datePartFieldUnit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + "]";
+      return "DateDiffConstantMillisEvaluator[" + "datePartFieldUnit=" + datePartFieldUnit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + ", zoneId=" + zoneId + "]";
     }
   }
 }

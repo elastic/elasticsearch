@@ -35,9 +35,20 @@ import static org.hamcrest.Matchers.containsString;
 @LuceneTestCase.SuppressCodecs("*") // use our custom codec
 public class GPUIndexIT extends ESIntegTestCase {
 
+    public static class TestGPUPlugin extends GPUPlugin {
+        public TestGPUPlugin() {
+            super(Settings.builder().put("vectors.indexing.use_gpu", GpuMode.TRUE.name()).build());
+        }
+
+        @Override
+        protected boolean isGpuIndexingFeatureAllowed() {
+            return true;
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(GPUPlugin.class);
+        return List.of(TestGPUPlugin.class);
     }
 
     @BeforeClass
@@ -182,30 +193,12 @@ public class GPUIndexIT extends ESIntegTestCase {
         }
     }
 
-    public void testSearchWithoutGPU() {
-        String indexName = "index1";
-        final int dims = randomIntBetween(4, 128);
-        final int numDocs = randomIntBetween(1, 500);
-        createIndex(indexName, dims, false);
-        ensureGreen();
-
-        indexDocs(indexName, numDocs, dims, 0);
-        refresh();
-
-        // update settings to disable GPU usage
-        Settings.Builder settingsBuilder = Settings.builder().put("index.vectors.indexing.use_gpu", false);
-        assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(settingsBuilder.build()));
-        ensureGreen();
-        assertSearch(indexName, randomFloatVector(dims), numDocs);
-    }
-
     public void testInt8HnswMaxInnerProductProductFails() {
         String indexName = "index_int8_max_inner_product_fails";
         final int dims = randomIntBetween(4, 128);
 
         Settings.Builder settingsBuilder = Settings.builder().put(indexSettings());
         settingsBuilder.put("index.number_of_shards", 1);
-        settingsBuilder.put("index.vectors.indexing.use_gpu", true);
 
         String mapping = String.format(Locale.ROOT, """
             {
@@ -240,7 +233,6 @@ public class GPUIndexIT extends ESIntegTestCase {
     private void createIndex(String indexName, int dims, boolean sorted) {
         var settings = Settings.builder().put(indexSettings());
         settings.put("index.number_of_shards", 1);
-        settings.put("index.vectors.indexing.use_gpu", true);
         if (sorted) {
             settings.put("index.sort.field", "my_keyword");
         }

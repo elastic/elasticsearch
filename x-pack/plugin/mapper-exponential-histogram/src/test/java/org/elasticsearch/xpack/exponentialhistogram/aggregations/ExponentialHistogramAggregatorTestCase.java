@@ -21,7 +21,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -52,7 +51,7 @@ public abstract class ExponentialHistogramAggregatorTestCase extends AggregatorT
     ) {
         try {
             if (histogram == null) {
-                iw.addDocument(Collections.emptyList());
+                iw.addDocument(List.of(additionalFields));
             } else {
                 ExponentialHistogramFieldMapper.HistogramDocValueFields docValues = ExponentialHistogramFieldMapper.buildDocValueFields(
                     fieldName,

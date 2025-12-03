@@ -7,15 +7,24 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -859,6 +868,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     }
 
     public void testSubqueryWithCountStarAndDateTrunc() {
+        assumeTrue("requires subqueries in from", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String query = """
             from test, (from test | stats cnt = count(*) by x = date_trunc(1 day, date))
             | keep x, cnt, date
@@ -900,6 +910,51 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         assertThat(statsQueryExec.stat(), is(instanceOf(EsStatsQueryExec.ByStat.class)));
         EsStatsQueryExec.ByStat byStat = (EsStatsQueryExec.ByStat) statsQueryExec.stat();
         assertThat(byStat.queryBuilderAndTags(), is(not(empty())));
+    }
+
+    public void testRoundToWithTimeSeriesIndices() {
+        Map<String, Object> minValue = Map.of(
+            "@timestamp",
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-10-20T12:15:03.360Z")
+        );
+        Map<String, Object> maxValue = Map.of(
+            "@timestamp",
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-10-20T14:55:01.543Z")
+        );
+        SearchStats searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(minValue, maxValue) {
+            @Override
+            public Map<ShardId, IndexMetadata> targetShards() {
+                var indexMetadata = IndexMetadata.builder("test_index")
+                    .settings(
+                        ESTestCase.indexSettings(IndexVersion.current(), 1, 1)
+                            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+                    )
+                    .build();
+                return Map.of(new ShardId(new Index("id", "n/a"), 1), indexMetadata);
+            }
+        };
+        // enable filter-by-filter for rate aggregations
+        {
+            String q = """
+                TS k8s
+                | STATS max(rate(network.total_bytes_in)) BY cluster, BUCKET(@timestamp, 1 hour)
+                | LIMIT 10
+                """;
+            PhysicalPlan plan = plannerOptimizerTimeSeries.plan(q, searchStats, timeSeriesAnalyzer);
+            int queryAndTags = plainQueryAndTags(plan);
+            assertThat(queryAndTags, equalTo(4));
+        }
+        // disable filter-by-filter for non-rate aggregations
+        {
+            String q = """
+                TS k8s
+                | STATS max(avg_over_time(network.bytes_in)) BY cluster, BUCKET(@timestamp, 1 hour)
+                | LIMIT 10
+                """;
+            PhysicalPlan plan = plannerOptimizerTimeSeries.plan(q, searchStats, timeSeriesAnalyzer);
+            int queryAndTags = plainQueryAndTags(plan);
+            assertThat(queryAndTags, equalTo(1));
+        }
     }
 
     private static SearchStats searchStats() {

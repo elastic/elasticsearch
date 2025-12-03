@@ -7,6 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+ // This file contains implementations for processors supporting "2nd level" vector
+ // capabilities; in the case of x64, this second level is support for AVX-512
+ // instructions.
+
 #include <stddef.h>
 #include <stdint.h>
 #include <math.h>
@@ -100,8 +104,7 @@ static inline int32_t dot7u_inner_avx512(int8_t* a, const int8_t* b, const int32
     return _mm512_reduce_add_epi32(_mm512_add_epi32(acc0, acc4));
 }
 
-extern "C"
-EXPORT int32_t dot7u_2(int8_t* a, int8_t* b, const int32_t dims) {
+EXPORT int32_t vec_dot7u_2(int8_t* a, int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > STRIDE_BYTES_LEN) {
@@ -114,8 +117,7 @@ EXPORT int32_t dot7u_2(int8_t* a, int8_t* b, const int32_t dims) {
     return res;
 }
 
-extern "C"
-EXPORT void dot7u_bulk_2(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, float_t* results) {
+EXPORT void vec_dot7u_bulk_2(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     int32_t res = 0;
     if (dims > STRIDE_BYTES_LEN) {
         const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
@@ -125,7 +127,7 @@ EXPORT void dot7u_bulk_2(int8_t* a, const int8_t* b, const int32_t dims, const i
             for (; i < dims; i++) {
                 res += a[i] * b[i];
             }
-            results[c] = (float_t)res;
+            results[c] = (f32_t)res;
             a += dims;
         }
     } else {
@@ -134,7 +136,7 @@ EXPORT void dot7u_bulk_2(int8_t* a, const int8_t* b, const int32_t dims, const i
             for (int32_t i = 0; i < dims; i++) {
                 res += a[i] * b[i];
             }
-            results[c] = (float_t)res;
+            results[c] = (f32_t)res;
             a += dims;
         }
     }
@@ -207,8 +209,7 @@ static inline int32_t sqr7u_inner_avx512(int8_t *a, int8_t *b, const int32_t dim
     return _mm512_reduce_add_epi32(_mm512_add_epi32(acc0, acc4));
 }
 
-extern "C"
-EXPORT int32_t sqr7u_2(int8_t* a, int8_t* b, const int32_t dims) {
+EXPORT int32_t vec_sqr7u_2(int8_t* a, int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > STRIDE_BYTES_LEN) {
@@ -227,8 +228,7 @@ EXPORT int32_t sqr7u_2(int8_t* a, int8_t* b, const int32_t dims) {
 // const f32_t *a  pointer to the first float vector
 // const f32_t *b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
-extern "C"
-EXPORT f32_t cosf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount) {
+EXPORT f32_t vec_cosf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     __m512 dot0 = _mm512_setzero_ps();
     __m512 dot1 = _mm512_setzero_ps();
     __m512 dot2 = _mm512_setzero_ps();
@@ -302,8 +302,7 @@ EXPORT f32_t cosf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount
 // const f32_t *a  pointer to the first float vector
 // const f32_t *b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
-extern "C"
-EXPORT f32_t dotf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount) {
+EXPORT f32_t vec_dotf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     __m512 sum0 = _mm512_setzero_ps();
     __m512 sum1 = _mm512_setzero_ps();
     __m512 sum2 = _mm512_setzero_ps();
@@ -333,8 +332,7 @@ EXPORT f32_t dotf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount
 // const f32_t *a  pointer to the first float vector
 // const f32_t *b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
-extern "C"
-EXPORT f32_t sqrf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount) {
+EXPORT f32_t vec_sqrf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount) {
     __m512 sum0 = _mm512_setzero_ps();
     __m512 sum1 = _mm512_setzero_ps();
     __m512 sum2 = _mm512_setzero_ps();

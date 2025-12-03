@@ -176,6 +176,23 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return l.isEmpty() ? emptyList() : l;
     }
 
+    public <E extends T> List<E> collect(Class<E> typeToken) {
+        return collect(typeToken, n -> true);
+    }
+
+    public <E extends T> List<E> collect(Class<E> typeToken, Predicate<? super E> predicate) {
+        List<E> l = new ArrayList<>();
+        forEachDown(n -> {
+            if (typeToken.isInstance(n)) {
+                E e = typeToken.cast(n);
+                if (predicate.test(e)) {
+                    l.add(e);
+                }
+            }
+        });
+        return l.isEmpty() ? emptyList() : l;
+    }
+
     public List<T> collectLeaves() {
         return collect(n -> n.children().isEmpty());
     }

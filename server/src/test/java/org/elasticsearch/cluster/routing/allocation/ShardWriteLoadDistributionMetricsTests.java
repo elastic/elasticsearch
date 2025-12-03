@@ -14,13 +14,18 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -39,10 +44,13 @@ import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -76,7 +84,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
             testInfrastructure.maxP100
         );
         assertEquals(8, writeLoadDistributionMeasurements.size());
-        for (String nodeId : List.of("node_0", "node_1")) {
+        for (String nodeId : List.of("index_0", "index_1")) {
             assertThat(measurementForPercentile(writeLoadDistributionMeasurements, nodeId, 0.0), greaterThanOrEqualTo(0.0));
             assertRoughlyInRange(
                 testInfrastructure.numberOfSignificantDigits,
@@ -156,9 +164,9 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         final var testInfrastructure = createTestInfrastructure();
 
         final var originalClusterState = testInfrastructure.clusterService.state();
-        final var additionalNodeId = "node_2";
+        final var additionalNodeId = "index_2";
         final var nodesWithNodeAdded = DiscoveryNodes.builder(originalClusterState.nodes())
-            .add(DiscoveryNodeUtils.create(additionalNodeId))
+            .add(DiscoveryNodeUtils.builder(additionalNodeId).roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build())
             .build();
         final var clusterStateWithNodeAdded = ClusterState.builder(originalClusterState).nodes(nodesWithNodeAdded).build();
         when(testInfrastructure.clusterService.state()).thenReturn(clusterStateWithNodeAdded);
@@ -187,15 +195,49 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         assertThat(measurementForNode(shardWriteLoadSumMeasurements, additionalNodeId).getDouble(), Matchers.is(0.0));
     }
 
+    public void testMetricsAreNotReportedForNonIndexNodes() {
+        final var testInfrastructure = createTestInfrastructure();
+        testInfrastructure.shardWriteLoadDistributionMetrics.onNewInfo(testInfrastructure.clusterInfo);
+        testInfrastructure.meterRegistry.getRecorder().collect();
+
+        final var writeLoadDistributionMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_DISTRIBUTION_METRIC_NAME);
+        final var writeLoadPrioritisationThresholdMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(
+                InstrumentType.DOUBLE_GAUGE,
+                ShardWriteLoadDistributionMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME
+            );
+        final var countAboveThresholdMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(
+                InstrumentType.LONG_GAUGE,
+                ShardWriteLoadDistributionMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME
+            );
+        final var shardWriteLoadSumMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_SUM_METRIC_NAME);
+
+        final var nonIndexNodes = testInfrastructure.clusterService.state()
+            .nodes()
+            .stream()
+            .filter(node -> node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false)
+            .toList();
+        assertThat(nonIndexNodes, not(empty()));
+        for (DiscoveryNode node : nonIndexNodes) {
+            assertNoMetricsPublished(writeLoadDistributionMeasurements, node.getId());
+            assertNoMetricsPublished(writeLoadPrioritisationThresholdMeasurements, node.getId());
+            assertNoMetricsPublished(countAboveThresholdMeasurements, node.getId());
+            assertNoMetricsPublished(shardWriteLoadSumMeasurements, node.getId());
+        }
+    }
+
     private static void assertNoMetricsPublished(List<Measurement> measurements, String nodeId) {
-        assertThat(measurements.stream().filter(m -> m.attributes().get("node_id").equals(nodeId)).toList(), Matchers.empty());
+        assertThat(measurements.stream().filter(m -> m.attributes().get("node_id").equals(nodeId)).toList(), empty());
     }
 
     private static void assertNoMetricsPublished(TestInfrastructure testInfrastructure) {
         assertThat(
             testInfrastructure.meterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_DISTRIBUTION_METRIC_NAME),
-            Matchers.empty()
+            empty()
         );
         assertThat(
             testInfrastructure.meterRegistry.getRecorder()
@@ -203,7 +245,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
                     InstrumentType.DOUBLE_GAUGE,
                     ShardWriteLoadDistributionMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME
                 ),
-            Matchers.empty()
+            empty()
         );
         assertThat(
             testInfrastructure.meterRegistry.getRecorder()
@@ -211,21 +253,24 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
                     InstrumentType.LONG_GAUGE,
                     ShardWriteLoadDistributionMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME
                 ),
-            Matchers.empty()
+            empty()
         );
     }
 
     public TestInfrastructure createTestInfrastructure() {
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(
-            ClusterSettings.createBuiltInClusterSettings(
-                Settings.builder().put(ShardWriteLoadDistributionMetrics.SHARD_WRITE_LOAD_METRICS_ENABLED_SETTING.getKey(), true).build()
-            )
-        );
+        final var settings = Settings.builder()
+            .put(ShardWriteLoadDistributionMetrics.SHARD_WRITE_LOAD_METRICS_ENABLED_SETTING.getKey(), true)
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .build();
+        when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings(settings));
+        when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         final var indexName = randomIdentifier();
-        final var clusterState = balanceShardsByCount(ClusterStateCreationUtils.state(indexName, 2, 200));
+        final var clusterState = balanceShardsByCount(
+            ClusterStateCreationUtils.buildServerlessRoleNodes(indexName, 200, 2, randomIntBetween(1, 2), randomIntBetween(1, 2))
+        );
         when(clusterService.state()).thenReturn(clusterState);
         final int numberOfSignificantDigits = randomIntBetween(2, 3);
         final ShardWriteLoadDistributionMetrics shardWriteLoadDistributionMetrics = new ShardWriteLoadDistributionMetrics(
@@ -266,14 +311,13 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
     ) {}
 
     private static ClusterState balanceShardsByCount(ClusterState state) {
-        final var routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            state.getRoutingNodes().mutableCopy(),
-            state,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        );
+        final var routingAllocation = new RoutingAllocation(new AllocationDeciders(List.<AllocationDecider>of(new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                // We are simulating stateless here, but we don't have the StatelessAllocationDecider in scope
+                return node.node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) ? Decision.YES : Decision.NO;
+            }
+        })), state.getRoutingNodes().mutableCopy(), state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, System.nanoTime());
         final var shardsAllocator = new BalancedShardsAllocator(
             Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), ClusterModule.BALANCED_ALLOCATOR).build()
         );
@@ -326,8 +370,8 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
     }
 
     private static Map<ShardId, Double> randomWriteLoads(ClusterState clusterState, double p50, double p90, double p100) {
-        final var node1Shards = shardsOnNode(clusterState, "node_0");
-        final var node2Shards = shardsOnNode(clusterState, "node_1");
+        final var node1Shards = shardsOnNode(clusterState, "index_0");
+        final var node2Shards = shardsOnNode(clusterState, "index_1");
         assertEquals(100, node1Shards.size());
         assertEquals(100, node2Shards.size());
 

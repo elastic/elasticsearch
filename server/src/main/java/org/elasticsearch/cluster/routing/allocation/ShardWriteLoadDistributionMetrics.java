@@ -15,6 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -122,7 +123,8 @@ public class ShardWriteLoadDistributionMetrics {
         final var shardWriteLoadSumValues = new ArrayList<DoubleWithAttributes>(ingestNodeCount);
         for (RoutingNode routingNode : clusterState.getRoutingNodes()) {
             final var node = routingNode.node();
-            if (node == null || node.isIngestNode() == false) {
+            // Only supports stateless at the moment
+            if (node == null || node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
                 continue;
             }
 

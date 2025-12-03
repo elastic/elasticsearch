@@ -3364,16 +3364,29 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(resolved, "older-date-2020-12");
     }
 
+    private IndexNameExpressionResolver.Context makeRandomContext(IndicesOptions options, boolean allowRemotes) {
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId()).build();
+        return new IndexNameExpressionResolver.Context(
+            project,
+            options,
+            System.currentTimeMillis(),
+            false,
+            false,
+            false,
+            false,
+            allowRemotes,
+            SystemIndexAccessLevel.NONE,
+            Predicates.always(),
+            Predicates.never()
+        );
+    }
+
     public void testRemoteIndex() {
         ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId()).build();
 
         {
             IndicesOptions options = IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                project,
-                options,
-                SystemIndexAccessLevel.NONE
-            );
+            IndexNameExpressionResolver.Context context = makeRandomContext(options, false);
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(context, "cluster:index", "local")
@@ -3391,11 +3404,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             IndicesOptions options = IndicesOptions.fromOptions(true, true, randomBoolean(), randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                project,
-                options,
-                SystemIndexAccessLevel.NONE
-            );
+            IndexNameExpressionResolver.Context context = makeRandomContext(options, true);
             String[] indexNames = indexNameExpressionResolver.concreteIndexNames(context, "cluster:index", "local");
             assertEquals(0, indexNames.length);
         }

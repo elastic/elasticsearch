@@ -86,7 +86,7 @@ public class ScriptCache {
         Map<String, String> options
     ) {
         String lang = scriptEngine.getType();
-        CacheKey cacheKey = new CacheKey(lang, projectId, idOrCode, context.name, options);
+        CacheKey cacheKey = new CacheKey(projectId, lang, idOrCode, context.name, options);
 
         // Relying on computeIfAbsent to avoid multiple threads from compiling the same script
         try {
@@ -205,15 +205,15 @@ public class ScriptCache {
     }
 
     private static final class CacheKey {
-        final String lang;
         final ProjectId projectId;
+        final String lang;
         final String idOrCode;
         final String context;
         final Map<String, String> options;
 
-        private CacheKey(String lang, ProjectId projectId, String idOrCode, String context, Map<String, String> options) {
-            this.lang = lang;
+        private CacheKey(ProjectId projectId, String lang, String idOrCode, String context, Map<String, String> options) {
             this.projectId = projectId;
+            this.lang = lang;
             this.idOrCode = idOrCode;
             this.context = context;
             this.options = options;
@@ -224,8 +224,8 @@ public class ScriptCache {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             CacheKey cacheKey = (CacheKey) o;
-            return Objects.equals(lang, cacheKey.lang)
-                && Objects.equals(projectId, cacheKey.projectId)
+            return Objects.equals(projectId, cacheKey.projectId)
+                && Objects.equals(lang, cacheKey.lang)
                 && Objects.equals(idOrCode, cacheKey.idOrCode)
                 && Objects.equals(context, cacheKey.context)
                 && Objects.equals(options, cacheKey.options);

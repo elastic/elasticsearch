@@ -1518,6 +1518,7 @@ public class EsqlCapabilities {
         PERCENTILE_OVER_TIME,
         VARIANCE_STDDEV_OVER_TIME,
         TS_LINREG_DERIVATIVE,
+        TS_RATE_DATENANOS,
         /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011
@@ -1665,7 +1666,7 @@ public class EsqlCapabilities {
         /**
          * Chunk function.
          */
-        CHUNK_FUNCTION_V2(Build.current().isSnapshot()),
+        CHUNK_FUNCTION_V2(),
 
         /**
          * Support for vector similarity functtions pushdown

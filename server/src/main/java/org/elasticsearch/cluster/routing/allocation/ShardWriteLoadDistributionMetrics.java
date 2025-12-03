@@ -199,15 +199,6 @@ public class ShardWriteLoadDistributionMetrics {
     }
 
     /**
-     * We only calculate metrics for indexing nodes.
-     * <p>
-     * Note this means it only works for stateless currently
-     */
-    private boolean isIndexingNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE);
-    }
-
-    /**
      * Get the metric name for the shard write load distribution metric for the
      * specified percentile.
      *
@@ -216,6 +207,15 @@ public class ShardWriteLoadDistributionMetrics {
      */
     public static String shardWriteLoadDistributionMetricName(int percentile) {
         return Strings.format(WRITE_LOAD_DISTRIBUTION_METRIC_NAME, percentile);
+    }
+
+    /**
+     * We only calculate metrics for indexing nodes.
+     * <p>
+     * Note this means it only works for stateless currently
+     */
+    private boolean isIndexingNode(DiscoveryNode discoveryNode) {
+        return discoveryNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE);
     }
 
     /**

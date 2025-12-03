@@ -247,7 +247,7 @@ public class NodeInfo extends BaseNodeResponse {
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
             compatibilityVersions.writeTo(out);
-        } else TransportVersion.writeVersion(compatibilityVersions.transportVersion(), out);
+        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             IndexVersion.writeVersion(indexVersion, out);
             out.writeMap(componentVersions, StreamOutput::writeString, StreamOutput::writeVInt);

@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * <p>
  * Practically it means that a LIMIT to the plan children.
  */
-public interface RowLimited extends SurrogateLogicalPlan {
+public interface RowLimited<PlanType extends LogicalPlan> extends SurrogateLogicalPlan {
     /**
      * Returns the maximum number of rows this plan can produce.
      */
@@ -28,12 +28,12 @@ public interface RowLimited extends SurrogateLogicalPlan {
     /**
      * Sets the maximum number of rows this plan can produce
      */
-    default RowLimited withMaxRows(int maxRows) {
+    default PlanType withMaxRows(int maxRows) {
         return withMaxRows(Literal.integer(Source.EMPTY, maxRows));
     }
 
     /**
      * Sets the maximum number of rows this plan can produce
      */
-    RowLimited withMaxRows(Expression maxRows);
+    PlanType withMaxRows(Expression maxRows);
 }

@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.RowLimited;
 
 import java.io.IOException;
 import java.util.List;
@@ -94,7 +93,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     }
 
     @Override
-    public RowLimited withMaxRows(Expression rowLimit) {
+    public Completion withMaxRows(Expression rowLimit) {
         return new Completion(source(), child(), inferenceId(), rowLimit, prompt, targetField);
     }
 

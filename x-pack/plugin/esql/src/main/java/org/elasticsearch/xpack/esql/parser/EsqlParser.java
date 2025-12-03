@@ -16,10 +16,12 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenSource;
 import org.antlr.v4.runtime.VocabularyImpl;
 import org.antlr.v4.runtime.atn.PredictionMode;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
@@ -105,14 +107,19 @@ public class EsqlParser {
 
     // testing utility
     public LogicalPlan createStatement(String query, QueryParams params) {
-        return createStatement(query, params, new PlanTelemetry(new EsqlFunctionRegistry()));
+        return createStatement(
+            query,
+            params,
+            new PlanTelemetry(new EsqlFunctionRegistry()),
+            InferenceSettings.fromSettings(Settings.EMPTY)
+        );
     }
 
-    public LogicalPlan createStatement(String query, QueryParams params, PlanTelemetry metrics) {
+    public LogicalPlan createStatement(String query, QueryParams params, PlanTelemetry metrics, InferenceSettings inferenceSettings) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, metrics, EsqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser(query, params, metrics, inferenceSettings, EsqlBaseParser::singleStatement, AstBuilder::plan);
     }
 
     // testing utility
@@ -122,20 +129,21 @@ public class EsqlParser {
 
     // testing utility
     public EsqlStatement createQuery(String query, QueryParams params) {
-        return createQuery(query, params, new PlanTelemetry(new EsqlFunctionRegistry()));
+        return createQuery(query, params, new PlanTelemetry(new EsqlFunctionRegistry()), InferenceSettings.fromSettings(Settings.EMPTY));
     }
 
-    public EsqlStatement createQuery(String query, QueryParams params, PlanTelemetry metrics) {
+    public EsqlStatement createQuery(String query, QueryParams params, PlanTelemetry metrics, InferenceSettings inferenceSettings) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, metrics, EsqlBaseParser::statements, AstBuilder::statement);
+        return invokeParser(query, params, metrics, inferenceSettings, EsqlBaseParser::statements, AstBuilder::statement);
     }
 
     private <T> T invokeParser(
         String query,
         QueryParams params,
         PlanTelemetry metrics,
+        InferenceSettings inferenceSettings,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
@@ -169,7 +177,7 @@ public class EsqlParser {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
 
-            return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics)), tree);
+            return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics, inferenceSettings)), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
             // likely thrown by an invalid popMode (such as extra closing parenthesis)

@@ -464,7 +464,7 @@ public class EsqlSession {
     }
 
     private EsqlStatement parse(String query, QueryParams params) {
-        var parsed = new EsqlParser().createQuery(query, params, planTelemetry);
+        var parsed = new EsqlParser().createQuery(query, params, planTelemetry, inferenceService.inferenceSettings());
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug("Parsed logical plan:\n{}", parsed.plan());
             LOGGER.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));

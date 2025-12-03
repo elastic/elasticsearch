@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.RowLimited;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
@@ -116,8 +115,8 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
     }
 
     @Override
-    public RowLimited withMaxRows(Expression rowLimit) {
-        return new Rerank(source(), child(), inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute);
+    public Rerank withMaxRows(Expression rowLimit) {
+        return new Rerank(source(), child(), inferenceId(), rowLimit, queryText, rerankFields, scoreAttribute);
     }
 
     @Override

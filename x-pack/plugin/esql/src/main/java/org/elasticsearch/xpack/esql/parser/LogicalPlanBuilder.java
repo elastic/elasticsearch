@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -1112,6 +1113,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx) {
         Source source = source(ctx);
+
+        InferenceSettings.CommandSettings commandSettings = inferenceCommandSettings("rerank");
+        if (commandSettings.enabled() == false) {
+            throw new ParsingException(source(ctx), "RERANK command is disabled. Enable it in the inference settings to use it.");
+        }
+
         List<Alias> rerankFields = visitRerankFields(ctx.rerankFields());
         Expression queryText = expression(ctx.queryText);
         Attribute scoreAttribute = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, MetadataAttribute.SCORE));
@@ -1121,7 +1128,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         return p -> {
             checkForRemoteClusters(p, source, "RERANK");
-            return applyRerankOptions(new Rerank(source, p, queryText, rerankFields, scoreAttribute), ctx.commandNamedParameters());
+            return applyRerankOptions(new Rerank(source, p, queryText, rerankFields, scoreAttribute), ctx.commandNamedParameters())
+                .withMaxRows(commandSettings.rowLimit());
         };
     }
 
@@ -1153,6 +1161,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
         Source source = source(ctx);
+
+        InferenceSettings.CommandSettings commandSettings = inferenceCommandSettings("completion");
+        if (commandSettings.enabled() == false) {
+            throw new ParsingException(source(ctx), "COMPLETION command is disabled. Enable it in the inference settings to use it.");
+        }
+
         Expression prompt = expression(ctx.prompt);
         Attribute targetField = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME));
 
@@ -1160,10 +1174,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
         }
 
+
         return p -> {
             checkForRemoteClusters(p, source, "COMPLETION");
-            return applyCompletionOptions(new Completion(source, p, prompt, targetField), ctx.commandNamedParameters());
+            return applyCompletionOptions(new Completion(source, p, prompt, targetField), ctx.commandNamedParameters()).withMaxRows(
+                commandSettings.rowLimit()
+            );
         };
+    }
+
+    private InferenceSettings.CommandSettings inferenceCommandSettings(String commandName) {
+        return context.inferenceSettings().commandSettings(commandName);
     }
 
     private Completion applyCompletionOptions(Completion completion, EsqlBaseParser.CommandNamedParametersContext ctx) {

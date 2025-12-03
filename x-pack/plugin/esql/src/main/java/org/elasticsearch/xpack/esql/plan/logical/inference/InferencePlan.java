@@ -32,9 +32,9 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
         SortAgnostic,
         GeneratingPlan<InferencePlan<PlanType>>,
         ExecutesOn.Coordinator,
-        RowLimited {
+        RowLimited<PlanType> {
 
-    protected static final TransportVersion ESQL_INFERENCE_USAGE_LIMIT = TransportVersion.fromName("esql_inference_usage_limit");
+    public static final TransportVersion ESQL_INFERENCE_USAGE_LIMIT = TransportVersion.fromName("esql_inference_usage_limit");
 
     public static final String INFERENCE_ID_OPTION_NAME = "inference_id";
     public static final List<String> VALID_INFERENCE_OPTION_NAMES = List.of(INFERENCE_ID_OPTION_NAME);

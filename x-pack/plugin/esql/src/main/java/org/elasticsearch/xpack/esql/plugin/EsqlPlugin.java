@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
@@ -236,7 +237,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             PlannerSettings.REDUCTION_LATE_MATERIALIZATION,
             STORED_FIELDS_SEQUENTIAL_PROPORTION,
             EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
-            EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
+            EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
+            InferenceSettings.COMPLETION_ENABLED_SETTING,
+            InferenceSettings.COMPLETION_ROW_LIMIT_SETTING,
+            InferenceSettings.RERANK_ENABLED_SETTING,
+            InferenceSettings.RERANK_ROW_LIMIT_SETTING
         );
     }
 

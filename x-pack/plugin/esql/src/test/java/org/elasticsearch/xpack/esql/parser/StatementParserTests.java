@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
@@ -51,6 +53,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -77,6 +80,7 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -4331,6 +4335,48 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testRerankDefaultRowsLimit() {
+        var plan = processingCommand("RERANK \"query text\" ON title WITH { \"inference_id\" : \"inferenceId\" }");
+        var rerank = as(plan, Rerank.class);
+
+        assertThat(rerank.rowLimit(), equalTo(integer(Rerank.DEFAULT_MAX_ROW_LIMIT)));
+    }
+
+    public void testRerankOverrideRowsLimit() {
+        // Create a parser with custom settings
+        var customSettings = InferenceSettings.fromSettings(Settings.builder().put("inference.command.rerank.row_limit", 2000).build());
+        var customParser = new EsqlParser();
+        var plan = as(
+            customParser.createStatement(
+                "row a = 1 | RERANK \"query text\" ON title WITH { \"inference_id\" : \"inferenceId\" }",
+                new QueryParams(),
+                new PlanTelemetry(new EsqlFunctionRegistry()),
+                customSettings
+            ),
+            Rerank.class
+        );
+
+        assertThat(plan.rowLimit(), equalTo(integer(2000)));
+    }
+
+    public void testRerankDisabledInSettings() {
+        // Create a parser with rerank disabled
+        var disabledSettings = InferenceSettings.fromSettings(Settings.builder().put("inference.command.rerank.enabled", false).build());
+        var customParser = new EsqlParser();
+
+        ParsingException exception = expectThrows(
+            ParsingException.class,
+            () -> customParser.createStatement(
+                "row a = 1 | RERANK \"query text\" ON title WITH { \"inference_id\" : \"inferenceId\" }",
+                new QueryParams(),
+                new PlanTelemetry(new EsqlFunctionRegistry()),
+                disabledSettings
+            )
+        );
+
+        assertThat(exception.getMessage(), containsString("RERANK command is disabled. Enable it in the inference settings to use it."));
+    }
+
     public void testCompletionMissingOptions() {
         expectError("FROM foo* | COMPLETION targetField = prompt", "line 1:13: Missing mandatory option [inference_id] in COMPLETION");
     }
@@ -4419,6 +4465,52 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError(
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": { \"a\": 123 } }",
             "line 1:54: Option [inference_id] must be a valid string, found [{ \"a\": 123 }]"
+        );
+    }
+
+    public void testCompletionDefaultRowsLimit() {
+        var plan = as(processingCommand("COMPLETION prompt_field WITH{ \"inference_id\" : \"inferenceID\" }"), Completion.class);
+
+        assertThat(plan.rowLimit(), equalTo(integer(Completion.DEFAULT_MAX_ROW_LIMIT)));
+    }
+
+    public void testCompletionOverrideRowsLimit() {
+        // Create a parser with custom settings
+        var customSettings = InferenceSettings.fromSettings(Settings.builder().put("inference.command.completion.row_limit", 200).build());
+        var customParser = new EsqlParser();
+        var plan = as(
+            customParser.createStatement(
+                "row a = 1 | COMPLETION prompt_field WITH{ \"inference_id\" : \"inferenceID\" }",
+                new QueryParams(),
+                new PlanTelemetry(new EsqlFunctionRegistry()),
+                customSettings
+            ),
+            Completion.class
+        );
+
+        assertThat(plan.rowLimit(), equalTo(integer(200)));
+    }
+
+    public void testCompletionDisabledInSettings() {
+        // Create a parser with completion disabled
+        var disabledSettings = InferenceSettings.fromSettings(
+            Settings.builder().put("inference.command.completion.enabled", false).build()
+        );
+        var customParser = new EsqlParser();
+
+        ParsingException exception = expectThrows(
+            ParsingException.class,
+            () -> customParser.createStatement(
+                "row a = 1 | COMPLETION prompt_field WITH{ \"inference_id\" : \"inferenceID\" }",
+                new QueryParams(),
+                new PlanTelemetry(new EsqlFunctionRegistry()),
+                disabledSettings
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            containsString("COMPLETION command is disabled. Enable it in the inference settings to use it.")
         );
     }
 

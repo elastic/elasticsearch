@@ -269,31 +269,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private LogicalPlan resolveIndex(UnresolvedRelation plan, IndexResolution indexResolution) {
             if (indexResolution == null || indexResolution.isValid() == false) {
                 String indexResolutionMessage = indexResolution == null ? "[none specified]" : indexResolution.toString();
-                return plan.unresolvedMessage().equals(indexResolutionMessage)
-                    ? plan
-                    : new UnresolvedRelation(
-                        plan.source(),
-                        plan.indexPattern(),
-                        plan.frozen(),
-                        plan.metadataFields(),
-                        plan.indexMode(),
-                        indexResolutionMessage,
-                        plan.telemetryLabel()
-                    );
+                return plan.unresolvedMessage().equals(indexResolutionMessage) ? plan : plan.withMessage(indexResolutionMessage);
             }
             // assert indexResolution.matches(plan.indexPattern().indexPattern()) : "Expected index resolution to match the index pattern";
             IndexPattern table = plan.indexPattern();
             if (indexResolution.matches(table.indexPattern()) == false) {
                 // TODO: fix this (and tests), or drop check (seems SQL-inherited, where's also defective)
-                new UnresolvedRelation(
-                    plan.source(),
-                    plan.indexPattern(),
-                    plan.frozen(),
-                    plan.metadataFields(),
-                    plan.indexMode(),
-                    "invalid [" + table + "] resolution to [" + indexResolution + "]",
-                    plan.telemetryLabel()
-                );
+                return plan.withMessage("invalid [" + table + "] resolution to [" + indexResolution + "]");
             }
 
             EsIndex esIndex = indexResolution.get();

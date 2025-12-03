@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.math.BigInteger;
@@ -73,7 +73,7 @@ public abstract class AbstractStatementParserTests extends ESTestCase {
     }
 
     static UnresolvedRelation relation(String name) {
-        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, name), false, List.of(), IndexMode.STANDARD, null, "FROM");
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, name), List.of(), List.of(), List.of(), SourceCommand.FROM);
     }
 
     static Literal integer(int i) {

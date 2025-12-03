@@ -1,0 +1,5 @@
+pr: 138889
+summary: Introduce mapping-unavailable fields grammar
+area: ES|QL
+type: feature
+issues: []

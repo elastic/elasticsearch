@@ -102,15 +102,15 @@ rerankField
     ;
 
 fromCommand
-    : FROM indexPatternAndMetadataFields
+    : FROM indexPatternAndFields
     ;
 
 timeSeriesCommand
-    : TS indexPatternAndMetadataFields
+    : TS indexPatternAndFields
     ;
 
-indexPatternAndMetadataFields
-    : indexPatternOrSubquery (COMMA indexPatternOrSubquery)* metadata?
+indexPatternAndFields
+    : indexPatternOrSubquery (COMMA indexPatternOrSubquery)* fieldsClause*
     ;
 
 indexPatternOrSubquery
@@ -145,8 +145,22 @@ indexString
     | QUOTED_STRING
     ;
 
-metadata
+fieldsClause
+    : metadataFields
+    | optionalFields
+    | unmappedFields
+    ;
+
+metadataFields
     : METADATA UNQUOTED_SOURCE (COMMA UNQUOTED_SOURCE)*
+    ;
+
+optionalFields
+    : OPTIONAL fieldNamePatterns
+    ;
+
+unmappedFields
+    : UNMAPPED fieldNamePatterns
     ;
 
 evalCommand
@@ -180,22 +194,32 @@ qualifiedNamePattern
     ;
 
 fieldNamePattern
-    : (identifierPattern (DOT identifierPattern)*)
+    : (identifierPatternOrParameter (DOT identifierPatternOrParameter)*)
     ;
 
 qualifiedNamePatterns
     : qualifiedNamePattern (COMMA qualifiedNamePattern)*
     ;
 
-identifier
-    : UNQUOTED_IDENTIFIER
-    | QUOTED_IDENTIFIER
+fieldNamePatterns
+    : fieldNamePattern (COMMA fieldNamePattern)*
     ;
 
-identifierPattern
+identifierOrParameter
+    : identifier
+    | parameter
+    | doubleParameter
+    ;
+
+identifierPatternOrParameter
     : ID_PATTERN
     | parameter
     | doubleParameter
+    ;
+
+identifier
+    : UNQUOTED_IDENTIFIER
+    | QUOTED_IDENTIFIER
     ;
 
 parameter
@@ -206,12 +230,6 @@ parameter
 doubleParameter
     : DOUBLE_PARAMS                        #inputDoubleParams
     | NAMED_OR_POSITIONAL_DOUBLE_PARAMS    #inputNamedOrPositionalDoubleParams
-    ;
-
-identifierOrParameter
-    : identifier
-    | parameter
-    | doubleParameter
     ;
 
 stringOrParameter

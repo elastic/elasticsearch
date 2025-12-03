@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -194,11 +195,10 @@ public final class AnalyzerTestUtils {
         return new UnresolvedRelation(
             Source.EMPTY,
             new IndexPattern(Source.EMPTY, index),
-            false,
             List.of(),
-            IndexMode.STANDARD,
-            null,
-            "FROM"
+            List.of(),
+            List.of(),
+            SourceCommand.FROM
         );
     }
 

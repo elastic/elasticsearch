@@ -454,7 +454,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
                 }
             }
             PlainActionFuture<EnrichResolution> future = new PlainActionFuture<>();
-            super.doResolvePolicies(new HashSet<>(clusters), unresolvedPolicies, esqlExecutionInfo, future);
+            super.doResolvePolicies(new HashSet<>(clusters), unresolvedPolicies, esqlExecutionInfo, TransportVersion.current(), future);
             return future.actionGet(30, TimeUnit.SECONDS);
         }
 

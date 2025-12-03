@@ -680,6 +680,7 @@ public class CsvTests extends ESTestCase {
         FoldContext foldCtx = FoldContext.small();
         EsqlSession session = new EsqlSession(
             getTestName(),
+            TransportVersion.current(),
             queryClusterSettings(),
             null,
             null,

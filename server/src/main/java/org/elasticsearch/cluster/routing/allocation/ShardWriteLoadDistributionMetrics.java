@@ -42,6 +42,7 @@ public class ShardWriteLoadDistributionMetrics {
         "es.allocator.shard_write_load.prioritisation_threshold.current";
     public static final String WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME =
         "es.allocator.shard_write_load.prioritisation_threshold.shard_count_exceeding.current";
+    public static final String WRITE_LOAD_SUM_METRIC_NAME = "es.allocator.shard_write_load.sum.current";
     public static final Setting<Boolean> SHARD_WRITE_LOAD_METRICS_ENABLED_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.write_load_decider.shard_write_load_metrics.enabled",
         true,
@@ -57,6 +58,7 @@ public class ShardWriteLoadDistributionMetrics {
     private final AtomicReference<List<LongWithAttributes>> lastShardCountExceedingPrioritisationThresholdValues = new AtomicReference<>(
         List.of()
     );
+    private final AtomicReference<List<DoubleWithAttributes>> lastWriteLoadSumValues = new AtomicReference<>(List.of());
     private volatile boolean metricsEnabled = false;
 
     public ShardWriteLoadDistributionMetrics(MeterRegistry meterRegistry, ClusterService clusterService) {
@@ -95,6 +97,12 @@ public class ShardWriteLoadDistributionMetrics {
             "unit",
             this::getWriteLoadPrioritisationThresholdPercentileRankMetrics
         );
+        meterRegistry.registerDoublesGauge(
+            WRITE_LOAD_SUM_METRIC_NAME,
+            "The sum of the shard write-loads for the shards allocated to each node",
+            "write load",
+            this::getWriteLoadSumMetrics
+        );
     }
 
     public void onNewInfo(ClusterInfo clusterInfo) {
@@ -111,6 +119,7 @@ public class ShardWriteLoadDistributionMetrics {
         final var writeLoadDistributionValues = new ArrayList<DoubleWithAttributes>(percentiles.length * ingestNodeCount);
         final var writeLoadPrioritisationThresholdValues = new ArrayList<DoubleWithAttributes>(ingestNodeCount);
         final var shardCountsExceedingPrioritisationThresholdValues = new ArrayList<LongWithAttributes>(ingestNodeCount);
+        final var shardWriteLoadSumValues = new ArrayList<DoubleWithAttributes>(ingestNodeCount);
         for (RoutingNode routingNode : clusterState.getRoutingNodes()) {
             final var node = routingNode.node();
             if (node == null || node.isIngestNode() == false) {
@@ -118,6 +127,7 @@ public class ShardWriteLoadDistributionMetrics {
             }
 
             double maxShardWriteLoad = Double.NEGATIVE_INFINITY;
+            double totalShardWriteLoad = 0.0;
 
             shardWeightHistogram.reset();
             try {
@@ -128,11 +138,11 @@ public class ShardWriteLoadDistributionMetrics {
                      * they sometimes end up being calculated as very small (e.g. 3.3123178228374412E-21). These values
                      * don't play nice with the HdrHistogram because it works best when there is a relatively small difference
                      * in the scale of the values inserted into it.
-                     * They also provide little value, so we round them down to zero here.
+                     * They also provide little value, so we round them down to zero before adding them to the histogram.
                      */
-                    final double roundedWriteLoad = roundTinyValuesToZero(writeLoad);
-                    shardWeightHistogram.recordValue(roundedWriteLoad);
-                    maxShardWriteLoad = Math.max(maxShardWriteLoad, roundedWriteLoad);
+                    shardWeightHistogram.recordValue(roundTinyValuesToZero(writeLoad));
+                    maxShardWriteLoad = Math.max(maxShardWriteLoad, writeLoad);
+                    totalShardWriteLoad += writeLoad;
                 }
             } catch (ArrayIndexOutOfBoundsException e) {
                 // This shouldn't happen because our histogram should be auto-resizing, but just in case
@@ -164,11 +174,13 @@ public class ShardWriteLoadDistributionMetrics {
                 Double.MAX_VALUE
             );
             shardCountsExceedingPrioritisationThresholdValues.add(new LongWithAttributes(shardsExceedingThreshold, nodeAttrs));
+            shardWriteLoadSumValues.add(new DoubleWithAttributes(totalShardWriteLoad, nodeAttrs));
         }
 
         lastWriteLoadDistributionValues.set(writeLoadDistributionValues);
         lastWriteLoadPrioritisationThresholdValues.set(writeLoadPrioritisationThresholdValues);
         lastShardCountExceedingPrioritisationThresholdValues.set(shardCountsExceedingPrioritisationThresholdValues);
+        lastWriteLoadSumValues.set(shardWriteLoadSumValues);
     }
 
     private double roundTinyValuesToZero(double value) {
@@ -194,5 +206,9 @@ public class ShardWriteLoadDistributionMetrics {
 
     private Collection<LongWithAttributes> getWriteLoadPrioritisationThresholdPercentileRankMetrics() {
         return lastShardCountExceedingPrioritisationThresholdValues.getAndSet(List.of());
+    }
+
+    private Collection<DoubleWithAttributes> getWriteLoadSumMetrics() {
+        return lastWriteLoadSumValues.getAndSet(List.of());
     }
 }

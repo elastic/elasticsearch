@@ -64,6 +64,8 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
                 InstrumentType.LONG_GAUGE,
                 ShardWriteLoadDistributionMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME
             );
+        final var shardWriteLoadSumMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_SUM_METRIC_NAME);
 
         logger.info(
             "Generated maximums p50={}/p90={}/p100={}",
@@ -98,7 +100,20 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
                 Matchers.allOf(greaterThan(0.5 * testInfrastructure.maxP90), lessThanOrEqualTo(0.5 * testInfrastructure.maxP100))
             );
             assertThat(measurementForNode(countAboveThresholdMeasurements, nodeId).getLong(), greaterThan(0L));
+            assertEquals(
+                getTotalWriteLoadForNode(testInfrastructure.clusterInfo, testInfrastructure.clusterService.state(), nodeId),
+                measurementForNode(shardWriteLoadSumMeasurements, nodeId).getDouble(),
+                0.001
+            );
         }
+    }
+
+    private double getTotalWriteLoadForNode(ClusterInfo clusterInfo, ClusterState clusterState, String nodeId) {
+        return clusterState.getRoutingNodes()
+            .node(nodeId)
+            .shardsWithState(ShardRoutingState.STARTED)
+            .mapToDouble(shardRouting -> clusterInfo.getShardWriteLoads().getOrDefault(shardRouting.shardId(), 0.0))
+            .sum();
     }
 
     public void testShardWriteLoadDistributionMetricsDisabled() {

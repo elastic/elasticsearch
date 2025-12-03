@@ -149,14 +149,30 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     ScorerSupplier supplier = filterWeight.scorerSupplier(leafReaderContext);
                     if (supplier != null) {
                         var filterCost = Math.toIntExact(supplier.cost());
-                        if (((float) filterCost / floatVectorValues.size()) >= 10000 * (1 + postFilteringThreshold)) {
+                        float selectivity = (float) filterCost / floatVectorValues.size();
+
+                        // Three-way decision based on selectivity
+                        if (selectivity >= 0.90f) {
+                            // Very high selectivity (≥90%): True post-filtering
+                            // Search without filter, then filter results afterward
                             leafSearchMetas.add(
                                 new VectorLeafSearchFilterMeta(
                                     leafReaderContext,
-                                    new ESAcceptDocs.PostFilterEsAcceptDocs(filterWeight, leafReaderContext, liveDocs)
+                                    new ESAcceptDocs.TruePostFilterEsAcceptDocs(filterWeight, leafReaderContext, liveDocs)
+                                )
+                            );
+                        } else if (selectivity >= 0.40f) {
+                            // Medium-high selectivity (40-90%): Lazy evaluation
+                            // Use iterator with advance(), skip centroid filtering
+                            leafSearchMetas.add(
+                                new VectorLeafSearchFilterMeta(
+                                    leafReaderContext,
+                                    new ESAcceptDocs.LazyFilterEsAcceptDocs(filterWeight, leafReaderContext, liveDocs)
                                 )
                             );
                         } else {
+                            // Low selectivity (<40%): Eager evaluation
+                            // Materialize BitSet, use centroid filtering
                             leafSearchMetas.add(
                                 new VectorLeafSearchFilterMeta(
                                     leafReaderContext,

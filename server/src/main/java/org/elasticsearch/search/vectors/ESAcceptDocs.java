@@ -243,39 +243,44 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         }
     }
 
-    /** An AcceptDocs that wraps a ScorerSupplier. Indicates that a filter was provided. */
-    public static final class PostFilterEsAcceptDocs extends ESAcceptDocs {
+    /** An AcceptDocs that uses lazy evaluation with iterator advance(). Used for medium-high selectivity filters (40-90%). */
+    public static final class LazyFilterEsAcceptDocs extends ESAcceptDocs {
         private final Weight weight;
         private final LeafReaderContext ctx;
         private final Bits liveDocs;
 
-        PostFilterEsAcceptDocs(Weight weight, LeafReaderContext ctx, Bits liveDocs) throws IOException {
+        LazyFilterEsAcceptDocs(Weight weight, LeafReaderContext ctx, Bits liveDocs) throws IOException {
             this.weight = weight;
             this.ctx = ctx;
-            ;
             this.liveDocs = liveDocs;
         }
 
         @Override
         public Bits bits() throws IOException {
-            throw new UnsupportedOperationException("[PostFilterEsAcceptDocs] does not support bits creation");
+            throw new UnsupportedOperationException("[LazyFilterEsAcceptDocs] does not support bits creation");
         }
 
         @Override
         public DocIdSetIterator iterator() throws IOException {
-            return liveDocs == null
-                ? weight.scorerSupplier(ctx).get(NO_MORE_DOCS).iterator()
-                : new FilteredDocIdSetIterator(weight.scorerSupplier(ctx).get(NO_MORE_DOCS).iterator()) {
-                    @Override
-                    protected boolean match(int doc) {
-                        return liveDocs.get(doc);
-                    }
-                };
+            // Create a fresh scorer each time to ensure a new, unpositioned iterator
+            // Using scorer() instead of scorerSupplier().get() to avoid caching issues
+            var scorer = weight.scorer(ctx);
+            if (scorer == null) {
+                return null;
+            }
+            DocIdSetIterator baseIterator = scorer.iterator();
+
+            return liveDocs == null ? baseIterator : new FilteredDocIdSetIterator(baseIterator) {
+                @Override
+                protected boolean match(int doc) {
+                    return liveDocs.get(doc);
+                }
+            };
         }
 
         @Override
         public int cost() throws IOException {
-            throw new UnsupportedOperationException("[PostFilterEsAcceptDocs] does not support computing exact cost");
+            throw new UnsupportedOperationException("[LazyFilterEsAcceptDocs] does not support computing exact cost");
         }
 
         @Override
@@ -285,7 +290,71 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public Optional<BitSet> getBitSet() throws IOException {
-            throw new UnsupportedOperationException("[PostFilterEsAcceptDocs] does not support BitSet creation");
+            throw new UnsupportedOperationException("[LazyFilterEsAcceptDocs] does not support BitSet creation");
+        }
+
+        public Weight weight() {
+            return weight;
+        }
+
+        public LeafReaderContext context() {
+            return ctx;
+        }
+
+        public Bits liveDocs() {
+            return liveDocs;
+        }
+    }
+
+    /** An AcceptDocs that defers all filtering until after vector search. Used for very high selectivity filters (≥90%). */
+    public static final class TruePostFilterEsAcceptDocs extends ESAcceptDocs {
+        private final Weight weight;
+        private final LeafReaderContext ctx;
+        private final Bits liveDocs;
+
+        TruePostFilterEsAcceptDocs(Weight weight, LeafReaderContext ctx, Bits liveDocs) throws IOException {
+            this.weight = weight;
+            this.ctx = ctx;
+            this.liveDocs = liveDocs;
+        }
+
+        @Override
+        public Bits bits() throws IOException {
+            // Return just live docs - no filter during search
+            return liveDocs;
+        }
+
+        @Override
+        public DocIdSetIterator iterator() throws IOException {
+            // Return null to indicate all docs accepted (except deletions handled by bits())
+            return null;
+        }
+
+        @Override
+        public int cost() throws IOException {
+            throw new UnsupportedOperationException("[TruePostFilterEsAcceptDocs] does not support computing exact cost");
+        }
+
+        @Override
+        public int approximateCost() throws IOException {
+            return Math.toIntExact(weight.scorerSupplier(ctx).cost());
+        }
+
+        @Override
+        public Optional<BitSet> getBitSet() throws IOException {
+            throw new UnsupportedOperationException("[TruePostFilterEsAcceptDocs] does not support BitSet creation");
+        }
+
+        public Weight weight() {
+            return weight;
+        }
+
+        public LeafReaderContext context() {
+            return ctx;
+        }
+
+        public Bits liveDocs() {
+            return liveDocs;
         }
     }
 }

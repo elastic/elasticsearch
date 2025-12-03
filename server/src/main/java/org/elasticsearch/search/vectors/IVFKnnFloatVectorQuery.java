@@ -12,11 +12,16 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 
 /** A {@link IVFKnnFloatVectorQuery} that uses the IVF search strategy. */
 public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
@@ -106,6 +111,10 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
             return NO_RESULTS;
         }
         assert filterDocs instanceof ESAcceptDocs;
+
+        // Check if we should apply true post-filtering
+        boolean applyPostFilter = filterDocs instanceof ESAcceptDocs.TruePostFilterEsAcceptDocs;
+
         IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, knnCollectorManager.longAccumulator);
         AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {
@@ -114,6 +123,63 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         strategy.setCollector(knnCollector);
         reader.searchNearestVectors(field, query, knnCollector, filterDocs);
         TopDocs results = knnCollector.topDocs();
+
+        // Apply post-filtering if needed
+        if (applyPostFilter && results != null && results.scoreDocs.length > 0) {
+            results = applyPostFilter(results, (ESAcceptDocs.TruePostFilterEsAcceptDocs) filterDocs);
+        }
+
         return results != null ? results : NO_RESULTS;
+    }
+
+    private TopDocs applyPostFilter(TopDocs results, ESAcceptDocs.TruePostFilterEsAcceptDocs filterDocs) throws IOException {
+        if (results.scoreDocs.length == 0) {
+            return results;
+        }
+
+        // Get a fresh iterator for filtering
+        var scorer = filterDocs.weight().scorer(filterDocs.context());
+        if (scorer == null) {
+            // No documents match the filter
+            return NO_RESULTS;
+        }
+        DocIdSetIterator filterIterator = scorer.iterator();
+        var liveDocs = filterDocs.liveDocs();
+
+        // Sort scoreDocs by doc ID to ensure ascending order access to the iterator
+        Arrays.sort(results.scoreDocs, Comparator.comparingInt(sd -> sd.doc));
+
+        // Filter results using the iterator
+        ArrayList<ScoreDoc> filteredDocs = new ArrayList<>(results.scoreDocs.length);
+        int currentDoc = filterIterator.nextDoc();
+
+        for (ScoreDoc scoreDoc : results.scoreDocs) {
+            // Check live docs first
+            if (liveDocs != null && liveDocs.get(scoreDoc.doc) == false) {
+                continue;
+            }
+
+            // Advance iterator to the current doc
+            while (currentDoc < scoreDoc.doc && currentDoc != DocIdSetIterator.NO_MORE_DOCS) {
+                currentDoc = filterIterator.nextDoc();
+            }
+
+            // Check if current doc matches the filter
+            if (currentDoc == scoreDoc.doc) {
+                filteredDocs.add(scoreDoc);
+            }
+        }
+
+        // Sort by score descending
+        filteredDocs.sort(Comparator.comparingDouble((ScoreDoc sd) -> sd.score).reversed());
+
+        // Keep only top k results
+        int numResults = Math.min(k, filteredDocs.size());
+        ScoreDoc[] topK = new ScoreDoc[numResults];
+        for (int i = 0; i < numResults; i++) {
+            topK[i] = filteredDocs.get(i);
+        }
+
+        return new TopDocs(new TotalHits(numResults, results.totalHits.relation()), topK);
     }
 }

@@ -122,20 +122,30 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         float visitRatio
     ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
+
+        // Determine filtering mode
+        boolean isLazyEvaluation = acceptDocs instanceof ESAcceptDocs.LazyFilterEsAcceptDocs;
+        boolean isTruePostFilter = acceptDocs instanceof ESAcceptDocs.TruePostFilterEsAcceptDocs;
+        boolean skipCentroidFiltering = isLazyEvaluation || isTruePostFilter;
+
         float approximateDocsPerCentroid = approximateCost / numCentroids;
-        if (approximateDocsPerCentroid <= 1.25) {
-            // TODO: we need to make this call to build the iterator, otherwise accept docs breaks all together
+        if (approximateDocsPerCentroid <= 1.25 && skipCentroidFiltering == false) {
+            // Only compute exact cost for eager evaluation (not lazy or post-filter)
             approximateDocsPerCentroid = (float) acceptDocs.cost() / numCentroids;
         }
         final int bitsRequired = DirectWriter.bitsRequired(numCentroids);
         final long sizeLookup = directWriterSizeOnDisk(values.size(), bitsRequired);
         final long fp = centroids.getFilePointer();
         final FixedBitSet acceptCentroids;
-        if (approximateDocsPerCentroid > 1.25 || numCentroids == 1) {
-            // only apply centroid filtering when we expect some / many centroids will not have
-            // any matching document.
+        if (skipCentroidFiltering || approximateDocsPerCentroid > 1.25 || numCentroids == 1) {
+            // Skip centroid filtering for:
+            // - True post-filtering (search is unfiltered, filter applied afterward)
+            // - Lazy evaluation (to avoid materializing the expensive filter)
+            // - Many docs per centroid (filtering won't help much)
+            // - Single centroid (nothing to filter)
             acceptCentroids = null;
         } else {
+            // Eager evaluation: build centroid filter by materializing matching docs
             acceptCentroids = new FixedBitSet(numCentroids);
             final KnnVectorValues.DocIndexIterator docIndexIterator = values.iterator();
             final DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(List.of(acceptDocs.iterator(), docIndexIterator));
@@ -706,12 +716,37 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             int scoredDocs = 0;
             int limit = vectors - BULK_SIZE + 1;
             int i = 0;
-            // read Docs
-            var filteredBits = filterDocs == null ? null : filterDocs.bits();
+
+            // Determine filtering mode
+            boolean isLazyEvaluation = filterDocs instanceof ESAcceptDocs.LazyFilterEsAcceptDocs;
+            boolean isTruePostFilter = filterDocs instanceof ESAcceptDocs.TruePostFilterEsAcceptDocs;
+            DocIdSetIterator filterIterator = null;
+            Bits filteredBits = null;
+
+            if (isLazyEvaluation) {
+                // Lazy evaluation: use fresh iterator with advance()
+                filterIterator = filterDocs.iterator();
+                // Assert that the iterator is unpositioned (fresh)
+                assert filterIterator == null || filterIterator.docID() == -1 : "Filter iterator must be unpositioned";
+            } else {
+                // Eager evaluation or true post-filter: use bits()
+                // For true post-filter, bits() returns only liveDocs (no filter applied)
+                filteredBits = filterDocs == null ? null : filterDocs.bits();
+            }
+
             for (; i < limit; i += BULK_SIZE) {
                 // read the doc ids
                 readDocIds(BULK_SIZE);
-                final int docsToBulkScore = filteredBits == null ? BULK_SIZE : docToBulkScore(docIdsScratch, filteredBits);
+
+                final int docsToBulkScore;
+                if (isLazyEvaluation) {
+                    // Lazy evaluation: check each doc with advance()
+                    docsToBulkScore = docToBulkScoreLazy(docIdsScratch, filterIterator);
+                } else {
+                    // Eager or true post-filter: use bits
+                    docsToBulkScore = filteredBits == null ? BULK_SIZE : docToBulkScore(docIdsScratch, filteredBits);
+                }
+
                 if (docsToBulkScore == 0) {
                     indexInput.skipBytes(quantizedByteLength * BULK_SIZE);
                     continue;
@@ -745,7 +780,24 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             int count = 0;
             for (; i < vectors; i++) {
                 int doc = docIdsScratch[count++];
-                if (filteredBits == null || filteredBits.get(doc)) {
+                boolean accepted;
+                if (isLazyEvaluation && filterIterator != null) {
+                    // Lazy evaluation: check with iterator
+                    int currentDoc = filterIterator.docID();
+                    if (currentDoc == NO_MORE_DOCS) {
+                        // Iterator exhausted, all remaining docs are filtered out
+                        accepted = false;
+                    } else if (currentDoc == doc) {
+                        accepted = true;
+                    } else {
+                        accepted = filterIterator.advance(doc) == doc;
+                    }
+                } else {
+                    // Eager or true post-filter: check bits
+                    accepted = filteredBits == null || filteredBits.get(doc);
+                }
+
+                if (accepted) {
                     quantizeQueryIfNecessary();
                     float qcDist = osqVectorsScorer.quantizeScore(quantizedQueryScratch);
                     indexInput.readFloats(correctiveValues, 0, 3);
@@ -773,6 +825,33 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 knnCollector.incVisitedCount(scoredDocs);
             }
             return scoredDocs;
+        }
+
+        private static int docToBulkScoreLazy(int[] docIds, DocIdSetIterator filterIterator) throws IOException {
+            assert filterIterator != null : "filterIterator must not be null";
+            int docToScore = BULK_SIZE;
+            for (int i = 0; i < BULK_SIZE; i++) {
+                int doc = docIds[i];
+                int currentDoc = filterIterator.docID();
+
+                // Check if we need to advance the iterator
+                if (currentDoc != doc) {
+                    if (currentDoc == NO_MORE_DOCS) {
+                        // Iterator exhausted, filter out this and all remaining docs
+                        docIds[i] = -1;
+                        docToScore--;
+                        continue;
+                    }
+                    currentDoc = filterIterator.advance(doc);
+                }
+
+                // Check if doc matches the filter
+                if (currentDoc != doc) {
+                    docIds[i] = -1;
+                    docToScore--;
+                }
+            }
+            return docToScore;
         }
 
         private void quantizeQueryIfNecessary() {

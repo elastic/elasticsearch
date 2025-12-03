@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -62,10 +61,7 @@ public class Kql extends FullTextFunction {
     private static Kql readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression query = in.readNamedWriteable(Expression.class);
-        QueryBuilder queryBuilder = null;
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        }
+        QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         return new Kql(source, query, queryBuilder);
     }
 
@@ -73,9 +69,7 @@ public class Kql extends FullTextFunction {
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(query());
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeOptionalNamedWriteable(queryBuilder());
-        }
+        out.writeOptionalNamedWriteable(queryBuilder());
     }
 
     @Override

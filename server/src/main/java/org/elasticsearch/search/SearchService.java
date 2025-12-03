@@ -19,7 +19,6 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
@@ -602,12 +601,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ThreadPool threadPool,
         Lifecycle lifecycle
     ) {
-        final boolean header;
-        if (version.supports(TransportVersions.V_8_18_0) && threadPool.getThreadContext() != null) {
-            header = getErrorTraceHeader(threadPool);
-        } else {
-            header = true;
-        }
+        final boolean header = threadPool.getThreadContext() == null || getErrorTraceHeader(threadPool);
         return listener.delegateResponse((l, e) -> {
             org.apache.logging.log4j.util.Supplier<String> messageSupplier = () -> format(
                 "[%s]%s: failed to execute search request for task [%d]",

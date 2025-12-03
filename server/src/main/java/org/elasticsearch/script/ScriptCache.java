@@ -233,7 +233,7 @@ public class ScriptCache {
 
         @Override
         public int hashCode() {
-            return Objects.hash(lang, projectId, idOrCode, context, options);
+            return Objects.hash(projectId, lang, idOrCode, context, options);
         }
     }
 

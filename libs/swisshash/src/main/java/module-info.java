@@ -8,11 +8,11 @@
  */
 
 module org.elasticsearch.swisshash {
-    requires org.elasticsearch.simdvec;
-    requires hppc;
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
+    requires org.elasticsearch.simdvec;
     requires org.elasticsearch.xcontent;
+    requires hppc;
 
     exports org.elasticsearch.swisshash to org.elasticsearch.compute;
 }

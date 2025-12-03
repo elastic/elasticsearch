@@ -11,19 +11,12 @@ package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldInfosFormat;
-import org.apache.lucene.codecs.FieldsConsumer;
-import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.NormsProducer;
-import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.SegmentInfo;
-import org.apache.lucene.index.SegmentReadState;
-import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.index.mapper.SyntheticIdField;
@@ -56,22 +49,15 @@ import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.T
 public class TSDBSyntheticIdCodec extends FilterCodec {
 
     private final RewriteFieldInfosFormat fieldInfosFormat;
-    private final EnsureNoPostingsFormat postingsFormat;
 
     public TSDBSyntheticIdCodec(String name, Codec delegate) {
         super(name, delegate);
         this.fieldInfosFormat = new RewriteFieldInfosFormat(delegate.fieldInfosFormat());
-        this.postingsFormat = new EnsureNoPostingsFormat(delegate.postingsFormat());
     }
 
     @Override
     public final FieldInfosFormat fieldInfosFormat() {
         return fieldInfosFormat;
-    }
-
-    @Override
-    public PostingsFormat postingsFormat() {
-        return postingsFormat;
     }
 
     /**
@@ -220,48 +206,6 @@ public class TSDBSyntheticIdCodec extends FilterCodec {
                 infos[i++] = fi;
             }
             return new FieldInfos(infos);
-        }
-    }
-
-    /**
-     * {@link PostingsFormat} that throws an {@link IllegalArgumentException} if a Lucene field with the name {@code _id} has postings
-     * produced during indexing.
-     */
-    private static class EnsureNoPostingsFormat extends PostingsFormat {
-
-        private final PostingsFormat delegate;
-
-        private EnsureNoPostingsFormat(PostingsFormat delegate) {
-            super(delegate.getName());
-            this.delegate = delegate;
-        }
-
-        @Override
-        public FieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-            final var consumer = delegate.fieldsConsumer(state);
-            return new FieldsConsumer() {
-                @Override
-                public void write(Fields fields, NormsProducer norms) throws IOException {
-                    for (var field : fields) {
-                        if (SYNTHETIC_ID.equalsIgnoreCase(field)) {
-                            var message = "Field [" + SYNTHETIC_ID + "] has terms produced during indexing";
-                            assert false : message;
-                            throw new IllegalArgumentException(message);
-                        }
-                    }
-                    consumer.write(fields, norms);
-                }
-
-                @Override
-                public void close() throws IOException {
-                    consumer.close();
-                }
-            };
-        }
-
-        @Override
-        public FieldsProducer fieldsProducer(SegmentReadState state) throws IOException {
-            return delegate.fieldsProducer(state);
         }
     }
 }

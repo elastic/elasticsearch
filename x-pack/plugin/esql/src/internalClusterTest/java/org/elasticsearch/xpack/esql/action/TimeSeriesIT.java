@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -36,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -881,6 +884,55 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat(actualAvg, closeTo(expectedAvg, 0.5));
             }
         }
+
     }
 
+    public void testWithDateTrunc() {
+        try (
+            var resp1 = run("TS host* | STATS avg(avg_over_time(cpu)) BY cluster, TBUCKET(1minute)");
+            var resp2 = run("TS host* | EVAL tbucket = DATE_TRUNC(1m, @timestamp) | STATS avg(avg_over_time(cpu)) BY cluster, tbucket");
+        ) {
+            record Key(String cluster, String tbucket) {
+
+            }
+            Map<Key, Double> results1 = EsqlTestUtils.getValuesList(resp1)
+                .stream()
+                .collect(Collectors.toMap(e -> new Key((String) e.get(1), (String) e.get(2)), e -> round((Double) e.get(0))));
+            Map<Key, Double> results2 = EsqlTestUtils.getValuesList(resp2)
+                .stream()
+                .collect(Collectors.toMap(e -> new Key((String) e.get(1), (String) e.get(2)), e -> round((Double) e.get(0))));
+            assertThat(results1, equalTo(results2));
+        }
+        try (
+            var resp1 = run("TS host* | STATS max(avg_over_time(cpu)) BY TBUCKET(1minute)");
+            var resp2 = run("TS host* | EVAL tbucket = DATE_TRUNC(1m, @timestamp) | STATS max(avg_over_time(cpu)) BY tbucket");
+        ) {
+            Map<String, Double> results1 = EsqlTestUtils.getValuesList(resp1)
+                .stream()
+                .collect(Collectors.toMap(e -> (String) e.get(1), e -> round((Double) e.get(0))));
+            Map<String, Double> results2 = EsqlTestUtils.getValuesList(resp2)
+                .stream()
+                .collect(Collectors.toMap(e -> (String) e.get(1), e -> round((Double) e.get(0))));
+            assertThat(results1, equalTo(results2));
+        }
+        try (
+            var resp1 = run("TS host* | STATS avg(avg_over_time(cpu, 5m)) BY cluster, TBUCKET(1minute)");
+            var resp2 = run("TS host* | EVAL tbucket = DATE_TRUNC(1m, @timestamp) | STATS avg(avg_over_time(cpu, 5m)) BY cluster, tbucket");
+        ) {
+            record Key(String cluster, String tbucket) {
+
+            }
+            Map<Key, Double> results1 = EsqlTestUtils.getValuesList(resp1)
+                .stream()
+                .collect(Collectors.toMap(e -> new Key((String) e.get(1), (String) e.get(2)), e -> round((Double) e.get(0))));
+            Map<Key, Double> results2 = EsqlTestUtils.getValuesList(resp2)
+                .stream()
+                .collect(Collectors.toMap(e -> new Key((String) e.get(1), (String) e.get(2)), e -> round((Double) e.get(0))));
+            assertThat(results1, equalTo(results2));
+        }
+    }
+
+    private static double round(double value) {
+        return new BigDecimal(value).setScale(6, RoundingMode.HALF_UP).doubleValue();
+    }
 }

@@ -46,9 +46,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test start/stop/start transform}
   issue: https://github.com/elastic/elasticsearch/issues/119508
-- class: org.elasticsearch.smoketest.MlWithSecurityIT
-  method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
-  issue: https://github.com/elastic/elasticsearch/issues/119548
 - class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/119983
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT

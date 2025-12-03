@@ -40,6 +40,7 @@ public record EsqlResolvedIndexExpression(Set<String> expression, Set<String> re
                         .reduce(EMPTY, EsqlResolvedIndexExpression::merge)
                 )
             )
+            .filter(entry -> entry.getValue().expression().isEmpty() == false)
             .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 

@@ -177,10 +177,14 @@ public class ModelRegistry implements ClusterStateListener {
      * @return true if we find a match and false if not
      */
     public boolean containsPreconfiguredInferenceEndpointId(String inferenceEntityId) {
+        // This checks an in memory cache local to the node. The cache should be the same across all nodes as it is populated in the
+        // inference plugin on boot up (excluding an upgrade scenario where the plugins could be different).
+        // This primarily holds endpoints registered by the ElasticsearchInternalService
         if (defaultConfigIds.containsKey(inferenceEntityId)) {
             return true;
         }
 
+        // This checks the cluster state for user created endpoints as well as EIS preconfigured endpoints
         if (lastMetadata.get() != null) {
             var project = lastMetadata.get().getProject(ProjectId.DEFAULT);
             var state = ModelRegistryMetadata.fromState(project);
@@ -960,6 +964,18 @@ public class ModelRegistry implements ClusterStateListener {
             .addListener(listener);
     }
 
+    /**
+     * An out of sync endpoint is one that exists in the model store index, but is not present in the cluster state. This doesn't usually
+     * happen. It did happen when we transitioned the EIS preconfigured endpoints from being stored in the in memory cache local to
+     * each node in {@link #defaultConfigIds} to being stored in cluster state. The issue was that when we transitioned the logic
+     * the {@link ElasticInferenceService} no longer registered the preconfigured endpoints on an authorization poll to the in memory
+     * cache. The polling logic was moved to a persistent task that only runs on a single node. Since we're only running on one node
+     * we need to store the information in a way that all nodes can access it, hence storing in cluster state. The logic to store the
+     * information in cluster state was only triggered when a preconfigured endpoint was missing from cluster state (it gets flagged as
+     * being new). So the authorization logic would receive the preconfigured endpoints from EIS and attempt to store them. When it
+     * stored them a version conflict would occur since the index already had the documents. So this logic identifies that scenario and
+     * adds the missing information to cluster state.
+     */
     private void handleOutOfSyncEndpoints(ResponseInfo responseInfo, ActionListener<Void> listener, TimeValue timeout) {
         var outOfSyncEndpointsExist = responseInfo.responses.stream()
             .anyMatch(
@@ -975,12 +991,12 @@ public class ModelRegistry implements ClusterStateListener {
         }
 
         var fixOutOfSyncListener = ActionListener.<GetInferenceModelAction.Response>wrap((response) -> {
-            var endpointsToFix = new ArrayList<ModelAndSettings>();
+            var outOfSyncEndpoints = new ArrayList<ModelAndSettings>();
 
             for (var model : response.getEndpoints()) {
                 // If the inference id can't be found in the in memory hash map or the cluster state, then it is out of sync
                 if (containsInferenceEndpointId(model.getInferenceEntityId()) == false) {
-                    endpointsToFix.add(
+                    outOfSyncEndpoints.add(
                         new ModelAndSettings(
                             model.getInferenceEntityId(),
                             new MinimalServiceSettings(
@@ -995,26 +1011,14 @@ public class ModelRegistry implements ClusterStateListener {
                 }
             }
 
-            if (endpointsToFix.isEmpty()) {
+            if (outOfSyncEndpoints.isEmpty()) {
                 listener.onResponse(null);
                 return;
             }
 
-            metadataTaskQueue.submitTask(
-                format(
-                    "adding out of sync endpoint metadata for %s",
-                    endpointsToFix.stream().map(ModelAndSettings::inferenceEntityId).toList()
-                ),
-                new AddModelMetadataTask(
-                    ProjectId.DEFAULT,
-                    endpointsToFix,
-                    ActionListener.wrap((result) -> listener.onResponse(null), e -> {
-                        logger.atWarn().withThrowable(e).log("Failed while submitting task to fix out of sync endpoints");
-                        listener.onResponse(null);
-                    })
-                ),
-                timeout
-            );
+            // Add the missing endpoints information from the index to the cluster state
+            // This only updates cluster state and not the index
+            submitEndpointMetadataToClusterState(outOfSyncEndpoints, listener, timeout);
         }, e -> {
             logger.atWarn().withThrowable(e).log("Failed to retrieve all endpoints to fix out of sync ones");
             listener.onResponse(null);
@@ -1034,10 +1038,14 @@ public class ModelRegistry implements ClusterStateListener {
      * @return true if we find a match and false if not
      */
     private boolean containsInferenceEndpointId(String inferenceEntityId) {
+        // This checks an in memory cache local to the node. The cache should be the same across all nodes as it is populated in the
+        // inference plugin on boot up (excluding an upgrade scenario where the plugins could be different).
+        // This primarily holds endpoints registered by the ElasticsearchInternalService
         if (defaultConfigIds.containsKey(inferenceEntityId)) {
             return true;
         }
 
+        // This checks the cluster state for user created endpoints as well as EIS preconfigured endpoints
         if (lastMetadata.get() != null) {
             var project = lastMetadata.get().getProject(ProjectId.DEFAULT);
             var state = ModelRegistryMetadata.fromState(project);
@@ -1046,6 +1054,21 @@ public class ModelRegistry implements ClusterStateListener {
         }
 
         return false;
+    }
+
+    private void submitEndpointMetadataToClusterState(
+        ArrayList<ModelAndSettings> endpoints,
+        ActionListener<Void> listener,
+        TimeValue timeout
+    ) {
+        metadataTaskQueue.submitTask(
+            format("adding out of sync endpoint metadata for %s", endpoints.stream().map(ModelAndSettings::inferenceEntityId).toList()),
+            new AddModelMetadataTask(ProjectId.DEFAULT, endpoints, ActionListener.wrap((result) -> listener.onResponse(null), e -> {
+                logger.atWarn().withThrowable(e).log("Failed while submitting task to fix out of sync endpoints");
+                listener.onResponse(null);
+            })),
+            timeout
+        );
     }
 
     public boolean isReady() {

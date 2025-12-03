@@ -10,29 +10,16 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.cloud.BaseServiceException;
-import com.google.cloud.BatchResult;
 import com.google.cloud.WriteChannel;
-import com.google.cloud.storage.Blob;
-import com.google.cloud.storage.BlobId;
-import com.google.cloud.storage.BlobInfo;
-import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.*;
 import com.google.cloud.storage.Storage.BlobListOption;
-import com.google.cloud.storage.StorageBatch;
-import com.google.cloud.storage.StorageBatchResult;
-import com.google.cloud.storage.StorageException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.BackoffPolicy;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.BlobStoreActionStats;
-import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.blobstore.OptionalBytesReference;
+import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,36 +28,19 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Streams;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.*;
 import org.elasticsearch.rest.RestStatus;
 
-import java.io.ByteArrayInputStream;
-import java.io.FilterOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
 
 import static java.net.HttpURLConnection.HTTP_GONE;
-import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
 import static org.elasticsearch.core.Strings.format;
 
@@ -727,7 +697,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         // from the previous bulk and new items. When bulk results have failed items, we first retry
         // only a single item using the SDK client's retry strategy (exponential-backoff). Retrying
         // a single item should provide enough time to back-off from throttling or temporary GCS
-        // failures. Once a single item successfully retries,  we proceed with the next batch, combining
+        // failures. Once a single item successfully retries, we proceed with the next batch, combining
         // the remaining failures and new items.
         //
         // Which is roughly looks like this:

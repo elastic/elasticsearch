@@ -3320,6 +3320,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .build(),
             IndicesOptions.strictExpand(),
             now,
+            false,
+            false,
+            false,
+            false,
+            false,
             SystemIndexAccessLevel.NONE,
             Predicates.never(),
             Predicates.never()

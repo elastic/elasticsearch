@@ -133,8 +133,8 @@ max(rate(network.total_bytes_in)): double | time_bucket:date
 ;
 
 oneRateWithPromql
-required_capability: promql_pre_tech_preview_v3
-PROMQL k8s step 5m (max(rate(network.total_bytes_in[5m])))
+required_capability: promql_pre_tech_preview_v4
+PROMQL k8s step=5m (max(rate(network.total_bytes_in[5m])))
 | SORT step DESC | LIMIT 2;
 
 max(rate(network.total_bytes_in[5m])):double | step:date
@@ -153,8 +153,8 @@ max(rate(network.total_bytes_in)): double | time_bucket:date
 ;
 
 oneRateWithSingleStepPromql
-required_capability: promql_pre_tech_preview_v3
-PROMQL k8s step 1h (max(rate(network.total_bytes_in[1h])));
+required_capability: promql_pre_tech_preview_v4
+PROMQL k8s step=1h (max(rate(network.total_bytes_in[1h])));
 
 max(rate(network.total_bytes_in[1h])):double | step:date
 4.379885057471264                            | 2024-05-10T00:00:00.000Z
@@ -205,16 +205,6 @@ max(rate(network.total_bytes_in)): double | max(max_over_time(network.cost)): do
 11.860805860805861                        | 12.375                                   | 2024-05-10T00:15:00.000Z | prod
 23.702205882352942                        | 12.125                                   | 2024-05-10T00:15:00.000Z | qa
 7.784911616161616                         | 11.5                                     | 2024-05-10T00:15:00.000Z | staging
-;
-
-oneRateWithBucketAndClusterThenFilter
-required_capability: ts_command_v0
-TS k8s | WHERE cluster=="prod" | STATS max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster | SORT time_bucket DESC | LIMIT 3;
-
-max(rate(network.total_bytes_in)):double | time_bucket:datetime     | cluster:keyword
-6.980660660660663                        | 2024-05-10T00:20:00.000Z | prod
-11.860805860805861                       | 2024-05-10T00:15:00.000Z | prod
-11.562737642585551                       | 2024-05-10T00:10:00.000Z | prod
 ;
 
 
@@ -720,6 +710,7 @@ TS k8s METADATA _tsid
 | STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(@timestamp, 1hour) 
 ;
 
+
 maxRate:double | tbucket:datetime
 0.058979885057471274 | 2024-05-10T00:00:00.000Z
 ;
@@ -991,3 +982,39 @@ TS k8s
 max_rate:double 
 13.17372515125324
 ;
+
+oneRateIncreaseWithBucketAndClusterThenFilter
+required_capability: ts_command_v0
+TS k8s
+| WHERE cluster=="prod"
+| STATS max=max(rate(network.total_bytes_in)), inc=max(increase(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
+| EVAL max=ROUND(max, 5), inc=ROUND(inc, 5)
+| KEEP max, inc, time_bucket, cluster
+| SORT time_bucket DESC 
+| LIMIT 3;
+
+max:double | inc:double | time_bucket:datetime     | cluster:keyword
+6.98066    | 2094.1982  | 2024-05-10T00:20:00.000Z | prod
+11.86081   | 3558.24176 | 2024-05-10T00:15:00.000Z | prod
+11.56274   | 3468.82129 | 2024-05-10T00:10:00.000Z | prod
+
+;
+
+dateNanosOneRateIncreaseWithBucketAndClusterThenFilter
+required_capability: ts_command_v0
+required_capability: ts_rate_datenanos_2
+
+TS datenanos-k8s
+| WHERE cluster=="prod"
+| STATS max=max(rate(network.total_bytes_in)), inc=max(increase(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
+| EVAL max=ROUND(max, 5), inc=ROUND(inc, 5)
+| KEEP max, inc, time_bucket, cluster
+| SORT time_bucket DESC 
+| LIMIT 3;
+
+max:double | inc:double | time_bucket:date_nanos     | cluster:keyword
+6.98065    | 2094.19643 | 2024-05-10T00:20:00.000Z | prod
+11.86081   | 3558.24176 | 2024-05-10T00:15:00.000Z | prod
+11.56274   | 3468.82129 | 2024-05-10T00:10:00.000Z | prod
+;
+

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggr
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
@@ -295,6 +296,19 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                         throw new IllegalArgumentException("expected at most one time tbucket");
                     }
                     Bucket bucket = (Bucket) tbucket.surrogate();
+                    timeBucketRef.set(new Alias(e.source(), bucket.functionName(), bucket, e.id()));
+                } else if (child instanceof DateTrunc dateTrunc && dateTrunc.field().equals(timestamp.get())) {
+                    if (timeBucketRef.get() != null) {
+                        throw new IllegalArgumentException("expected at most one time bucket");
+                    }
+                    Bucket bucket = new Bucket(
+                        dateTrunc.source(),
+                        dateTrunc.field(),
+                        dateTrunc.interval(),
+                        null,
+                        null,
+                        dateTrunc.configuration()
+                    );
                     timeBucketRef.set(new Alias(e.source(), bucket.functionName(), bucket, e.id()));
                 }
             }

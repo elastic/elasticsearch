@@ -480,7 +480,7 @@ public class IndexNameExpressionResolver {
     }
 
     /**
-     * Throws an exception if the expression is a remote expression
+     * Throws an exception if the expression is a remote expression and we do not allow it.
      */
     private static void checkForRemoteIndexExpression(Context context, String current, String[] expressions) {
         if (context.isAllowRemoteIndices() == false && RemoteClusterAware.isRemoteIndexName(current)) {

@@ -337,7 +337,11 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractServerlessSta
             // Perform broadcast action (flush or refresh) on isolated node
             verifyBroadcastRequestExecution(isolatedSearchNode, indexName, actionType, numShards.numPrimaries * multiple);
 
-            // Unblock reshard
+            // Unblock reshard.
+            // We need to unblock SPLIT again since it needs to be acked, and it wasn't acked before
+            // since isolated coordinator was rejecting cluster state updates.
+            isolatedTransportService.clearAllRules();
+            splitTransitionBlock.await();
             blockDone.countDown();
         } finally {
             indexTransportService.clearAllRules();

@@ -96,16 +96,17 @@ public class SplitTargetService {
         }
 
         switch (reshardingMetadata.getSplit().getTargetShardState(shardId.id())) {
-            case CLONE -> throw new IllegalStateException("Cannot make it here is still CLONE");
-            case HANDOFF -> {
-                moveToSplitStep(indexShard, split);
-            }
+            case CLONE -> throw new IllegalStateException("Cannot make it here if still CLONE");
+            case HANDOFF -> moveToSplit(indexShard, split);
+            // Correctness of search results in some cases depends on SPLIT state being applied AND acked.
+            // If current state of the target shard is SPLIT we know that it was applied, but we can't be sure it was acked.
+            // We'll need to confirm that it is acked here using some to-be-created API.
             case SPLIT -> moveToDone(indexShard, split);
             case DONE -> onGoingSplits.remove(indexShard);
         }
     }
 
-    private void moveToSplitStep(IndexShard indexShard, Split split) {
+    private void moveToSplit(IndexShard indexShard, Split split) {
         ShardId shardId = indexShard.shardId();
         ClusterStateObserver observer = new ClusterStateObserver(
             clusterService,
@@ -121,7 +122,7 @@ public class SplitTargetService {
                 if (projectMetadata != null) {
                     if (newPrimaryTerm(index, projectMetadata, shardId, split.targetPrimaryTerm()) == false) {
                         assert isShardGreen(state, projectMetadata, shardId);
-                        advancedToSplit();
+                        changeStateToSplitAndProceed(indexShard, split);
                     }
                 }
             }
@@ -135,29 +136,29 @@ public class SplitTargetService {
             public void onTimeout(TimeValue timeout) {
                 // After the timeout we proceed to SPLIT. The timeout is just best effort to ensure search shards are running to prevent
                 // downtime.
-                advancedToSplit();
-            }
-
-            private void advancedToSplit() {
-                ChangeState changeState = new ChangeState(
-                    indexShard,
-                    split,
-                    IndexReshardingState.Split.TargetShardState.SPLIT,
-                    new ActionListener<>() {
-                        @Override
-                        public void onResponse(ActionResponse actionResponse) {
-                            moveToDone(indexShard, split);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            stateError(indexShard, split, IndexReshardingState.Split.TargetShardState.SPLIT, e);
-                        }
-                    }
-                );
-                changeState.run();
+                changeStateToSplitAndProceed(indexShard, split);
             }
         }, newState -> searchShardsOnlineOrNewPrimaryTerm(newState, shardId, split.targetPrimaryTerm()));
+    }
+
+    private void changeStateToSplitAndProceed(IndexShard indexShard, Split split) {
+        ChangeState changeState = new ChangeState(
+            indexShard,
+            split,
+            IndexReshardingState.Split.TargetShardState.SPLIT,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(ActionResponse actionResponse) {
+                    moveToDone(indexShard, split);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    stateError(indexShard, split, IndexReshardingState.Split.TargetShardState.SPLIT, e);
+                }
+            }
+        );
+        changeState.run();
     }
 
     private void moveToDone(IndexShard indexShard, Split split) {

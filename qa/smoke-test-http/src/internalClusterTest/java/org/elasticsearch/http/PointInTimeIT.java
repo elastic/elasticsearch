@@ -64,7 +64,7 @@ public class PointInTimeIT extends HttpSmokeTestCase {
                 }
                 """);
             ResponseException error = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-            assertThat(error.getMessage(), containsString("request [_pit] contains unrecognized parameter: [project_routing]"));
+            assertThat(error.getMessage(), containsString("Unknown key for a VALUE_STRING in [project_routing]"));
             assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
         }
     }

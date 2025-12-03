@@ -357,7 +357,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         }
         if (projectRouting != null && indicesOptions.resolveCrossProjectIndexExpression() == false) {
             validationException = ValidateActions.addValidationError(
-                "request [_field_caps] contains unrecognized parameter: [project_routing]",
+                "Unknown key for a VALUE_STRING in [project_routing]",
                 validationException
             );
 

@@ -107,7 +107,7 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
         }
         if (projectRouting != null && indicesOptions.resolveCrossProjectIndexExpression() == false) {
             validationException = ValidateActions.addValidationError(
-                "request [_pit] contains unrecognized parameter: [project_routing]",
+                "Unknown key for a VALUE_STRING in [project_routing]",
                 validationException
             );
 

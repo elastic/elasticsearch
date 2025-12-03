@@ -62,8 +62,10 @@ public class PerFieldFormatSupplier {
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private static final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
-    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = ES819TSDBDocValuesFormat.getInstance(TSDB_USE_LARGE_NUMERIC_BLOCKS);
-    private static final ES819TSDBDocValuesFormat logsDocValuesFormat = ES819TSDBDocValuesFormat.getInstance(false);
+    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = ES819TSDBDocValuesFormat.getInstance(false);
+    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormatLargeNumericBlock = ES819TSDBDocValuesFormat.getInstance(
+        TSDB_USE_LARGE_NUMERIC_BLOCKS
+    );
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion101");
 
@@ -141,29 +143,24 @@ public class PerFieldFormatSupplier {
 
     public DocValuesFormat getDocValuesFormatForField(String field) {
         if (useTSDBDocValuesFormat(field)) {
-            return tsdbDocValuesFormat;
-        }
-        if (useLogsDocValuesFormat(field)) {
-            return logsDocValuesFormat;
+            return (mapperService != null && mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize())
+                ? tsdbDocValuesFormatLargeNumericBlock
+                : tsdbDocValuesFormat;
         }
         return docValuesFormat;
     }
 
     boolean useTSDBDocValuesFormat(final String field) {
-        if (excludeFields(field) || excludeMapperTypes(field)) {
+        if (excludeFields(field)) {
             return false;
         }
+
+        if (excludeMapperTypes(field)) {
+            return false;
+        }
+
         return mapperService != null
             && mapperService.getIndexSettings().useTimeSeriesDocValuesFormat()
-            && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
-    }
-
-    boolean useLogsDocValuesFormat(final String field) {
-        if (excludeFields(field) || excludeMapperTypes(field)) {
-            return false;
-        }
-        return mapperService != null
-            && mapperService.getIndexSettings().useLogsDocValuesFormat()
             && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
     }
 

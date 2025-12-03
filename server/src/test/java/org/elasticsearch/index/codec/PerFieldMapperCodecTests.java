@@ -156,7 +156,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     public void testUseES87TSDBEncodingForTimestampField() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, true, true);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
-        assertThat((perFieldMapperCodec.useLogsDocValuesFormat("@timestamp")), is(false));
     }
 
     public void testDoNotUseES87TSDBEncodingForTimestampFieldNonTimeSeriesIndex() throws IOException {
@@ -168,8 +167,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, IndexMode.TIME_SERIES, MAPPING_1);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
-        assertThat((perFieldMapperCodec.useLogsDocValuesFormat("gauge")), is(false));
-        assertThat((perFieldMapperCodec.useLogsDocValuesFormat("@timestamp")), is(false));
     }
 
     public void testDisableES87TSDBCodec() throws IOException {
@@ -226,9 +223,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(true));
-        assertThat((perFieldMapperCodec.useLogsDocValuesFormat("@timestamp")), is(false));
-        assertThat((perFieldMapperCodec.useLogsDocValuesFormat("counter")), is(false));
-        assertThat((perFieldMapperCodec.useLogsDocValuesFormat("gauge")), is(false));
     }
 
     public void testUseTimeSeriesModeAndCodecEnabled() throws IOException {
@@ -236,27 +230,19 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(true));
-        assertThat((perFieldMapperCodec.useLogsDocValuesFormat("@timestamp")), is(false));
-        assertThat((perFieldMapperCodec.useLogsDocValuesFormat("counter")), is(false));
-        assertThat((perFieldMapperCodec.useLogsDocValuesFormat("gauge")), is(false));
     }
 
     public void testLogsIndexMode() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.LOGSDB, MAPPING_3);
-        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(false));
-        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("hostname")), is(false));
-        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("response_size")), is(false));
-        assertThat((perFieldMapperCodec.useLogsDocValuesFormat("@timestamp")), is(true));
-        assertThat((perFieldMapperCodec.useLogsDocValuesFormat("hostname")), is(true));
-        assertThat((perFieldMapperCodec.useLogsDocValuesFormat("response_size")), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("hostname")), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("response_size")), is(true));
     }
 
     public void testMetaFields() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.LOGSDB, MAPPING_3);
-        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(TimeSeriesIdFieldMapper.NAME)), is(false));
-        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(TimeSeriesRoutingHashFieldMapper.NAME)), is(false));
-        assertThat((perFieldMapperCodec.useLogsDocValuesFormat(TimeSeriesIdFieldMapper.NAME)), is(true));
-        assertThat((perFieldMapperCodec.useLogsDocValuesFormat(TimeSeriesRoutingHashFieldMapper.NAME)), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(TimeSeriesIdFieldMapper.NAME)), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(TimeSeriesRoutingHashFieldMapper.NAME)), is(true));
         // See: PerFieldFormatSupplier why these fields shouldn't use tsdb codec
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SourceFieldMapper.RECOVERY_SOURCE_NAME)), is(false));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME)), is(false));
@@ -264,8 +250,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
 
     public void testSeqnoField() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.LOGSDB, MAPPING_3);
-        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SeqNoFieldMapper.NAME)), is(false));
-        assertThat((perFieldMapperCodec.useLogsDocValuesFormat(SeqNoFieldMapper.NAME)), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SeqNoFieldMapper.NAME)), is(true));
     }
 
     private PerFieldFormatSupplier createFormatSupplier(IndexMode mode, String mapping) throws IOException {

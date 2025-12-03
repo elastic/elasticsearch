@@ -207,6 +207,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         final int numericBlockShift
     ) {
         super(CODEC_NAME);
+        assert numericBlockShift == NUMERIC_BLOCK_SHIFT || numericBlockShift == NUMERIC_LARGE_BLOCK_SHIFT : numericBlockShift;
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");
         }

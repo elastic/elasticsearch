@@ -22,16 +22,11 @@ import java.util.Arrays;
 public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
     private final float[] query;
-    public IVFKnnFloatVectorQuery(
-        String field,
-        float[] query,
-        int k,
-        int numCands,
-        Query filter,
-        float visitRatio
-    ){
+
+    public IVFKnnFloatVectorQuery(String field, float[] query, int k, int numCands, Query filter, float visitRatio) {
         this(field, query, k, numCands, filter, visitRatio, .75f);
     }
+
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
      * @param field the field to search
@@ -112,19 +107,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         }
         assert filterDocs instanceof ESAcceptDocs;
         IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, knnCollectorManager.longAccumulator);
-        AbstractMaxScoreKnnCollector knnCollector;
-        if (filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs
-            && (float) ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).approximateCost() / floatVectorValues
-                .size() >= postFilteringThreshold) {
-            knnCollector = knnCollectorManager.newOptimisticCollector(
-                visitedLimit,
-                strategy,
-                context,
-                Math.round(k * (5 + (1f - postFilteringThreshold)))
-            );
-        } else {
-            knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
-        }
+        AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {
             return NO_RESULTS;
         }

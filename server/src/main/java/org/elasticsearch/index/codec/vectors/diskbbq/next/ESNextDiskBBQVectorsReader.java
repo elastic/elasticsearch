@@ -123,10 +123,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
     ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         float approximateDocsPerCentroid = approximateCost / numCentroids;
-        // if (approximateDocsPerCentroid <= 1.25) {
-        // // TODO: we need to make this call to build the iterator, otherwise accept docs breaks all together
-        // approximateDocsPerCentroid = (float) acceptDocs.cost() / numCentroids;
-        // }
+        if (approximateDocsPerCentroid <= 1.25) {
+            // TODO: we need to make this call to build the iterator, otherwise accept docs breaks all together
+            approximateDocsPerCentroid = (float) acceptDocs.cost() / numCentroids;
+        }
         final int bitsRequired = DirectWriter.bitsRequired(numCentroids);
         final long sizeLookup = directWriterSizeOnDisk(values.size(), bitsRequired);
         final long fp = centroids.getFilePointer();
@@ -706,12 +706,12 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             int scoredDocs = 0;
             int limit = vectors - BULK_SIZE + 1;
             int i = 0;
-            var filterDocsBits = filterDocs == null || filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs ? null : filterDocs.bits();
             // read Docs
+            var filteredBits = filterDocs == null ? null : filterDocs.bits();
             for (; i < limit; i += BULK_SIZE) {
                 // read the doc ids
                 readDocIds(BULK_SIZE);
-                final int docsToBulkScore = filterDocsBits == null ? BULK_SIZE : docToBulkScore(docIdsScratch, filterDocsBits);
+                final int docsToBulkScore = filteredBits == null ? BULK_SIZE : docToBulkScore(docIdsScratch, filteredBits);
                 if (docsToBulkScore == 0) {
                     indexInput.skipBytes(quantizedByteLength * BULK_SIZE);
                     continue;
@@ -743,63 +743,30 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 readDocIds(vectors - i);
             }
             int count = 0;
-            var postFilterIterator = filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs ? filterDocs.iterator() : null;
             for (; i < vectors; i++) {
-                // this is where i could use the iterator as we have the doc ids in order
-                // we have taken advantage of not building the bitset + we wouldn't need any acceptDocs
                 int doc = docIdsScratch[count++];
-                if (postFilterIterator != null) {
-                    if (postFilterIterator.docID() == NO_MORE_DOCS || postFilterIterator.docID() > doc) {
-                        indexInput.skipBytes(quantizedByteLength);
-                        continue;
-                    }
-                    if (postFilterIterator.docID() == doc || postFilterIterator.advance(doc) == doc) {
-                        quantizeQueryIfNecessary();
-                        float qcDist = osqVectorsScorer.quantizeScore(quantizedQueryScratch);
-                        indexInput.readFloats(correctiveValues, 0, 3);
-                        final int quantizedComponentSum = Short.toUnsignedInt(indexInput.readShort());
-                        float score = osqVectorsScorer.score(
-                            queryCorrections.lowerInterval(),
-                            queryCorrections.upperInterval(),
-                            queryCorrections.quantizedComponentSum(),
-                            queryCorrections.additionalCorrection(),
-                            fieldInfo.getVectorSimilarityFunction(),
-                            centroidDp,
-                            correctiveValues[0],
-                            correctiveValues[1],
-                            quantizedComponentSum,
-                            correctiveValues[2],
-                            qcDist
-                        );
-                        scoredDocs++;
-                        knnCollector.collect(doc, score);
-                    } else {
-                        indexInput.skipBytes(quantizedByteLength);
-                    }
+                if (filteredBits == null || filteredBits.get(doc)) {
+                    quantizeQueryIfNecessary();
+                    float qcDist = osqVectorsScorer.quantizeScore(quantizedQueryScratch);
+                    indexInput.readFloats(correctiveValues, 0, 3);
+                    final int quantizedComponentSum = Short.toUnsignedInt(indexInput.readShort());
+                    float score = osqVectorsScorer.score(
+                        queryCorrections.lowerInterval(),
+                        queryCorrections.upperInterval(),
+                        queryCorrections.quantizedComponentSum(),
+                        queryCorrections.additionalCorrection(),
+                        fieldInfo.getVectorSimilarityFunction(),
+                        centroidDp,
+                        correctiveValues[0],
+                        correctiveValues[1],
+                        quantizedComponentSum,
+                        correctiveValues[2],
+                        qcDist
+                    );
+                    scoredDocs++;
+                    knnCollector.collect(doc, score);
                 } else {
-                    if (filterDocs == null || filterDocs.bits() == null || filterDocs.bits().get(doc)) {
-                        quantizeQueryIfNecessary();
-                        float qcDist = osqVectorsScorer.quantizeScore(quantizedQueryScratch);
-                        indexInput.readFloats(correctiveValues, 0, 3);
-                        final int quantizedComponentSum = Short.toUnsignedInt(indexInput.readShort());
-                        float score = osqVectorsScorer.score(
-                            queryCorrections.lowerInterval(),
-                            queryCorrections.upperInterval(),
-                            queryCorrections.quantizedComponentSum(),
-                            queryCorrections.additionalCorrection(),
-                            fieldInfo.getVectorSimilarityFunction(),
-                            centroidDp,
-                            correctiveValues[0],
-                            correctiveValues[1],
-                            quantizedComponentSum,
-                            correctiveValues[2],
-                            qcDist
-                        );
-                        scoredDocs++;
-                        knnCollector.collect(doc, score);
-                    } else {
-                        indexInput.skipBytes(quantizedByteLength);
-                    }
+                    indexInput.skipBytes(quantizedByteLength);
                 }
             }
             if (scoredDocs > 0) {
@@ -817,4 +784,5 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             }
         }
     }
+
 }

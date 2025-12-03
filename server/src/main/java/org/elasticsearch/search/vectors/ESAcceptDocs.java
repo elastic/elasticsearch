@@ -19,10 +19,12 @@
  */
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
@@ -243,14 +245,15 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
     /** An AcceptDocs that wraps a ScorerSupplier. Indicates that a filter was provided. */
     public static final class PostFilterEsAcceptDocs extends ESAcceptDocs {
-        private final ScorerSupplier scorerSupplier;
+        private final Weight weight;
+        private final LeafReaderContext ctx;
         private final Bits liveDocs;
-        private final DocIdSetIterator iterator;
 
-        PostFilterEsAcceptDocs(ScorerSupplier scorerSupplier, Bits liveDocs) throws IOException {
-            this.scorerSupplier = scorerSupplier;
+        PostFilterEsAcceptDocs(Weight weight, LeafReaderContext ctx, Bits liveDocs) throws IOException {
+            this.weight = weight;
+            this.ctx = ctx;
+            ;
             this.liveDocs = liveDocs;
-            this.iterator = scorerSupplier.get(NO_MORE_DOCS).iterator();
         }
 
         @Override
@@ -260,12 +263,14 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public DocIdSetIterator iterator() throws IOException {
-            return liveDocs == null ? iterator : new FilteredDocIdSetIterator(iterator) {
-                @Override
-                protected boolean match(int doc) {
-                    return liveDocs.get(doc);
-                }
-            };
+            return liveDocs == null
+                ? weight.scorerSupplier(ctx).get(NO_MORE_DOCS).iterator()
+                : new FilteredDocIdSetIterator(weight.scorerSupplier(ctx).get(NO_MORE_DOCS).iterator()) {
+                    @Override
+                    protected boolean match(int doc) {
+                        return liveDocs.get(doc);
+                    }
+                };
         }
 
         @Override
@@ -275,7 +280,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public int approximateCost() throws IOException {
-            return Math.toIntExact(scorerSupplier.cost());
+            return Math.toIntExact(weight.scorerSupplier(ctx).cost());
         }
 
         @Override

@@ -57,7 +57,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected int vectorOpsCount;
     protected final float postFilteringThreshold;
 
-    protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter){
+    protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter) {
         this(field, visitRatio, k, numCands, filter, .75f);
     }
 
@@ -97,12 +97,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return k == that.k
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
-            && Objects.equals(providedVisitRatio, that.providedVisitRatio);
+            && Objects.equals(providedVisitRatio, that.providedVisitRatio)
+            && Objects.equals(postFilteringThreshold, that.postFilteringThreshold);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, filter, providedVisitRatio);
+        return Objects.hash(field, k, filter, providedVisitRatio, postFilteringThreshold);
     }
 
     @Override
@@ -148,11 +149,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     ScorerSupplier supplier = filterWeight.scorerSupplier(leafReaderContext);
                     if (supplier != null) {
                         var filterCost = Math.toIntExact(supplier.cost());
-                        if (((float) filterCost / floatVectorValues.size()) >= postFilteringThreshold) {
+                        if (((float) filterCost / floatVectorValues.size()) >= 10000 * (1 + postFilteringThreshold)) {
                             leafSearchMetas.add(
                                 new VectorLeafSearchFilterMeta(
                                     leafReaderContext,
-                                    new ESAcceptDocs.PostFilterEsAcceptDocs(supplier, liveDocs)
+                                    new ESAcceptDocs.PostFilterEsAcceptDocs(filterWeight, leafReaderContext, liveDocs)
                                 )
                             );
                         } else {

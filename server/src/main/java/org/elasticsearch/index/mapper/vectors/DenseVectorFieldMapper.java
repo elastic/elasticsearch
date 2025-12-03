@@ -2915,9 +2915,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
-                float filterThreshold = postFilteringThreshold == null
-                    ? BBQ_IVF_DEFAULT_POST_FILTERING_THRESHOLD
-                    : (float) postFilteringThreshold;
+                float filterThreshold = postFilteringThreshold == null ? BBQ_IVF_DEFAULT_POST_FILTERING_THRESHOLD : postFilteringThreshold;
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),

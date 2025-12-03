@@ -480,11 +480,11 @@ public class MustacheTests extends ESTestCase {
 
         final String script1 = "{{>foobar}}";
         e = expectThrows(ScriptException.class, () -> compile(script1));
-        assertThat(e.getMessage(), equalTo("Template foobar not found, because partial templates are not supported"));
+        assertThat(e.getMessage(), equalTo("Cannot expand 'foobar' because partial templates are not supported"));
 
         final String script2 = "{{>*foobar}}";
         e = expectThrows(ScriptException.class, () -> compile(script2));
-        assertThat(e.getMessage(), equalTo("Template *foobar not found, because partial templates are not supported"));
+        assertThat(e.getMessage(), equalTo("Cannot expand '*foobar' because partial templates are not supported"));
     }
 
     private void assertScript(String script, Map<String, Object> vars, Matcher<String> matcher) {

@@ -142,7 +142,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
         public void partial(TemplateContext tc, String variable, String indent) {
             // throwing a mustache exception here is important because this gets caught, handled (closing readers, etc),
             // and re-thrown in the mustache parser itself
-            throw new MustacheException(Strings.format("Template %s not found, because partial templates are not supported", variable));
+            throw new MustacheException(Strings.format("Cannot expand '%s' because partial templates are not supported", variable));
         }
     }
 

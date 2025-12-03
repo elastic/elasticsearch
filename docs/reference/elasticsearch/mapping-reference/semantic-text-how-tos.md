@@ -9,24 +9,17 @@ applies_to:
 
 # How-to guides for `semantic_text`
 
-This page provides procedure descriptions and examples for common tasks when working with `semantic_text` fields, including configuring inference endpoints, pre-chunking content, retrieving embeddings, highlighting fragments, and performing cross-cluster search.
+This page provides procedure descriptions and examples for common tasks when working with `semantic_text` fields, including configuring {{infer}} endpoints, pre-chunking content, retrieving embeddings, highlighting fragments, and performing {{ccs}}.
 
-## Configure inference endpoints [configure-inference-endpoints]
+## Configure {{infer}} endpoints [configure-inference-endpoints]
 
-You can configure inference endpoints for `semantic_text` fields in the following ways: 
+You can configure {{infer}} endpoints for `semantic_text` fields in the following ways: 
 
-- [Use default and preconfigured endpoints](#default-and-preconfigured-endpoints)
 - [Use ELSER on EIS](#using-elser-on-eis)
-- [Use a custom inference endpoint](#using-custom-endpoint)
+- [Use default and preconfigured endpoints](#default-and-preconfigured-endpoints)
+- [Use a custom {{infer}} endpoint](#using-custom-endpoint)
 
 The recommended method is to [use dedicated endpoints for ingestion and search](#dedicated-endpoints-for-ingestion-and-search).
-
-:::{important}
-The `inference_id` will not be validated when the mapping is created, but when
-documents are ingested into the index. When the first document is indexed, the
-`inference_id` will be used to generate underlying indexing structures for the
-field.
-:::
 
 ### Use default and preconfigured endpoints [default-and-preconfigured-endpoints]
 
@@ -38,7 +31,7 @@ field.
 serverless: ga
 ```
 
-If you want to use the default `.elser-v2-elastic` endpoint that runs on EIS, you can set up `semantic_text` with the following API request:
+If you want to use the default `.elser-v2-elastic` endpoint that runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis), you can set up `semantic_text` with the following API request:
 
 ```console
 PUT my-index-000001
@@ -52,11 +45,10 @@ PUT my-index-000001
   }
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 If you don't specify an {{infer}} endpoint, the `inference_id` field defaults to
 `.elser-v2-elastic`, a preconfigured endpoint for the `elasticsearch` service.
-This endpoint uses the [Elastic {{infer-cap}} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
 
 ::::::
 
@@ -68,7 +60,7 @@ deployment:
   self: unavailable
 ```
 
-If you want to use the preconfigured `.elser-v2-elastic` endpoint that runs on EIS, you can set up `semantic_text` with the following API request:
+If you want to use the preconfigured `.elser-v2-elastic` endpoint that runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis), you can set up `semantic_text` with the following API request:
 
 ```console
 PUT my-index-000001
@@ -86,7 +78,6 @@ PUT my-index-000001
 
 If you don't specify an {{infer}} endpoint, the `inference_id` field defaults to
 `.elser-2-elasticsearch`, a preconfigured endpoint for the `elasticsearch` service.
-This endpoint uses the [Elastic {{infer-cap}} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
 
 ::::::
 
@@ -120,7 +111,7 @@ deployment:
 serverless: ga
 ```
 
-If you use the preconfigured `.elser-2-elastic` endpoint that utilizes the ELSER model as a service through the Elastic Inference Service ([ELSER on EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis)), you can
+If you use the preconfigured `.elser-2-elastic` endpoint that utilizes the ELSER model as a service through the Elastic {{infer-cap}} Service ([ELSER on EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis)), you can
 set up `semantic_text` with the following API request:
 
 :::::::{tab-set}
@@ -167,15 +158,15 @@ PUT my-index-000001
   }
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 ::::::
 
 :::::::
 
-### Use a custom inference endpoint [using-custom-endpoint]
+### Use a custom {{infer}} endpoint [using-custom-endpoint]
 
-To use a custom {{infer}} endpoint instead of the default, you
+To use a custom {{infer}} endpoint instead of the default endpoint, you
 must [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
 and specify its `inference_id` when setting up the `semantic_text` field type.
 
@@ -192,7 +183,7 @@ PUT my-index-000002
   }
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 1. The `inference_id` of the {{infer}} endpoint to use to generate embeddings.
 
@@ -219,14 +210,14 @@ PUT my-index-000003
   }
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 ## Index pre-chunked content [pre-chunking]
 ```{applies_to}
 stack: ga 9.1
 ```
 
-To index pre-chunked content, provide your text as an array of strings. Each element in the array represents a single chunk that will be sent directly to the inference service without further chunking.
+To index pre-chunked content, provide your text as an array of strings. Each element in the array represents a single chunk that will be sent directly to the {{infer}} service without further chunking.
 
 :::::{stepper}
 
@@ -276,7 +267,7 @@ PUT test-index/_doc/1
 When providing pre-chunked input:
 
 - Ensure that you set the chunking strategy to `none` to avoid additional processing.
-- Size each chunk carefully, staying within the token limit of the inference service and the underlying model.
+- Size each chunk carefully, staying within the token limit of the {{infer}} service and the underlying model.
 - If a chunk exceeds the model's token limit, the behavior depends on the service:
   - Some services (such as OpenAI) will return an error.
   - Others (such as `elastic` and `elasticsearch`) will automatically truncate the input.
@@ -307,7 +298,7 @@ POST test-index/_search
   ]
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 1. Use `"format": "chunks"` to return the field's text as the original text chunks that were indexed.
 
@@ -315,13 +306,13 @@ POST test-index/_search
 
 By default, embeddings generated for `semantic_text` fields are stored internally and not included in the response when retrieving documents. Retrieving embeddings is useful when you want to:
 
-- Reindex documents into another index with the same `inference_id` without re-running inference
+- Reindex documents into another index with the same `inference_id` without re-running {{infer}}
 - Export or migrate documents while preserving their embeddings
 - Inspect or debug the raw embeddings generated for your content
 
 The method for retrieving embeddings depends on your {{es}} version:
 
-- If you use {{es}} 9.2 and later, or Serverless, use the [`_source.exclude_vectors`](#returning-semantic-field-embeddings-in-_source) parameter to include embeddings in `_source`. 
+- If you use {{es}} 9.2 and later, or {{serverless-short}}, use the [`_source.exclude_vectors`](#returning-semantic-field-embeddings-in-_source) parameter to include embeddings in `_source`. 
 - If you use {{es}} versions earlier than 9.2, use the [`fields` parameter](#returning-semantic-field-embeddings-using-fields) with `_inference_fields` to retrieve embeddings.
 
 ### Return semantic field embeddings in `_source` [returning-semantic-field-embeddings-in-_source]
@@ -526,7 +517,7 @@ POST test-index/_search
     }
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 1. Specifies the maximum number of fragments to return.
 2. Sorts the most relevant highlighted fragments by score when set to `score`. By default, fragments are output in the order they appear in the field (order: none).
@@ -556,7 +547,7 @@ POST test-index/_search
     }
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 1. Ensures that highlighting is applied exclusively to `semantic_text` fields.
 
@@ -584,7 +575,7 @@ POST test-index/_search
   }
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 1. Returns the first 5 fragments. Increase this value to retrieve additional fragments.
 
@@ -592,14 +583,14 @@ POST test-index/_search
 
 :::::
 
-## Perform cross-cluster search (CCS) for `semantic_text` [cross-cluster-search]
+## Perform {{ccs}} (CCS) for `semantic_text` [cross-cluster-search]
 
 ```{applies_to}
 stack: ga 9.2
 serverless: unavailable
 ```
 
-`semantic_text` supports [Cross-Cluster Search (CCS)](docs-content://solutions/search/cross-cluster-search.md) through the [`_search` endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) when [`ccs_minimize_roundtrips`](docs-content://solutions/search/cross-cluster-search.md#ccs-network-delays) is set to `true`. This is the default value, so most CCS queries work automatically.
+`semantic_text` supports [{{ccs}} (CCS)](docs-content://solutions/search/cross-cluster-search.md) through the [`_search` endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) when [`ccs_minimize_roundtrips`](docs-content://solutions/search/cross-cluster-search.md#ccs-network-delays) is set to `true`. This is the default value, so most CCS queries work automatically.
 
 Query `semantic_text` fields across clusters using the standard search endpoint with cluster notation:
 
@@ -639,7 +630,7 @@ PUT test-index
     }
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 ### Use multi-fields
 
@@ -663,5 +654,5 @@ PUT test-index
     }
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 

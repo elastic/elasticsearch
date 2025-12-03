@@ -11,8 +11,8 @@ applies_to:
 
 The `semantic_text` field type simplifies [semantic search](docs-content://solutions/search/semantic-search.md) by providing sensible defaults that automate most of the manual work typically required for vector search. Using `semantic_text`, you don't have to manually configure mappings, set up ingestion pipelines, or handle chunking. The field type automatically:
 
-- Configures index mappings: Chooses the correct field type (`sparse_vector` or `dense_vector`), dimensions, similarity functions, and storage optimizations based on the inference endpoint.
-- Generates embeddings during indexing: Automatically generates embeddings when you index documents, without requiring ingestion pipelines or inference processors.
+- Configures index mappings: Chooses the correct field type (`sparse_vector` or `dense_vector`), dimensions, similarity functions, and storage optimizations based on the {{infer}} endpoint.
+- Generates embeddings during indexing: Automatically generates embeddings when you index documents, without requiring ingestion pipelines or {{infer}} processors.
 - Handles chunking: Automatically chunks long text documents during indexing.
 
 ## Basic `semantic_text` mapping example
@@ -31,9 +31,9 @@ PUT semantic-embeddings
   }
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
-1. In this example, the `semantic_text` field uses a [default inference endpoint](./semantic-text-how-tos.md#default-and-preconfigured-endpoints) because the `inference_id` parameter isn't specified.
+1. In this example, the `semantic_text` field uses a [default {{infer}} endpoint](./semantic-text-how-tos.md#default-and-preconfigured-endpoints) because the `inference_id` parameter isn't specified.
 
 :::{tip}
 For a complete example, refer to the [Semantic search with `semantic_text`](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md) tutorial.
@@ -49,7 +49,7 @@ The [Reference](./semantic-text-reference.md) page provides technical reference 
 
 - [Parameters](./semantic-text-reference.md#semantic-text-params): Parameter descriptions for `semantic_text` fields.
 
-- [Inference endpoints](./semantic-text-reference.md#configuring-inference-endpoints): Overview of inference endpoints used with `semantic_text` fields.
+- [{{infer-cap}} endpoints](./semantic-text-reference.md#configuring-inference-endpoints): Overview of {{infer}} endpoints used with `semantic_text` fields.
 
 - [Chunking](./semantic-text-reference.md#chunking-behavior): Overview of how `semantic_text` automatically processes long text passages by generating smaller chunks.
 
@@ -59,9 +59,9 @@ The [Reference](./semantic-text-reference.md) page provides technical reference 
 
 The [How-to guides](./semantic-text-how-tos.md) page contains procedure descriptions and examples for common tasks, for instance:
 
-- [Configuring inference endpoints](./semantic-text-how-tos.md#configure-inference-endpoints): Learn how to use [default and preconfigured endpoints](./semantic-text-how-tos.md#default-and-preconfigured-endpoints), [ELSER on EIS](./semantic-text-how-tos.md#using-elser-on-eis), and [custom inference endpoints](./semantic-text-how-tos.md#using-custom-endpoint).
+- [Configuring {{infer}} endpoints](./semantic-text-how-tos.md#configure-inference-endpoints): Learn how to use [default and preconfigured endpoints](./semantic-text-how-tos.md#default-and-preconfigured-endpoints), [ELSER on EIS](./semantic-text-how-tos.md#using-elser-on-eis), and [custom {{infer}} endpoints](./semantic-text-how-tos.md#using-custom-endpoint).
 
-- [Setting up dedicated endpoints](./semantic-text-how-tos.md#dedicated-endpoints-for-ingestion-and-search): Learn how to configure separate inference endpoints for ingestion and search operations.
+- [Setting up dedicated endpoints](./semantic-text-how-tos.md#dedicated-endpoints-for-ingestion-and-search): Learn how to configure separate {{infer}} endpoints for ingestion and search operations.
 
 - [Pre-chunking content](./semantic-text-how-tos.md#pre-chunking): Learn how to provide pre-chunked text as arrays and [retrieve indexed chunks](./semantic-text-how-tos.md#retrieving-indexed-chunks).
 

@@ -9,7 +9,7 @@ applies_to:
 
 # `semantic_text` field type reference  [semantic-text]
 
-This page provides reference content for the `semantic_text` field type, including parameter descriptions, inference endpoint configuration options, chunking behavior, update operations, querying options, and limitations.
+This page provides reference content for the `semantic_text` field type, including parameter descriptions, {{infer}} endpoint configuration options, chunking behavior, update operations, querying options, and limitations.
 
 ## Parameters for `semantic_text` [semantic-text-params]
 
@@ -32,7 +32,7 @@ This parameter cannot be updated.
 
 You can update this parameter by using
 the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping).
-You can update the inference endpoint if no values have been indexed or if the new endpoint is compatible with the current one.
+You can update the {{infer}} endpoint if no values have been indexed or if the new endpoint is compatible with the current one.
 
 ::::{important}
 When updating an `inference_id` it is important to ensure the new {{infer}} endpoint produces embeddings compatible with those already indexed. This typically means using the same underlying model.
@@ -101,7 +101,7 @@ PUT my-index-000004
   }
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 1. The `inference_id` of the {{infer}} endpoint to use for generating embeddings.
 2. Overrides default index options by specifying `int4_flat` quantization for dense vector embeddings.
@@ -113,17 +113,17 @@ PUT my-index-000004
 to `bbq_hnsw` automatically as long as they have a minimum of 64 dimensions.
 ::::
 
-## Inference endpoints [configuring-inference-endpoints]
+## {{infer-cap}} endpoints [configuring-inference-endpoints]
 
-The `semantic_text` field type specifies an inference endpoint identifier (`inference_id`) that is used to generate embeddings.
+The `semantic_text` field type specifies an {{infer}} endpoint identifier (`inference_id`) that is used to generate embeddings.
 
-The following inference endpoint configurations are available:
+The following {{infer}} endpoint configurations are available:
 
-- [Default and preconfigured endpoints](./semantic-text-how-tos.md#default-and-preconfigured-endpoints): Use `semantic_text` without creating an inference endpoint manually. 
+- [Default and preconfigured endpoints](./semantic-text-how-tos.md#default-and-preconfigured-endpoints): Use `semantic_text` without creating an {{infer}} endpoint manually. 
 
-- [ELSER on EIS](./semantic-text-how-tos.md#using-elser-on-eis): Use the ELSER model through the Elastic Inference Service. 
+- [ELSER on EIS](./semantic-text-how-tos.md#using-elser-on-eis): Use the ELSER model through the Elastic {{infer-cap}} Service. 
 
-- [Custom endpoints](./semantic-text-how-tos.md#using-custom-endpoint): Create your own inference endpoint using the [Create inference API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) to use custom models or third-party services.
+- [Custom endpoints](./semantic-text-how-tos.md#using-custom-endpoint): Create your own {{infer}} endpoint using the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) to use custom models or third-party services.
 
 The recommended method is to use [dedicated endpoints for ingestion and search](./semantic-text-how-tos.md#dedicated-endpoints-for-ingestion-and-search) with separate `inference_id` and `search_inference_id` parameters. This ensures optimal performance by isolating ingestion and search workloads.
 
@@ -152,22 +152,22 @@ original input text.
 
 You can [pre-chunk content](./semantic-text-how-tos.md#pre-chunking) by providing text as arrays before indexing.
 
-Refer to the [Inference API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for values for `chunking_settings` and to [Configuring chunking](docs-content://explore-analyze/elastic-inference/inference-api.md#infer-chunking-config) to learn about different chunking strategies.
+Refer to the [{{infer-cap}} API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for values for `chunking_settings` and to [Configuring chunking](docs-content://explore-analyze/elastic-inference/inference-api.md#infer-chunking-config) to learn about different chunking strategies.
 
 ## Updates and partial updates [updates-and-partial-updates]
 
-When updating documents that contain `semantic_text` fields, it's important to understand how inference is triggered:
+When updating documents that contain `semantic_text` fields, it's important to understand how {{infer}} is triggered:
 
 Full document updates
-:   Full document updates re-run inference on all `semantic_text` fields, even if their values did not change. This ensures that embeddings remain consistent with the current document state but can increase ingestion costs.
+:   Full document updates re-run {{infer}} on all `semantic_text` fields, even if their values did not change. This ensures that embeddings remain consistent with the current document state but can increase ingestion costs.
 
 Partial updates using the Bulk API
-:   Partial updates submitted through the [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk) reuse existing embeddings when you omit `semantic_text` fields. Inference does not run for omitted fields, which can significantly reduce processing time and cost.
+:   Partial updates submitted through the [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk) reuse existing embeddings when you omit `semantic_text` fields. {{infer}} does not run for omitted fields, which can significantly reduce processing time and cost.
 
 Partial updates using the Update API
-:   Partial updates submitted through the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update) re-run inference on all `semantic_text` fields, even when you omit them from the `doc` object. Embeddings are re-generated regardless of whether field values changed.
+:   Partial updates submitted through the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update) re-run {{infer}} on all `semantic_text` fields, even when you omit them from the `doc` object. Embeddings are re-generated regardless of whether field values changed.
 
-To preserve existing embeddings and avoid unnecessary inference costs:
+To preserve existing embeddings and avoid unnecessary {{infer}} costs:
 
  * Use partial updates with the Bulk API.
  * Omit any `semantic_text` fields that did not change from the `doc` object in your request.

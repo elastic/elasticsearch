@@ -74,6 +74,7 @@ public sealed interface AggregateMetricDoubleBlock extends Block permits Aggrega
     static int hash(AggregateMetricDoubleBlock block) {
         final int positions = block.getPositionCount();
         int result = 1;
+
         for (int pos = 0; pos < positions; pos++) {
             if (block.isNull(pos)) {
                 result = 31 * result - 1;

@@ -227,6 +227,7 @@ public final class BlockUtils {
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
             case AGGREGATE_METRIC_DOUBLE -> ((AggregateMetricDoubleBlockBuilder) builder).appendLiteral((AggregateMetricDoubleLiteral) val);
             case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlockBuilder) builder).append((ExponentialHistogram) val);
+            case LONG_RANGE -> ((LongRangeBlockBuilder) builder).appendDateRange((LongRangeBlockBuilder.LongRange) val);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         }
     }
@@ -257,6 +258,7 @@ public final class BlockUtils {
             case AGGREGATE_METRIC_DOUBLE -> blockFactory.newConstantAggregateMetricDoubleBlock((AggregateMetricDoubleLiteral) val, size);
             case FLOAT -> blockFactory.newConstantFloatBlockWith((float) val, size);
             case EXPONENTIAL_HISTOGRAM -> blockFactory.newConstantExponentialHistogramBlock((ExponentialHistogram) val, size);
+            case LONG_RANGE -> blockFactory.newConstantLongRangeBlock((LongRangeBlockBuilder.LongRange) val, size);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }
@@ -315,6 +317,12 @@ public final class BlockUtils {
                 ExponentialHistogram histogram = histoBlock.getExponentialHistogram(offset, new ExponentialHistogramScratch());
                 // return a copy so that the returned value is not bound to the lifetime of the block
                 yield ExponentialHistogram.builder(histogram, ExponentialHistogramCircuitBreaker.noop()).build();
+            }
+            case LONG_RANGE -> {
+                LongRangeBlock b = (LongRangeBlock) block;
+                LongBlock fromBlock = b.getFromBlock();
+                LongBlock toBlock = b.getToBlock();
+                yield new LongRangeBlockBuilder.LongRange(fromBlock.getLong(offset), toBlock.getLong(offset));
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };

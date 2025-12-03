@@ -52,6 +52,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
@@ -112,6 +113,7 @@ public class IndexResolver {
             minimumVersion,
             false,
             false,
+            false,
             DO_NOT_GROUP,
             listener.map(Versioned::inner)
         );
@@ -146,6 +148,7 @@ public class IndexResolver {
         TransportVersion minimumVersion,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
+        boolean useDateRangeWhenNotSupported,
         IndicesExpressionGrouper indicesExpressionGrouper,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
@@ -155,6 +158,7 @@ public class IndexResolver {
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
+            useDateRangeWhenNotSupported,
             (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
                 indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, Strings.splitStringByCommaToArray(indexPattern1), false),
                 v -> List.of(v.indices())
@@ -180,6 +184,7 @@ public class IndexResolver {
         boolean useAggregateMetricDoubleWhenNotSupported,
         // Same as above
         boolean useDenseVectorWhenNotSupported,
+        boolean useDateRangeWhenNotSupported,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
@@ -188,6 +193,7 @@ public class IndexResolver {
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
+            useDateRangeWhenNotSupported,
             (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
                 EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
                 v -> List.copyOf(v.expression())
@@ -202,6 +208,7 @@ public class IndexResolver {
         TransportVersion minimumVersion,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
+        boolean useDateRangeWhenNotSupported,
         OriginalIndexExtractor originalIndexExtractor,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
@@ -218,7 +225,8 @@ public class IndexResolver {
                 overallMinimumVersion,
                 Build.current().isSnapshot(),
                 useAggregateMetricDoubleWhenNotSupported,
-                useDenseVectorWhenNotSupported
+                useDenseVectorWhenNotSupported,
+                useDateRangeWhenNotSupported
             );
             LOGGER.debug(
                 "previously assumed minimum transport version [{}] updated to effective version [{}]"
@@ -268,13 +276,18 @@ public class IndexResolver {
      *                                       report that they support the type? This exists because some remotes <strong>do</strong>
      *                                       support {@code dense_vector} without reporting that they do. And, for a while, we used the
      *                                       query itself to opt into reading these fields.
+     * @param useDateRangeWhenNotSupported does the query itself force us to use {@code date_range} fields even if the remotes don't
+     *                                       report that they support the type? This exists because some remotes <strong>do</strong>
+     *                                       support {@code date_range} without reporting that they do. And, for a while, we used the
+     *                                       query itself to opt into reading these fields.
      */
     public record FieldsInfo(
         FieldCapabilitiesResponse caps,
         @Nullable TransportVersion minTransportVersion,
         boolean currentBuildIsSnapshot,
         boolean useAggregateMetricDoubleWhenNotSupported,
-        boolean useDenseVectorWhenNotSupported
+        boolean useDenseVectorWhenNotSupported,
+        boolean useDateRangeWhenNotSupported
     ) {}
 
     // public for testing only
@@ -430,6 +443,7 @@ public class IndexResolver {
             || switch (type) {
                 case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.useAggregateMetricDoubleWhenNotSupported;
                 case DENSE_VECTOR -> fieldsInfo.useDenseVectorWhenNotSupported;
+                case DATE_RANGE -> fieldsInfo.useDateRangeWhenNotSupported;
                 default -> false;
             };
         if (false == typeSupported) {

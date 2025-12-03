@@ -273,6 +273,10 @@ public enum DataType implements Writeable {
      */
     DATE_NANOS(builder().esType("date_nanos").estimatedSize(Long.BYTES).docValues().supportedOnAllNodes()),
     /**
+     * Represents a half-inclusive range between two dates.
+     */
+    DATE_RANGE(builder().esType("date_range").estimatedSize(2 * Long.BYTES).docValues().underConstruction()),
+    /**
      * IP addresses. IPv4 address are always
      * <a href="https://datatracker.ietf.org/doc/html/rfc4291#section-2.5.5">embedded</a>
      * in IPv6. These flow through the compute engine as fixed length, 16 byte
@@ -997,5 +1001,6 @@ public enum DataType implements Writeable {
         public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION = TransportVersion.fromName(
             "esql_aggregate_metric_double_created_version"
         );
+
     }
 }

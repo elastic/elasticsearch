@@ -1671,8 +1671,9 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
-        final String supportedTypes = "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or datetime "
-            + "or dense_vector or geo_point or geo_shape or geohash or geohex or geotile or ip or numeric or string or version";
+        final String supportedTypes =
+            "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or date_range or datetime "
+                + "or dense_vector or geo_point or geo_shape or geohash or geohex or geotile or ip or numeric or string or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
             "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"
@@ -3350,7 +3351,7 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, true),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
@@ -3360,7 +3361,7 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
@@ -3383,7 +3384,7 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, true),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
@@ -3396,7 +3397,7 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, true),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
@@ -5782,6 +5783,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
-        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false);
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false);
     }
 }

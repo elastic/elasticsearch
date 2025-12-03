@@ -169,6 +169,15 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
             agg -> new BytesRef(EsqlDataTypeConverter.aggregateMetricDoubleLiteralToString(agg)),
             List.of()
         );
+
+        TestCaseSupplier.forUnaryDateRange(
+            suppliers,
+            "ToStringFromDateRangeEvaluator[field=" + read + "]",
+            DataType.KEYWORD,
+            dr -> new BytesRef(EsqlDataTypeConverter.dateRangeToString(dr)),
+            List.of()
+        );
+
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 

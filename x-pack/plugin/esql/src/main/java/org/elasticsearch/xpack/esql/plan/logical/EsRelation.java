@@ -62,15 +62,8 @@ public class EsRelation extends LeafPlan {
     private static EsRelation readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         String indexPattern;
-        Map<String, IndexMode> indexNameWithModes;
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            indexPattern = in.readString();
-            indexNameWithModes = in.readMap(IndexMode::readFrom);
-        } else {
-            var index = EsIndex.readFrom(in);
-            indexPattern = index.name();
-            indexNameWithModes = index.indexNameWithModes();
-        }
+        indexPattern = in.readString();
+        Map<String, IndexMode> indexNameWithModes = in.readMap(IndexMode::readFrom);
         List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         if (supportingEsSourceOptions(in.getTransportVersion())) {
             // We don't do anything with these strings
@@ -79,21 +72,14 @@ public class EsRelation extends LeafPlan {
             in.readOptionalString();
         }
         IndexMode indexMode = readIndexMode(in);
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-            in.readBoolean();
-        }
         return new EsRelation(source, indexPattern, indexMode, indexNameWithModes, attributes);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeString(indexPattern);
-            out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
-        } else {
-            new EsIndex(indexPattern, Map.of(), indexNameWithModes).writeTo(out);
-        }
+        out.writeString(indexPattern);
+        out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
         out.writeNamedWriteableCollection(attrs);
         if (supportingEsSourceOptions(out.getTransportVersion())) {
             // write (null) string fillers expected by remote
@@ -102,9 +88,6 @@ public class EsRelation extends LeafPlan {
             out.writeOptionalString(null);
         }
         writeIndexMode(out, indexMode);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-            out.writeBoolean(false);
-        }
     }
 
     private static boolean supportingEsSourceOptions(TransportVersion version) {

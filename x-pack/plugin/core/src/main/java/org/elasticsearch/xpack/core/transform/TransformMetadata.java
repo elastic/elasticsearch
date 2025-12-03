@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.transform;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
@@ -83,19 +82,13 @@ public class TransformMetadata implements Metadata.ProjectCustom {
 
     public TransformMetadata(StreamInput in) throws IOException {
         this.resetMode = in.readBoolean();
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            this.upgradeMode = in.readBoolean();
-        } else {
-            this.upgradeMode = false;
-        }
+        this.upgradeMode = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(resetMode);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeBoolean(upgradeMode);
-        }
+        out.writeBoolean(upgradeMode);
     }
 
     @Override
@@ -117,12 +110,8 @@ public class TransformMetadata implements Metadata.ProjectCustom {
         }
 
         public TransformMetadataDiff(StreamInput in) throws IOException {
-            resetMode = in.readBoolean();
-            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                this.upgradeMode = in.readBoolean();
-            } else {
-                this.upgradeMode = false;
-            }
+            this.resetMode = in.readBoolean();
+            this.upgradeMode = in.readBoolean();
         }
 
         /**
@@ -138,9 +127,7 @@ public class TransformMetadata implements Metadata.ProjectCustom {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(resetMode);
-            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                out.writeBoolean(upgradeMode);
-            }
+            out.writeBoolean(upgradeMode);
         }
 
         @Override

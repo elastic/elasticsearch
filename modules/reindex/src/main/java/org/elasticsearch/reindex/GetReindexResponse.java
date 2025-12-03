@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static java.util.Objects.requireNonNull;
 
@@ -72,5 +73,18 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GetReindexResponse that = (GetReindexResponse) o;
+        return Objects.equals(task, that.task);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(task);
     }
 }

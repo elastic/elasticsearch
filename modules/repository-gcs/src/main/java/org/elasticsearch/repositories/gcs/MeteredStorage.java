@@ -26,7 +26,6 @@ import com.google.cloud.storage.spi.v1.HttpStorageRpc;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.engine.Engine;
 
 import java.io.IOException;
 import java.lang.reflect.Field;

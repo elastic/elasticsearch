@@ -60,7 +60,7 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureUsage {
         if (in.getTransportVersion().onOrAfter(QUERY_RULES_TRANSPORT_VERSION)) {
             analyticsCollectionsUsage = in.readGenericMap();
             queryRulesUsage = in.readGenericMap();
-        } else analyticsCollectionsUsage = in.readGenericMap();
+        }
         this.analyticsCollectionsUsage = analyticsCollectionsUsage;
         this.queryRulesUsage = queryRulesUsage;
     }

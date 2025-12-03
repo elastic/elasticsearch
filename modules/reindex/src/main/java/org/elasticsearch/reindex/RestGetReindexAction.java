@@ -19,6 +19,7 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.Scope.PUBLIC;
@@ -57,4 +58,10 @@ public class RestGetReindexAction extends BaseRestHandler {
         }
         return TimeValue.parseTimeValue(timeoutString, "timeout");
     }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(ReindexPlugin.CAPABILITY_REINDEX_RESILIENCE);
+    }
+
 }

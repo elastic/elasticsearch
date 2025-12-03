@@ -50,6 +50,8 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
      */
     public static boolean REINDEX_RESILIENCE_ENABLED = new FeatureFlag("reindex_resilience").isEnabled();
 
+    public static final String CAPABILITY_REINDEX_RESILIENCE = "reindex_resilience";
+
     @Override
     public List<ActionHandler> getActions() {
         List<ActionHandler> actions = new ArrayList<>(

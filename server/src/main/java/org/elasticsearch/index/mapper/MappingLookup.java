@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.core.Nullable;
@@ -23,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -290,7 +292,8 @@ public final class MappingLookup {
         checkFieldLimit(settings.getMappingTotalFieldsLimit());
         checkObjectDepthLimit(settings.getMappingDepthLimit());
         checkFieldNameLengthLimit(settings.getMappingFieldNameLengthLimit());
-        checkNestedLimit(settings.getMappingNestedFieldsLimit());
+        checkNestedFieldsLimit(settings.getMappingNestedFieldsLimit());
+        checkNestedParentsLimit(settings.getMappingNestedParentsLimit());
         checkDimensionFieldLimit(settings.getMappingDimensionFieldsLimit());
     }
 
@@ -362,7 +365,7 @@ public final class MappingLookup {
         }
     }
 
-    private void checkNestedLimit(long limit) {
+    private void checkNestedFieldsLimit(long limit) {
         long actualNestedFields = 0;
         for (ObjectMapper objectMapper : objectMappers.values()) {
             if (objectMapper.isNested()) {
@@ -371,6 +374,16 @@ public final class MappingLookup {
         }
         if (actualNestedFields > limit) {
             throw new IllegalArgumentException("Limit of nested fields [" + limit + "] has been exceeded");
+        }
+    }
+
+    private void checkNestedParentsLimit(long limit) {
+        Set<Query> nestedPaths = new HashSet<>();
+        for (var nested : nestedLookup.getNestedMappers().values()) {
+            nestedPaths.add(nested.parentTypeFilter());
+        }
+        if (nestedPaths.size() > limit) {
+            throw new IllegalArgumentException("Limit of nested parents [" + limit + "] has been exceeded");
         }
     }
 

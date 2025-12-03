@@ -1,5 +1,5 @@
 pr: 138982
-summary: Semantic search CCS support with ccs_minimize_roundtrips=false
-area: Relevance
+summary: Semantic search CCS support when ccs_minimize_roundtrips=false
+area: Vector Search
 type: enhancement
 issues: []

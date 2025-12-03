@@ -58,7 +58,7 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 in.metrics(),
                 in.labels(),
                 in.dimensions(),
-                in.alternativeSources()
+                in.multiFieldSources()
             );
             case 1 -> new DownsampleShardTaskParams(
                 in.downsampleConfig(),
@@ -69,7 +69,7 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 in.metrics(),
                 in.labels(),
                 in.dimensions(),
-                in.alternativeSources()
+                in.multiFieldSources()
             );
             case 2 -> new DownsampleShardTaskParams(
                 in.downsampleConfig(),
@@ -80,7 +80,7 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 in.metrics(),
                 in.labels(),
                 in.dimensions(),
-                in.alternativeSources()
+                in.multiFieldSources()
             );
             case 3 -> new DownsampleShardTaskParams(
                 in.downsampleConfig(),
@@ -91,7 +91,7 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 in.metrics(),
                 in.labels(),
                 in.dimensions(),
-                in.alternativeSources()
+                in.multiFieldSources()
             );
             case 4 -> new DownsampleShardTaskParams(
                 in.downsampleConfig(),
@@ -102,7 +102,7 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 in.metrics(),
                 in.labels(),
                 in.dimensions(),
-                in.alternativeSources()
+                in.multiFieldSources()
             );
             case 5 -> new DownsampleShardTaskParams(
                 in.downsampleConfig(),
@@ -113,7 +113,7 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 generateRandomStringArray(6, 6, false, false),
                 in.labels(),
                 in.dimensions(),
-                in.alternativeSources()
+                in.multiFieldSources()
             );
             case 6 -> new DownsampleShardTaskParams(
                 in.downsampleConfig(),
@@ -124,7 +124,7 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 in.metrics(),
                 generateRandomStringArray(6, 6, false, false),
                 in.dimensions(),
-                in.alternativeSources()
+                in.multiFieldSources()
             );
             case 7 -> new DownsampleShardTaskParams(
                 in.downsampleConfig(),
@@ -135,7 +135,7 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 in.metrics(),
                 in.labels(),
                 generateRandomStringArray(6, 6, false, false),
-                in.alternativeSources()
+                in.multiFieldSources()
             );
             case 8 -> new DownsampleShardTaskParams(
                 in.downsampleConfig(),
@@ -146,7 +146,7 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 in.metrics(),
                 in.labels(),
                 in.dimensions(),
-                randomValueOtherThan(in.alternativeSources(), () -> generateRandomMap(in.labels(), in.dimensions()))
+                randomValueOtherThan(in.multiFieldSources(), () -> generateRandomMap(in.labels(), in.dimensions()))
             );
             default -> throw new AssertionError("unknown option");
         };

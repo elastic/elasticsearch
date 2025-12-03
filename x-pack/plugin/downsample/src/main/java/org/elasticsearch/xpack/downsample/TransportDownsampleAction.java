@@ -403,7 +403,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             timeSeriesFields.metricFields(),
                             timeSeriesFields.labelFields(),
                             timeSeriesFields.dimensionFields(),
-                            timeSeriesFields.subFieldSources()
+                            timeSeriesFields.multiFieldSources()
                         );
                     } else {
                         recordFailureMetrics(startTime);
@@ -434,7 +434,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             timeSeriesFields.metricFields(),
                             timeSeriesFields.labelFields(),
                             timeSeriesFields.dimensionFields(),
-                            timeSeriesFields.subFieldSources()
+                            timeSeriesFields.multiFieldSources()
                         );
                     } else {
                         recordFailureMetrics(startTime);
@@ -507,7 +507,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         String[] metricFields,
         String[] labelFields,
         String[] dimensionFields,
-        Map<String, String> subFieldSources
+        Map<String, String> multiFieldSources
     ) {
         final int numberOfShards = sourceIndexMetadata.getNumberOfShards();
         final Index sourceIndex = sourceIndexMetadata.getIndex();
@@ -529,7 +529,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 metricFields,
                 labelFields,
                 dimensionFields,
-                subFieldSources,
+                multiFieldSources,
                 shardId
             );
             Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> predicate = runningTask -> {
@@ -664,7 +664,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final String[] metricFields,
         final String[] labelFields,
         final String[] dimensionFields,
-        final Map<String, String> subFieldSources,
+        final Map<String, String> multiFieldSources,
         final ShardId shardId
     ) {
         return new DownsampleShardTaskParams(
@@ -676,7 +676,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             metricFields,
             labelFields,
             dimensionFields,
-            subFieldSources
+            multiFieldSources
         );
     }
 

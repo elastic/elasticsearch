@@ -94,7 +94,7 @@ public class TimeSeriesFieldsTests extends MapperServiceTestCase {
         );
         assertThat(timeSeriesFields.labelFields(), arrayContainingInAnyOrder("just_a_label"));
         assertThat(
-            timeSeriesFields.subFieldSources(),
+            timeSeriesFields.multiFieldSources(),
             equalTo(Map.of("just_a_label", "just_a_label.keyword", "label_with_dimension", "label_with_dimension.keyword"))
         );
     }
@@ -140,7 +140,7 @@ public class TimeSeriesFieldsTests extends MapperServiceTestCase {
             arrayContainingInAnyOrder("dimension", "flattened_dimension.d_1", "flattened_dimension.d_2")
         );
         assertThat(timeSeriesFields.labelFields(), arrayContainingInAnyOrder("flattened_label"));
-        assertThat(timeSeriesFields.subFieldSources().isEmpty(), equalTo(true));
+        assertThat(timeSeriesFields.multiFieldSources().isEmpty(), equalTo(true));
     }
 
     @SuppressWarnings("unchecked")

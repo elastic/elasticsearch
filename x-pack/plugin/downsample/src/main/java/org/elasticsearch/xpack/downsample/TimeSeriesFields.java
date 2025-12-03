@@ -62,7 +62,7 @@ import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC
  *     }
  * ```
  */
-record TimeSeriesFields(String[] metricFields, String[] dimensionFields, String[] labelFields, Map<String, String> subFieldSources) {
+record TimeSeriesFields(String[] metricFields, String[] dimensionFields, String[] labelFields, Map<String, String> multiFieldSources) {
     public static final Set<TimeSeriesParams.MetricType> METRIC_TYPES = Set.of(TimeSeriesParams.MetricType.values());
 
     // For testing

@@ -40,11 +40,11 @@ public class DimensionFieldValueFetcher extends FieldValueFetcher {
     static List<FieldValueFetcher> create(
         final SearchExecutionContext context,
         final String[] dimensions,
-        final Map<String, String> subFieldSources
+        final Map<String, String> multiFieldSources
     ) {
         List<FieldValueFetcher> fetchers = new ArrayList<>();
         for (String dimension : dimensions) {
-            String sourceFieldName = subFieldSources.getOrDefault(dimension, dimension);
+            String sourceFieldName = multiFieldSources.getOrDefault(dimension, dimension);
             MappedFieldType fieldType = context.getFieldType(sourceFieldName);
             assert fieldType != null : "Unknown type for dimension field: [" + sourceFieldName + "]";
 

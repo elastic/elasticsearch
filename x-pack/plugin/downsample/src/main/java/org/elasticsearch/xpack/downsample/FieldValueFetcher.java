@@ -30,7 +30,7 @@ import java.util.Map;
 /**
  * Utility class used for fetching field values by reading field data.
  * For fields whose type is multivalued the 'name' matches the parent field
- * name (normally used for indexing data), while the actual subfield
+ * name (normally used for indexing data), while the actual multiField
  * name is accessible by means of {@link MappedFieldType#name()}.
  */
 class FieldValueFetcher {
@@ -103,12 +103,12 @@ class FieldValueFetcher {
     static List<FieldValueFetcher> create(
         SearchExecutionContext context,
         String[] fields,
-        Map<String, String> alternativeSources,
+        Map<String, String> multiFieldSources,
         DownsampleConfig.SamplingMethod samplingMethod
     ) {
         List<FieldValueFetcher> fetchers = new ArrayList<>();
         for (String field : fields) {
-            String sourceField = alternativeSources.getOrDefault(field, field);
+            String sourceField = multiFieldSources.getOrDefault(field, field);
             MappedFieldType fieldType = context.getFieldType(sourceField);
             assert fieldType != null : "Unknown field type for field: [" + sourceField + "]";
 

@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -215,71 +214,116 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                         return;
                     }
 
+                    // If the "close_job" parameter was set to "true" on the stop datafeed request we attempt to first close the
+                    // jobs associated with the datafeeds. This will in turn attempt to stop the jobs' datafeeds (this time with the
+                    // "close_job" flag set to false, to avoid recursion)
+                    if (request.closeJob()) {
+                        List<String> jobIds = getJobIdsFromDatafeedIds(
+                            request.isForce() ? notStoppedDatafeeds : startedDatafeeds,
+                            tasks,
+                            nodes
+                        );
+
+                        closeDatafeedJobs(request, jobIds, listener);
+
+                        return;
+                    }
+
+                    // If we are not closing jobs, proceed with the appropriate stop action.
                     if (request.isForce()) {
                         forceStopDatafeed(request, listener, tasks, nodes, notStoppedDatafeeds);
                     } else {
-                        final List<String> startedDatafeedsJobs = new ArrayList<>();
-                        for (String datafeedId : startedDatafeeds) {
-                            PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
-                            if (datafeedTask != null
-                                && PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes) == false) {
-                                startedDatafeedsJobs.add(((StartDatafeedAction.DatafeedParams) datafeedTask.getParams()).getJobId());
-                            }
-                        }
-                        if (request.closeJob() && startedDatafeedsJobs.isEmpty() == false) {
-                            // If the "close_job" parameter was set to "true" on the stop datafeed request we attempt to first close the
-                            // jobs associated with the datafeeds. This will in turn attempt to stop the jobs' datafeeds (this time with the
-                            // "close_job" flag set to false, to avoid recursion)
-                            ActionListener<List<Tuple<String, AcknowledgedResponse>>> closeJobActionListener = listener
-                                .delegateFailureAndWrap((delegate, jobsResponses) -> {
-                                    List<String> jobIds = jobsResponses.stream()
-                                        .filter(t -> t.v2().isAcknowledged() == false)
-                                        .map(Tuple::v1)
-                                        .collect(toList());
-                                    if (jobIds.isEmpty()) {
-                                        logger.debug("Successfully closed jobs (and associated datafeeds)");
-                                    } else {
-                                        logger.warn("Failed to close jobs (and associated datafeeds): {}", jobIds);
-                                    }
-                                    delegate.onResponse(new StopDatafeedAction.Response(true));
-                                });
-
-                            TypedChainTaskExecutor<Tuple<String, AcknowledgedResponse>> chainTaskExecutor = new TypedChainTaskExecutor<>(
-                                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                                Predicates.always(),
-                                Predicates.always()
-                            );
-                            for (String jobId : startedDatafeedsJobs) {
-                                chainTaskExecutor.add(
-                                    al -> executeAsyncWithOrigin(
-                                        client,
-                                        ML_ORIGIN,
-                                        CloseJobAction.INSTANCE,
-                                        new CloseJobAction.Request(jobId),
-                                        listener.delegateFailureAndWrap(
-                                            (l, response) -> l.onResponse(new StopDatafeedAction.Response(response.isClosed()))
-                                        )
-                                    )
-                                );
-                            }
-                            chainTaskExecutor.execute(closeJobActionListener);
-                        } else {
-                            normalStopDatafeed(
-                                task,
-                                request,
-                                listener,
-                                tasks,
-                                nodes,
-                                startedDatafeeds,
-                                stoppingDatafeeds,
-                                startedDatafeedsJobs,
-                                attempt
-                            );
-                        }
+                        normalStopDatafeed(
+                            task,
+                            request,
+                            listener,
+                            tasks,
+                            nodes,
+                            startedDatafeeds,
+                            stoppingDatafeeds,
+                            getJobIdsFromDatafeedIds(startedDatafeeds, tasks, nodes),
+                            attempt
+                        );
                     }
                 }, listener::onFailure)
             );
         }
+    }
+
+    private void closeDatafeedJobs(
+        StopDatafeedAction.Request request,
+        List<String> jobIds,
+        ActionListener<StopDatafeedAction.Response> listener
+    ) {
+        if (jobIds.isEmpty()) {
+            listener.onResponse(new StopDatafeedAction.Response(true));
+            return;
+        }
+
+        ActionListener<List<Tuple<String, CloseJobAction.Response>>> closeJobActionListener = listener.delegateFailureAndWrap(
+            (delegate, jobsResponses) -> {
+                List<String> responseJobIds = jobsResponses.stream()
+                    .filter(t -> t.v2().isClosed() == false)
+                    .map(Tuple::v1)
+                    .collect(toList());
+                if (responseJobIds.isEmpty()) {
+                    logger.debug("Successfully closed jobs (and associated datafeeds)");
+                    delegate.onResponse(new StopDatafeedAction.Response(true));
+                } else {
+                    logger.warn("Failed to close jobs (and associated datafeeds): {}", responseJobIds);
+                    delegate.onResponse(new StopDatafeedAction.Response(false));
+                }
+            }
+        );
+
+        TypedChainTaskExecutor<Tuple<String, CloseJobAction.Response>> chainTaskExecutor = new TypedChainTaskExecutor<>(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            Predicates.always(),
+            Predicates.always()
+        );
+        jobIds.forEach(jobId -> {
+            chainTaskExecutor.add(
+                al -> executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    CloseJobAction.INSTANCE,
+                    // Pass through the "is_force" parameter to the close job action.
+                    new CloseJobAction.Request(jobId).setForce(request.isForce()),
+                    ActionListener.wrap(response -> al.onResponse(Tuple.tuple(jobId, response)), e -> {
+                        Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                        if (unwrapped instanceof ResourceNotFoundException) {
+                            logger.debug(
+                                () -> format(
+                                    "[%s] Job was already closed or does not exist" + " when attempting to close via stop datafeed",
+                                    jobId
+                                ),
+                                e
+                            );
+                            // Treat not found as a success for closing, as the end state is the same.
+                            al.onResponse(Tuple.tuple(jobId, new CloseJobAction.Response(true)));
+                        } else {
+                            al.onFailure(e);
+                        }
+                    })
+                )
+            );
+        });
+        chainTaskExecutor.execute(closeJobActionListener);
+    }
+
+    private static List<String> getJobIdsFromDatafeedIds(
+        List<String> datafeedIds,
+        PersistentTasksCustomMetadata tasks,
+        DiscoveryNodes nodes
+    ) {
+        List<String> jobIds = new ArrayList<>();
+        for (String datafeedId : datafeedIds) {
+            PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
+            if (datafeedTask != null && PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes) == false) {
+                jobIds.add(((StartDatafeedAction.DatafeedParams) datafeedTask.getParams()).getJobId());
+            }
+        }
+        return jobIds;
     }
 
     private void normalStopDatafeed(

@@ -63,8 +63,14 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         testInfrastructure.shardWriteLoadDistributionMetrics.onNewInfo(testInfrastructure.clusterInfo);
         testInfrastructure.meterRegistry.getRecorder().collect();
 
-        final var writeLoadDistributionMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_DISTRIBUTION_METRIC_NAME);
+        final var p0writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(0));
+        final var p50writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(50));
+        final var p90writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(90));
+        final var p100writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(100));
         final var writeLoadPrioritisationThresholdMeasurements = testInfrastructure.meterRegistry.getRecorder()
             .getMeasurements(
                 InstrumentType.DOUBLE_GAUGE,
@@ -84,24 +90,27 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
             testInfrastructure.maxP90,
             testInfrastructure.maxP100
         );
-        assertEquals(8, writeLoadDistributionMeasurements.size());
+        assertEquals(2, p0writeLoadMeasurements.size());
+        assertEquals(2, p50writeLoadMeasurements.size());
+        assertEquals(2, p90writeLoadMeasurements.size());
+        assertEquals(2, p100writeLoadMeasurements.size());
         for (String nodeId : List.of("index_0", "index_1")) {
-            assertThat(measurementForPercentile(writeLoadDistributionMeasurements, nodeId, 0.0), greaterThanOrEqualTo(0.0));
+            assertThat(measurementForNode(p0writeLoadMeasurements, nodeId).getDouble(), greaterThanOrEqualTo(0.0));
             assertRoughlyInRange(
                 testInfrastructure.numberOfSignificantDigits,
-                measurementForPercentile(writeLoadDistributionMeasurements, nodeId, 50.0),
+                measurementForNode(p50writeLoadMeasurements, nodeId).getDouble(),
                 0.0,
                 testInfrastructure.maxP50
             );
             assertRoughlyInRange(
                 testInfrastructure.numberOfSignificantDigits,
-                measurementForPercentile(writeLoadDistributionMeasurements, nodeId, 90.0),
+                measurementForNode(p90writeLoadMeasurements, nodeId).getDouble(),
                 testInfrastructure.maxP50,
                 testInfrastructure.maxP90
             );
             assertRoughlyInRange(
                 testInfrastructure.numberOfSignificantDigits,
-                measurementForPercentile(writeLoadDistributionMeasurements, nodeId, 100.0),
+                measurementForNode(p100writeLoadMeasurements, nodeId).getDouble(),
                 testInfrastructure.maxP90,
                 testInfrastructure.maxP100
             );
@@ -175,8 +184,14 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         testInfrastructure.shardWriteLoadDistributionMetrics.onNewInfo(testInfrastructure.clusterInfo);
         testInfrastructure.meterRegistry.getRecorder().collect();
 
-        final var writeLoadDistributionMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_DISTRIBUTION_METRIC_NAME);
+        final var p0writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(0));
+        final var p50writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(50));
+        final var p90writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(90));
+        final var p100writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(100));
         final var writeLoadPrioritisationThresholdMeasurements = testInfrastructure.meterRegistry.getRecorder()
             .getMeasurements(
                 InstrumentType.DOUBLE_GAUGE,
@@ -190,7 +205,10 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         final var shardWriteLoadSumMeasurements = testInfrastructure.meterRegistry.getRecorder()
             .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_SUM_METRIC_NAME);
 
-        assertNoMetricsPublished(writeLoadDistributionMeasurements, additionalNodeId);
+        assertNoMetricsPublished(p0writeLoadMeasurements, additionalNodeId);
+        assertNoMetricsPublished(p50writeLoadMeasurements, additionalNodeId);
+        assertNoMetricsPublished(p90writeLoadMeasurements, additionalNodeId);
+        assertNoMetricsPublished(p100writeLoadMeasurements, additionalNodeId);
         assertNoMetricsPublished(writeLoadPrioritisationThresholdMeasurements, additionalNodeId);
         assertNoMetricsPublished(countAboveThresholdMeasurements, additionalNodeId);
         assertThat(measurementForNode(shardWriteLoadSumMeasurements, additionalNodeId).getDouble(), Matchers.is(0.0));
@@ -201,8 +219,14 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         testInfrastructure.shardWriteLoadDistributionMetrics.onNewInfo(testInfrastructure.clusterInfo);
         testInfrastructure.meterRegistry.getRecorder().collect();
 
-        final var writeLoadDistributionMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_DISTRIBUTION_METRIC_NAME);
+        final var p0writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(0));
+        final var p50writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(50));
+        final var p90writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(90));
+        final var p100writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(100));
         final var writeLoadPrioritisationThresholdMeasurements = testInfrastructure.meterRegistry.getRecorder()
             .getMeasurements(
                 InstrumentType.DOUBLE_GAUGE,
@@ -223,7 +247,10 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
             .toList();
         assertThat(nonIndexNodes, not(empty()));
         for (DiscoveryNode node : nonIndexNodes) {
-            assertNoMetricsPublished(writeLoadDistributionMeasurements, node.getId());
+            assertNoMetricsPublished(p0writeLoadMeasurements, node.getId());
+            assertNoMetricsPublished(p50writeLoadMeasurements, node.getId());
+            assertNoMetricsPublished(p90writeLoadMeasurements, node.getId());
+            assertNoMetricsPublished(p100writeLoadMeasurements, node.getId());
             assertNoMetricsPublished(writeLoadPrioritisationThresholdMeasurements, node.getId());
             assertNoMetricsPublished(countAboveThresholdMeasurements, node.getId());
             assertNoMetricsPublished(shardWriteLoadSumMeasurements, node.getId());
@@ -245,12 +272,12 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         // Collect should publish the first set of (not low) write-loads
         testInfrastructure.meterRegistry.getRecorder().collect();
 
-        final var writeLoadDistributionMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_DISTRIBUTION_METRIC_NAME);
+        final var p100writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(100));
 
         assertRoughlyInRange(
             testInfrastructure.numberOfSignificantDigits,
-            measurementForPercentile(writeLoadDistributionMeasurements, "index_0", 100.0),
+            measurementForNode(p100writeLoadMeasurements, "index_0").getDouble(),
             testInfrastructure.maxP90,
             testInfrastructure.maxP100
         );
@@ -261,10 +288,10 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         testInfrastructure.meterRegistry.getRecorder().resetCalls();
         testInfrastructure.meterRegistry.getRecorder().collect();
 
-        final var lowerWriteLoadDistributionMetrics = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_DISTRIBUTION_METRIC_NAME);
+        final var lowerP100writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(100));
 
-        assertEquals(measurementForPercentile(lowerWriteLoadDistributionMetrics, "index_0", 100), 0.1, 0.01);
+        assertEquals(measurementForNode(lowerP100writeLoadMeasurements, "index_0").getDouble(), 0.1, 0.01);
     }
 
     private static void assertNoMetricsPublished(List<Measurement> measurements, String nodeId) {
@@ -272,11 +299,16 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
     }
 
     private static void assertNoMetricsPublished(TestInfrastructure testInfrastructure) {
-        assertThat(
-            testInfrastructure.meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_DISTRIBUTION_METRIC_NAME),
-            empty()
-        );
+        for (int percentile : new int[] { 0, 50, 90, 100 }) {
+            assertThat(
+                testInfrastructure.meterRegistry.getRecorder()
+                    .getMeasurements(
+                        InstrumentType.DOUBLE_GAUGE,
+                        ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(percentile)
+                    ),
+                empty()
+            );
+        }
         assertThat(
             testInfrastructure.meterRegistry.getRecorder()
                 .getMeasurements(
@@ -395,16 +427,6 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
 
     private static Measurement measurementForNode(List<Measurement> measurements, String nodeId) {
         return measurements.stream().filter(m -> m.attributes().get("node_id").equals(nodeId)).findFirst().orElseThrow();
-    }
-
-    private static double measurementForPercentile(List<Measurement> measurements, String nodeId, double percentile) {
-        return measurements.stream()
-            .filter(
-                m -> m.attributes().get("percentile").equals(String.valueOf(percentile)) && m.attributes().get("node_id").equals(nodeId)
-            )
-            .findFirst()
-            .orElseThrow()
-            .getDouble();
     }
 
     private static Map<ShardId, Double> randomWriteLoads(ClusterState clusterState, double p50, double p90, double p100) {

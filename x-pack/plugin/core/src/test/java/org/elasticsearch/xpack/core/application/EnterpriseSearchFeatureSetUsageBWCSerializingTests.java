@@ -57,14 +57,6 @@ public class EnterpriseSearchFeatureSetUsageBWCSerializingTests extends Abstract
 
     @Override
     protected EnterpriseSearchFeatureSetUsage mutateInstanceForVersion(EnterpriseSearchFeatureSetUsage instance, TransportVersion version) {
-        if (version.onOrAfter(QUERY_RULES_TRANSPORT_VERSION)) {
-            return instance;
-        } else return new EnterpriseSearchFeatureSetUsage(
-            true,
-            true,
-            instance.getSearchApplicationsUsage(),
-            instance.getAnalyticsCollectionsUsage(),
-            Map.of()
-        );
+        return instance;
     }
 }

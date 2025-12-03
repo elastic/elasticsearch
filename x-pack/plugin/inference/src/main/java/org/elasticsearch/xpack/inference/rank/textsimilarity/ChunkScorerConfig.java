@@ -30,7 +30,7 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     public static final int DEFAULT_CHUNK_SIZE = 300;
     public static final int DEFAULT_SIZE = 1;
 
-    private static final TransportVersion CHUNKING_SETTINGS_ALLOW_NULL = TransportVersion.fromName("rerank.chunking_settings_allow_null");
+    private static final TransportVersion CHUNKING_SETTINGS_ALLOW_NULL = TransportVersion.fromName("rerank_chunking_settings_allow_null");
 
     public static ChunkingSettings defaultChunkingSettings() {
         return defaultChunkingSettings(null);

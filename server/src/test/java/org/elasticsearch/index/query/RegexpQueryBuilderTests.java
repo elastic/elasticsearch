@@ -9,10 +9,12 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -72,11 +74,15 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
 
     @Override
     protected void doAssertLuceneQuery(RegexpQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        assertThat(query, instanceOf(RegexpQuery.class));
-        RegexpQuery regexpQuery = (RegexpQuery) query;
-
-        String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
-        assertThat(regexpQuery.getField(), equalTo(expectedFieldName));
+        MappedFieldType fieldType = context.getFieldType(queryBuilder.fieldName());
+        if (fieldType == null) {
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
+        } else {
+            assertThat(query, instanceOf(RegexpQuery.class));
+            RegexpQuery regexpQuery = (RegexpQuery) query;
+            String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
+            assertThat(regexpQuery.getField(), equalTo(expectedFieldName));
+        }
     }
 
     public void testIllegalArguments() {

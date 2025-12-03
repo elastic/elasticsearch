@@ -418,7 +418,7 @@ public class IndexNameExpressionResolver {
             baseExpression = DateMathExpressionResolver.resolveExpression(baseExpression, context::getStartTime);
 
             // Validate base expression
-            validateResourceExpression(context, baseExpression, expressions);
+            validateResourceExpression(baseExpression, expressions);
 
             // Check if it's wildcard
             boolean isWildcard = expandWildcards && WildcardExpressionResolver.isWildcard(baseExpression);
@@ -457,7 +457,7 @@ public class IndexNameExpressionResolver {
      * - Ensure it doesn't start with `_`
      * - Ensure it's not a remote expression unless the allow unavailable targets is enabled.
      */
-    private static void validateResourceExpression(Context context, String current, String[] expressions) {
+    private static void validateResourceExpression(String current, String[] expressions) {
         if (Strings.isEmpty(current)) {
             throw notFoundException(current);
         }
@@ -468,16 +468,13 @@ public class IndexNameExpressionResolver {
         if (current.charAt(0) == '_') {
             throw new InvalidIndexNameException(current, "must not start with '_'.");
         }
-        ensureRemoteExpressionRequireIgnoreUnavailable(context.getOptions(), current, expressions);
+        ensureRemoteExpressionRequireIgnoreUnavailable(current, expressions);
     }
 
     /**
      * Throws an exception if the expression is a remote expression and we do not allow unavailable targets
      */
-    private static void ensureRemoteExpressionRequireIgnoreUnavailable(IndicesOptions options, String current, String[] expressions) {
-        if (options.ignoreUnavailable()) {
-            return;
-        }
+    private static void ensureRemoteExpressionRequireIgnoreUnavailable(String current, String[] expressions) {
         if (RemoteClusterAware.isRemoteIndexName(current)) {
             List<String> crossClusterIndices = RemoteClusterAware.getRemoteIndexExpressions(expressions);
             throw new IllegalArgumentException(

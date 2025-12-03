@@ -187,13 +187,12 @@ public class ModelRegistry implements ClusterStateListener {
             return true;
         }
 
-        // This checks the cluster state for user created endpoints as well as EIS preconfigured endpoints
+        // This checks the cluster state for EIS preconfigured endpoints
         if (lastMetadata.get() != null) {
             var project = lastMetadata.get().getProject(ProjectId.DEFAULT);
             var state = ModelRegistryMetadata.fromState(project);
-            var eisPreconfiguredEndpoints = state.getServiceInferenceIds(ElasticInferenceService.NAME);
-            return eisPreconfiguredEndpoints.contains(inferenceEntityId)
-                && inferenceEntityId.startsWith(EIS_PRECONFIGURED_ENDPOINT_ID_PREFIX);
+            var eisEndpoints = state.getServiceInferenceIds(ElasticInferenceService.NAME);
+            return eisEndpoints.contains(inferenceEntityId) && inferenceEntityId.startsWith(EIS_PRECONFIGURED_ENDPOINT_ID_PREFIX);
         }
 
         return false;

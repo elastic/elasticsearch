@@ -24,7 +24,7 @@ public enum DockerBase {
     // Chainguard based wolfi image with latest jdk
     // This is usually updated via renovatebot
     // spotless:off
-    WOLFI("docker.elastic.co/wolfi/chainguard-base:latest@sha256:5ba5defb8c55ea6e2d4a697ca82da534c21c6328dfa903fe460c762720875794",
+    WOLFI("docker.elastic.co/wolfi/chainguard-base:latest@sha256:b08320d6d7e9eb8054e8781a3b624f8e77e90d4aeb1756fd7665bb2f96f36fc8",
         "-wolfi",
         "apk"
     ),

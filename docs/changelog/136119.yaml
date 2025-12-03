@@ -1,0 +1,6 @@
+pr: 136119
+summary: Fix logsdb settings provider mapping filters
+area: Logs
+type: bug
+issues:
+ - 136107

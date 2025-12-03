@@ -3097,3 +3097,162 @@ ROW a = [1,2,3], b = 5
 STD_DEV(a):double | STD_DEV(b):double
 0.816496580927726 | 0.0
 ;
+
+sumWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+
+FROM employees
+| STATS sum1 = SUM(1),
+        sum2 = SUM(1) WHERE emp_no == 10080,
+        sum3 = SUM(1) WHERE emp_no < 10080,
+        sum4 = SUM(1) WHERE emp_no >= 10080
+;
+
+sum1:long | sum2:long | sum3:long | sum4:long
+100       | 1         | 79        | 21
+;
+
+weightedAvgWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+
+ROW x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+| MV_EXPAND x
+| STATS w_avg1 = WEIGHTED_AVG(x, 1) WHERE x == 5,
+        w_avg2 = WEIGHTED_AVG(x, x) WHERE x == 5,
+        w_avg3 = WEIGHTED_AVG(x, 2) WHERE x <= 5,
+        w_avg4 = WEIGHTED_AVG(x, x) WHERE x > 5,
+        w_avg5 = WEIGHTED_AVG([1,2,3], 1),
+        w_avg6 = WEIGHTED_AVG([1,2,3], 1) WHERE x == 5
+;
+
+w_avg1:double | w_avg2:double | w_avg3:double | w_avg4:double | w_avg5:double | w_avg6:double
+5.0           | 5.0           | 3.0           | 8.25          | 2.0           | 2.0
+;
+
+maxWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+
+ROW x = [1, 2, 3, 4, 5]
+| MV_EXPAND x
+| STATS max1 = MAX(x),
+        max2 = MAX(x) WHERE x > 3
+;
+
+max1:integer | max2:integer
+5            | 5
+;
+
+minWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+
+ROW x = [1, 2, 3, 4, 5]
+| MV_EXPAND x
+| STATS min1 = MIN(x),
+        min2 = MIN(x) WHERE x > 3
+;
+
+min1:integer | min2:integer
+1            | 4
+;
+
+countWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+
+ROW x = [1, 2, 3, 4, 5]
+| MV_EXPAND x
+| STATS count1 = COUNT(x) WHERE x >= 3,
+        count2 = COUNT(x),
+        count3 = COUNT(4) WHERE x >= 3,
+        count4 = COUNT(*) WHERE x >= 3,
+        count5 = COUNT([1,2,3]) WHERE x >= 3,
+        count6 = COUNT([1,2,3])
+;
+
+count1:long | count2:long | count3:long | count4:long | count5:long | count6:long
+3           | 5           | 3           | 3           | 9           | 15
+;
+
+countDistinctWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+
+ROW x = [1, 2, 3, 4, 5]
+| MV_EXPAND x
+| STATS count1 = COUNT_DISTINCT(x) WHERE x <= 3,
+        count2 = COUNT_DISTINCT(x),
+        count3 = COUNT_DISTINCT(1) WHERE x <= 3,
+        count4 = COUNT_DISTINCT(1)
+;
+
+count1:long | count2:long | count3:long | count4:long
+3           | 5           | 1           | 1
+;
+
+avgWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+
+ROW x = [1, 2, 3, 4, 5]
+| MV_EXPAND x
+| STATS avg1 = AVG(x) WHERE x <= 3,
+        avg2 = AVG(x)
+;
+
+avg1:double | avg2:double
+2.0         | 3.0
+;
+
+percentileWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+
+ROW x = [1, 2, 3, 4, 5]
+| MV_EXPAND x
+| STATS percentile1 = PERCENTILE(x, 50) WHERE x <= 3,
+        percentile2 = PERCENTILE(x, 50)
+;
+
+percentile1:double | percentile2:double
+2.0                | 3.0
+;
+
+medianWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+
+ROW x = [1, 2, 3, 4, 5]
+| MV_EXPAND x
+| STATS median1 = MEDIAN(x) WHERE x <= 3,
+        median2 = MEDIAN(x),
+        median3 = MEDIAN([5,6,7,8,9]) WHERE x <= 3,
+        median4 = MEDIAN([5,6,7,8,9])
+;
+
+median1:double | median2:double | median3:double | median4:double
+2.0            | 3.0            | 7.0            | 7.0
+;
+
+medianAbsoluteDeviationWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+
+ROW x = [1, 3, 4, 7, 11, 18]
+| MV_EXPAND x
+| STATS median_dev1 = MEDIAN_ABSOLUTE_DEVIATION(x) WHERE x <= 3,
+        median_dev2 = MEDIAN_ABSOLUTE_DEVIATION(x),
+        median_dev3 = MEDIAN_ABSOLUTE_DEVIATION([3, 11, 14, 25]) WHERE x <= 3,
+        median_dev4 = MEDIAN_ABSOLUTE_DEVIATION([3, 11, 14, 25])
+;
+
+median_dev1:double | median_dev2:double | median_dev3:double | median_dev4:double
+1.0                | 3.5                | 5.5                | 5.5
+;
+
+topWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+
+FROM employees
+| STATS min1 = TOP(emp_no, 1, "ASC") WHERE emp_no > 10010,
+        min2 = TOP(emp_no, 2, "ASC") WHERE emp_no > 10010,
+        max1 = TOP(emp_no, 1, "DESC") WHERE emp_no < 10080,
+        max2 = TOP(emp_no, 2, "DESC") WHERE emp_no < 10080
+;
+
+min1:integer | min2:integer   | max1:integer | max2:integer
+10011        | [10011, 10012] | 10079        | [10079, 10078]
+;

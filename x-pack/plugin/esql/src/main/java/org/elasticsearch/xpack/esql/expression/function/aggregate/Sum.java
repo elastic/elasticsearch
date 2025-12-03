@@ -143,7 +143,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
 
         // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
         return field.foldable()
-            ? new Mul(s, new MvSum(s, field), new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD)))
+            ? new Mul(s, new MvSum(s, field), new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD), filter()))
             : null;
     }
 }

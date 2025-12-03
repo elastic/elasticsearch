@@ -57,6 +57,17 @@ setup:
         rest_total_hits_as_int: true
         body: >
           {
+            "query": { "kql": { "query": "text_field: Bar" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
             "query": { "kql": { "query": "text_field: foo bar" } }
           }
   - match: { hits.total: 2 }
@@ -93,6 +104,16 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._id: "doc-1" }
 
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "text_field: Bar*" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
 
 ---
 "KQL match term queries (integer field)":
@@ -190,6 +211,16 @@ setup:
         rest_total_hits_as_int: true
         body: >
           {
+            "query": { "kql": { "query": "keyword_field: Foo bar" } }
+          }
+  - match: { hits.total: 0 }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
             "query": { "kql": { "query": "keyword_field: \"foo bar\"" } }
           }
   - match: { hits.total: 1 }
@@ -205,6 +236,15 @@ setup:
           }
   - match: { hits.total: 2 }
 
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "keyword_field: Foo ba*" } }
+          }
+  - match: { hits.total: 0 }
 
 ---
 "KQL match term queries (date field)":

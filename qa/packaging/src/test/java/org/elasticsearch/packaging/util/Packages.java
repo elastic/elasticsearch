@@ -86,7 +86,7 @@ public class Packages {
     public static Installation installPackage(Shell sh, Distribution distribution, @Nullable Predicate<String> outputPredicate)
         throws IOException {
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout().trim();
-        if (distribution.hasJdk == false) {
+        if (requiresExplicitJavaHome(distribution)) {
             sh.getEnv().put("ES_JAVA_HOME", systemJavaHome);
         }
         final Result result = runPackageManager(distribution, sh, PackageManagerCommand.INSTALL);
@@ -98,7 +98,7 @@ public class Packages {
         }
         Installation installation = Installation.ofPackage(sh, distribution);
         installation.setElasticPassword(captureElasticPasswordFromOutput(result));
-        if (distribution.hasJdk == false) {
+        if (requiresExplicitJavaHome(distribution)) {
             Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
         }
 
@@ -107,6 +107,15 @@ public class Packages {
         }
 
         return installation;
+    }
+
+    private static boolean requiresExplicitJavaHome(Distribution distribution) {
+        if (distribution.hasJdk == false) {
+            return true;
+        }
+        Version version = Version.fromString(distribution.baseVersion);
+        boolean requiresPatch = Platforms.isUbuntu24() && (version.onOrAfter(Version.V_8_0_0) && version.onOrBefore(Version.V_8_4_3));
+        return requiresPatch;
     }
 
     private static String captureElasticPasswordFromOutput(Result result) {
@@ -123,7 +132,20 @@ public class Packages {
             throw new RuntimeException("Upgrading distribution " + distribution + " failed: " + result);
         }
 
-        return Installation.ofPackage(sh, distribution);
+        Installation installation = Installation.ofPackage(sh, distribution);
+        if (requiresExplicitJavaHome(distribution)) {
+            String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout().trim();
+            Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
+        } else {
+            // Explicitly remove the line if added for previous installation
+            Files.write(
+                installation.envFile,
+                Files.readAllLines(installation.envFile).stream().filter(line -> line.startsWith("ES_JAVA_HOME") == false).toList(),
+                StandardOpenOption.WRITE,
+                StandardOpenOption.TRUNCATE_EXISTING
+            );
+        }
+        return installation;
     }
 
     public static Installation forceUpgradePackage(Shell sh, Distribution distribution) throws IOException {

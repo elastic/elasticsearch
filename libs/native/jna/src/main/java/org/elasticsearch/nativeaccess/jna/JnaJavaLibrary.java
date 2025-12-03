@@ -13,8 +13,14 @@ import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.lib.JavaLibrary;
 
 class JnaJavaLibrary implements JavaLibrary {
+
     @Override
-    public CloseableByteBuffer newBuffer(int len) {
+    public CloseableByteBuffer newConfinedBuffer(int len) {
+        return new JnaCloseableByteBuffer(len);
+    }
+
+    @Override
+    public CloseableByteBuffer newSharedBuffer(int len) {
         return new JnaCloseableByteBuffer(len);
     }
 }

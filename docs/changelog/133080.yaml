@@ -1,5 +1,0 @@
-pr: 133080
-summary: "Disallow creating `semantic_text` fields in indices created prior to 8.11.0"
-area: Relevance
-type: bug
-issues: []

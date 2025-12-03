@@ -118,7 +118,17 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateResourcesFails()
         then:
         assertValidateResourcesFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/referable/existing_92.csv] modifies existing patch id from 8012001 to 8012002")
+            "[myserver/src/main/resources/transport/definitions/referable/existing_92.csv] has modified patch id from 8012001 to 8012002")
+    }
+
+    def "cannot change committed ids"() {
+        given:
+        referableTransportVersion("existing_92", "8123000")
+        when:
+        def result = validateResourcesFails()
+        then:
+        assertValidateResourcesFailure(result, "Transport version definition file " +
+            "[myserver/src/main/resources/transport/definitions/referable/existing_92.csv] has removed id 8012001")
     }
 
     def "upper bounds files must reference defined name"() {
@@ -201,8 +211,8 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
 
     def "upper bound can refer to an unreferable definition"() {
         given:
-        unreferableTransportVersion("initial_10.0.0", "10000000")
-        transportVersionUpperBound("10.0", "initial_10.0.0", "10000000")
+        unreferableTransportVersion("initial_9.3.0", "8124000")
+        transportVersionUpperBound("9.3", "initial_9.3.0", "8124000")
         when:
         def result = gradleRunner(":myserver:validateTransportVersionResources").build()
         then:
@@ -232,24 +242,112 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
 
     def "highest id in an referable definition should exist in an upper bounds file"() {
         given:
-        referableAndReferencedTransportVersion("some_tv", "10000000")
+        referableAndReferencedTransportVersion("some_tv", "8124000")
         when:
         def result = validateResourcesFails()
         then:
         assertValidateResourcesFailure(result, "Transport version definition file " +
             "[myserver/src/main/resources/transport/definitions/referable/some_tv.csv] " +
-            "has the highest transport version id [10000000] but is not present in any upper bounds files")
+            "has the highest transport version id [8124000] but is not present in any upper bounds files")
     }
 
     def "highest id in an unreferable definition should exist in an upper bounds file"() {
         given:
-        unreferableTransportVersion("initial_10.0.0", "10000000")
+        unreferableTransportVersion("initial_9.3.0", "8124000")
         when:
         def result = validateResourcesFails()
         then:
-        // TODO: this should be _unreferable_ in the error message, but will require some rework
         assertValidateResourcesFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/referable/initial_10.0.0.csv] " +
-            "has the highest transport version id [10000000] but is not present in any upper bounds files")
+            "[myserver/src/main/resources/transport/definitions/unreferable/initial_9.3.0.csv] " +
+            "has the highest transport version id [8124000] but is not present in any upper bounds files")
+    }
+
+    def "primary ids cannot jump ahead too fast"() {
+        given:
+        referableAndReferencedTransportVersion("some_tv", "8125000")
+        transportVersionUpperBound("9.2", "some_tv", "8125000")
+
+        when:
+        def result = validateResourcesFails()
+
+        then:
+        assertValidateResourcesFailure(result, "Transport version definition file " +
+            "[myserver/src/main/resources/transport/definitions/referable/some_tv.csv] " +
+            "has primary id 8125000 which is more than maximum increment 1000 from id 8123000 in definition " +
+            "[myserver/src/main/resources/transport/definitions/referable/existing_92.csv]"
+        )
+    }
+
+    def "primary id checks skipped on release branch"() {
+        given:
+        file("myserver/build.gradle") << """
+            tasks.named('validateTransportVersionResources') {
+                currentUpperBoundName = '9.1'
+            }
+        """
+        referableAndReferencedTransportVersion("some_tv", "8125000")
+        transportVersionUpperBound("9.2", "some_tv", "8125000")
+
+        when:
+        def result = gradleRunner("validateTransportVersionResources").build()
+
+        then:
+        result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "only current upper bound validated on release branch"() {
+        given:
+        file("myserver/build.gradle") << """
+            tasks.named('validateTransportVersionResources') {
+                currentUpperBoundName = '9.0'
+            }
+        """
+        referableAndReferencedTransportVersion("some_tv", "8124000,8012004")
+        transportVersionUpperBound("9.1", "some_tv", "8012004")
+
+        when:
+        def result = gradleRunner("validateTransportVersionResources").build()
+
+        then:
+        result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "modification checks use PR base branch in CI"() {
+        given:
+        // create 9.1 branch
+        execute("git checkout -b 9.1")
+        // setup 9.1 upper bound as if 9.2 was just branched, so no patches yet
+        unreferableTransportVersion("initial_9.1.0", "8013000")
+        transportVersionUpperBound("9.1", "initial_9.1.0", "8013000")
+        execute("git add .")
+        execute("git commit -m initial")
+
+        // advance main branch
+        execute("git checkout main")
+        unreferableTransportVersion("initial_9.1.0", "8013000")
+        referableAndReferencedTransportVersion("new_tv", "8124000,8013001")
+        transportVersionUpperBound("9.2", "new_tv", "8124000")
+        transportVersionUpperBound("9.1", "new_tv", "8013001")
+        execute("git add .")
+        execute("git commit -m update")
+
+        // create a 9.1 backport
+        execute("git checkout 9.1")
+        execute("git checkout -b test_9.1")
+        referableAndReferencedTransportVersion("new_tv", "8124000,8013001")
+        transportVersionUpperBound("9.2", "new_tv", "8124000")
+        transportVersionUpperBound("9.1", "new_tv", "8013001")
+        file("myserver/build.gradle") << """
+            tasks.named('validateTransportVersionResources') {
+                currentUpperBoundName = '9.1'
+            }
+        """
+
+        when:
+        def result = gradleRunner("validateTransportVersionResources")
+            .withEnvironment(Map.of("BUILDKITE_PULL_REQUEST_BASE_BRANCH", "9.1")).build()
+
+        then:
+        result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
     }
 }

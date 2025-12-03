@@ -10,6 +10,31 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-18-8]]
+=== 8.18.8
+
+[discrete]
+[[es-connectors-release-notes-8-18-8-enhancements]]
+==== Enhancements
+
+* Refactored pagination from OFFSET-based to keyset (primary-key) pagination in the MySQL connector. This delivers 3×+ faster syncs on large tables and modest gains on smaller ones.
+See https://github.com/elastic/connectors/pull/3719[*PR 3719*].
+
+* Updated the Jira connector to use the new `/rest/api/3/search/jql` endpoint, ensuring compatibility with Jira’s latest API.
+See https://github.com/elastic/connectors/pull/3710[*PR 3710*].
+
+[discrete]
+[[es-connectors-release-notes-8-18-7]]
+=== 8.18.7
+
+[discrete]
+[[es-connectors-release-notes-8-18-7-enhancements]]
+==== Enhancements
+
+* Salesforce connector: Reduced API calls during field validation with caching, improving sync performance.
+See https://github.com/elastic/connectors/pull/3668[*PR 3668*].
+
+[discrete]
 [[es-connectors-release-notes-8-18-6]]
 === 8.18.6
 

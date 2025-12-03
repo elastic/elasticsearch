@@ -590,6 +590,17 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
         return transformConfig;
     }
 
+    @SuppressWarnings("unchecked")
+    protected Map<String, Object> getTransformConfig(String transformId, String authHeader, List<Map<String, String>> expectedErrors)
+        throws IOException {
+        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId, authHeader);
+        Map<String, Object> transforms = entityAsMap(client().performRequest(getRequest));
+        assertEquals(1, XContentMapValues.extractValue("count", transforms));
+        List<Map<String, String>> errors = (List<Map<String, String>>) XContentMapValues.extractValue("errors", transforms);
+        assertThat(errors, is(equalTo(expectedErrors)));
+        return ((List<Map<String, Object>>) transforms.get("transforms")).get(0);
+    }
+
     protected static String getTransformState(String transformId) throws IOException {
         Map<?, ?> transformStatsAsMap = getTransformStateAndStats(transformId);
         return transformStatsAsMap == null ? null : (String) XContentMapValues.extractValue("state", transformStatsAsMap);

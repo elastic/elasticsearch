@@ -119,8 +119,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
             return (ElasticsearchAuthenticationProcessingError) e;
         }
         if (e instanceof ElasticsearchSecurityException ese) {
-            if (ese.status() == RestStatus.FORBIDDEN &&
-                ese.getMetadata(AUTHORIZATION_ERROR_METADATA_KEY) != null) {
+            if (ese.status() == RestStatus.FORBIDDEN && ese.getMetadata(AUTHORIZATION_ERROR_METADATA_KEY) != null) {
                 return ese;
             }
         }

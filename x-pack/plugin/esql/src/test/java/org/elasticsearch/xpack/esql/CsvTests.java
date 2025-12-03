@@ -695,7 +695,8 @@ public class CsvTests extends ESTestCase {
         PlanTimeProfile planTimeProfile = configuration.profile() ? new PlanTimeProfile() : null;
         session.preOptimizedPlan(analyzed, logicalPlanPreOptimizer, planTimeProfile, listener.delegateFailureAndWrap((l, preOptimized) -> {
             session.executeOptimizedPlan(
-                new EsqlQueryRequest().approximate(testCase.approximate),
+                new EsqlQueryRequest(),
+                statement,
                 esqlExecutionInfo,
                 planRunner(bigArrays, physicalOperationProviders),
                 session.optimizedPlan(preOptimized, logicalPlanOptimizer, planTimeProfile),

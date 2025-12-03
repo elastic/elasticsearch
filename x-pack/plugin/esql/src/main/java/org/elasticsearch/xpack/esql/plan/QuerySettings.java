@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class QuerySettings {
+
     @Param(
         name = "project_routing",
         type = { "keyword" },

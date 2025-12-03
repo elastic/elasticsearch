@@ -50,7 +50,7 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         suffix = suffix + "| WHERE _fork == \"fork1\" | DROP _fork";
 
         String query = testCase.query + suffix;
-        doTest(query, false);
+        doTest(query);
     }
 
     @Override

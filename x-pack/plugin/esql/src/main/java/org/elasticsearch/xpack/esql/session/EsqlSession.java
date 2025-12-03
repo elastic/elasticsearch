@@ -283,7 +283,7 @@ public class EsqlSession {
 
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
                         .<LogicalPlan>andThen((l, p) -> {
-                            if (request.approximate()) {
+                            if (statement.setting(QuerySettings.APPROXIMATE) != null) {
                                 Approximate.verifyPlan(p);
                             }
                             l.onResponse(p);
@@ -297,6 +297,7 @@ public class EsqlSession {
                         .<Result>andThen(
                             (l, p) -> executeOptimizedPlan(
                                 request,
+                                statement,
                                 executionInfo,
                                 planRunner,
                                 p,
@@ -333,6 +334,7 @@ public class EsqlSession {
      */
     public void executeOptimizedPlan(
         EsqlQueryRequest request,
+        EsqlStatement statement,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
         LogicalPlan optimizedPlan,
@@ -376,6 +378,7 @@ public class EsqlSession {
                 planRunner,
                 executionInfo,
                 request,
+                statement,
                 logicalPlanOptimizer,
                 physicalPlanOptimizer,
                 planTimeProfile,
@@ -391,6 +394,7 @@ public class EsqlSession {
         PlanRunner runner,
         EsqlExecutionInfo executionInfo,
         EsqlQueryRequest request,
+        EsqlStatement statement,
         LogicalPlanOptimizer logicalPlanOptimizer,
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile,
@@ -417,7 +421,7 @@ public class EsqlSession {
                 // Ensure we don't have subplan flag stuck in there on failure
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
             );
-        } else if (request.approximate()) {
+        } else if (statement.setting(QuerySettings.APPROXIMATE) != null) {
             new Approximate(
                 optimizedPlan,
                 logicalPlanOptimizer,

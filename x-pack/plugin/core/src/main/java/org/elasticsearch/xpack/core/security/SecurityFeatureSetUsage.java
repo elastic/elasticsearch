@@ -55,10 +55,8 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         realmsUsage = in.readGenericMap();
         rolesStoreUsage = in.readGenericMap();
         sslUsage = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            tokenServiceUsage = in.readGenericMap();
-            apiKeyServiceUsage = in.readGenericMap();
-        }
+        tokenServiceUsage = in.readGenericMap();
+        apiKeyServiceUsage = in.readGenericMap();
         auditUsage = in.readGenericMap();
         ipFilterUsage = in.readGenericMap();
         anonymousUsage = in.readGenericMap();
@@ -121,10 +119,8 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         out.writeGenericMap(realmsUsage);
         out.writeGenericMap(rolesStoreUsage);
         out.writeGenericMap(sslUsage);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            out.writeGenericMap(tokenServiceUsage);
-            out.writeGenericMap(apiKeyServiceUsage);
-        }
+        out.writeGenericMap(tokenServiceUsage);
+        out.writeGenericMap(apiKeyServiceUsage);
         out.writeGenericMap(auditUsage);
         out.writeGenericMap(ipFilterUsage);
         out.writeGenericMap(anonymousUsage);

@@ -881,16 +881,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Function<ExponentialHistogram, Object> expectedValue,
         List<String> warnings
     ) {
-        if (EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()) {
-            unary(
-                suppliers,
-                expectedEvaluatorToString,
-                exponentialHistogramCases(),
-                expectedType,
-                v -> expectedValue.apply((ExponentialHistogram) v),
-                warnings
-            );
-        }
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            exponentialHistogramCases(),
+            expectedType,
+            v -> expectedValue.apply((ExponentialHistogram) v),
+            warnings
+        );
     }
 
     private static void unaryNumeric(

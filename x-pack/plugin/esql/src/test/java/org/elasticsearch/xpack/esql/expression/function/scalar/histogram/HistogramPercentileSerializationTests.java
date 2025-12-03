@@ -15,14 +15,6 @@ import java.io.IOException;
 
 public class HistogramPercentileSerializationTests extends AbstractExpressionSerializationTests<HistogramPercentile> {
 
-    @Before
-    public void setup() {
-        assumeTrue(
-            "Only when esql_exponential_histogram feature flag is enabled",
-            EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()
-        );
-    }
-
     @Override
     protected HistogramPercentile createTestInstance() {
         return new HistogramPercentile(randomSource(), randomChild(), randomChild());

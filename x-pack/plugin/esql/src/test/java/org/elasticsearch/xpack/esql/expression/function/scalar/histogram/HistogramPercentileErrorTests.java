@@ -23,14 +23,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class HistogramPercentileErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
-    @Before
-    public void setup() {
-        assumeTrue(
-            "Only when esql_exponential_histogram feature flag is enabled",
-            EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()
-        );
-    }
-
     @Override
     protected List<TestCaseSupplier> cases() {
         return paramsToSuppliers(HistogramPercentileTests.parameters());

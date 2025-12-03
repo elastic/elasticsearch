@@ -19,14 +19,6 @@ import java.io.IOException;
 
 public class ExtractHistogramComponentSerializationTests extends AbstractExpressionSerializationTests<ExtractHistogramComponent> {
 
-    @Before
-    public void setup() {
-        assumeTrue(
-            "Only when esql_exponential_histogram feature flag is enabled",
-            EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()
-        );
-    }
-
     @Override
     protected ExtractHistogramComponent createTestInstance() {
         return new ExtractHistogramComponent(randomSource(), randomChild(), randomComponentOrdinal());

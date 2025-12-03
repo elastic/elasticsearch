@@ -496,24 +496,22 @@ public final class MultiRowTestCaseSupplier {
 
     public static List<TypedDataSupplier> exponentialHistogramCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
-        if (EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()) {
-            addSuppliers(
-                cases,
-                minRows,
-                maxRows,
-                "empty exponential histograms",
-                DataType.EXPONENTIAL_HISTOGRAM,
-                () -> new WriteableExponentialHistogram(ExponentialHistogram.empty())
-            );
-            addSuppliers(
-                cases,
-                minRows,
-                maxRows,
-                "random exponential histograms",
-                DataType.EXPONENTIAL_HISTOGRAM,
-                EsqlTestUtils::randomExponentialHistogram
-            );
-        }
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "empty exponential histograms",
+            DataType.EXPONENTIAL_HISTOGRAM,
+            () -> new WriteableExponentialHistogram(ExponentialHistogram.empty())
+        );
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "random exponential histograms",
+            DataType.EXPONENTIAL_HISTOGRAM,
+            EsqlTestUtils::randomExponentialHistogram
+        );
         return cases;
     }
 

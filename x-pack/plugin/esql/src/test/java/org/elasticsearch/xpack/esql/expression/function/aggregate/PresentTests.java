@@ -79,12 +79,9 @@ public class PresentTests extends AbstractAggregationTestCase {
             DataType.LONG,
             DataType.TEXT,
             DataType.UNSIGNED_LONG,
-            DataType.VERSION
+            DataType.VERSION,
+            DataType.EXPONENTIAL_HISTOGRAM
         );
-        if (EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()) {
-            types = new ArrayList<>(types);
-            types.add(DataType.EXPONENTIAL_HISTOGRAM);
-        }
         for (var dataType : types) {
             suppliers.add(
                 new TestCaseSupplier(

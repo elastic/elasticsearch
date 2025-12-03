@@ -31,14 +31,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class HistogramPercentileTests extends AbstractScalarFunctionTestCase {
 
-    @Before
-    public void setup() {
-        assumeTrue(
-            "Only when esql_exponential_histogram feature flag is enabled",
-            EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()
-        );
-    }
-
     public HistogramPercentileTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }

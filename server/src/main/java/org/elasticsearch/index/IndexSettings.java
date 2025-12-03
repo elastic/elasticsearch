@@ -677,13 +677,13 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
-    public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting(
-        "index.mapping.use_doc_values_skipper",
-        true,
-        Property.IndexScope,
-        Property.Final
-    );
+    public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
+        if (DiscoveryNode.isStateless(s)) {
+            return SETTING_INDEX_VERSION_CREATED.get(s).onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_BY_DEFAULT) ? "true" : "false";
+        } else {
+            return SETTING_INDEX_VERSION_CREATED.get(s).onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) ? "true" : "false";
+        }
+    }, Property.IndexScope, Property.Final);
 
     public static final boolean TSDB_SYNTHETIC_ID_FEATURE_FLAG = new FeatureFlag("tsdb_synthetic_id").isEnabled();
     public static final Setting<Boolean> USE_SYNTHETIC_ID = Setting.boolSetting(
@@ -1017,6 +1017,7 @@ public final class IndexSettings {
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
     private final boolean useDocValuesSkipper;
+    private final boolean useDocValuesSkipperForHostname;
     private final boolean useTimeSeriesSyntheticId;
     private final boolean useTimeSeriesDocValuesFormat;
     private final boolean useEs812PostingsFormat;
@@ -1204,7 +1205,10 @@ public final class IndexSettings {
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
-        useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
+        useDocValuesSkipper = scopedSettings.get(USE_DOC_VALUES_SKIPPER);
+        useDocValuesSkipperForHostname = USE_DOC_VALUES_SKIPPER.exists(settings)
+            ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
+            : version.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
@@ -1960,6 +1964,12 @@ public final class IndexSettings {
 
     public boolean useDocValuesSkipper() {
         return useDocValuesSkipper;
+    }
+
+    // Necessary because we accidentally made host.name use skippers before the feature flag was
+    // removed in serverless
+    public boolean useDocValuesSkipperForHostName() {
+        return useDocValuesSkipperForHostname;
     }
 
     /**

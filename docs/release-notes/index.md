@@ -20,80 +20,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
-## 9.1.8 [elasticsearch-9.1.8-release-notes]
-```{applies_to}
-stack: ga 9.1.8
-```
-
-### Features and enhancements [elasticsearch-9.1.8-features-enhancements]
-
-Authorization:
-* [IRONSCALES] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#138094](https://github.com/elastic/elasticsearch/pull/138094) (issue: [#138093](https://github.com/elastic/elasticsearch/issues/138093))
-
-Security:
-* Upgrade UnboundID LDAP SDK to 7.0.3 [#138053](https://github.com/elastic/elasticsearch/pull/138053)
-
-Snapshot/Restore:
-* Upgrading commons-lang3 version for repository-hdfs plugin [#138589](https://github.com/elastic/elasticsearch/pull/138589)
-
-
-### Fixes [elasticsearch-9.1.8-fixes]
-
-Aggregations:
-* Break on `FieldData` when building global ordinals [#108875](https://github.com/elastic/elasticsearch/pull/108875) (issue: [#97075](https://github.com/elastic/elasticsearch/issues/97075))
-
-Downsampling:
-* Fix: Downsample returns appropriate error when target index gets deleted unexpectedly. [#138228](https://github.com/elastic/elasticsearch/pull/138228)
-
-ES|QL:
-* Fix integer overflow in block memory estimation [#138132](https://github.com/elastic/elasticsearch/pull/138132)
-* Handle index deletion while querying in ES|QL [#137702](https://github.com/elastic/elasticsearch/pull/137702) (issue: [#135863](https://github.com/elastic/elasticsearch/issues/135863))
-
-ILM+SLM:
-* ILM Explain: valid JSON on truncated step info [#137638](https://github.com/elastic/elasticsearch/pull/137638) (issue: [#135458](https://github.com/elastic/elasticsearch/issues/135458))
-
-Indices APIs:
-* Serverless filtering create from [#137850](https://github.com/elastic/elasticsearch/pull/137850)
-
-Infra/Core:
-* Fix for GET /_migration/deprecations doesn't check deprecated affix settings correctly [#137976](https://github.com/elastic/elasticsearch/pull/137976) (issue: [#137008](https://github.com/elastic/elasticsearch/issues/137008))
-
-Infra/Settings:
-* Fix default value for some settings when filtered [#137652](https://github.com/elastic/elasticsearch/pull/137652) (issue: [#136333](https://github.com/elastic/elasticsearch/issues/136333))
-* Restore API: Fix file settings handling [#137585](https://github.com/elastic/elasticsearch/pull/137585) (issue: [#122429](https://github.com/elastic/elasticsearch/issues/122429))
-
-Ingest Node:
-* Improve concurrency design of `GeoIpDownloader` [#137660](https://github.com/elastic/elasticsearch/pull/137660) (issues: [#135158](https://github.com/elastic/elasticsearch/issues/135158), [#130681](https://github.com/elastic/elasticsearch/issues/130681), [#135132](https://github.com/elastic/elasticsearch/issues/135132), [#133597](https://github.com/elastic/elasticsearch/issues/133597))
-
-Machine Learning:
-* Bump anomalies index template version to install latest [#138097](https://github.com/elastic/elasticsearch/pull/138097)
-* Fix ML calendar event update scalability issues [#136886](https://github.com/elastic/elasticsearch/pull/136886)
-
-Mapping:
-* Reject mappings that (eventually) set dimension and metric in the same field [#138308](https://github.com/elastic/elasticsearch/pull/138308)
-
-Network:
-* Convert `BytesTransportResponse` when proxying response from/to local node [#135873](https://github.com/elastic/elasticsearch/pull/135873)
-
-Relevance:
-* Fix semantic highlighting when using a `knn` query with minimum `similarity` [#138140](https://github.com/elastic/elasticsearch/pull/138140)
-
-Search:
-* Fix Bug in `RankDocRetrieverBuilder` when `from` is set to Default (-1) [#137637](https://github.com/elastic/elasticsearch/pull/137637)
-* Handle Query Timeouts During Collector Initialization in `QueryPhase` [#138084](https://github.com/elastic/elasticsearch/pull/138084)
-
-Security:
-* Add User Profile Size Limit Enforced During Profile Updates [#137712](https://github.com/elastic/elasticsearch/pull/137712)
-* Principal Extraction from Certificate RDN Attribute Value in PKI Realm [#137230](https://github.com/elastic/elasticsearch/pull/137230)
-
-Snapshot/Restore:
-* Add length validation for `rename_replacement` parameter in snapshot restore request [#137859](https://github.com/elastic/elasticsearch/pull/137859)
-
-Vector Search:
-* [Vector Search] Fix  wrong vector docvalue_fields [#137862](https://github.com/elastic/elasticsearch/pull/137862)
-
-
-
 ## 9.2.2 [elasticsearch-9.2.2-release-notes]
 
 ### Features and enhancements [elasticsearch-9.2.2-features-enhancements]
@@ -186,6 +112,75 @@ TSDB:
 Vector Search:
 * Fixing sorted indices for GPU built indices [#138138](https://github.com/elastic/elasticsearch/pull/138138)
 * Update to Lucene 10.3.2 [#138230](https://github.com/elastic/elasticsearch/pull/138230) (issue: [#135718](https://github.com/elastic/elasticsearch/issues/135718))
+* [Vector Search] Fix  wrong vector docvalue_fields [#137862](https://github.com/elastic/elasticsearch/pull/137862)
+
+## 9.1.8 [elasticsearch-9.1.8-release-notes]
+
+### Features and enhancements [elasticsearch-9.1.8-features-enhancements]
+
+Authorization:
+* [IRONSCALES] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#138094](https://github.com/elastic/elasticsearch/pull/138094) (issue: [#138093](https://github.com/elastic/elasticsearch/issues/138093))
+
+Security:
+* Upgrade UnboundID LDAP SDK to 7.0.3 [#138053](https://github.com/elastic/elasticsearch/pull/138053)
+
+Snapshot/Restore:
+* Upgrading commons-lang3 version for repository-hdfs plugin [#138589](https://github.com/elastic/elasticsearch/pull/138589)
+
+
+### Fixes [elasticsearch-9.1.8-fixes]
+
+Aggregations:
+* Break on `FieldData` when building global ordinals [#108875](https://github.com/elastic/elasticsearch/pull/108875) (issue: [#97075](https://github.com/elastic/elasticsearch/issues/97075))
+
+Downsampling:
+* Fix: Downsample returns appropriate error when target index gets deleted unexpectedly. [#138228](https://github.com/elastic/elasticsearch/pull/138228)
+
+ES|QL:
+* Fix integer overflow in block memory estimation [#138132](https://github.com/elastic/elasticsearch/pull/138132)
+* Handle index deletion while querying in ES|QL [#137702](https://github.com/elastic/elasticsearch/pull/137702) (issue: [#135863](https://github.com/elastic/elasticsearch/issues/135863))
+
+ILM+SLM:
+* ILM Explain: valid JSON on truncated step info [#137638](https://github.com/elastic/elasticsearch/pull/137638) (issue: [#135458](https://github.com/elastic/elasticsearch/issues/135458))
+
+Indices APIs:
+* Serverless filtering create from [#137850](https://github.com/elastic/elasticsearch/pull/137850)
+
+Infra/Core:
+* Fix for GET /_migration/deprecations doesn't check deprecated affix settings correctly [#137976](https://github.com/elastic/elasticsearch/pull/137976) (issue: [#137008](https://github.com/elastic/elasticsearch/issues/137008))
+
+Infra/Settings:
+* Fix default value for some settings when filtered [#137652](https://github.com/elastic/elasticsearch/pull/137652) (issue: [#136333](https://github.com/elastic/elasticsearch/issues/136333))
+* Restore API: Fix file settings handling [#137585](https://github.com/elastic/elasticsearch/pull/137585) (issue: [#122429](https://github.com/elastic/elasticsearch/issues/122429))
+
+Ingest Node:
+* Improve concurrency design of `GeoIpDownloader` [#137660](https://github.com/elastic/elasticsearch/pull/137660) (issues: [#135158](https://github.com/elastic/elasticsearch/issues/135158), [#130681](https://github.com/elastic/elasticsearch/issues/130681), [#135132](https://github.com/elastic/elasticsearch/issues/135132), [#133597](https://github.com/elastic/elasticsearch/issues/133597))
+
+Machine Learning:
+* Bump anomalies index template version to install latest [#138097](https://github.com/elastic/elasticsearch/pull/138097)
+* Fix ML calendar event update scalability issues [#136886](https://github.com/elastic/elasticsearch/pull/136886)
+
+Mapping:
+* Reject mappings that (eventually) set dimension and metric in the same field [#138308](https://github.com/elastic/elasticsearch/pull/138308)
+
+Network:
+* Convert `BytesTransportResponse` when proxying response from/to local node [#135873](https://github.com/elastic/elasticsearch/pull/135873)
+
+Relevance:
+* Fix semantic highlighting when using a `knn` query with minimum `similarity` [#138140](https://github.com/elastic/elasticsearch/pull/138140)
+
+Search:
+* Fix Bug in `RankDocRetrieverBuilder` when `from` is set to Default (-1) [#137637](https://github.com/elastic/elasticsearch/pull/137637)
+* Handle Query Timeouts During Collector Initialization in `QueryPhase` [#138084](https://github.com/elastic/elasticsearch/pull/138084)
+
+Security:
+* Add User Profile Size Limit Enforced During Profile Updates [#137712](https://github.com/elastic/elasticsearch/pull/137712)
+* Principal Extraction from Certificate RDN Attribute Value in PKI Realm [#137230](https://github.com/elastic/elasticsearch/pull/137230)
+
+Snapshot/Restore:
+* Add length validation for `rename_replacement` parameter in snapshot restore request [#137859](https://github.com/elastic/elasticsearch/pull/137859)
+
+Vector Search:
 * [Vector Search] Fix  wrong vector docvalue_fields [#137862](https://github.com/elastic/elasticsearch/pull/137862)
 
 
@@ -634,6 +629,9 @@ Machine Learning:
 * Track inference deployments [#131442](https://github.com/elastic/elasticsearch/pull/131442)
 * [ML] Add Azure AI Rerank support to the Inference Plugin [#129848](https://github.com/elastic/elasticsearch/pull/129848)
 * [ML] Add IBM watsonx Completion and Chat Completion support to the Inference Plugin [#129146](https://github.com/elastic/elasticsearch/pull/129146)
+* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
+* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
+* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
 
 Mapping:
 * Add new `pattern_text` field mapper in tech preview [#135370](https://github.com/elastic/elasticsearch/pull/135370)

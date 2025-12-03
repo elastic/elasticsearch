@@ -122,21 +122,17 @@ public class ShardWriteLoadDistributionMetrics {
             shardWeightHistogram.reset();
             try {
                 for (ShardRouting shardRouting : routingNode) {
-                    Double writeLoad = shardWriteLoads.get(shardRouting.shardId());
-                    if (writeLoad != null) {
-                        /*
-                         * When write-loads are adjusted, they sometimes end up being
-                         * very small (e.g. 3.3123178228374412E-21). These values
-                         * don't play nice with the HdrHistogram because it works
-                         * best when there is a relatively small difference in the
-                         * scale of the values inserted into it.
-                         * They also provide little value, so we round them down to
-                         * zero here.
-                         */
-                        double roundedValue = roundTinyValuesToZero(writeLoad);
-                        shardWeightHistogram.recordValue(roundedValue);
-                        maxShardWriteLoad = Math.max(maxShardWriteLoad, roundedValue);
-                    }
+                    final double writeLoad = shardWriteLoads.getOrDefault(shardRouting.shardId(), 0.0);
+                    /*
+                     * Shard write-loads originate from an org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRate,
+                     * they sometimes end up being calculated as very small (e.g. 3.3123178228374412E-21). These values
+                     * don't play nice with the HdrHistogram because it works best when there is a relatively small difference
+                     * in the scale of the values inserted into it.
+                     * They also provide little value, so we round them down to zero here.
+                     */
+                    final double roundedWriteLoad = roundTinyValuesToZero(writeLoad);
+                    shardWeightHistogram.recordValue(roundedWriteLoad);
+                    maxShardWriteLoad = Math.max(maxShardWriteLoad, roundedWriteLoad);
                 }
             } catch (ArrayIndexOutOfBoundsException e) {
                 // This shouldn't happen because our histogram should be auto-resizing, but just in case

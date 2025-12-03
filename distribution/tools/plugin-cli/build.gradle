@@ -52,31 +52,3 @@ tasks.named("test").configure {
   }
 }
 
-/*
- * these two classes intentionally use the following JDK internal APIs in order to offer the necessary
- * functionality
- *
- * sun.security.internal.spec.TlsKeyMaterialParameterSpec
- * sun.security.internal.spec.TlsKeyMaterialSpec
- * sun.security.internal.spec.TlsMasterSecretParameterSpec
- * sun.security.internal.spec.TlsPrfParameterSpec
- * sun.security.internal.spec.TlsRsaPremasterSecretParameterSpec
- * sun.security.provider.SecureRandom
- *
- */
-tasks.named("thirdPartyAudit").configure {
-  ignoreViolations(
-          'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider$CoreSecureRandom',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$BaseTLSKeyGeneratorSpi',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator$2',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator$2',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSPRFKeyGenerator',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator$2',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator$2'
-  )
-}

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.util;
+package org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -13,7 +13,7 @@ import java.math.MathContext;
 
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt;
 
-public final class RoundingMaths {
+public final class Maths {
 
     public static Number round(Number n, long precision) throws ArithmeticException {
         if (n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte) {

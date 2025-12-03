@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Maths;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.util.RoundingMaths;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -120,17 +120,17 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
 
     @Evaluator(extraName = "DoubleNoDecimals")
     static double process(double val) {
-        return RoundingMaths.round(val, 0).doubleValue();
+        return Maths.round(val, 0).doubleValue();
     }
 
     @Evaluator(extraName = "Int")
     static int process(int val, long decimals) {
-        return RoundingMaths.round(val, decimals).intValue();
+        return Maths.round(val, decimals).intValue();
     }
 
     @Evaluator(extraName = "Long")
     static long process(long val, long decimals) {
-        return RoundingMaths.round(val, decimals);
+        return Maths.round(val, decimals);
     }
 
     @Evaluator(extraName = "UnsignedLong", warnExceptions = ArithmeticException.class)
@@ -142,16 +142,16 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
 
         Number ul = unsignedLongAsNumber(val);
         if (ul instanceof BigInteger bi) {
-            BigInteger rounded = RoundingMaths.round(bi, decimals);
+            BigInteger rounded = Maths.round(bi, decimals);
             return bigIntegerToUnsignedLong(rounded);
         } else {
-            return longToUnsignedLong(RoundingMaths.round(ul.longValue(), decimals), false);
+            return longToUnsignedLong(Maths.round(ul.longValue(), decimals), false);
         }
     }
 
     @Evaluator(extraName = "Double")
     static double process(double val, long decimals) {
-        return RoundingMaths.round(val, decimals).doubleValue();
+        return Maths.round(val, decimals).doubleValue();
     }
 
     @Override

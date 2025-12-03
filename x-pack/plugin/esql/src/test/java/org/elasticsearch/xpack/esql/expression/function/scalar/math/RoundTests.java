@@ -12,12 +12,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Maths;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.util.RoundingMaths;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -44,7 +44,7 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                 DataType.DOUBLE,
                 () -> randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true),
                 "RoundDoubleNoDecimalsEvaluator[val=Attribute[channel=0]]",
-                d -> RoundingMaths.round(d, 0)
+                d -> Maths.round(d, 0)
             )
         );
         suppliers.add(
@@ -55,7 +55,7 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                 DataType.INTEGER,
                 () -> between(-30, 30),
                 "RoundDoubleEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]",
-                RoundingMaths::round
+                Maths::round
             )
         );
         suppliers.add(
@@ -66,7 +66,7 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                 DataType.LONG,
                 () -> randomLongBetween(-30, 30),
                 "RoundDoubleEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
-                RoundingMaths::round
+                Maths::round
             )
         );
 
@@ -79,7 +79,7 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                 DataType.LONG,
                 ESTestCase::randomLong,
                 "RoundIntEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
-                (n, d) -> RoundingMaths.round((Number) n, d)
+                (n, d) -> Maths.round((Number) n, d)
             )
         );
         suppliers.add(
@@ -90,7 +90,7 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                 DataType.LONG,
                 ESTestCase::randomLong,
                 "RoundLongEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
-                (n, d) -> RoundingMaths.round((Number) n, d)
+                (n, d) -> Maths.round((Number) n, d)
             )
         );
         suppliers.add(
@@ -102,7 +102,7 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                 // Safe negative integer to not trigger an exception and not slow down the test
                 () -> randomLongBetween(-10_000, Long.MAX_VALUE),
                 "RoundUnsignedLongEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
-                (n, d) -> RoundingMaths.round(NumericUtils.unsignedLongAsBigInteger(n), d)
+                (n, d) -> Maths.round(NumericUtils.unsignedLongAsBigInteger(n), d)
             )
         );
 
@@ -115,7 +115,7 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                 DataType.INTEGER,
                 ESTestCase::randomInt,
                 "RoundIntEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]",
-                (n, d) -> RoundingMaths.round((Number) n, d)
+                (n, d) -> Maths.round((Number) n, d)
             )
         );
         suppliers.add(
@@ -126,7 +126,7 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                 DataType.INTEGER,
                 ESTestCase::randomInt,
                 "RoundLongEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]",
-                (n, d) -> RoundingMaths.round((Number) n, d)
+                (n, d) -> Maths.round((Number) n, d)
             )
         );
         suppliers.add(
@@ -138,7 +138,7 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                 // Safe negative integer to not trigger an exception and not slow down the test
                 () -> randomIntBetween(-10_000, Integer.MAX_VALUE),
                 "RoundUnsignedLongEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]",
-                (n, d) -> RoundingMaths.round(NumericUtils.unsignedLongAsBigInteger(n), d)
+                (n, d) -> Maths.round(NumericUtils.unsignedLongAsBigInteger(n), d)
             )
         );
 

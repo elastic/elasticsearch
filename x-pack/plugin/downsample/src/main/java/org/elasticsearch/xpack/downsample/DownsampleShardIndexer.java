@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardIndexerStatus;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -367,18 +368,25 @@ class DownsampleShardIndexer {
             docCountProvider.setLeafReaderContext(ctx);
 
             // For each field, return a tuple with the downsample field producer and the field value leaf
-            final List<AbstractDownsampleFieldProducer> nonMetricProducers = new ArrayList<>();
+            final List<AbstractDownsampleFieldProducer> lastValueProducers = new ArrayList<>();
             final List<FormattedDocValues> formattedDocValues = new ArrayList<>();
 
-            final List<MetricFieldProducer> metricProducers = new ArrayList<>();
+            final List<NumericMetricFieldProducer> numericValueProducers = new ArrayList<>();
             final List<SortedNumericDoubleValues> numericDocValues = new ArrayList<>();
+
+            final List<ExponentialHistogramMetricFieldProducer> exponentialHistogramProducers = new ArrayList<>();
+            final List<ExponentialHistogramValuesReader> exponentialHistogramDocValues = new ArrayList<>();
+
             for (var fieldValueFetcher : fieldValueFetchers) {
                 var fieldProducer = fieldValueFetcher.fieldProducer();
-                if (fieldProducer instanceof MetricFieldProducer metricFieldProducer) {
-                    metricProducers.add(metricFieldProducer);
+                if (fieldProducer instanceof NumericMetricFieldProducer metricFieldProducer) {
+                    numericValueProducers.add(metricFieldProducer);
                     numericDocValues.add(fieldValueFetcher.getNumericLeaf(ctx));
+                } else if (fieldProducer instanceof ExponentialHistogramMetricFieldProducer exponentialHistogramProducer) {
+                    exponentialHistogramProducers.add(exponentialHistogramProducer);
+                    exponentialHistogramDocValues.add(fieldValueFetcher.getExponentialHistogramLeaf(ctx));
                 } else {
-                    nonMetricProducers.add(fieldProducer);
+                    lastValueProducers.add(fieldProducer);
                     formattedDocValues.add(fieldValueFetcher.getLeaf(ctx));
                 }
             }
@@ -386,10 +394,12 @@ class DownsampleShardIndexer {
             var leafBucketCollector = new LeafDownsampleCollector(
                 aggCtx,
                 docCountProvider,
-                nonMetricProducers.toArray(new AbstractDownsampleFieldProducer[0]),
+                lastValueProducers.toArray(new AbstractDownsampleFieldProducer[0]),
                 formattedDocValues.toArray(new FormattedDocValues[0]),
-                metricProducers.toArray(new MetricFieldProducer[0]),
-                numericDocValues.toArray(new SortedNumericDoubleValues[0])
+                numericValueProducers.toArray(new NumericMetricFieldProducer[0]),
+                numericDocValues.toArray(new SortedNumericDoubleValues[0]),
+                exponentialHistogramProducers.toArray(new ExponentialHistogramMetricFieldProducer[0]),
+                exponentialHistogramDocValues.toArray(new ExponentialHistogramValuesReader[0])
             );
             leafBucketCollectors.add(leafBucketCollector);
             return leafBucketCollector;
@@ -410,8 +420,10 @@ class DownsampleShardIndexer {
             final FormattedDocValues[] formattedDocValues;
             final AbstractDownsampleFieldProducer[] nonMetricProducers;
 
-            final MetricFieldProducer[] metricProducers;
+            final NumericMetricFieldProducer[] metricProducers;
             final SortedNumericDoubleValues[] numericDocValues;
+            final ExponentialHistogramMetricFieldProducer[] experimentalHistogramProducers;
+            final ExponentialHistogramValuesReader[] exponentialHistogramDocValues;
 
             // Capture the first timestamp in order to determine which leaf collector's leafBulkCollection() is invoked first.
             long firstTimeStampForBulkCollection;
@@ -423,11 +435,14 @@ class DownsampleShardIndexer {
                 DocCountProvider docCountProvider,
                 AbstractDownsampleFieldProducer[] nonMetricProducers,
                 FormattedDocValues[] formattedDocValues,
-                MetricFieldProducer[] metricProducers,
-                SortedNumericDoubleValues[] numericDocValues
+                NumericMetricFieldProducer[] metricProducers,
+                SortedNumericDoubleValues[] numericDocValues,
+                ExponentialHistogramMetricFieldProducer[] experimentalHistogramProducers,
+                ExponentialHistogramValuesReader[] exponentialHistogramDocValues
             ) {
                 assert nonMetricProducers.length == formattedDocValues.length;
                 assert metricProducers.length == numericDocValues.length;
+                assert experimentalHistogramProducers.length == exponentialHistogramDocValues.length;
 
                 this.aggCtx = aggCtx;
                 this.docCountProvider = docCountProvider;
@@ -435,6 +450,8 @@ class DownsampleShardIndexer {
                 this.formattedDocValues = formattedDocValues;
                 this.metricProducers = metricProducers;
                 this.numericDocValues = numericDocValues;
+                this.experimentalHistogramProducers = experimentalHistogramProducers;
+                this.exponentialHistogramDocValues = exponentialHistogramDocValues;
             }
 
             @Override
@@ -509,9 +526,14 @@ class DownsampleShardIndexer {
                     fieldProducer.collect(docValues, docIdBuffer);
                 }
                 for (int i = 0; i < metricProducers.length; i++) {
-                    MetricFieldProducer metricFieldProducer = metricProducers[i];
+                    NumericMetricFieldProducer metricFieldProducer = metricProducers[i];
                     SortedNumericDoubleValues numericDoubleValues = numericDocValues[i];
                     metricFieldProducer.collect(numericDoubleValues, docIdBuffer);
+                }
+                for (int i = 0; i < experimentalHistogramProducers.length; i++) {
+                    var experimentalHistogramProducer = experimentalHistogramProducers[i];
+                    ExponentialHistogramValuesReader exponentialHistogramValuesReader = exponentialHistogramDocValues[i];
+                    experimentalHistogramProducer.collect(exponentialHistogramValuesReader, docIdBuffer);
                 }
 
                 docsProcessed += docIdBuffer.size();

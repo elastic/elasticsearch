@@ -828,19 +828,20 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             fieldProperties.get(TIME_SERIES_METRIC_PARAM).toString()
         );
         builder.startObject(field);
-        if (metricType == TimeSeriesParams.MetricType.COUNTER) {
-            // For counters, we keep the same field type, because they store
-            // only one value (the last value of the counter)
-            for (String fieldProperty : fieldProperties.keySet()) {
-                builder.field(fieldProperty, fieldProperties.get(fieldProperty));
-            }
-        } else {
+        if (metricType == TimeSeriesParams.MetricType.GAUGE) {
             var supported = getSupportedMetrics(metricType, fieldProperties);
 
             builder.field("type", AggregateMetricDoubleFieldMapper.CONTENT_TYPE)
                 .stringListField(AggregateMetricDoubleFieldMapper.Names.METRICS, supported.supportedMetrics)
                 .field(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC, supported.defaultMetric)
                 .field(TIME_SERIES_METRIC_PARAM, metricType);
+        } else {
+            // For counters and histograms, we keep the same field type.
+            // Counters because they store the last value (for now)
+            // Histograms because they are merged to a histogram
+            for (String fieldProperty : fieldProperties.keySet()) {
+                builder.field(fieldProperty, fieldProperties.get(fieldProperty));
+            }
         }
         builder.endObject();
     }

@@ -18,7 +18,10 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -63,6 +66,11 @@ class FieldValueFetcher {
         return numericFieldData.getDoubleValues();
     }
 
+    public ExponentialHistogramValuesReader getExponentialHistogramLeaf(LeafReaderContext context) throws IOException {
+        LeafExponentialHistogramFieldData exponentialHistogramFieldData = (LeafExponentialHistogramFieldData) fieldData.load(context);
+        return exponentialHistogramFieldData.getHistogramValues();
+    }
+
     AbstractDownsampleFieldProducer fieldProducer() {
         return fieldProducer;
     }
@@ -72,9 +80,14 @@ class FieldValueFetcher {
             : "Aggregate metric double should be handled by a dedicated FieldValueFetcher";
         if (fieldType.getMetricType() != null) {
             return switch (fieldType.getMetricType()) {
-                case GAUGE -> MetricFieldProducer.createFieldProducerForGauge(name(), samplingMethod);
+                case GAUGE -> NumericMetricFieldProducer.createFieldProducerForGauge(name(), samplingMethod);
                 case COUNTER -> LastValueFieldProducer.createForMetric(name());
-                case HISTOGRAM -> throw new IllegalArgumentException("Unsupported metric type [histogram] for downsampling, coming soon");
+                case HISTOGRAM -> {
+                    if ("exponential_histogram".equals(fieldType.typeName())) {
+                        yield ExponentialHistogramMetricFieldProducer.createMetricProducerForExponentialHistogram(name(), samplingMethod);
+                    }
+                    throw new IllegalArgumentException("Time series metrics supports only exponential histogram");
+                }
                 // TODO: Support POSITION in downsampling
                 case POSITION -> throw new IllegalArgumentException("Unsupported metric type [position] for down-sampling");
             };

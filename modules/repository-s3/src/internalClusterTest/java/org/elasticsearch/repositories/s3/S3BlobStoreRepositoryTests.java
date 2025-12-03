@@ -709,7 +709,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     protected class S3BlobStoreHttpHandler extends S3HttpHandler implements BlobStoreHttpHandler {
 
         S3BlobStoreHttpHandler(final String bucket) {
-            super(bucket, S3ConsistencyModel.randomConsistencyModel());
+            super(bucket, S3ConsistencyModel.AWS_DEFAULT);
         }
 
         @Override

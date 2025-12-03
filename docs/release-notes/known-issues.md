@@ -18,24 +18,24 @@ Known issues are significant defects or limitations that may impact your impleme
 ## 9.1.1 [elasticsearch-9.1.1-known-issues]
 
 * An [optimization](https://github.com/elastic/elasticsearch/pull/125403) introduced in 9.1.0 contains a [bug](https://github.com/elastic/elasticsearch/pull/132597) that causes merges to fail for shrunk TSDB and LogsDB indices.
-
+  
   Possible *temporary* workarounds include:
   * Configure the ILM policy to not perform force merges after shrinking TSDB or LogsDB indices.
   * Add `-Dorg.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesConsumer.enableOptimizedMerge=false` as a Java system property to all data nodes in the cluster and perform a rolling restart.
-    * *Important:* Remove this property when upgrading to the fixed version to re-enable merge optimization. Otherwise, merges will be slower.
+    * *Important:* Remove this property when upgrading to the fixed version to re-enable merge optimization. Otherwise, merges will be slower.  
 
-The bug is addressed in version 9.1.2.
+The bug is addressed in version 9.1.2.  
 
 ## 9.1.0 [elasticsearch-9.1.0-known-issues]
 
 * An [optimization](https://github.com/elastic/elasticsearch/pull/125403) introduced in 9.1.0 contains a [bug](https://github.com/elastic/elasticsearch/pull/132597) that causes merges to fail for shrunk TSDB and LogsDB indices.
-
+  
   Possible *temporary* workarounds include:
   * Configure the ILM policy to not perform force merges after shrinking TSDB or LogsDB indices.
   * Add `-Dorg.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesConsumer.enableOptimizedMerge=false` as a Java system property to all data nodes in the cluster and perform a rolling restart.
-    * *Important:* Remove this property when upgrading to the fixed version to re-enable merge optimization. Otherwise, merges will be slower.
+    * *Important:* Remove this property when upgrading to the fixed version to re-enable merge optimization. Otherwise, merges will be slower.  
 
-The bug is addressed in version 9.1.2.
+The bug is addressed in version 9.1.2.  
 
 * The `-Dvector.rescoring.directio` JVM option is enabled (set to `true`) by default. When used with `bbq_hnsw` type vector indices, this can cause significant search performance degradation; particularly when enough memory is available to hold all vector data. In some cases, kNN search latency can increase by as much as 10x. To mitigate this, set the JVM option `-Dvector.rescoring.directio=false` on all search nodes and restart them. This option can be removed in 9.1.1.
 

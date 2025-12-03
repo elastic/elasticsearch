@@ -106,6 +106,11 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     }
 
     @Override
+    protected boolean resetNodeAfterTest() {
+        return true;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(ReindexPlugin.class, LocalStateInferencePlugin.class);
     }

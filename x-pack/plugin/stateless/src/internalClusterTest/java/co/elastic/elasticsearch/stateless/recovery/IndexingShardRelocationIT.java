@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
@@ -135,7 +135,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
+public class IndexingShardRelocationIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {
@@ -145,7 +145,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
         plugins.add(DisableWarmOnUploadPlugin.class);
         plugins.add(MockRepository.Plugin.class);
         plugins.add(InternalSettingsPlugin.class);
@@ -1046,7 +1046,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
     }
 
-    public static class DisableWarmOnUploadPlugin extends Stateless {
+    public static class DisableWarmOnUploadPlugin extends ServerlessStatelessPlugin {
 
         static final Setting<Boolean> ENABLED_WARMING = Setting.boolSetting(
             "test.stateless.warm_on_upload_enabled",
@@ -1195,7 +1195,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNode))));
         ensureGreen(indexName);
 
-        var cacheService = internalCluster().getInstance(Stateless.SharedBlobCacheServiceSupplier.class, indexNode2).get();
+        var cacheService = internalCluster().getInstance(ServerlessStatelessPlugin.SharedBlobCacheServiceSupplier.class, indexNode2).get();
         // Hollow shard force flushes a second BCC and results in two writes on the cache instead of 1.
         long expectedWritesAndMissesCount = hollowEnabled ? 2L : 1L;
         assertThat(cacheService.getStats().writeCount(), equalTo(expectedWritesAndMissesCount));

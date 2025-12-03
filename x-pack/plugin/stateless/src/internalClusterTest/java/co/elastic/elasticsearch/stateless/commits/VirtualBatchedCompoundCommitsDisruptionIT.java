@@ -16,7 +16,7 @@
  */
 package co.elastic.elasticsearch.stateless.commits;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
-public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStatelessIntegTestCase {
+public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {

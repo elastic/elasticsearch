@@ -17,7 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.cache;
 
-import co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingIT.TestCacheStatelessNoRecoveryPrewarming;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
+import co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingIT.TestCacheServerlessStatelessPluginNoRecoveryPrewarming;
 
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
@@ -29,18 +30,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 /**
  * This is the equivalent of {@link StatelessOnlinePrewarmingServiceProvider} but for the integration
  * test suite. We need another implementation as SPI needs a constructor with the
- * {@link org.elasticsearch.plugins.Plugin} parameter (which is {@link co.elastic.elasticsearch.stateless.Stateless} in production)
- * however, in ITs we use a different test plugin instead of {@link co.elastic.elasticsearch.stateless.Stateless}
+ * {@link org.elasticsearch.plugins.Plugin} parameter (which is {@link ServerlessStatelessPlugin} in production)
+ * however, in ITs we use a different test plugin instead of {@link ServerlessStatelessPlugin}
  */
 public class TestStatelessOnlinePrewarmingServiceProvider implements OnlinePrewarmingServiceProvider {
 
-    private final TestCacheStatelessNoRecoveryPrewarming plugin;
+    private final TestCacheServerlessStatelessPluginNoRecoveryPrewarming plugin;
 
     public TestStatelessOnlinePrewarmingServiceProvider() {
         throw new IllegalStateException("This no arg constructor only exists for SPI validation");
     }
 
-    public TestStatelessOnlinePrewarmingServiceProvider(TestCacheStatelessNoRecoveryPrewarming plugin) {
+    public TestStatelessOnlinePrewarmingServiceProvider(TestCacheServerlessStatelessPluginNoRecoveryPrewarming plugin) {
         this.plugin = plugin;
     }
 

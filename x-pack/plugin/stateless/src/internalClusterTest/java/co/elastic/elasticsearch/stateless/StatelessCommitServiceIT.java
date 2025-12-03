@@ -46,7 +46,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static co.elastic.elasticsearch.stateless.Stateless.CLEAR_BLOB_CACHE_ACTION;
+import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.CLEAR_BLOB_CACHE_ACTION;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitServiceTestUtils.getAllSearchNodesRetainingCommitsForShard;
@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.IsNot.not;
 
-public class StatelessCommitServiceIT extends AbstractStatelessIntegTestCase {
+public class StatelessCommitServiceIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     /**
      * Moves all the index's shards away from searchNodeA and onto searchNodeB.

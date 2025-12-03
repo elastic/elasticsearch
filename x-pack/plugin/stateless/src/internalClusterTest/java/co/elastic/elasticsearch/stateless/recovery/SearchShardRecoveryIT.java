@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
@@ -68,7 +68,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-public class SearchShardRecoveryIT extends AbstractStatelessIntegTestCase {
+public class SearchShardRecoveryIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {

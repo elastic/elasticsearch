@@ -19,7 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.test;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.TestUtils;
 import co.elastic.elasticsearch.stateless.action.FetchShardCommitsInUseAction;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
@@ -257,7 +257,7 @@ public class FakeStatelessNode implements Closeable {
 
         try (var localCloseables = new TransferableCloseables()) {
 
-            threadPool = new TestThreadPool("test", Stateless.statelessExecutorBuilders(Settings.EMPTY, true));
+            threadPool = new TestThreadPool("test", ServerlessStatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
             localCloseables.add(() -> TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
 
             transport = localCloseables.add(new MockTransport());
@@ -569,7 +569,10 @@ public class FakeStatelessNode implements Closeable {
 
     protected ClusterService createClusterService() {
         // TODO: stateless enabled should be part of nodeSettings
-        final Settings settings = Settings.builder().put(nodeSettings).put(Stateless.STATELESS_ENABLED.getKey(), true).build();
+        final Settings settings = Settings.builder()
+            .put(nodeSettings)
+            .put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true)
+            .build();
         return ClusterServiceUtils.createClusterService(
             threadPool,
             DiscoveryNodeUtils.create("node", "node"),

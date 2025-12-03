@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportFetchShardCommitsInUseAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
@@ -66,20 +66,20 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
-public class StatelessCommitNotificationsIT extends AbstractStatelessIntegTestCase {
+public class StatelessCommitNotificationsIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(TestStateless.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(TestServerlessStatelessPlugin.class);
         return plugins;
     }
 
-    public static class TestStateless extends Stateless {
+    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
         public final AtomicReference<CyclicBarrier> afterFlushBarrierRef = new AtomicReference<>();
 
-        public TestStateless(Settings settings) {
+        public TestServerlessStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -230,7 +230,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessIntegTestCa
         indexDocs(indexName, between(10, 20));
         refresh(indexName);
 
-        final TestStateless testStateless = findPlugin(indexNode, TestStateless.class);
+        final TestServerlessStatelessPlugin testStateless = findPlugin(indexNode, TestServerlessStatelessPlugin.class);
         final CyclicBarrier afterFlushBarrier = new CyclicBarrier(2);
         testStateless.afterFlushBarrierRef.set(afterFlushBarrier);
 

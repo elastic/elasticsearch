@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
@@ -113,7 +113,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
+public class IndexingShardRecoveryIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

@@ -78,7 +78,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
+public class StatelessRecoveryIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {

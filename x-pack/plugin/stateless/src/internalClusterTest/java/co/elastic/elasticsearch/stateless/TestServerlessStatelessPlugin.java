@@ -35,11 +35,11 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 
 import java.util.Collection;
 
-public class TestStateless extends Stateless {
+public class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
 
-    static final Logger logger = LogManager.getLogger(TestStateless.class);
+    static final Logger logger = LogManager.getLogger(TestServerlessStatelessPlugin.class);
 
-    public TestStateless(Settings settings) {
+    public TestServerlessStatelessPlugin(Settings settings) {
         super(settings);
     }
 

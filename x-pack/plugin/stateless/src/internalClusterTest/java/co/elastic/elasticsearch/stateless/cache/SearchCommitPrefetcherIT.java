@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.cache;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
@@ -69,7 +69,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static co.elastic.elasticsearch.stateless.Stateless.CLEAR_BLOB_CACHE_ACTION;
+import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.CLEAR_BLOB_CACHE_ACTION;
 import static org.elasticsearch.blobcache.BlobCacheUtils.toPageAlignedSize;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
@@ -83,7 +83,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
+public class SearchCommitPrefetcherIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {
@@ -93,8 +93,8 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(TestStatelessNoRecoveryPrewarming.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(TestServerlessStatelessPluginNoRecoveryPrewarming.class);
         plugins.add(StatelessMockRepositoryPlugin.class);
         return plugins;
     }
@@ -225,7 +225,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         var beforeNewCommit = bytesReadFromBlobStore.get();
 
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
-        String prewarmThreadPool = Stateless.PREWARM_THREAD_POOL;
+        String prewarmThreadPool = ServerlessStatelessPlugin.PREWARM_THREAD_POOL;
         // number of completed tasks in the prewarming threadpool before we start indexing
         long preIngestTasksPrewarmingPool = getNumberOfCompletedTasks(threadPool, prewarmThreadPool);
         // number of completed tasks in the refresh pool before we start indexing
@@ -273,7 +273,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
 
         var numberOfCommits = randomIntBetween(5, 8);
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
-        String prewarmThreadPool = Stateless.PREWARM_THREAD_POOL;
+        String prewarmThreadPool = ServerlessStatelessPlugin.PREWARM_THREAD_POOL;
         // number of completed tasks in the prewarming threadpool before we start indexing
         long preIngestTasksPrewarmingPool = getNumberOfCompletedTasks(threadPool, prewarmThreadPool);
         // number of completed tasks in the refresh pool before we start indexing
@@ -733,9 +733,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         return bytesReadFromBlobStore;
     }
 
-    public static final class TestStatelessNoRecoveryPrewarming extends Stateless {
+    public static final class TestServerlessStatelessPluginNoRecoveryPrewarming extends ServerlessStatelessPlugin {
 
-        public TestStatelessNoRecoveryPrewarming(Settings settings) {
+        public TestServerlessStatelessPluginNoRecoveryPrewarming(Settings settings) {
             super(settings);
         }
 

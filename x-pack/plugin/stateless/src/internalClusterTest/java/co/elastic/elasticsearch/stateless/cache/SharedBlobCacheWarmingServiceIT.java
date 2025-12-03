@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.cache;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
@@ -112,7 +112,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestCase {
+public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     private static final ByteSizeValue REGION_SIZE = ByteSizeValue.ofBytes(4L * PAGE_SIZE);
     private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofMb(8);
@@ -131,8 +131,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(TestStateless.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(TestServerlessStatelessPlugin.class);
         plugins.add(MockRepository.Plugin.class);
         plugins.add(InternalSettingsPlugin.class);
         plugins.add(ShutdownPlugin.class);
@@ -404,7 +404,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         long generation = client().admin().indices().prepareStats(indexName).setFlush(true).get().getShards()[0].getCommitStats()
             .getGeneration();
 
-        client(indexNode).execute(Stateless.CLEAR_BLOB_CACHE_ACTION, new ClearBlobCacheNodesRequest()).actionGet();
+        client(indexNode).execute(ServerlessStatelessPlugin.CLEAR_BLOB_CACHE_ACTION, new ClearBlobCacheNodesRequest()).actionGet();
 
         PlainActionFuture<Void> warmingFuture = new PlainActionFuture<>();
 
@@ -634,7 +634,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         final var flushCountdown = new CountDownLatch(1);
         MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
-                assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL);
+                assert ThreadPool.assertCurrentThreadPool(ServerlessStatelessPlugin.PREWARM_THREAD_POOL);
                 if (flushed.compareAndExchange(false, true) == false) {
                     // Spawn a new thread to avoid using flush with the prewarm thread pool which could trigger a false assertion
                     // See https://github.com/elastic/elasticsearch-serverless/issues/2518
@@ -774,7 +774,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
         // Simulating no free region for warming
         final var searchNodeCacheService = (MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService) internalCluster().getInstance(
-            Stateless.SharedBlobCacheServiceSupplier.class,
+            ServerlessStatelessPlugin.SharedBlobCacheServiceSupplier.class,
             searchNode
         ).get();
         searchNodeCacheService.noFreeRegionForWarming.set(true);
@@ -934,15 +934,15 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
     private static BlockingSharedBlobCacheWarmingService getSharedBlobCacheWarmingService(String node) {
         return (BlockingSharedBlobCacheWarmingService) internalCluster().getInstance(PluginsService.class, node)
-            .filterPlugins(TestStateless.class)
+            .filterPlugins(TestServerlessStatelessPlugin.class)
             .findFirst()
-            .orElseThrow(() -> new AssertionError(TestStateless.class.getName() + " plugin not found"))
+            .orElseThrow(() -> new AssertionError(TestServerlessStatelessPlugin.class.getName() + " plugin not found"))
             .getSharedBlobCacheWarmingService();
     }
 
-    public static class TestStateless extends Stateless {
+    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
 
-        public TestStateless(Settings settings) {
+        public TestServerlessStatelessPlugin(Settings settings) {
             super(settings);
         }
 

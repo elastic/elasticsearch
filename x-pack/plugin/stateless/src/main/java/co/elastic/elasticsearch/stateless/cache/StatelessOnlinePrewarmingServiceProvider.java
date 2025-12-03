@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cache;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
@@ -30,13 +30,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 public class StatelessOnlinePrewarmingServiceProvider implements OnlinePrewarmingServiceProvider {
 
-    private final Stateless plugin;
+    private final ServerlessStatelessPlugin plugin;
 
     public StatelessOnlinePrewarmingServiceProvider() {
         throw new IllegalStateException("This no arg constructor only exists for SPI validation");
     }
 
-    public StatelessOnlinePrewarmingServiceProvider(Stateless plugin) {
+    public StatelessOnlinePrewarmingServiceProvider(ServerlessStatelessPlugin plugin) {
         this.plugin = plugin;
     }
 

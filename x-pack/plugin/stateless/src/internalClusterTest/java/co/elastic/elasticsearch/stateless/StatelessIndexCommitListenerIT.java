@@ -66,18 +66,18 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
-public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCase {
+public class StatelessIndexCommitListenerIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     /**
      * A testing stateless plugin that registers an {@link Engine.IndexCommitListener} that captures created and deleted commits.
      */
-    public static class TestStateless extends Stateless {
+    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
 
         private final Map<ShardId, Map<Long, Engine.IndexCommitRef>> retainedCommits = new HashMap<>();
         private final Map<ShardId, Set<Long>> deletedCommits = new HashMap<>();
         private final Object mutex = new Object();
 
-        public TestStateless(Settings settings) {
+        public TestServerlessStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -202,8 +202,8 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(TestStateless.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(TestServerlessStatelessPlugin.class);
         return List.copyOf(plugins);
     }
 
@@ -395,8 +395,11 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
         releaseCommit(lastFlushGeneration);
     }
 
-    private TestStateless getStatelessPluginInstance() {
-        var plugin = internalCluster().getInstance(PluginsService.class, indexNode).filterPlugins(TestStateless.class).findFirst().get();
+    private TestServerlessStatelessPlugin getStatelessPluginInstance() {
+        var plugin = internalCluster().getInstance(PluginsService.class, indexNode)
+            .filterPlugins(TestServerlessStatelessPlugin.class)
+            .findFirst()
+            .get();
         assertThat("TestStateless plugin not found on node " + indexNode, plugin, notNullValue());
         return plugin;
     }

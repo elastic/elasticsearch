@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.allocation;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -57,7 +57,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessIntegTestCase {
+public class StatelessIndexBalanceAllocationDeciderIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     private static final int HEAVY_WEIGHT = 1000;
     private static final int LIGHT_WEIGHT = 1;
@@ -172,8 +172,8 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessI
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(StatelessIndexBalanceAllocationDeciderIT.TestStateless.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(TestServerlessStatelessPlugin.class);
         return plugins;
     }
 
@@ -193,8 +193,8 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessI
         }
     }
 
-    public static class TestStateless extends Stateless {
-        public TestStateless(Settings settings) {
+    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
+        public TestServerlessStatelessPlugin(Settings settings) {
             super(settings);
         }
 

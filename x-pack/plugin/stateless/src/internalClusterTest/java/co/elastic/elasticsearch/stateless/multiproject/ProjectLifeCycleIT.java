@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.multiproject;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 @LuceneTestCase.SuppressFileSystems("*")
-public class ProjectLifeCycleIT extends AbstractStatelessIntegTestCase {
+public class ProjectLifeCycleIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected boolean multiProjectIntegrationTest() {

@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
@@ -147,19 +147,19 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
+public class StatelessFileDeletionIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     /**
      * A {@code Stateless} implementation that can block snapshot threads from opening {@link BlobCacheIndexInput} instances and
      * await on upload and BCC release completion.
      */
-    public static class TestStateless extends Stateless {
+    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
 
         public final Semaphore snapshotBlocker = new Semaphore(Integer.MAX_VALUE);
 
         private final AtomicReference<CountDownLatch> uploadAndBccReleaseLatch = new AtomicReference<>();
 
-        public TestStateless(Settings settings) {
+        public TestServerlessStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -271,8 +271,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(TestStateless.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(TestServerlessStatelessPlugin.class);
         plugins.add(MockRepository.Plugin.class);
         return plugins;
     }
@@ -335,7 +335,10 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             }
         });
 
-        var plugin = internalCluster().getInstance(PluginsService.class, indexNode).filterPlugins(TestStateless.class).findFirst().get();
+        var plugin = internalCluster().getInstance(PluginsService.class, indexNode)
+            .filterPlugins(TestServerlessStatelessPlugin.class)
+            .findFirst()
+            .get();
         try (Releasable ignored = plugin.blockSnapshots()) {
             logger.info("Starting snapshot");
             snapshot.start();
@@ -1358,7 +1361,10 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
 
-        var stateless = internalCluster().getInstance(PluginsService.class, indexNode).filterPlugins(TestStateless.class).findFirst().get();
+        var stateless = internalCluster().getInstance(PluginsService.class, indexNode)
+            .filterPlugins(TestServerlessStatelessPlugin.class)
+            .findFirst()
+            .get();
 
         Queue<Tuple<NewCommitNotificationRequest, CheckedRunnable<Exception>>> pendingNewCommitOnUploadNotifications =
             new LinkedBlockingQueue<>();

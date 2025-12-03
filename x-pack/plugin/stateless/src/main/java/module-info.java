@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.index.mapper.RootObjectMapperNamespaceValidator;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 
-module org.elasticsearch.stateless {
+module org.elasticsearch.serverless.stateless {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcore;
@@ -33,7 +33,7 @@ module org.elasticsearch.stateless {
     requires org.elasticsearch.xcontent;
 
     requires org.elasticsearch.serverless.constants;
-    requires org.elasticsearch.stateless.api;
+    requires org.elasticsearch.serverless.stateless.api;
 
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;

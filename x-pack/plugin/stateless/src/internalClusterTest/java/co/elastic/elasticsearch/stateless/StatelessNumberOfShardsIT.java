@@ -39,7 +39,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-public class StatelessNumberOfShardsIT extends AbstractStatelessIntegTestCase {
+public class StatelessNumberOfShardsIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

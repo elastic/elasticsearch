@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.action;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
@@ -65,7 +65,7 @@ public class TransportFetchShardCommitsInUseAction extends TransportNodesAction<
     Void> {
     private static final Logger logger = LogManager.getLogger(TransportFetchShardCommitsInUseAction.class);
 
-    public static final String NAME = "internal:admin/" + Stateless.NAME + "/search/fetch/commits";
+    public static final String NAME = "internal:admin/" + ServerlessStatelessPlugin.NAME + "/search/fetch/commits";
     public static final ActionType<FetchShardCommitsInUseAction.Response> TYPE = new ActionType<>(NAME);
 
     protected final ClusterService clusterService;

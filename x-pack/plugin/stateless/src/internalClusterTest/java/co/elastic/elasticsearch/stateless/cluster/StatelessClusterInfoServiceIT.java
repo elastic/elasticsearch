@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cluster;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.PublishHeapMemoryMetricsRequest;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishHeapMemoryMetrics;
 
@@ -41,7 +41,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class StatelessClusterInfoServiceIT extends AbstractStatelessIntegTestCase {
+public class StatelessClusterInfoServiceIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

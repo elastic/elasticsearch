@@ -150,7 +150,7 @@ import static org.hamcrest.Matchers.oneOf;
 // Disabling WindowsFS because it prevents file deletions and ExtrasFS because it adds unnecessary files in Lucene index and tests in this
 // class verify the content of Lucene directories
 @LuceneTestCase.SuppressFileSystems(value = { "WindowsFS", "ExtrasFS" })
-public class StatelessIT extends AbstractStatelessIntegTestCase {
+public class StatelessIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {
@@ -207,7 +207,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         ensureStableCluster(numIndexNodes + 1);
 
         var plugins = StreamSupport.stream(internalCluster().getInstances(PluginsService.class).spliterator(), false)
-            .flatMap(ps -> ps.filterPlugins(Stateless.class))
+            .flatMap(ps -> ps.filterPlugins(ServerlessStatelessPlugin.class))
             .toList();
         assertThat(plugins.size(), greaterThan(0));
     }

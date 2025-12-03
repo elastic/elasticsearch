@@ -19,7 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.InternalFile;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
@@ -852,10 +852,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         assert length >= 0 : "invalid length " + length;
         assert offset + length <= currentOffset.get() : "range [" + offset + ", " + length + "] more than " + currentOffset.get();
         assert ThreadPool.assertCurrentThreadPool(
-            Stateless.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
-            Stateless.SHARD_WRITE_THREAD_POOL,
-            Stateless.PREWARM_THREAD_POOL,
-            Stateless.UPLOAD_PREWARM_THREAD_POOL
+            ServerlessStatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
+            ServerlessStatelessPlugin.SHARD_WRITE_THREAD_POOL,
+            ServerlessStatelessPlugin.PREWARM_THREAD_POOL,
+            ServerlessStatelessPlugin.UPLOAD_PREWARM_THREAD_POOL
         );
 
         if (tryIncRef()) {

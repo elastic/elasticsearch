@@ -107,7 +107,7 @@ import static org.hamcrest.Matchers.is;
  * TODO: Increase network delay disruption and maybe use other NetworkDisruption types.
  * TODO: Add random object store failures beyond max retries (https://elasticco.atlassian.net/browse/ES-6453)
  */
-public class CorruptionIT extends AbstractStatelessIntegTestCase {
+public class CorruptionIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     private static final boolean TEST_HARDER = RandomizedTest.systemPropertyAsBoolean("tests.harder", false);
 
@@ -128,8 +128,8 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(TestStateless.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(TestServerlessStatelessPlugin.class);
         plugins.add(SlowRepositoryPlugin.class);
         return plugins;
     }
@@ -352,7 +352,10 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
         // search node
         assertCacheEvictedOnCorruption(
             findSearchShard(indexName),
-            (TestSharedBlobCacheService) internalCluster().getInstance(Stateless.SharedBlobCacheServiceSupplier.class, searchNodeName).get()
+            (TestSharedBlobCacheService) internalCluster().getInstance(
+                ServerlessStatelessPlugin.SharedBlobCacheServiceSupplier.class,
+                searchNodeName
+            ).get()
         );
 
         ensureGreen(indexName);
@@ -360,7 +363,10 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
         // index node
         assertCacheEvictedOnCorruption(
             findIndexShard(indexName),
-            (TestSharedBlobCacheService) internalCluster().getInstance(Stateless.SharedBlobCacheServiceSupplier.class, indexNodeName).get()
+            (TestSharedBlobCacheService) internalCluster().getInstance(
+                ServerlessStatelessPlugin.SharedBlobCacheServiceSupplier.class,
+                indexNodeName
+            ).get()
         );
 
         ensureGreen(indexName);
@@ -399,8 +405,8 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
         return scheme;
     }
 
-    public static class TestStateless extends Stateless {
-        public TestStateless(Settings settings) {
+    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
+        public TestServerlessStatelessPlugin(Settings settings) {
             super(settings);
         }
 

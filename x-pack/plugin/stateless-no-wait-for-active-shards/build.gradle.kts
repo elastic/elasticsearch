@@ -19,6 +19,6 @@ configurations {
 
 dependencies {
     compileOnly("org.elasticsearch:server")
-    internalClusterTestImplementation(testArtifact(project(":modules:stateless"), "internalClusterTest"))
+    internalClusterTestImplementation(testArtifact(project(":modules:serverless-stateless"), "internalClusterTest"))
     javaRestTestImplementation(project(":modules:serverless-no-wait-for-active-shards"))
 }

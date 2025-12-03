@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class StatelessSearchSkipBlockIT extends AbstractStatelessIntegTestCase {
+public class StatelessSearchSkipBlockIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     private final int numShards = randomIntBetween(1, 3);
     private final int numReplicas = randomIntBetween(1, 2);

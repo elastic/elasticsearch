@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.metering.action;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.StatelessComponents;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
@@ -60,7 +60,7 @@ public class TransportGetBlobStoreStatsAction extends TransportNodesAction<
         RepositoriesService repositoriesService
     ) {
         super(
-            Stateless.GET_BLOB_STORE_STATS_ACTION.name(),
+            ServerlessStatelessPlugin.GET_BLOB_STORE_STATS_ACTION.name(),
             clusterService,
             transportService,
             actionFilters,

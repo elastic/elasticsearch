@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
@@ -52,7 +52,7 @@ import java.util.concurrent.Semaphore;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
-public class StatelessStateNotRecoveredFileDeletionIT extends AbstractStatelessIntegTestCase {
+public class StatelessStateNotRecoveredFileDeletionIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {

@@ -10,9 +10,9 @@ plugins {
 }
 
 esplugin {
-    name = "stateless"
-    description = "Stateless module for Elasticsearch"
-    classname = "co.elastic.elasticsearch.stateless.Stateless"
+    name = "serverless-stateless"
+    description = "Stateless module for Serverless Elasticsearch"
+    classname = "co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin"
     extendedPlugins = listOf("x-pack-core", "blob-cache")
 }
 

@@ -25,7 +25,7 @@ import org.elasticsearch.core.TimeValue;
 
 import java.util.function.Function;
 
-import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
+import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.SHARD_READ_THREAD_POOL;
 import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.SEARCH_EXECUTOR;
 
 /**

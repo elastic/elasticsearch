@@ -19,7 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
@@ -74,7 +74,7 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
         this.preferredNodeId = preferredNodeId;
         this.client = client;
         this.chunkSizeBytes = chunkSize.getBytes();
-        this.fillVBCCExecutor = threadPool.executor(Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL);
+        this.fillVBCCExecutor = threadPool.executor(ServerlessStatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL);
     }
 
     @Override
@@ -94,7 +94,7 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
 
     @Override
     public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
-        assert Objects.equals(EsExecutors.executorName(Thread.currentThread()), Stateless.SHARD_READ_THREAD_POOL) == false
+        assert Objects.equals(EsExecutors.executorName(Thread.currentThread()), ServerlessStatelessPlugin.SHARD_READ_THREAD_POOL) == false
             : Thread.currentThread().getName() + " is a shard read thread";
         getVirtualBatchedCompoundCommitChunk(bccTermAndGen, position, length, preferredNodeId, ActionListener.wrap(rbr -> {
             // The InboundHandler decrements the GetVirtualBatchedCompoundCommitChunkResponse (and thus the data). So we need to retain the

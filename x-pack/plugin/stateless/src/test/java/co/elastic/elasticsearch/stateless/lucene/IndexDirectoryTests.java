@@ -19,7 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
@@ -455,7 +455,7 @@ public class IndexDirectoryTests extends ESTestCase {
     }
 
     private static TestThreadPool getThreadPool(String name) {
-        return new TestThreadPool(name, Stateless.statelessExecutorBuilders(Settings.EMPTY, true));
+        return new TestThreadPool(name, ServerlessStatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
     }
 
     private static StatelessCompoundCommit createCommit(IndexDirectory directory, Set<String> files, long generation) {

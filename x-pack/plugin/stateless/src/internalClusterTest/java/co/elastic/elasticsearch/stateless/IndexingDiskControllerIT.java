@@ -82,7 +82,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
+public class IndexingDiskControllerIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     private FileSystem defaultFileSystem;
     private FilterPath rootDir;
@@ -143,8 +143,8 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(TestStateless.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(TestServerlessStatelessPlugin.class);
         plugins.add(InternalSettingsPlugin.class);
         return plugins;
     }
@@ -405,9 +405,9 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    public static class TestStateless extends Stateless {
+    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
 
-        public TestStateless(Settings settings) {
+        public TestServerlessStatelessPlugin(Settings settings) {
             super(settings);
         }
 

@@ -54,11 +54,12 @@ import java.util.Map;
  *
  * <p>
  * To use this class in -IT (integration) tests, first make a custom {@link StatelessMockRepositoryStrategy} implementation. Then add the
- * {@link StatelessMockRepositoryPlugin} to the node plugins -- usually via overriding {@link AbstractStatelessIntegTestCase#nodePlugins()}.
+ * {@link StatelessMockRepositoryPlugin} to the node plugins -- usually via overriding
+ * {@link AbstractServerlessStatelessPluginIntegTestCase#nodePlugins()}.
  * A particular strategy implementation can then be set and fetched via helper methods
- * {@link AbstractStatelessIntegTestCase#setNodeRepositoryStrategy(String, StatelessMockRepositoryStrategy)} and
- * {@link AbstractStatelessIntegTestCase#getNodeRepositoryStrategy(String)} (cast to the strategy implementation), and helpers like
- * {@link AbstractStatelessIntegTestCase#startMasterOnlyNode(StatelessMockRepositoryStrategy)} can be added.
+ * {@link AbstractServerlessStatelessPluginIntegTestCase#setNodeRepositoryStrategy(String, StatelessMockRepositoryStrategy)} and
+ * {@link AbstractServerlessStatelessPluginIntegTestCase#getNodeRepositoryStrategy(String)} (cast to the strategy implementation),and
+ * helpers like {@link AbstractServerlessStatelessPluginIntegTestCase#startMasterOnlyNode(StatelessMockRepositoryStrategy)} can be added.
  *
  * <p>
  * The interfaces of this class, or one of its internal classes, and {@link StatelessMockRepositoryStrategy} should be extended with more

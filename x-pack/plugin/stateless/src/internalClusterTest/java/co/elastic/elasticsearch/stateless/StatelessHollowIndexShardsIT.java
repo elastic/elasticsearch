@@ -23,7 +23,7 @@ import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
-import co.elastic.elasticsearch.stateless.commits.StatelessFileDeletionIT.TestStateless;
+import co.elastic.elasticsearch.stateless.commits.StatelessFileDeletionIT.TestServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.HollowShardsMetrics;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
@@ -187,7 +187,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase {
+public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {
@@ -197,8 +197,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
-        plugins.add(TestStatelessCatchFlushUpload.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.add(TestServerlessStatelessPluginCatchFlushUpload.class);
         plugins.add(DataStreamsPlugin.class);
         plugins.add(CustomIngestTestPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
@@ -207,11 +207,11 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         return plugins;
     }
 
-    public static class TestStatelessCatchFlushUpload extends TestStateless {
+    public static class TestServerlessStatelessPluginCatchFlushUpload extends TestServerlessStatelessPlugin {
         public final AtomicReference<Semaphore> uploadRequestedSemaphoreReference = new AtomicReference<>();
         public final AtomicReference<Semaphore> uploadContinueSemaphoreReference = new AtomicReference<>();
 
-        public TestStatelessCatchFlushUpload(Settings settings) {
+        public TestServerlessStatelessPluginCatchFlushUpload(Settings settings) {
             super(settings);
         }
 
@@ -854,7 +854,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         // Fail BCC uploads to pause unhollowing (since the necessary flush will keep being retried to be uploaded)
         setNodeRepositoryFailureStrategy(clusterInfo.indexNodeB, false, true, Map.of(OperationPurpose.INDICES, ".*"));
         // Block snapshots
-        Releasable snapshotsBlock = findPlugin(clusterInfo.indexNodeB, TestStateless.class).blockSnapshots();
+        Releasable snapshotsBlock = findPlugin(clusterInfo.indexNodeB, TestServerlessStatelessPlugin.class).blockSnapshots();
 
         // A force merge thread that unhollows (and could, under buggy conditions, lead to deleted blobs for the racing snapshot)
         final var forceMergeThread = new Thread(() -> {
@@ -975,7 +975,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
 
         // Block snapshots
         createRepository("test-repo", "fs");
-        Releasable snapshotsBlock = findPlugin(indexNodeA, TestStateless.class).blockSnapshots();
+        Releasable snapshotsBlock = findPlugin(indexNodeA, TestServerlessStatelessPlugin.class).blockSnapshots();
 
         // Start another indexing node for relocations
         startIndexNode(indexNodeSettings);
@@ -2806,7 +2806,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         assertBusy(() -> assertThat(hollowShardsService.isHollowableIndexShard(indexShard), equalTo(true)));
         assertBusy(() -> assertNull(commitServiceA.getCurrentVirtualBcc(shardId)));
 
-        final var testStatelessPlugin = findPlugin(indexNodeA, TestStatelessCatchFlushUpload.class);
+        final var testStatelessPlugin = findPlugin(indexNodeA, TestServerlessStatelessPluginCatchFlushUpload.class);
         Semaphore uploadRequestedSemaphore = new Semaphore(0);
         testStatelessPlugin.uploadRequestedSemaphoreReference.set(uploadRequestedSemaphore);
         Semaphore uploadContinueSemaphore = new Semaphore(0);

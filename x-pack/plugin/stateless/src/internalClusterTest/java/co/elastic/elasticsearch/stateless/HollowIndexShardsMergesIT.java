@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class HollowIndexShardsMergesIT extends AbstractStatelessIntegTestCase {
+public class HollowIndexShardsMergesIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {
@@ -68,13 +68,13 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(Stateless.class);
+        plugins.remove(ServerlessStatelessPlugin.class);
         plugins.add(HollowIndexMergesTestPlugin.class);
         plugins.add(StatelessMockRepositoryPlugin.class);
         return plugins;
     }
 
-    public static class HollowIndexMergesTestPlugin extends Stateless {
+    public static class HollowIndexMergesTestPlugin extends ServerlessStatelessPlugin {
         private static AtomicReference<MergeFinder> mergeFinderRef = new AtomicReference<>();
 
         public HollowIndexMergesTestPlugin(Settings settings) {

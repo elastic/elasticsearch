@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.allocation;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
@@ -34,7 +34,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessIntegTestCase {
+public class StatelessBalancingWeightsFactoryIT extends AbstractServerlessStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

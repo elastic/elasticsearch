@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
@@ -77,7 +77,7 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BatchedComp
             TimeValue.timeValueSeconds(5),
             TimeValue.timeValueMillis(Long.MAX_VALUE),
             listener,
-            threadPool.executor(Stateless.SHARD_WRITE_THREAD_POOL)
+            threadPool.executor(ServerlessStatelessPlugin.SHARD_WRITE_THREAD_POOL)
         );
         assert virtualBcc.isFrozen();
 

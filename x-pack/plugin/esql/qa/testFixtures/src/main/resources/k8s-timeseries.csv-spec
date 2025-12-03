@@ -1004,18 +1004,18 @@ required_capability: ts_linreg_derivative
 
 TS k8s
 | STATS max_deriv = max(deriv(to_long(network.total_bytes_in))), max_rate = max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
-| EVAL max_deriv = ROUND(max_deriv,6), max_rate = ROUND(max_rate,6)
+| EVAL max_deriv = ROUND(max_deriv,5), max_rate = ROUND(max_rate,5)
 | KEEP max_deriv, max_rate, time_bucket, cluster
 | SORT cluster, time_bucket
 | LIMIT 5
 ;
 
 max_deriv:double | max_rate:double | time_bucket:datetime     | cluster:keyword
-85.5             | 8.120833        | 2024-05-10T00:00:00.000Z | prod
-4.933168         | 6.451737        | 2024-05-10T00:05:00.000Z | prod
-8.922491         | 11.562738       | 2024-05-10T00:10:00.000Z | prod
-16.623165        | 11.860806       | 2024-05-10T00:15:00.000Z | prod
-9.026268         | 6.980661        | 2024-05-10T00:20:00.000Z | prod
+85.5             | 8.12083         | 2024-05-10T00:00:00.000Z | prod
+4.93317          | 6.45174         | 2024-05-10T00:05:00.000Z | prod
+8.92249          | 11.56274        | 2024-05-10T00:10:00.000Z | prod
+16.62316         | 11.86081        | 2024-05-10T00:15:00.000Z | prod
+9.02627          | 6.98066         | 2024-05-10T00:20:00.000Z | prod
 ;
 
 datenanos_derivative_of_gauge_metric

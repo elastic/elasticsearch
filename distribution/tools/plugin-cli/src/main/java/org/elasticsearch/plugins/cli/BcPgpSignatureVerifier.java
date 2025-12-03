@@ -53,8 +53,7 @@ public class BcPgpSignatureVerifier implements PgpSignatureVerifier {
      * internal exception during verification
      */
     @Override
-    public void verifySignature(final Path zip, final String urlString, final InputStream ascInputStream)
-        throws IOException {
+    public void verifySignature(final Path zip, final String urlString, final InputStream ascInputStream) throws IOException {
 
         try (
             // fin is a file stream over the downloaded plugin zip whose signature to verify

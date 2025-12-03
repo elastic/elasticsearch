@@ -27,6 +27,7 @@ import org.elasticsearch.transport.NetworkTraceFlag;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -136,24 +137,60 @@ public class Loggers {
         return prefix;
     }
 
-    /**
-     * Set the level of the logger. If the new level is null, the logger will inherit it's level from its nearest ancestor with a non-null
-     * level.
-     */
-    public static void setLevel(Logger logger, String level) {
-        setLevel(logger, level == null ? null : Level.valueOf(level), RESTRICTED_LOGGERS);
+    public static class ConfigContext {
+        private final Map<String, String> appliedLoggers = new HashMap<>();
+
+        private void apply(String logger) {
+            appliedLoggers.put(logger, logger);
+        }
+
+        private boolean canApply(String logger, String reason) {
+            String newReason = appliedLoggers.compute(
+                logger,
+                (k, prevReason) -> (prevReason == null || isDescendantOf(reason, prevReason)) ? reason : prevReason
+            );
+            return newReason.equals(reason);
+        }
+    }
+
+    public static ConfigContext newContext() {
+        return new ConfigContext();
     }
 
     /**
-     * Set the level of the logger. If the new level is null, the logger will inherit it's level from its nearest ancestor with a non-null
-     * level.
+     * Set the level of the logger in isolation.
+     * If the new level is null, the logger will inherit its level from its nearest ancestor with a non-null level.
+     */
+    public static void setLevel(Logger logger, String level) {
+        setLevel(logger, level, newContext());
+    }
+
+    /**
+     * Set the level of the logger in the provided context ensuring to not override any previously applied descendants in the same context.
+     * If the new level is null, the logger will inherit its level from its nearest ancestor with a non-null level.
+     */
+    public static void setLevel(Logger logger, String level, ConfigContext context) {
+        setLevel(logger, level == null ? null : Level.valueOf(level), context, RESTRICTED_LOGGERS);
+    }
+
+    /**
+     * Set the level of the logger in isolation.
+     * If the new level is null, the logger will inherit its level from its nearest ancestor with a non-null level.
      */
     public static void setLevel(Logger logger, Level level) {
-        setLevel(logger, level, RESTRICTED_LOGGERS);
+        setLevel(logger, level, newContext(), RESTRICTED_LOGGERS);
+    }
+
+    /**
+     * Set the level of the logger in the provided context ensuring to not override any previously applied descendants in the same context.
+     * If the new level is null, the logger will inherit its level from its nearest ancestor with a non-null level.
+     */
+    public static void setLevel(Logger logger, Level level, ConfigContext context) {
+        setLevel(logger, level, context, RESTRICTED_LOGGERS);
     }
 
     // visible for testing only
-    static void setLevel(Logger logger, Level level, List<String> restrictions) {
+    static void setLevel(Logger logger, Level level, ConfigContext context, List<String> restrictions) {
         // If configuring an ancestor / root, the restriction has to be explicitly set afterward.
         boolean setRestriction = false;
 
@@ -179,13 +216,15 @@ public class Loggers {
                     }
                 }
             }
+            context.apply(logger.getName());
             Configurator.setLevel(logger.getName(), level);
         }
 
         // we have to descend the hierarchy
         final LoggerContext ctx = LoggerContext.getContext(false);
         for (final LoggerConfig loggerConfig : ctx.getConfiguration().getLoggers().values()) {
-            if (isDescendantOf(loggerConfig.getName(), logger.getName())) {
+            // set level of all descendants unless already set earlier in the same context
+            if (isDescendantOf(loggerConfig.getName(), logger.getName()) && context.canApply(loggerConfig.getName(), logger.getName())) {
                 Configurator.setLevel(loggerConfig.getName(), level);
             }
         }
@@ -194,7 +233,7 @@ public class Loggers {
             // if necessary, after setting the level of an ancestor, enforce restriction again
             for (String restricted : restrictions) {
                 if (isDescendantOf(restricted, logger.getName())) {
-                    setLevel(LogManager.getLogger(restricted), Level.INFO, Collections.emptyList());
+                    setLevel(LogManager.getLogger(restricted), Level.INFO, context, Collections.emptyList());
                 }
             }
         }

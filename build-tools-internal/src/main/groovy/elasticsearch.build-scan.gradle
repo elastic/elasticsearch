@@ -123,7 +123,8 @@ develocity {
 
             // Add a build annotation
             // See: https://buildkite.com/docs/agent/v3/cli-annotate
-            def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: ${result.failures ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
+            def jobRetryLabel = Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT')?:"0") > 0 ? " (retry #${System.getenv('BUILDKITE_RETRY_COUNT')})" : ""
+            def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}${jobRetryLabel}</span> :gradle: ${result.failures ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
             def process = [
               'buildkite-agent',
               'annotate',

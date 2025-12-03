@@ -77,6 +77,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -107,6 +108,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -677,9 +679,16 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
 
-            testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> false, (checkpoint, gcpListener, timeout) -> {
-                gcpListener.accept(Long.MAX_VALUE, null);
-            }, () -> {});
+            testHarness.commitService.register(
+                testHarness.shardId,
+                primaryTerm,
+                () -> false,
+                () -> MappingLookup.EMPTY,
+                (checkpoint, gcpListener, timeout) -> {
+                    gcpListener.accept(Long.MAX_VALUE, null);
+                },
+                () -> {}
+            );
             testHarness.commitService.markRecoveredBcc(
                 testHarness.shardId,
                 indexingShardState.latestCommit(),
@@ -1299,9 +1308,16 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
 
-            testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> false, (checkpoint, gcpListener, timeout) -> {
-                gcpListener.accept(Long.MAX_VALUE, null);
-            }, () -> {});
+            testHarness.commitService.register(
+                testHarness.shardId,
+                primaryTerm,
+                () -> false,
+                () -> MappingLookup.EMPTY,
+                (checkpoint, gcpListener, timeout) -> {
+                    gcpListener.accept(Long.MAX_VALUE, null);
+                },
+                () -> {}
+            );
             testHarness.commitService.markRecoveredBcc(
                 testHarness.shardId,
                 indexingShardState.latestCommit(),
@@ -1361,7 +1377,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 Set.of("segments_2"),
                 0L,
                 InternalFilesReplicatedRanges.EMPTY,
-                Map.of()
+                Map.of(),
+                null
             );
             int count = rarely() ? 50000 : 10000;
             var unreferencedFiles = IntStream.range(1, count)
@@ -1437,9 +1454,16 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var indexingShardState = readIndexingShardState(testHarness, primaryTerm);
 
-            testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> false, (checkpoint, gcpListener, timeout) -> {
-                gcpListener.accept(Long.MAX_VALUE, null);
-            }, () -> {});
+            testHarness.commitService.register(
+                testHarness.shardId,
+                primaryTerm,
+                () -> false,
+                () -> MappingLookup.EMPTY,
+                (checkpoint, gcpListener, timeout) -> {
+                    gcpListener.accept(Long.MAX_VALUE, null);
+                },
+                () -> {}
+            );
             testHarness.commitService.markRecoveredBcc(
                 testHarness.shardId,
                 indexingShardState.latestCommit(),
@@ -2444,6 +2468,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         ShardId shardId,
                         long primaryTerm,
                         BooleanSupplier inititalizingNoSearchSupplier,
+                        Supplier<MappingLookup> mappingLookupSupplier,
                         TriConsumer<
                             Long,
                             GlobalCheckpointListeners.GlobalCheckpointListener,
@@ -2454,6 +2479,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                             shardId,
                             primaryTerm,
                             inititalizingNoSearchSupplier,
+                            mappingLookupSupplier,
                             addGlobalCheckpointListenerFunction,
                             triggerTranslogReplicator
                         ) {
@@ -2929,9 +2955,16 @@ public class StatelessCommitServiceTests extends ESTestCase {
         if (randomBoolean()) {
             testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
-            testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> true, (checkpoint, gcpListener, timeout) -> {
-                gcpListener.accept(Long.MAX_VALUE, null);
-            }, () -> {});
+            testHarness.commitService.register(
+                testHarness.shardId,
+                primaryTerm,
+                () -> true,
+                () -> MappingLookup.EMPTY,
+                (checkpoint, gcpListener, timeout) -> {
+                    gcpListener.accept(Long.MAX_VALUE, null);
+                },
+                () -> {}
+            );
         }
     }
 

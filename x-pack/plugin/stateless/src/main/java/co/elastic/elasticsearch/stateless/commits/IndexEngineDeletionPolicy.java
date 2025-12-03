@@ -21,6 +21,7 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.engine.ElasticsearchIndexDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
@@ -28,7 +29,6 @@ import org.elasticsearch.index.engine.SafeCommitInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -103,11 +103,8 @@ public class IndexEngineDeletionPolicy extends ElasticsearchIndexDeletionPolicy 
             final var previous = this.lastCommit;
             this.lastCommit = wrappedCommits.getLast();
             if (commitsListener != null && (previous == null || previous.getGeneration() != lastCommit.getGeneration())) {
-                var additionalFiles = new HashSet<>(lastCommit.getFileNames());
-                if (previous != null) {
-                    assert previous.getGeneration() <= lastCommit.getGeneration();
-                    additionalFiles.removeAll(previous.getFileNames());
-                }
+                assert previous == null || previous.getGeneration() <= lastCommit.getGeneration();
+                final Set<String> additionalFiles = Lucene.additionalFileNames(previous, lastCommit);
                 var newCommit = acquireIndexCommit(false, true);
                 var successfulNotification = false;
                 try {

@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.elasticsearch.common.UUIDs;
@@ -33,9 +34,11 @@ import static co.elastic.elasticsearch.stateless.commits.BlobLocationTestUtils.c
 import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomNonEmptySubsetOf;
+import static org.elasticsearch.test.ESTestCase.randomValueOtherThanMany;
 
 public final class StatelessCompoundCommitTestUtils {
 
@@ -67,7 +70,8 @@ public final class StatelessCompoundCommitTestUtils {
                 Set.copyOf(randomNonEmptySubsetOf(commitFiles.keySet())),
                 randomNonZeroPositiveLong(),
                 randomInternalFilesReplicatedRanges(),
-                randomCommitFiles()
+                randomCommitFiles(),
+                randomFrom(randomTimestampFieldValueRange(), null)
             );
         } else {
             return new StatelessCompoundCommit(
@@ -80,7 +84,8 @@ public final class StatelessCompoundCommitTestUtils {
                 Set.copyOf(randomNonEmptySubsetOf(commitFiles.keySet())),
                 randomNonZeroPositiveLong(),
                 randomInternalFilesReplicatedRanges(),
-                Map.of()
+                Map.of(),
+                randomFrom(randomTimestampFieldValueRange(), null)
             );
         }
     }
@@ -95,6 +100,14 @@ public final class StatelessCompoundCommitTestUtils {
 
     public static String randomNodeEphemeralId() {
         return randomAlphaOfLength(10);
+    }
+
+    public static TimestampFieldValueRange randomTimestampFieldValueRange() {
+        long minTimestamp = randomLongBetween(0L, Long.MAX_VALUE - 1L);
+        return new TimestampFieldValueRange(
+            minTimestamp,
+            randomValueOtherThanMany(maxTimestamp -> maxTimestamp < minTimestamp, () -> randomLongBetween(0L, Long.MAX_VALUE))
+        );
     }
 
     public static Map<String, BlobLocation> randomCommitFiles() {

@@ -22,7 +22,9 @@ package co.elastic.elasticsearch.stateless.commits;
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
+import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -70,12 +72,14 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -619,6 +623,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             final VirtualBatchedCompoundCommit virtualBcc;
             final boolean commitAfterRelocationStarted;
             final Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(shardId);
+            // reads the timestamp field value range outside the commit state synchronized block (because this does blocking IO)
+            var timestampFieldValueRange = commitState.readTimestampFieldValueRangeAcrossAdditionalSegments(reference);
             synchronized (commitState) {
                 // Have to check under lock before creating vbcc to ensure that the shard has not closed.
                 if (commitState.isClosed()) {
@@ -632,7 +638,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     IOUtils.closeWhileHandlingException(reference);
                     return;
                 }
-                virtualBcc = commitState.appendCommit(reference);
+                virtualBcc = commitState.appendCommit(reference, timestampFieldValueRange);
                 virtualBcc.addNotifiedSearchNodeIds(
                     shardRoutingTable.map(e -> e.assignedUnpromotableShards())
                         .orElse(List.of())
@@ -909,6 +915,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         ShardId shardId,
         long primaryTerm,
         BooleanSupplier inititalizingNoSearchSupplier,
+        Supplier<MappingLookup> mappingLookupSupplier,
         TriConsumer<Long, GlobalCheckpointListeners.GlobalCheckpointListener, TimeValue> addGlobalCheckpointListenerFunction,
         Runnable triggerTranslogReplicator
     ) {
@@ -918,6 +925,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 shardId,
                 primaryTerm,
                 inititalizingNoSearchSupplier,
+                mappingLookupSupplier,
                 addGlobalCheckpointListenerFunction,
                 triggerTranslogReplicator
             )
@@ -929,6 +937,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         ShardId shardId,
         long primaryTerm,
         BooleanSupplier inititalizingNoSearchSupplier,
+        Supplier<MappingLookup> mappingLookupSupplier,
         TriConsumer<Long, GlobalCheckpointListeners.GlobalCheckpointListener, TimeValue> addGlobalCheckpointListenerFunction,
         Runnable triggerTranslogReplicator
     ) {
@@ -936,6 +945,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             shardId,
             primaryTerm,
             inititalizingNoSearchSupplier,
+            mappingLookupSupplier,
             addGlobalCheckpointListenerFunction,
             triggerTranslogReplicator
         );
@@ -1063,6 +1073,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private final ShardId shardId;
         private final long allocationPrimaryTerm;
         private final BooleanSupplier inititalizingNoSearchSupplier;
+        private final Supplier<MappingLookup> mappingLookupSupplier;
         private final TriConsumer<Long, GlobalCheckpointListeners.GlobalCheckpointListener, TimeValue> addGlobalCheckpointListenerFunction;
         private final Runnable triggerTranslogReplicator;
 
@@ -1133,12 +1144,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             ShardId shardId,
             long allocationPrimaryTerm,
             BooleanSupplier inititalizingNoSearchSupplier,
+            Supplier<MappingLookup> mappingLookupSupplier,
             TriConsumer<Long, GlobalCheckpointListeners.GlobalCheckpointListener, TimeValue> addGlobalCheckpointListenerFunction,
             Runnable triggerTranslogReplicator
         ) {
             this.shardId = shardId;
             this.allocationPrimaryTerm = allocationPrimaryTerm;
             this.inititalizingNoSearchSupplier = inititalizingNoSearchSupplier;
+            this.mappingLookupSupplier = mappingLookupSupplier;
             this.addGlobalCheckpointListenerFunction = addGlobalCheckpointListenerFunction;
             this.triggerTranslogReplicator = triggerTranslogReplicator;
             this.shardLocalCommitsTracker = new ShardLocalCommitsTracker(new ShardLocalReadersTracker(this), new ShardLocalCommitsRefs());
@@ -1441,13 +1454,39 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         /**
+         * Reads the value range for the `@timestamp` field, for the commit's new additional segments,
+         * from the underlying lucene directory of the passed-in commit.
+         */
+        private @Nullable TimestampFieldValueRange readTimestampFieldValueRangeAcrossAdditionalSegments(StatelessCommitRef reference) {
+            assert Thread.holdsLock(this) == false : "This method does file IO so better avoid holding locks";
+            var additionalSegmentNames = reference.getAdditionalFiles()
+                .stream()
+                .filter(luceneFileName -> Objects.equals(LuceneFilesExtensions.fromFile(luceneFileName), LuceneFilesExtensions.SI))
+                .map(IndexFileNames::stripExtension)
+                .collect(Collectors.toUnmodifiableSet());
+            try {
+                return IndexEngine.readTimestampFieldValueRangeAcrossSegments(
+                    reference.getIndexCommit(),
+                    additionalSegmentNames,
+                    mappingLookupSupplier.get().getTimestampFieldType()
+                );
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        /**
          * Add the given {@link StatelessCommitRef} to the current VBCC. If the current VBCC is null, a new
          * one will be created with the {@link StatelessCommitRef}'s generation and set to be the current
          * before appending.
          * @param reference The reference to be added
+         * @param timestampFieldValueRange The `@timestamp` field value range from the passed-in commit
          * @return The VBCC that the given {@link StatelessCommitRef} has been added into.
          */
-        private VirtualBatchedCompoundCommit appendCommit(StatelessCommitRef reference) {
+        private VirtualBatchedCompoundCommit appendCommit(
+            StatelessCommitRef reference,
+            @Nullable TimestampFieldValueRange timestampFieldValueRange
+        ) {
             assert Thread.holdsLock(this);
 
             final String nodeEphemeralId = calculateNodeEphemeralId(reference);
@@ -1462,7 +1501,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     cacheRegionSizeInBytes,
                     estimatedMaxHeaderSizeInBytes
                 );
-                final boolean appended = newVirtualBcc.appendCommit(reference, useInternalFilesReplicatedContent);
+                final boolean appended = newVirtualBcc.appendCommit(reference, useInternalFilesReplicatedContent, timestampFieldValueRange);
                 assert appended : "append must be successful since the VBCC is new and empty";
                 logger.trace(
                     () -> Strings.format(
@@ -1475,7 +1514,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             } else {
                 // we know we flush after translog recovery.
                 assert currentVirtualBcc.assertSameNodeEphemeralId(nodeEphemeralId);
-                final boolean appended = currentVirtualBcc.appendCommit(reference, useInternalFilesReplicatedContent);
+                final boolean appended = currentVirtualBcc.appendCommit(
+                    reference,
+                    useInternalFilesReplicatedContent,
+                    timestampFieldValueRange
+                );
                 assert appended : "append must be successful since append and freeze have exclusive access";
                 logger.trace(
                     () -> Strings.format(

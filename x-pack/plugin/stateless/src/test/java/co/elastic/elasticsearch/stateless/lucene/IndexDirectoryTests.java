@@ -471,7 +471,8 @@ public class IndexDirectoryTests extends ESTestCase {
             files,
             0L,
             InternalFilesReplicatedRanges.EMPTY,
-            Map.of()
+            Map.of(),
+            null
         );
     }
 }

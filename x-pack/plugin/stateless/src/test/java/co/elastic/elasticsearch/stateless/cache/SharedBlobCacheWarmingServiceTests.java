@@ -122,7 +122,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
 
             for (StatelessCommitRef ref : indexCommits) {
-                assertTrue(vbcc.appendCommit(ref, randomBoolean()));
+                assertTrue(vbcc.appendCommit(ref, randomBoolean(), null));
             }
 
             vbcc.freeze();
@@ -169,7 +169,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
 
             for (StatelessCommitRef ref : indexCommits) {
-                assertTrue(vbcc.appendCommit(ref, randomBoolean()));
+                assertTrue(vbcc.appendCommit(ref, randomBoolean(), null));
             }
 
             vbcc.freeze();
@@ -272,7 +272,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
 
             for (StatelessCommitRef ref : indexCommits) {
-                assertTrue(vbcc.appendCommit(ref, randomBoolean()));
+                assertTrue(vbcc.appendCommit(ref, randomBoolean(), null));
             }
 
             vbcc.freeze();
@@ -431,7 +431,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 commitFiles.keySet(),
                 0L,
                 ranges,
-                Map.of()
+                Map.of(),
+                null
             );
 
             var blobFileRanges = BlobFileRangesTestUtils.computeBlobFileRanges(true, commit, 0, commit.internalFiles());
@@ -483,7 +484,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     Set.of(),
                     0L,
                     InternalFilesReplicatedRanges.EMPTY,
-                    Map.of()
+                    Map.of(),
+                    null
                 );
 
                 // Warm the cache and verify the range is fetched with minimization as expected
@@ -542,7 +544,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 Set.of(),
                 0L,
                 InternalFilesReplicatedRanges.EMPTY,
-                Map.of()
+                Map.of(),
+                null
             );
 
             // Warm the cache and verify the range is fetched with minimization as expected

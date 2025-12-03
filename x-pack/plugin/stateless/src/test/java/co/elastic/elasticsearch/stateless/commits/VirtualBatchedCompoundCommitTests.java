@@ -84,7 +84,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                     randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
                 );
                 for (StatelessCommitRef statelessCommitRef : indexCommits) {
-                    assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean()));
+                    assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean(), null));
                 }
                 virtualBatchedCompoundCommit.freeze();
 
@@ -99,53 +99,10 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                     var serializedBatchedCompoundCommit = output.bytes();
                     batchedCompoundCommitBlobs.put(virtualBatchedCompoundCommit.getBlobName(), serializedBatchedCompoundCommit);
 
-                    BatchedCompoundCommit deserializedBatchedCompoundCommit;
-                    if (randomBoolean()) {
-                        deserializedBatchedCompoundCommit = BatchedCompoundCommit.readFromStore(
-                            virtualBatchedCompoundCommit.getBlobName(),
-                            output.size(),
-                            (blobName, offset, length) -> serializedBatchedCompoundCommit.slice((int) offset, (int) length).streamInput(),
-                            true
-                        );
-                    } else {
-                        var bytesRead = new AtomicInteger(0);
-                        var bccIterator = BatchedCompoundCommit.readFromStoreIncrementally(
-                            virtualBatchedCompoundCommit.getBlobName(),
-                            output.size(),
-                            (blobName, offset, length) -> new FilterStreamInput(
-                                serializedBatchedCompoundCommit.slice((int) offset, (int) length).streamInput()
-                            ) {
-                                @Override
-                                public byte readByte() throws IOException {
-                                    bytesRead.incrementAndGet();
-                                    return super.readByte();
-                                }
-
-                                @Override
-                                public void readBytes(byte[] b, int offset, int len) throws IOException {
-                                    bytesRead.addAndGet(len);
-                                    super.readBytes(b, offset, len);
-                                }
-                            },
-                            true
-                        );
-                        assertThat(bytesRead.get(), equalTo(0));
-                        List<StatelessCompoundCommit> compoundCommits = new ArrayList<>();
-                        PrimaryTermAndGeneration bccTermAndGen = null;
-                        var lastObservedBytesRead = 0;
-                        while (bccIterator.hasNext()) {
-                            // The read is actually triggered once the #next element is requested
-                            assertThat(bytesRead.get(), equalTo(lastObservedBytesRead));
-                            var compoundCommit = bccIterator.next();
-                            assertThat(bytesRead.get(), is(greaterThan(lastObservedBytesRead)));
-                            lastObservedBytesRead = bytesRead.get();
-                            if (bccTermAndGen == null) {
-                                bccTermAndGen = compoundCommit.primaryTermAndGeneration();
-                            }
-                            compoundCommits.add(compoundCommit);
-                        }
-                        deserializedBatchedCompoundCommit = new BatchedCompoundCommit(bccTermAndGen, compoundCommits);
-                    }
+                    BatchedCompoundCommit deserializedBatchedCompoundCommit = deserializeBatchedCompoundCommit(
+                        virtualBatchedCompoundCommit.getBlobName(),
+                        output
+                    );
                     assertEquals(batchedCompoundCommit, deserializedBatchedCompoundCommit);
 
                     // Ensure that the contents written into the blob store are the same as the local files
@@ -202,7 +159,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
             );
 
-            assertTrue(virtualBatchedCompoundCommit.appendCommit(commit, randomBoolean()));
+            assertTrue(virtualBatchedCompoundCommit.appendCommit(commit, randomBoolean(), null));
 
             virtualBatchedCompoundCommit.freeze();
 
@@ -275,7 +232,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             );
 
             for (StatelessCommitRef commit : commits) {
-                assertTrue(virtualBatchedCompoundCommit.appendCommit(commit, randomBoolean()));
+                assertTrue(virtualBatchedCompoundCommit.appendCommit(commit, randomBoolean(), null));
             }
 
             assertThat(closedCommitRefGenerations, is(empty()));
@@ -311,7 +268,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
             );
             for (StatelessCommitRef statelessCommitRef : commits) {
-                assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean()));
+                assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean(), null));
             }
             virtualBatchedCompoundCommit.freeze();
 
@@ -419,7 +376,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
 
             if (randomBoolean()) {
                 StatelessCommitRef firstCommit = commits.get(0);
-                assertTrue(virtualBatchedCompoundCommit.appendCommit(firstCommit, randomBoolean()));
+                assertTrue(virtualBatchedCompoundCommit.appendCommit(firstCommit, randomBoolean(), null));
                 commits.remove(0);
             }
 
@@ -428,7 +385,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 try {
                     for (StatelessCommitRef statelessCommitRef : commits) {
                         appendBlock.acquire(); // wait on the slow validator thread to reach the point that it calls getBytesByRange
-                        assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean()));
+                        assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean(), null));
                     }
                 } catch (Exception e) {
                     assert false : "Unexpected exception: " + e.getMessage();
@@ -490,7 +447,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             );
 
             for (StatelessCommitRef commit : commits) {
-                assertTrue(virtualBatchedCompoundCommit.appendCommit(commit, randomBoolean()));
+                assertTrue(virtualBatchedCompoundCommit.appendCommit(commit, randomBoolean(), null));
             }
 
             try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -505,7 +462,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             }
 
             final StatelessCommitRef newCommitRef = fakeNode.generateIndexCommits(1).get(0);
-            assertFalse(virtualBatchedCompoundCommit.appendCommit(newCommitRef, randomBoolean()));
+            assertFalse(virtualBatchedCompoundCommit.appendCommit(newCommitRef, randomBoolean(), null));
         }
     }
 
@@ -528,7 +485,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             );
 
             for (StatelessCommitRef commit : commits) {
-                assertTrue(virtualBatchedCompoundCommit.appendCommit(commit, true));
+                assertTrue(virtualBatchedCompoundCommit.appendCommit(commit, true, null));
             }
 
             var batchedCompoundCommitBlobs = new HashMap<String, BytesReference>();
@@ -581,6 +538,53 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                     lastCommitPosition += commit.getSizeInBytes();
                 }
             }
+        }
+    }
+
+    public static BatchedCompoundCommit deserializeBatchedCompoundCommit(String blobName, BytesStreamOutput output) throws IOException {
+        if (randomBoolean()) {
+            return BatchedCompoundCommit.readFromStore(
+                blobName,
+                output.size(),
+                (ignored, offset, length) -> output.bytes().slice((int) offset, (int) length).streamInput(),
+                true
+            );
+        } else {
+            var bytesRead = new AtomicInteger(0);
+            var bccIterator = BatchedCompoundCommit.readFromStoreIncrementally(
+                blobName,
+                output.size(),
+                (ignored, offset, length) -> new FilterStreamInput(output.bytes().slice((int) offset, (int) length).streamInput()) {
+                    @Override
+                    public byte readByte() throws IOException {
+                        bytesRead.incrementAndGet();
+                        return super.readByte();
+                    }
+
+                    @Override
+                    public void readBytes(byte[] b, int offset, int len) throws IOException {
+                        bytesRead.addAndGet(len);
+                        super.readBytes(b, offset, len);
+                    }
+                },
+                true
+            );
+            assertThat(bytesRead.get(), equalTo(0));
+            List<StatelessCompoundCommit> compoundCommits = new ArrayList<>();
+            PrimaryTermAndGeneration bccTermAndGen = null;
+            var lastObservedBytesRead = 0;
+            while (bccIterator.hasNext()) {
+                // The read is actually triggered once the #next element is requested
+                assertThat(bytesRead.get(), equalTo(lastObservedBytesRead));
+                var compoundCommit = bccIterator.next();
+                assertThat(bytesRead.get(), is(greaterThan(lastObservedBytesRead)));
+                lastObservedBytesRead = bytesRead.get();
+                if (bccTermAndGen == null) {
+                    bccTermAndGen = compoundCommit.primaryTermAndGeneration();
+                }
+                compoundCommits.add(compoundCommit);
+            }
+            return new BatchedCompoundCommit(bccTermAndGen, compoundCommits);
         }
     }
 

@@ -502,7 +502,7 @@ public class InferencePlugin extends Plugin
             )
         );
         authorizationTaskExecutorRef.set(authTaskExecutor);
-        authTaskExecutor.startAndLazyCreateTask();
+        authTaskExecutor.startAndLazilyCreateTask();
 
         return new CCMRelatedComponents(
             List.of(authorizationHandler, authTaskExecutor, ccmService, ccmPersistentStorageService, ccmCache, ccmEnablementService),

@@ -120,7 +120,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
      * we can't start the persistent task until after the plugin has finished initializing. Otherwise, we'll
      * get an error indicating that it isn't aware of whether the task is a cluster scoped task.
      */
-    public synchronized void startAndLazyCreateTask() {
+    public synchronized void startAndLazilyCreateTask() {
         if (pollerParameters.elasticInferenceServiceSettings().isAuthorizationEnabled()) {
             startInternal();
         }

@@ -37,6 +37,7 @@ public class CCMEnablementServiceUnsupportedEnvironmentIT extends ESSingleNodeTe
     }
 
     // Ensure we have a node that doesn't contain any enablement cluster state
+    @Override
     protected boolean resetNodeAfterTest() {
         return true;
     }

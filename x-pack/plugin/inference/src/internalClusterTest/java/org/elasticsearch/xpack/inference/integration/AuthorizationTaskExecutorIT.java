@@ -132,6 +132,8 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE));
         restartPollingTaskAndWaitForAuthResponse();
 
+        assertWebServerReceivedRequest();
+
         assertChatCompletionEndpointExists();
     }
 
@@ -198,21 +200,20 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     }
 
     private void restartPollingTaskAndWaitForAuthResponse() throws Exception {
-        restartPollingTaskAndWaitForAuthResponse(admin(), authorizationTaskExecutor, webServer);
+        restartPollingTaskAndWaitForAuthResponse(admin(), authorizationTaskExecutor);
     }
 
-    static void restartPollingTaskAndWaitForAuthResponse(
-        AdminClient adminClient,
-        AuthorizationTaskExecutor authTaskExecutor,
-        MockWebServer mockWebServer
-    ) throws Exception {
+    private static void restartPollingTaskAndWaitForAuthResponse(AdminClient adminClient, AuthorizationTaskExecutor authTaskExecutor)
+        throws Exception {
         cancelAuthorizationTask(adminClient);
 
         // wait for the new task to be recreated and an authorization response to be processed
         waitForAuthorizationToComplete(authTaskExecutor);
+    }
 
+    private static void assertWebServerReceivedRequest() throws Exception {
         assertBusy(() -> {
-            var requests = mockWebServer.requests();
+            var requests = webServer.requests();
             assertThat(requests.size(), is(1));
         });
     }
@@ -245,6 +246,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         webServer.clearRequests();
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE));
         restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
 
         assertChatCompletionEndpointExists();
 
@@ -252,6 +254,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         // Simulate that the model is no longer authorized
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMPTY_AUTH_RESPONSE));
         restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
 
         assertChatCompletionEndpointExists();
     }
@@ -287,6 +290,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         webServer.clearRequests();
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE));
         restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
 
         assertChatCompletionEndpointExists();
 
@@ -294,6 +298,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         webServer.clearRequests();
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMPTY_AUTH_RESPONSE));
         restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
 
         assertChatCompletionEndpointExists();
 
@@ -312,6 +317,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         webServer.clearRequests();
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(authorizedTextEmbeddingResponse));
         restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
 
         var eisEndpoints = getEisEndpoints().stream().collect(Collectors.toMap(UnparsedModel::inferenceEntityId, Function.identity()));
         assertThat(eisEndpoints.size(), is(2));
@@ -334,5 +340,6 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMPTY_AUTH_RESPONSE));
         // Abort the task and ensure it is restarted
         restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
     }
 }

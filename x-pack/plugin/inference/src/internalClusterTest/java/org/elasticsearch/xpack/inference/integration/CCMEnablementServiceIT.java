@@ -42,6 +42,7 @@ public class CCMEnablementServiceIT extends ESSingleNodeTestCase {
     }
 
     // Ensure we have a node that doesn't contain any enablement cluster state
+    @Override
     protected boolean resetNodeAfterTest() {
         return true;
     }

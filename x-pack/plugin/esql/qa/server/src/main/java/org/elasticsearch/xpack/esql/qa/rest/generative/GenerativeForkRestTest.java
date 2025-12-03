@@ -14,7 +14,11 @@ import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.*;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V7;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 /**
@@ -46,7 +50,7 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         suffix = suffix + "| WHERE _fork == \"fork1\" | DROP _fork";
 
         String query = testCase.query + suffix;
-        doTest(query, false);
+        doTest(query);
     }
 
     @Override

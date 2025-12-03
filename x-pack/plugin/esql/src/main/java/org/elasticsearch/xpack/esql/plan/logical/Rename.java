@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class Rename extends UnaryPlan implements TelemetryAware, Streaming, SortAgnostic {
+public class Rename extends UnaryPlan implements TelemetryAware, Streaming {
 
     private final List<Alias> renamings;
 

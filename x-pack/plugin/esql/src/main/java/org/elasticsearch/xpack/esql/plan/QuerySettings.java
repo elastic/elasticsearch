@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class QuerySettings {
+
     @Param(
         name = "project_routing",
         type = { "keyword" },
@@ -129,7 +130,7 @@ public class QuerySettings {
         null
     );
 
-    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(PROJECT_ROUTING, TIME_ZONE, APPROXIMATE)
+    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(APPROXIMATE, PROJECT_ROUTING, TIME_ZONE)
         .collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
 
     public static void validate(EsqlStatement statement, SettingsValidationContext ctx) {

@@ -125,15 +125,14 @@ public class ShardWriteLoadDistributionMetrics {
 
         final var clusterState = clusterService.state();
         final var shardWriteLoads = clusterInfo.getShardWriteLoads();
-        final var ingestNodeCount = (int) clusterState.nodes().stream().filter(DiscoveryNode::isIngestNode).count();
+        final var ingestNodeCount = (int) clusterState.nodes().stream().filter(this::isIndexingNode).count();
         final var writeLoadDistributionValues = new HashMap<Integer, List<DoubleWithAttributes>>(percentiles.length);
         final var writeLoadPrioritisationThresholdValues = new ArrayList<DoubleWithAttributes>(ingestNodeCount);
         final var shardCountsExceedingPrioritisationThresholdValues = new ArrayList<LongWithAttributes>(ingestNodeCount);
         final var shardWriteLoadSumValues = new ArrayList<DoubleWithAttributes>(ingestNodeCount);
         for (RoutingNode routingNode : clusterState.getRoutingNodes()) {
             final var node = routingNode.node();
-            // Only supports stateless at the moment
-            if (node == null || node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
+            if (node == null || isIndexingNode(node) == false) {
                 continue;
             }
 
@@ -197,6 +196,15 @@ public class ShardWriteLoadDistributionMetrics {
         lastWriteLoadPrioritisationThresholdValues.set(writeLoadPrioritisationThresholdValues);
         lastShardCountExceedingPrioritisationThresholdValues.set(shardCountsExceedingPrioritisationThresholdValues);
         lastWriteLoadSumValues.set(shardWriteLoadSumValues);
+    }
+
+    /**
+     * We only calculate metrics for indexing nodes.
+     * <p>
+     * Note this means it only works for stateless currently
+     */
+    private boolean isIndexingNode(DiscoveryNode discoveryNode) {
+        return discoveryNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE);
     }
 
     /**

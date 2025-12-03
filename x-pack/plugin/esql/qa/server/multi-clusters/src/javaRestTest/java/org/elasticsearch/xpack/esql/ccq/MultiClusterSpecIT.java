@@ -24,6 +24,7 @@ import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
@@ -36,7 +37,6 @@ import org.junit.rules.TestRule;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URL;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -299,43 +299,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             dataLocation = randomFrom(DataLocation.values());
         }
         String query = testCase.query;
-        String[] commands = query.split("\\|");
-        String first = commands[0].trim();
         // If true, we're using *:index, otherwise we're using *:index,index
         boolean onlyRemotes = canUseRemoteIndicesOnly() && randomBoolean();
-
-        // Split "SET a=b; FROM x" into "SET a=b" and "FROM x"
-        int lastSetDelimiterPosition = first.lastIndexOf(';');
-        String setStatements = lastSetDelimiterPosition == -1 ? "" : first.substring(0, lastSetDelimiterPosition + 1);
-        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition + 1);
-
-        // Split "FROM a, b, c" into "FROM" and "a, b, c"
-        String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
-
-        String command = commandParts[0].trim();
-        if (command.equalsIgnoreCase("from") || command.equalsIgnoreCase("ts")) {
-            String[] indexMetadataParts = commandParts[1].split("(?i)\\bmetadata\\b", 2);
-            String indicesString = indexMetadataParts[0];
-            String[] indices = indicesString.split(",");
-            // This method may be called multiple times on the same testcase when using @Repeat
-            boolean alreadyConverted = Arrays.stream(indices).anyMatch(i -> i.trim().startsWith("*:"));
-            if (alreadyConverted == false) {
-                if (Arrays.stream(indices).anyMatch(i -> LOOKUP_INDICES.contains(i.trim().toLowerCase(Locale.ROOT)))) {
-                    // If the query contains lookup indices, use only remotes to avoid duplication
-                    onlyRemotes = true;
-                }
-                final boolean onlyRemotesFinal = onlyRemotes;
-                final String remoteIndices = Arrays.stream(indices)
-                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), onlyRemotesFinal))
-                    .collect(Collectors.joining(","));
-                String newFirstCommand = command
-                    + " "
-                    + remoteIndices
-                    + " "
-                    + (indexMetadataParts.length == 1 ? "" : "metadata " + indexMetadataParts[1]);
-                testCase.query = setStatements + newFirstCommand + query.substring(first.length());
-            }
-        }
+        testCase.query = EsqlTestUtils.addRemoteIndices(testCase.query, LOOKUP_INDICES, onlyRemotes);
 
         int offset = testCase.query.length() - query.length();
         if (offset != 0) {
@@ -363,40 +329,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             return parts.length > 1 && parts[1].contains("_index");
         }
         return false;
-    }
-
-    /**
-     * Since partial quoting is prohibited, we need to take the index name, unquote it,
-     * convert it to a remote index, and then requote it. For example, "employees" is unquoted,
-     * turned into the remote index *:employees, and then requoted to get "*:employees".
-     * @param index Name of the index.
-     * @param asRemoteIndexOnly If the return needs to be in the form of "*:idx,idx" or "*:idx".
-     * @return A remote index pattern that's requoted.
-     */
-    private static String unquoteAndRequoteAsRemote(String index, boolean asRemoteIndexOnly) {
-        index = index.trim();
-
-        int numOfQuotes = 0;
-        for (; numOfQuotes < index.length(); numOfQuotes++) {
-            if (index.charAt(numOfQuotes) != '"') {
-                break;
-            }
-        }
-
-        String unquoted = unquote(index, numOfQuotes);
-        if (asRemoteIndexOnly) {
-            return quote("*:" + unquoted, numOfQuotes);
-        } else {
-            return quote("*:" + unquoted + "," + unquoted, numOfQuotes);
-        }
-    }
-
-    private static String quote(String index, int numOfQuotes) {
-        return "\"".repeat(numOfQuotes) + index + "\"".repeat(numOfQuotes);
-    }
-
-    private static String unquote(String index, int numOfQuotes) {
-        return index.substring(numOfQuotes, index.length() - numOfQuotes);
     }
 
     @Override

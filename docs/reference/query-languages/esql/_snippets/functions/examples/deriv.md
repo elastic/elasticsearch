@@ -3,12 +3,12 @@
 **Example**
 
 ```esql
-TS k8s
+TS datenanos-k8s
 | WHERE pod == "three"
 | STATS max_deriv = MAX(DERIV(network.cost)) BY time_bucket = BUCKET(@timestamp,5minute), pod
 ```
 
-| max_deriv:double | time_bucket:datetime | pod:keyword |
+| max_deriv:double | time_bucket:date_nanos | pod:keyword |
 | --- | --- | --- |
 | 0.092774 | 2024-05-10T00:00:00.000Z | three |
 | 0.038026 | 2024-05-10T00:05:00.000Z | three |

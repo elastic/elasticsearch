@@ -1042,7 +1042,7 @@ public class InstallPluginActionTests extends ESTestCase {
     ) throws Exception {
         InstallablePlugin pluginZip = createPlugin(pluginId, pluginDir);
         Path pluginZipPath = Path.of(URI.create(pluginZip.getLocation()));
-        PgpSignatureVerifier psv = new BcPgpSignatureVerifier(terminal) {
+        PgpSignatureVerifier psv = new BcPgpSignatureVerifier(terminal::println) {
             @Override
             InputStream pluginZipInputStream(Path zip) throws IOException {
                 return new ByteArrayInputStream(Files.readAllBytes(zip));

@@ -659,7 +659,7 @@ public class InstallPluginAction implements Closeable {
     }
 
     PgpSignatureVerifier pgpSignatureVerifier(Terminal terminal) {
-        return new IsolatedBcPgpSignatureVerifier(terminal);
+        return new IsolatedBcPgpSignatureVerifier(terminal::println);
     }
 
     /**

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.plugins.cli;
 
-import org.elasticsearch.cli.Terminal;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Constructor;
@@ -18,23 +16,24 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
+import java.util.function.Consumer;
 
 /**
  * A PGP signature verifier that delegates to Bouncy Castle implementation loaded in an isolated classloader.
  */
 public class IsolatedBcPgpSignatureVerifier implements PgpSignatureVerifier {
 
-    private final Terminal terminal;
+    private final Consumer<String> terminal;
 
-    public IsolatedBcPgpSignatureVerifier(Terminal terminal) {
+    public IsolatedBcPgpSignatureVerifier(Consumer<String> terminal) {
         this.terminal = terminal;
     }
 
     @Override
     public void verifySignature(Path zip, String urlString, InputStream ascInputStream) throws IOException {
-        try (ParentLastUrlClassLoader classLoader = classLoader()) {
+        try (URLClassLoader classLoader = classLoader()) {
             Class<?> clazz = Class.forName("org.elasticsearch.plugins.cli.BcPgpSignatureVerifier", true, classLoader);
-            Constructor<?> constructor = clazz.getConstructor(Terminal.class);
+            Constructor<?> constructor = clazz.getConstructor(Consumer.class);
             Method method = clazz.getMethod("verifySignature", Path.class, String.class, InputStream.class);
             method.invoke(constructor.newInstance(terminal), zip, urlString, ascInputStream);
         } catch (ReflectiveOperationException e) {
@@ -42,12 +41,8 @@ public class IsolatedBcPgpSignatureVerifier implements PgpSignatureVerifier {
         }
     }
 
-    private static ParentLastUrlClassLoader classLoader() {
-        return new ParentLastUrlClassLoader(
-            urls(),
-            IsolatedBcPgpSignatureVerifier.class.getClassLoader(),
-            name -> name.startsWith("org.bouncycastle.") || name.startsWith("org.elasticsearch.plugins.cli.")
-        );
+    private static URLClassLoader classLoader() {
+        return new URLClassLoader(urls(), ClassLoader.getPlatformClassLoader());
     }
 
     private static URL[] urls() {

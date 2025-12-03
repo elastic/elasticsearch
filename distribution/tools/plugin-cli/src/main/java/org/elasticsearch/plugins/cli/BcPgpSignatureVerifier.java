@@ -20,7 +20,6 @@ import org.bouncycastle.openpgp.PGPUtil;
 import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
-import org.elasticsearch.cli.Terminal;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,6 +28,7 @@ import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.function.Consumer;
 
 /**
  * A PGP signature verifier that uses Bouncy Castle implementation.
@@ -36,9 +36,9 @@ import java.util.TimerTask;
  */
 public class BcPgpSignatureVerifier implements PgpSignatureVerifier {
 
-    private final Terminal terminal;
+    private final Consumer<String> terminal;
 
-    public BcPgpSignatureVerifier(Terminal terminal) {
+    public BcPgpSignatureVerifier(Consumer<String> terminal) {
         this.terminal = terminal;
     }
 
@@ -116,7 +116,7 @@ public class BcPgpSignatureVerifier implements PgpSignatureVerifier {
 
     // package private for testing
     void reportLongSignatureVerification() {
-        terminal.println(
+        terminal.accept(
             "The plugin installer is trying to verify the signature of the downloaded plugin "
                 + "but this verification is taking longer than expected. This is often because the "
                 + "plugin installer is waiting for your system to supply it with random numbers. "

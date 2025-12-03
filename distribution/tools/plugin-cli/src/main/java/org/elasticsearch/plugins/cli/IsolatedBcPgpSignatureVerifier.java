@@ -34,7 +34,7 @@ public class IsolatedBcPgpSignatureVerifier implements PgpSignatureVerifier {
     public void verifySignature(Path zip, String urlString, InputStream ascInputStream) throws IOException {
         try (ParentLastUrlClassLoader classLoader = classLoader()) {
             Class<?> clazz = Class.forName("org.elasticsearch.plugins.cli.BcPgpSignatureVerifier", true, classLoader);
-            Constructor<?> constructor = clazz.getDeclaredConstructor(Terminal.class);
+            Constructor<?> constructor = clazz.getConstructor(Terminal.class);
             Method method = clazz.getMethod("verifySignature", Path.class, String.class, InputStream.class);
             method.invoke(constructor.newInstance(terminal), zip, urlString, ascInputStream);
         } catch (ReflectiveOperationException e) {

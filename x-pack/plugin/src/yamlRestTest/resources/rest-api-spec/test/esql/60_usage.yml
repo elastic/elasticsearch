@@ -58,7 +58,7 @@ setup:
             - ts_command_v0
             - cosine_vector_similarity_function
             - inline_stats
-            - promql_pre_tech_preview_v5
+            - promql_pre_tech_preview_v6
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }

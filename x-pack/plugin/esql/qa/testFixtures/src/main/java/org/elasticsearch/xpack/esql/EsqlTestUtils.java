@@ -173,7 +173,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.jar.JarInputStream;
-import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.zip.ZipEntry;
@@ -1316,33 +1315,28 @@ public final class EsqlTestUtils {
             // This method may be called multiple times on the same testcase when using @Repeat
             boolean alreadyConverted = Arrays.stream(indices).anyMatch(i -> i.trim().startsWith("*:"));
             if (alreadyConverted == false) {
-                String stuffAfterIndices = getStuffAfterIndices(commandArgs, indices[indices.length - 1]);
                 if (Arrays.stream(indices).anyMatch(i -> lookupIndices.contains(i.trim().toLowerCase(Locale.ROOT)))) {
                     // If the query contains lookup indices, use only remotes to avoid duplication
                     onlyRemotes = true;
                 }
-                final boolean onlyRemotesFinal = onlyRemotes;
-                final String remoteIndices = Arrays.stream(indices)
-                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), onlyRemotesFinal))
-                    .collect(Collectors.joining(","));
-                String newFirstCommand = command + " " + remoteIndices + " " + stuffAfterIndices;
+                int i = 0;
+                for (String index : indices) {
+                    i = commandArgs.indexOf(index, i);
+                    String newIndex = unquoteAndRequoteAsRemote(index.trim(), onlyRemotes);
+                    if (i >= 0) {
+                        commandArgs = commandArgs.substring(0, i) + newIndex + commandArgs.substring(i + index.length());
+                    } else if (command.equalsIgnoreCase("PROMQL")) {
+                        // PROMQL queries may not list indices explicitly, relying on the default value
+                        commandArgs = "index=" + newIndex + " " + commandArgs;
+                    } else {
+                        throw new IllegalStateException("Could not find index [" + index + "] in command arguments [" + commandArgs + "]");
+                    }
+                }
+                String newFirstCommand = command + " " + commandArgs;
                 return (setStatements + " " + newFirstCommand.trim() + query.substring(first.length())).trim();
             }
         }
         return query;
-    }
-
-    private static String getStuffAfterIndices(String commandArgs, String lastIndex) {
-        String stuffAfterIndices;
-        if (commandArgs.contains(lastIndex)) {
-            stuffAfterIndices = commandArgs.substring(commandArgs.lastIndexOf(lastIndex) + lastIndex.length()).trim();
-        } else {
-            stuffAfterIndices = commandArgs.trim();
-        }
-        while (stuffAfterIndices.startsWith("\"")) {
-            stuffAfterIndices = stuffAfterIndices.substring(1).trim();
-        }
-        return stuffAfterIndices;
     }
 
     /**

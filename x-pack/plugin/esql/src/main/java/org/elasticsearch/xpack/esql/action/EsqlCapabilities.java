@@ -1710,7 +1710,7 @@ public class EsqlCapabilities {
          * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          * At this point, we need to add new capabilities for any further changes.
          */
-        PROMQL_PRE_TECH_PREVIEW_V5(Build.current().isSnapshot()),
+        PROMQL_PRE_TECH_PREVIEW_V6(Build.current().isSnapshot()),
 
         /**
          * KNN function adds support for k and visit_percentage options

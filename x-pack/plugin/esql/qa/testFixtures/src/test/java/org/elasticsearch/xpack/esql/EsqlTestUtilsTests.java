@@ -19,12 +19,24 @@ public class EsqlTestUtilsTests extends ESTestCase {
     public void testPromQL() {
         assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
         assertThat(
-            EsqlTestUtils.addRemoteIndices("PROMQL foo, bar step=1m (avg(baz))", Set.of(), false),
-            equalTo("PROMQL *:foo,foo,*:bar,bar step=1m (avg(baz))")
+            EsqlTestUtils.addRemoteIndices("PROMQL index=foo,bar step=1m (avg(foo_bar))", Set.of(), false),
+            equalTo("PROMQL index=*:foo,foo,*:bar,bar step=1m (avg(foo_bar))")
         );
         assertThat(
-            EsqlTestUtils.addRemoteIndices("PROMQL \"foo\", \"bar\" step=1m (avg(baz))", Set.of(), false),
-            equalTo("PROMQL *:foo,foo,*:bar,bar step=1m (avg(baz))")
+            EsqlTestUtils.addRemoteIndices("PROMQL index=foo, bar step=1m (avg(foo_bar))", Set.of(), false),
+            equalTo("PROMQL index=*:foo,foo, *:bar,bar step=1m (avg(foo_bar))")
+        );
+        assertThat(
+            EsqlTestUtils.addRemoteIndices("PROMQL index=\"foo,bar\",\"baz\" step=1m (avg(foo_bar))", Set.of(), false),
+            equalTo("PROMQL index=\"*:foo,foo,*:bar,bar\",\"*:baz,baz\" step=1m (avg(foo_bar))")
+        );
+        assertThat(
+            EsqlTestUtils.addRemoteIndices("PROMQL step=1m index=foo,bar (avg(foo_bar))", Set.of(), false),
+            equalTo("PROMQL step=1m index=*:foo,foo,*:bar,bar (avg(foo_bar))")
+        );
+        assertThat(
+            EsqlTestUtils.addRemoteIndices("PROMQL index=\"foo\",\"bar\" step=1m (avg(foo_bar))", Set.of(), false),
+            equalTo("PROMQL index=\"*:foo,foo\",\"*:bar,bar\" step=1m (avg(foo_bar))")
         );
     }
 
@@ -32,7 +44,7 @@ public class EsqlTestUtilsTests extends ESTestCase {
         assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
         assertThat(
             EsqlTestUtils.addRemoteIndices("PROMQL step=1m (avg(baz))", Set.of(), false),
-            equalTo("PROMQL *:*,* step=1m (avg(baz))")
+            equalTo("PROMQL index=*:*,* step=1m (avg(baz))")
         );
     }
 
@@ -53,7 +65,7 @@ public class EsqlTestUtilsTests extends ESTestCase {
     public void testTS() {
         assertThat(
             EsqlTestUtils.addRemoteIndices("TS foo, \"bar\",baz | SORT bar", Set.of(), false),
-            equalTo("TS *:foo,foo,*:bar,bar,*:baz,baz | SORT bar")
+            equalTo("TS *:foo,foo, \"*:bar,bar\",*:baz,baz | SORT bar")
         );
     }
 
@@ -89,7 +101,7 @@ public class EsqlTestUtilsTests extends ESTestCase {
     public void testTripleQuotes() {
         assertThat(
             EsqlTestUtils.addRemoteIndices("from \"\"\"employees\"\"\" | limit 2", Set.of(), false),
-            equalTo("from *:employees,employees | limit 2")
+            equalTo("from \"\"\"*:employees,employees\"\"\" | limit 2")
         );
     }
 

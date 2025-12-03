@@ -73,7 +73,7 @@ public class ScriptCache {
         this.rate = maxCompilationRate;
         this.compilesAllowedPerNano = ((double) rate.count) / rate.time.nanos();
         this.scriptMetrics = new ScriptMetrics(timeProvider);
-        this.tokenBucketState = new AtomicReference<TokenBucketState>(new TokenBucketState(this.rate.count));
+        this.tokenBucketState = new AtomicReference<>(new TokenBucketState(this.rate.count));
     }
 
     <FactoryType> FactoryType compile(
@@ -90,7 +90,7 @@ public class ScriptCache {
 
         // Relying on computeIfAbsent to avoid multiple threads from compiling the same script
         try {
-            return context.factoryClazz.cast(cache.computeIfAbsent(cacheKey, key -> {
+            return context.factoryClazz.cast(cache.computeIfAbsent(cacheKey, ignored -> {
                 // Either an un-cached inline script or indexed script
                 // If the script type is inline the name will be the same as the code for identification in exceptions
                 // but give the script engine the chance to be better, give it separate name + source code
@@ -144,7 +144,7 @@ public class ScriptCache {
     /**
      * Check whether there have been too many compilations within the last minute, throwing a circuit breaking exception if so.
      * This is a variant of the token bucket algorithm: https://en.wikipedia.org/wiki/Token_bucket
-     *
+     * <p>
      * It can be thought of as a bucket with water, every time the bucket is checked, water is added proportional to the amount of time that
      * elapsed since the last time it was checked. If there is enough water, some is removed and the request is allowed. If there is not
      * enough water the request is denied. Just like a normal bucket, if water is added that overflows the bucket, the extra water/capacity

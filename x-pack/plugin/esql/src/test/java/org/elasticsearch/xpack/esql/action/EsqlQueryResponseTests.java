@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -1012,6 +1014,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     public void testProfileXContent() {
+        TransportVersion minimumVersion = EsqlQueryResponseProfileTests.randomMinimumVersion();
+
         try (
             EsqlQueryResponse response = new EsqlQueryResponse(
                 List.of(new ColumnInfoImpl("foo", "integer", null)),
@@ -1033,7 +1037,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             DriverSleeps.empty()
                         )
                     ),
-                    List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree", null))
+                    List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree", null)),
+                    minimumVersion
                 ),
                 false,
                 false,
@@ -1042,7 +1047,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 null
             );
         ) {
-            assertThat(Strings.toString(wrapAsToXContent(response), true, false), equalTo("""
+            assertThat(Strings.toString(wrapAsToXContent(response), true, false), equalTo(LoggerMessageFormat.format("""
                 {
                   "documents_found" : 10,
                   "values_loaded" : 100,
@@ -1098,9 +1103,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         "node_name" : "node-1",
                         "plan" : "plan tree"
                       }
-                    ]
+                    ],
+                    "minimumTransportVersion" : {}
                   }
-                }"""));
+                }""", minimumVersion == null ? "null" : minimumVersion.id())));
         }
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
@@ -16,6 +17,7 @@ import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 
 import java.util.List;
 
@@ -27,14 +29,21 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
 
     @Override
     protected EsqlQueryResponse.Profile createTestInstance() {
-        return new EsqlQueryResponse.Profile(randomDriverProfiles(), randomPlanProfiles());
+        return new EsqlQueryResponse.Profile(randomDriverProfiles(), randomPlanProfiles(), randomMinimumVersion());
     }
 
     @Override
     protected EsqlQueryResponse.Profile mutateInstance(EsqlQueryResponse.Profile instance) {
-        return randomBoolean()
-            ? new EsqlQueryResponse.Profile(randomValueOtherThan(instance.drivers(), this::randomDriverProfiles), instance.plans())
-            : new EsqlQueryResponse.Profile(instance.drivers(), randomValueOtherThan(instance.plans(), this::randomPlanProfiles));
+        var drivers = instance.drivers();
+        var plans = instance.plans();
+        var minimumVersion = instance.minimumVersion();
+
+        switch (between(0, 2)) {
+            case 0 -> drivers = randomValueOtherThan(drivers, EsqlQueryResponseProfileTests::randomDriverProfiles);
+            case 1 -> plans = randomValueOtherThan(plans, EsqlQueryResponseProfileTests::randomPlanProfiles);
+            case 2 -> minimumVersion = randomValueOtherThan(minimumVersion, EsqlQueryResponseProfileTests::randomMinimumVersion);
+        }
+        return new EsqlQueryResponse.Profile(drivers, plans, minimumVersion);
     }
 
     @Override
@@ -42,7 +51,7 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
         return new NamedWriteableRegistry(List.of(AbstractPageMappingOperator.Status.ENTRY));
     }
 
-    private List<DriverProfile> randomDriverProfiles() {
+    private static List<DriverProfile> randomDriverProfiles() {
         return randomList(
             10,
             () -> new DriverProfile(
@@ -54,13 +63,13 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
-                randomList(10, this::randomOperatorStatus),
+                randomList(10, EsqlQueryResponseProfileTests::randomOperatorStatus),
                 DriverSleeps.empty()
             )
         );
     }
 
-    private List<PlanProfile> randomPlanProfiles() {
+    private static List<PlanProfile> randomPlanProfiles() {
         return randomList(
             10,
             () -> new PlanProfile(
@@ -77,7 +86,7 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
         return randomBoolean() ? null : new PlanTimeProfile(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
-    private OperatorStatus randomOperatorStatus() {
+    private static OperatorStatus randomOperatorStatus() {
         return new OperatorStatus(
             randomAlphaOfLength(4),
             randomBoolean()
@@ -89,5 +98,9 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
                 )
                 : null
         );
+    }
+
+    public static TransportVersion randomMinimumVersion() {
+        return randomBoolean() ? null : EsqlTestUtils.randomMinimumVersion();
     }
 }

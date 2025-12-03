@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
@@ -124,6 +125,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -157,6 +159,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -213,6 +216,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -7813,6 +7817,41 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(lastOverTime.filter(), instanceOf(Equals.class));
     }
 
+    public void testTranslateWithDateTrunc() {
+        var query = randomFrom("""
+            TS k8s
+            | EVAL tbucket = date_trunc(1m, @timestamp)
+            | STATS sum(last_over_time(network.bytes_in)) WHERE cluster == "prod" BY tbucket
+            | LIMIT 10
+            """, """
+            TS k8s
+            | STATS sum(last_over_time(network.bytes_in)) WHERE cluster == "prod" BY tbucket=date_trunc(1m, @timestamp)
+            | LIMIT 10
+            """);
+        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        var limit = as(plan, Limit.class);
+        Aggregate finalAgg = as(limit.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        assertNotNull(aggsByTsid.timeBucket());
+        assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+        Eval evalBucket = as(aggsByTsid.child(), Eval.class);
+        assertThat(evalBucket.fields(), hasSize(1));
+        EsRelation relation = as(evalBucket.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+
+        var sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
+        assertFalse(sum.hasFilter());
+
+        LastOverTime lastOverTime = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), LastOverTime.class);
+        assertThat(Expressions.attribute(lastOverTime.field()).name(), equalTo("network.bytes_in"));
+        assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));
+        DateTrunc dateTrunc = as(Alias.unwrap(evalBucket.fields().get(0)), DateTrunc.class);
+        assertThat(Expressions.attribute(dateTrunc.field()).name(), equalTo("@timestamp"));
+        assertTrue(lastOverTime.hasFilter());
+        assertThat(lastOverTime.filter(), instanceOf(Equals.class));
+    }
+
     public void testTranslateWithInlineFilterWithImplicitLastOverTime() {
         var query = """
             TS k8s | STATS avg(network.bytes_in) WHERE cluster == "prod" BY bucket(@timestamp, 1 minute)
@@ -7847,7 +7886,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateHistogramSumWithImplicitMergeOverTime() {
-        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V6.isEnabled());
+        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V7.isEnabled());
         var query = """
             TS exp_histo_sample | STATS SUM(responseTime) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
@@ -7879,7 +7918,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateHistogramSumWithImplicitMergeOverTimeAndFilter() {
-        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V6.isEnabled());
+        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V7.isEnabled());
         var query = """
             TS exp_histo_sample | STATS SUM(responseTime) WHERE instance == "foobar" BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
@@ -7912,7 +7951,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateHistogramPercentileWithImplicitMergeOverTime() {
-        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V6.isEnabled());
+        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V7.isEnabled());
         var query = """
             TS exp_histo_sample | STATS PERCENTILE(responseTime, 50) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
@@ -7945,7 +7984,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateHistogramPercentileWithImplicitMergeOverTimeAndFilter() {
-        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V6.isEnabled());
+        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V7.isEnabled());
         var query = """
             TS exp_histo_sample | STATS PERCENTILE(responseTime, 50) WHERE instance == "foobar" BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
@@ -9660,5 +9699,475 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 Function [std_dev(network.eth0.currently_connected_clients)] requires a @timestamp field of type date or date_nanos \
                 to be present when run with the TS command, but it was not present.""")
         );
+    }
+
+    /**
+     * EsqlProject[[first_name{r}#32]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[_fork{r}#33 == fork1[KEYWORD]]
+     *     \_Fork[[first_name{r}#32, _fork{r}#33]]
+     *       |_Project[[first_name{f}#11, _fork{r}#7]]
+     *       | \_Eval[[fork1[KEYWORD] AS _fork#7]]
+     *       |   \_Limit[1000[INTEGER],false,false]
+     *       |     \_EsRelation[employees][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     *       \_Project[[first_name{f}#22, _fork{r}#7]]
+     *         \_Eval[[fork2[KEYWORD] AS _fork#7]]
+     *           \_Limit[1000[INTEGER],false,false]
+     *             \_EsRelation[employees][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     */
+    public void testPruneColumnsInForkBranchesSimpleEvalOutsideBranches() {
+        var query = """
+                FROM employees
+                | KEEP first_name
+                | EVAL x = 1.0
+                | DROP x
+                | FORK
+                    (WHERE true)
+                    (WHERE true)
+                | WHERE _fork == "fork1"
+                | DROP _fork
+            """;
+        var plan = optimizedPlan(query);
+        var project = as(plan, EsqlProject.class);
+        assertThat(project.projections().size(), equalTo(1));
+        assertThat(Expressions.names(project.projections()), contains("first_name"));
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var fork = as(filter.child(), Fork.class);
+        assertThat(fork.output(), hasSize(2));
+        assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("first_name", "_fork"));
+        for (LogicalPlan branch : fork.children()) {
+            var branchProject = as(branch, Project.class);
+            assertThat(branchProject.projections().size(), equalTo(2));
+            assertThat(Expressions.names(branchProject.projections()), containsInAnyOrder("first_name", "_fork"));
+            var branchEval = as(branchProject.child(), Eval.class);
+            var alias = as(branchEval.fields().getFirst(), Alias.class);
+            assertThat(alias.name(), equalTo("_fork"));
+            var limitInBranch = as(branchEval.child(), Limit.class);
+            var relation = as(limitInBranch.child(), EsRelation.class);
+            assertThat(relation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("emp_no", "first_name"));
+        }
+    }
+
+    /**
+     * EsqlProject[[_fork{r}#76, emp_no{r}#62, x{r}#73, y{r}#74, z{r}#75]]
+     * \_TopN[[Order[_fork{r}#76,ASC,LAST], Order[emp_no{r}#62,ASC,LAST]],1000[INTEGER],false]
+     *   \_Fork[[emp_no{r}#62, x{r}#73, y{r}#74, z{r}#75, _fork{r}#76]]
+     *     |_Project[[emp_no{f}#37, x{r}#15, y{r}#16, z{r}#17, _fork{r}#5]]
+     *     | \_Eval[[fork1[KEYWORD] AS _fork#5]]
+     *     |   \_Grok[a{r}#10,Parser[pattern=%{WORD:x} %{WORD:y} %{WORD:z}, grok=org.elasticsearch.grok.Grok@1702ca8e],[x{r}#15, y{r}#
+     * 16, z{r}#17]]
+     *     |     \_Eval[[CONCAT(first_name{f}#38, [KEYWORD],TOSTRING(emp_no{f}#37), [KEYWORD],last_name{f}#41) AS a#10]]
+     *     |       \_Limit[1000[INTEGER],false,false]
+     *     |         \_Filter[IN(10048[INTEGER],10081[INTEGER],emp_no{f}#37)]
+     *     |           \_EsRelation[employees][_meta_field{f}#43, emp_no{f}#37, first_name{f}#38, ..]
+     *     \_Project[[emp_no{f}#48, x{r}#27, y{r}#28, z{r}#29, _fork{r}#5]]
+     *       \_Eval[[fork2[KEYWORD] AS _fork#5]]
+     *         \_Grok[b{r}#22,Parser[pattern=%{WORD:x} %{WORD:y} %{WORD:z}, grok=org.elasticsearch.grok.Grok@37d58d35],[x{r}#27, y{r}#
+     * 28, z{r}#29]]
+     *           \_Eval[[CONCAT(last_name{f}#52, [KEYWORD],TOSTRING(emp_no{f}#48), [KEYWORD],first_name{f}#49) AS b#22]]
+     *             \_Limit[1000[INTEGER],false,false]
+     *               \_Filter[IN(10048[INTEGER],10081[INTEGER],emp_no{f}#48)]
+     *                 \_EsRelation[employees][_meta_field{f}#54, emp_no{f}#48, first_name{f}#49, ..]
+     */
+    public void testPruneColumnsInForkBranchesDropNestedEvalsFromOutputIfNotNeeded() {
+        // In this test, the EVALs that create 'a' and 'b' inside each branch should be dropped from the output
+        // since they are not needed after the GROK
+        var query = """
+              FROM employees
+             | WHERE emp_no == 10048 OR emp_no == 10081
+             | FORK (EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+                     | GROK a "%{WORD:x} %{WORD:y} %{WORD:z}" )
+                    (EVAL b = CONCAT(last_name, " ", emp_no::keyword, " ", first_name)
+                     | GROK b "%{WORD:x} %{WORD:y} %{WORD:z}" )
+             | KEEP _fork, emp_no, x, y, z
+             | SORT _fork, emp_no
+            """;
+        var plan = optimizedPlan(query);
+        var project = as(plan, EsqlProject.class);
+        assertThat(project.projections().size(), equalTo(5));
+        assertThat(Expressions.names(project.projections()), containsInAnyOrder("_fork", "emp_no", "x", "y", "z"));
+        var topN = as(project.child(), TopN.class);
+        var fork = as(topN.child(), Fork.class);
+        assertThat(fork.output(), hasSize(5));
+        assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("emp_no", "x", "y", "z", "_fork"));
+        for (LogicalPlan branch : fork.children()) {
+            var branchProject = as(branch, Project.class);
+            assertThat(branchProject.projections().size(), equalTo(5));
+            assertThat(Expressions.names(branchProject.projections()), containsInAnyOrder("emp_no", "x", "y", "z", "_fork"));
+            var branchEval = as(branchProject.child(), Eval.class);
+            var forkAlias = as(branchEval.fields().getFirst(), Alias.class);
+            assertThat(forkAlias.name(), equalTo("_fork"));
+            var grok = as(branchEval.child(), Grok.class);
+            assertThat(grok.extractedFields().size(), equalTo(3));
+            assertThat(Expressions.names(grok.extractedFields()), containsInAnyOrder("x", "y", "z"));
+            var evalInBranch = as(grok.child(), Eval.class);
+            var aliasInBranch = as(evalInBranch.fields().getFirst(), Alias.class);
+            // The EVAL that created 'a' or 'b' should still be present in the branch even if not part of the output
+            assertThat(aliasInBranch.name(), anyOf(equalTo("a"), equalTo("b")));
+            var limitInBranch = as(evalInBranch.child(), Limit.class);
+            var filter = as(limitInBranch.child(), Filter.class);
+            assertThat(filter.toString(), containsString("IN(10048[INTEGER],10081[INTEGER],emp_no"));
+            var relation = as(filter.child(), EsRelation.class);
+            assertThat(
+                relation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
+                hasItems("emp_no", "first_name", "last_name")
+            );
+        }
+    }
+
+    /**
+     * Limit[10000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*)#36, COUNT(emp_no{r}#109,true[BOOLEAN],PT0S[
+     * TIME_DURATION]) AS d#39,MAX(_fork{r}#124,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#42,
+     *          COUNT(s{r}#119,true[BOOLEAN],PT0S[TIME_DURATION]) AS ls#45]]
+     *   \_Fork[[emp_no{r}#109, s{r}#119, _fork{r}#124]]
+     *     |_Project[[emp_no{f}#46, s{r}#6, _fork{r}#7]]
+     *     | \_Eval[[fork1[KEYWORD] AS _fork#7]]
+     *     |   \_Dissect[a{r}#21,Parser[pattern=%{x} %{y} %{z}, appendSeparator=, parser=org.elasticsearch.dissect.DissectParser@53c057b
+     * 1],[x{r}#22, y{r}#23, z{r}#24]]
+     *     |     \_Eval[[10[INTEGER] AS s#6, CONCAT(first_name{f}#47, [KEYWORD],TOSTRING(emp_no{f}#46), [KEYWORD],last_name{f}#50) AS
+     * a#21]]
+     *     |       \_Limit[1000[INTEGER],false,false]
+     *     |         \_Filter[IN(10048[INTEGER],10081[INTEGER],emp_no{f}#46)]
+     *     |           \_EsRelation[employees][_meta_field{f}#52, emp_no{f}#46, first_name{f}#47, ..]
+     *     |_Project[[emp_no{r}#91, s{r}#101, _fork{r}#7]]
+     *     | \_Eval[[fork2[KEYWORD] AS _fork#7, null[INTEGER] AS emp_no#91, null[INTEGER] AS s#101]]
+     *     |   \_Limit[1000[INTEGER],false,false]
+     *     |     \_LocalRelation[[$$COUNT$COUNT(*)::keywo>$0{r$}#125],Page{blocks=[ConstantNullBlock[positions=1]]}]
+     *     |_Project[[emp_no{f}#68, s{r}#6, _fork{r}#7]]
+     *     | \_Eval[[fork3[KEYWORD] AS _fork#7]]
+     *     |   \_TopN[[Order[emp_no{f}#68,ASC,LAST]],2[INTEGER],false]
+     *     |     \_Eval[[10[INTEGER] AS s#6]]
+     *     |       \_Filter[IN(10048[INTEGER],10081[INTEGER],emp_no{f}#68)]
+     *     |         \_EsRelation[employees][_meta_field{f}#74, emp_no{f}#68, first_name{f}#69, ..]
+     *     \_Project[[emp_no{f}#79, s{r}#6, _fork{r}#7]]
+     *       \_Eval[[10[INTEGER] AS s#6, fork4[KEYWORD] AS _fork#7]]
+     *         \_Limit[1000[INTEGER],false,false]
+     *           \_Filter[IN(10048[INTEGER],10081[INTEGER],emp_no{f}#79)]
+     *             \_EsRelation[employees][_meta_field{f}#85, emp_no{f}#79, first_name{f}#80, ..]
+     */
+    public void testPruneColumnsInForkBranchesPruneIfAggregation() {
+        var query = """
+            FROM employees
+            | WHERE emp_no == 10048 OR emp_no == 10081
+            | EVAL s = 10
+            | FORK ( EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+                    | DISSECT a "%{x} %{y} %{z}"
+                    | EVAL y = y::keyword )
+                   ( STATS x = COUNT(*)::keyword, y = MAX(emp_no)::keyword, z = MIN(emp_no)::keyword )
+                   ( SORT emp_no ASC | LIMIT 2 | EVAL x = last_name )
+                   ( EVAL x = "abc" | EVAL y = "aaa" )
+            | STATS count(*), d = count(emp_no), m = max(_fork), ls = count(s)
+            """;
+        var plan = optimizedPlan(query);
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), equalTo(4));
+        assertThat(Expressions.names(aggregate.aggregates()), containsInAnyOrder("count(*)", "d", "m", "ls"));
+        var fork = as(aggregate.child(), Fork.class);
+        assertThat(fork.output().size(), equalTo(3));
+        assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toSet()), containsInAnyOrder("emp_no", "s", "_fork"));
+
+        var firstBranch = fork.children().getFirst();
+        var firstBranchProject = as(firstBranch, Project.class);
+        assertThat(firstBranchProject.projections().size(), equalTo(3));
+        var evalInFirstBranch = as(firstBranchProject.child(), Eval.class);
+        var dissect = as(evalInFirstBranch.child(), Dissect.class);
+        assertThat(Expressions.names(dissect.extractedFields()), containsInAnyOrder("x", "y", "z"));
+        var evalAfterDissect = as(dissect.child(), Eval.class);
+        assertThat(Expressions.names(evalAfterDissect.fields()), containsInAnyOrder("a", "s"));
+        var limitInFirstBranch = as(evalAfterDissect.child(), Limit.class);
+        var filterInFirstBranch = as(limitInFirstBranch.child(), Filter.class);
+        var firstBranchRelation = as(filterInFirstBranch.child(), EsRelation.class);
+        assertThat(
+            firstBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
+            hasItems("emp_no", "first_name", "last_name")
+        );
+
+        var secondBranch = fork.children().get(1);
+        var secondBranchProject = as(secondBranch, Project.class);
+        assertThat(secondBranchProject.projections().size(), equalTo(3));
+        var evalInSecondBranch = as(secondBranchProject.child(), Eval.class);
+        var limitInSecondBranch = as(evalInSecondBranch.child(), Limit.class);
+        var localRelation = as(limitInSecondBranch.child(), LocalRelation.class);
+        assertThat(
+            localRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
+            hasItems("$$COUNT$COUNT(*)::keywo>$0")
+        );
+
+        var thirdBranch = fork.children().get(2);
+        var thirdBranchProject = as(thirdBranch, Project.class);
+        assertThat(thirdBranchProject.projections().size(), equalTo(3));
+        assertThat(Expressions.names(thirdBranchProject.projections()), containsInAnyOrder("emp_no", "s", "_fork"));
+        var evalInThirdBranch = as(thirdBranchProject.child(), Eval.class);
+        var topNInThirdBranch = as(evalInThirdBranch.child(), TopN.class);
+        var evalBeforeTopN = as(topNInThirdBranch.child(), Eval.class);
+        var filterInThirdBranch = as(evalBeforeTopN.child(), Filter.class);
+        var thirdBranchRelation = as(filterInThirdBranch.child(), EsRelation.class);
+        assertThat(
+            thirdBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
+            hasItems("emp_no", "first_name", "last_name")
+        );
+
+        var fourthBranch = fork.children().get(3);
+        var fourthBranchProject = as(fourthBranch, Project.class);
+        assertThat(fourthBranchProject.projections().size(), equalTo(3));
+        assertThat(Expressions.names(fourthBranchProject.projections()), containsInAnyOrder("emp_no", "s", "_fork"));
+        var evalInFourthBranch = as(fourthBranchProject.child(), Eval.class);
+        var limitInFourthBranch = as(evalInFourthBranch.child(), Limit.class);
+        var filterInFourthBranch = as(limitInFourthBranch.child(), Filter.class);
+        var fourthBranchRelation = as(filterInFourthBranch.child(), EsRelation.class);
+        assertThat(
+            fourthBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
+            hasItems("emp_no", "first_name", "last_name")
+        );
+    }
+
+    /**
+     * EsqlProject[[languages{r}#33]]
+     * \_Limit[10000[INTEGER],false,false]
+     *   \_Filter[_fork{r}#34 == fork1[KEYWORD]]
+     *     \_Fork[[languages{r}#33, _fork{r}#34]]
+     *       |_Project[[languages{r}#6, _fork{r}#8]]
+     *       | \_Eval[[123[INTEGER] AS languages#6, fork1[KEYWORD] AS _fork#8]]
+     *       |   \_Limit[4[INTEGER],false,false]
+     *       |     \_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *       \_Project[[languages{r}#6, _fork{r}#8]]
+     *         \_Eval[[123[INTEGER] AS languages#6, fork2[KEYWORD] AS _fork#8]]
+     *           \_Limit[4[INTEGER],false,false]
+     *             \_EsRelation[employees][_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, ..]
+     */
+    public void testPruneColumnsInForkBranchesShouldRespectOuterAlias() {
+        var query = """
+            from employees metadata _index
+            | drop languages
+            | eval languages = 123
+            | keep languages
+            | limit 4
+            | fork
+                (where true)
+                (where true)
+            | where _fork == "fork1"
+            | drop _fork
+            """;
+        var plan = optimizedPlan(query);
+        var project = as(plan, EsqlProject.class);
+        assertThat(project.projections().size(), equalTo(1));
+        assertThat(Expressions.names(project.projections()), contains("languages"));
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var fork = as(filter.child(), Fork.class);
+        assertThat(fork.output(), hasSize(2));
+        assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("languages", "_fork"));
+        for (LogicalPlan branch : fork.children()) {
+            var branchProject = as(branch, Project.class);
+            assertThat(branchProject.projections().size(), equalTo(2));
+            assertThat(Expressions.names(branchProject.projections()), containsInAnyOrder("languages", "_fork"));
+            var branchEval = as(branchProject.child(), Eval.class);
+            var fields = branchEval.fields();
+            assertThat(fields.size(), equalTo(2));
+            var languagesAlias = as(fields.get(0), Alias.class);
+            assertThat(languagesAlias.name(), equalTo("languages"));
+            var forkAlias = as(fields.get(1), Alias.class);
+            assertThat(forkAlias.name(), equalTo("_fork"));
+            var limitInBranch = as(branchEval.child(), Limit.class);
+            var relation = as(limitInBranch.child(), EsRelation.class);
+            assertThat(relation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("emp_no", "first_name"));
+        }
+    }
+
+    /**
+     * EsqlProject[[languages{r}#55]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[_fork{r}#57 == fork1[KEYWORD]]
+     *     \_Fork[[languages{r}#55, _fork{r}#57]]
+     *       |_Project[[x{r}#15 AS languages#9, _fork{r}#13]]
+     *       | \_Eval[[1[INTEGER] AS x#15, fork1[KEYWORD] AS _fork#13]]
+     *       |   \_Limit[1000[INTEGER],false,false]
+     *       |     \_EsRelation[employees][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     *       \_Project[[languages{r}#43, _fork{r}#13]]
+     *         \_Eval[[fork2[KEYWORD] AS _fork#13, null[INTEGER] AS languages#43]]
+     *           \_Limit[1000[INTEGER],false,false]
+     *             \_EsRelation[employees][_meta_field{f}#38, emp_no{f}#32, first_name{f}#33, ..]
+     */
+    public void testPruneColumnsInForkBranchesShouldKeepAliasWithSameNameAsColumn() {
+        var query = """
+            from employees
+            | drop languages
+            | fork
+                (eval x = 1 | rename x as lang | rename lang as languages | eval a = "aardvark" | rename a as foo)
+                (where true)
+            | where _fork == "fork1"
+            | drop _fork
+            | keep languages
+            """;
+        var plan = optimizedPlan(query);
+        var project = as(plan, EsqlProject.class);
+        assertThat(project.projections().size(), equalTo(1));
+        assertThat(Expressions.names(project.projections()), contains("languages"));
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var fork = as(filter.child(), Fork.class);
+        assertThat(fork.output(), hasSize(2));
+        assertThat(fork.children(), hasSize(2));
+        assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("languages", "_fork"));
+
+        var firstBranch = fork.children().getFirst();
+        var firstBranchProject = as(firstBranch, Project.class);
+        assertThat(firstBranchProject.projections().size(), equalTo(2));
+        assertThat(Expressions.names(firstBranchProject.projections()), containsInAnyOrder("languages", "_fork"));
+        var firstBranchEval = as(firstBranchProject.child(), Eval.class);
+        var firstBranchFields = firstBranchEval.fields();
+        assertThat(firstBranchFields.size(), equalTo(2));
+        assertThat(Expressions.names(firstBranchFields), containsInAnyOrder("x", "_fork"));
+        var limitInFirstBranch = as(firstBranchEval.child(), Limit.class);
+        var firstBranchRelation = as(limitInFirstBranch.child(), EsRelation.class);
+        assertThat(
+            firstBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
+            hasItems("emp_no", "first_name")
+        );
+
+        var secondBranch = fork.children().get(1);
+        var secondBranchProject = as(secondBranch, Project.class);
+        assertThat(secondBranchProject.projections().size(), equalTo(2));
+        assertThat(Expressions.names(secondBranchProject.projections()), containsInAnyOrder("languages", "_fork"));
+        var secondBranchEval = as(secondBranchProject.child(), Eval.class);
+        var secondBranchFields = secondBranchEval.fields();
+        assertThat(secondBranchFields.size(), equalTo(2));
+        assertThat(Expressions.names(secondBranchFields), containsInAnyOrder("languages", "_fork"));
+        var limitInSecondBranch = as(secondBranchEval.child(), Limit.class);
+        var secondBranchRelation = as(limitInSecondBranch.child(), EsRelation.class);
+        assertThat(
+            secondBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
+            hasItems("emp_no", "first_name")
+        );
+    }
+
+    /**
+     * EsqlProject[[_meta_field{r}#48, emp_no{r}#49, first_name{r}#50, gender{r}#51, hire_date{r}#52, job{r}#53, job.raw{r}#54, l
+     * ast_name{r}#55, long_noidx{r}#56, salary{r}#57]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[_fork{r}#59 == fork1[KEYWORD]]
+     *     \_Fork[[_meta_field{r}#48, emp_no{r}#49, first_name{r}#50, gender{r}#51, hire_date{r}#52, job{r}#53, job.raw{r}#54, l
+     * ast_name{r}#55, long_noidx{r}#56, salary{r}#57, _fork{r}#59]]
+     *       |_Project[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24, l
+     * ast_name{f}#19, long_noidx{f}#25, salary{f}#20, _fork{r}#9]]
+     *       | \_Eval[[fork1[KEYWORD] AS _fork#9]]
+     *       |   \_Limit[1000[INTEGER],false,false]
+     *       |     \_EsRelation[employees][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     *       |_LocalRelation[[_meta_field{f}#32, emp_no{f}#26, first_name{f}#27, gender{f}#28, hire_date{f}#33, job{f}#34, job.raw{f}#35, l
+     * ast_name{f}#30, long_noidx{f}#36, salary{f}#31, _fork{r}#9],EMPTY]
+     *       \_Project[[_meta_field{f}#43, emp_no{f}#37, first_name{f}#38, gender{f}#39, hire_date{f}#44, job{f}#45, job.raw{f}#46, l
+     * ast_name{f}#41, long_noidx{f}#47, salary{f}#42, _fork{r}#9]]
+     *         \_Eval[[fork3[KEYWORD] AS _fork#9]]
+     *           \_Limit[1000[INTEGER],false,false]
+     *             \_EsRelation[employees][_meta_field{f}#43, emp_no{f}#37, first_name{f}#38, ..]
+     */
+    public void testPruneColumnsInForkBranchesShouldPruneNestedEvalsIfColumnIsDropped() {
+        var query = """
+            from employees
+            | fork
+                (eval x = 1 | rename x as lang | rename lang as languages)
+                (where false)
+                (where true)
+            | where _fork == "fork1"
+            | drop _fork
+            | drop languages
+            """;
+        var plan = optimizedPlan(query);
+        var project = as(plan, EsqlProject.class);
+        assertThat(project.projections().size(), equalTo(10));
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var fork = as(filter.child(), Fork.class);
+        assertThat(fork.output().size(), equalTo(11));
+
+        var firstBranch = fork.children().getFirst();
+        var firstBranchProject = as(firstBranch, Project.class);
+        assertThat(firstBranchProject.projections().size(), equalTo(11));
+        var firstBranchEval = as(firstBranchProject.child(), Eval.class);
+        var forkAliasInFirstBranch = as(firstBranchEval.fields().getFirst(), Alias.class);
+        assertThat(forkAliasInFirstBranch.name(), equalTo("_fork"));
+        var limitInFirstBranch = as(firstBranchEval.child(), Limit.class);
+        var firstBranchRelation = as(limitInFirstBranch.child(), EsRelation.class);
+        assertThat(
+            firstBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
+            hasItems("emp_no", "first_name", "gender", "hire_date", "job", "job.raw", "last_name", "long_noidx", "salary")
+        );
+
+        var secondBranch = fork.children().get(1);
+        var secondBranchLocalRelation = as(secondBranch, LocalRelation.class);
+        assertThat(
+            secondBranchLocalRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
+            hasItems(
+                "_meta_field",
+                "emp_no",
+                "first_name",
+                "gender",
+                "hire_date",
+                "job",
+                "job.raw",
+                "last_name",
+                "long_noidx",
+                "salary",
+                "_fork"
+            )
+        );
+        assertThat(secondBranchLocalRelation.supplier(), instanceOf(EmptyLocalSupplier.class));
+
+        var thirdBranch = fork.children().get(2);
+        var thirdBranchProject = as(thirdBranch, Project.class);
+        assertThat(thirdBranchProject.projections().size(), equalTo(11));
+        var thirdBranchEval = as(thirdBranchProject.child(), Eval.class);
+        var forkAliasInThirdBranch = as(thirdBranchEval.fields().getFirst(), Alias.class);
+        assertThat(forkAliasInThirdBranch.name(), equalTo("_fork"));
+        var limitInThirdBranch = as(thirdBranchEval.child(), Limit.class);
+        var thirdBranchRelation = as(limitInThirdBranch.child(), EsRelation.class);
+        assertThat(
+            thirdBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
+            hasItems("emp_no", "first_name", "gender", "hire_date", "job", "job.raw", "last_name", "long_noidx", "salary")
+        );
+    }
+
+    /**
+     * EsqlProject[[a{r}#45]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Fork[[a{r}#45]]
+     *     |_Project[[a{r}#5]]
+     *     | \_Limit[1000[INTEGER],false,false]
+     *     |   \_Aggregate[[],[MAX(salary{f}#26,true[BOOLEAN],PT0S[TIME_DURATION]) AS a#5]]
+     *     |     \_EsRelation[employees][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     *     \_Project[[a{r}#14]]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_Aggregate[[],[MAX(salary{f}#37,true[BOOLEAN],PT0S[TIME_DURATION]) AS a#14]]
+     *           \_EsRelation[employees][_meta_field{f}#38, emp_no{f}#32, first_name{f}#33, ..]
+     */
+    public void testPruneColumnsInForkBranchesKeepOnlyNeededAggs() {
+        var query = """
+            from employees
+             | fork (stats a = max(salary), b = min(salary) | KEEP b, a | EVAL x = 1 )
+                    (stats a = max(salary), b = min(salary))
+             | KEEP a
+            """;
+        var plan = optimizedPlan(query);
+        var project = as(plan, EsqlProject.class);
+        assertThat(project.projections().size(), equalTo(1));
+        assertThat(Expressions.names(project.projections()), contains("a"));
+        var limit = as(project.child(), Limit.class);
+        var fork = as(limit.child(), Fork.class);
+        assertThat(fork.output().size(), equalTo(1));
+        assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("a"));
+        for (LogicalPlan branch : fork.children()) {
+            var branchProject = as(branch, Project.class);
+            assertThat(branchProject.projections().size(), equalTo(1));
+            assertThat(Expressions.names(branchProject.projections()), contains("a"));
+            var limitInBranch = as(branchProject.child(), Limit.class);
+            var aggregateInBranch = as(limitInBranch.child(), Aggregate.class);
+            assertThat(aggregateInBranch.aggregates().size(), equalTo(1));
+            assertThat(Expressions.names(aggregateInBranch.aggregates()), contains("a"));
+            var relation = as(aggregateInBranch.child(), EsRelation.class);
+            assertThat(relation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("salary"));
+        }
     }
 }

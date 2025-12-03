@@ -716,6 +716,8 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             var config = getRequestConfigMap(serviceSettingsMap, createTaskSettingsMap(), chunkingSettingsMap, createSecretSettingsMap());
 
             var listener = new PlainActionFuture<Model>();
+
+            // Exception will be passed to the listener we're checking below
             service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, listener);
 
             // No exception should be thrown indicating correct parsing of (chunking) settings

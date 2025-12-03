@@ -168,7 +168,11 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram(field, sourceText(), FIRST);
+        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram(
+            field,
+            sourceText(),
+            FIRST
+        );
         if (resolution.unresolved()) {
             return resolution;
         }

@@ -10,10 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
-import org.junit.Before;
 
 import java.io.IOException;
 

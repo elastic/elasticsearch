@@ -101,7 +101,11 @@ public final class TypeResolutions {
     ) {
         return isType(
             e,
-            (t) -> isSpatialOrGrid(t) == false && DataType.isRepresentable(t) && t != DENSE_VECTOR && t != AGGREGATE_METRIC_DOUBLE && t != EXPONENTIAL_HISTOGRAM,
+            (t) -> isSpatialOrGrid(t) == false
+                && DataType.isRepresentable(t)
+                && t != DENSE_VECTOR
+                && t != AGGREGATE_METRIC_DOUBLE
+                && t != EXPONENTIAL_HISTOGRAM,
             operationName,
             paramOrd,
             "any type except counter, spatial types, dense_vector, aggregate_metric_double or exponential_histogram"

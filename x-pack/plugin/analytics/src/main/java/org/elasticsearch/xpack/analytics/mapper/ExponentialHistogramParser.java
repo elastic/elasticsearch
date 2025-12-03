@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.analytics.mapper;
 
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;

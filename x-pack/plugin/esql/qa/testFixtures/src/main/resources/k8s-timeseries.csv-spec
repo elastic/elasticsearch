@@ -1011,7 +1011,6 @@ max:double | inc:double  | time_bucket:datetime     | cluster:keyword
 
 dateNanosOneRateIncreaseWithBucketAndClusterThenFilter
 required_capability: ts_command_v0
-required_capability: ts_rate_datenanos_2
 
 TS datenanos-k8s
 | WHERE cluster=="prod"
@@ -1022,7 +1021,8 @@ TS datenanos-k8s
 | LIMIT 3;
 
 max:double | inc:double  | time_bucket:date_nanos   | cluster:keyword
-6.98065    | 2094.196430 | 2024-05-10T00:20:00.000Z | prod
-11.860806  | 3558.241760 | 2024-05-10T00:15:00.000Z | prod
-11.56274   | 3468.821290 | 2024-05-10T00:10:00.000Z | prod
+6.980661   | 2094.198198 | 2024-05-10T00:20:00.000Z | prod
+11.860806  | 3558.241758 | 2024-05-10T00:15:00.000Z | prod
+11.562738  | 3468.821293 | 2024-05-10T00:10:00.000Z | prod
+
 ;

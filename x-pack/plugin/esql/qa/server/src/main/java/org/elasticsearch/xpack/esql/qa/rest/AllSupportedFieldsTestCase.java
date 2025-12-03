@@ -19,11 +19,11 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
-import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.MapMatcher;
@@ -792,6 +792,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
+    private static final ExponentialHistogram EXPONENTIAL_HISTOGRAM_VALUE = ExponentialHistogram.create(
+        10,
+        ExponentialHistogramCircuitBreaker.noop(),
+        IntStream.range(0, 100).mapToDouble(i -> i).toArray()
+    );
+
     protected static void createAllTypesDoc(RestClient client, String indexName) throws IOException {
         Map<String, NodeInfo> nodeInfoMap = fetchNodeToInfo(client, null);
         TransportVersion minimumVersion = minVersion(nodeInfoMap);
@@ -822,14 +828,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     doc.field("value_count", 25);
                     doc.endObject();
                 }
-                case EXPONENTIAL_HISTOGRAM -> {
-                    ReleasableExponentialHistogram histogram = ExponentialHistogram.create(
-                        10,
-                        ExponentialHistogramCircuitBreaker.noop(),
-                        IntStream.range(0, 100).mapToDouble(i -> i).toArray()
-                    );
-                    ExponentialHistogramXContent.serialize(doc, histogram);
-                }
+                case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramXContent.serialize(doc, EXPONENTIAL_HISTOGRAM_VALUE);
                 case DENSE_VECTOR -> doc.value(List.of(0.5, 10, 6));
                 default -> throw new AssertionError("unsupported field type [" + type + "]");
             }
@@ -905,6 +904,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 yield equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
             }
+            case EXPONENTIAL_HISTOGRAM -> {
+                try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                    ExponentialHistogramXContent.serialize(builder, EXPONENTIAL_HISTOGRAM_VALUE);
+                    Map<String, ?> parsedJson = XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(builder), true);
+                    yield equalTo(parsedJson);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
             case DENSE_VECTOR -> {
                 // See expectedType for an explanation
                 if (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
@@ -943,7 +951,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return switch (t) {
             // Enrich policies don't work with types that have mandatory fields in the mapping.
             // https://github.com/elastic/elasticsearch/issues/127350
-            case AGGREGATE_METRIC_DOUBLE, SCALED_FLOAT,
+            case AGGREGATE_METRIC_DOUBLE, SCALED_FLOAT, EXPONENTIAL_HISTOGRAM,
                 // https://github.com/elastic/elasticsearch/issues/137699
                 DENSE_VECTOR -> false;
             default -> true;

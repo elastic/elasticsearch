@@ -202,7 +202,11 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
 
     @Override
     public String stringify(Object object) {
-        CollectionUtils.ensureNoSelfReferences(object, "CustomReflectionObjectHandler stringify");
-        return super.stringify(object);
+        if (object instanceof String string) {
+            return string; // if object is already a string, we can just return it
+        } else {
+            CollectionUtils.ensureNoSelfReferences(object, "CustomReflectionObjectHandler stringify");
+            return super.stringify(object);
+        }
     }
 }

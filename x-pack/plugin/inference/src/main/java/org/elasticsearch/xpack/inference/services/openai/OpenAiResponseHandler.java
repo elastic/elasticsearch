@@ -40,7 +40,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     // The remaining number of tokens that are permitted before exhausting the rate limit.
     static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
 
-    private static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
+    protected static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
     private static final String VALIDATION_ERROR_MESSAGE = "Received an input validation error response";
 
     private static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
@@ -83,7 +83,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         } else if (statusCode == 429) {
             throw buildExceptionHandling429(request, result);
         } else if (isContentTooLarge(result)) {
-            throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));
+            throw buildExceptionHandlingContentTooLarge(request, result);
         } else if (statusCode == 401) {
             throw new RetryException(false, buildError(AUTHENTICATION, request, result));
         } else if (statusCode >= 300 && statusCode < 400) {
@@ -101,6 +101,10 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         }
     }
 
+    protected RetryException buildExceptionHandlingContentTooLarge(Request request, HttpResult result) {
+        return new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));
+    }
+
     private static String resourceNotFoundError(Request request) {
         return format("Resource not found at [%s]", request.getURI());
     }
@@ -109,6 +113,12 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         return new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
     }
 
+    /**
+     * Determines if the given HTTP result indicates that the content is too large.
+     *
+     * @param result the HTTP result to check
+     * @return true if the content is too large, false otherwise
+     */
     public boolean isContentTooLarge(HttpResult result) {
         int statusCode = result.response().getStatusLine().getStatusCode();
 

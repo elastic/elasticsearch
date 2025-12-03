@@ -136,6 +136,36 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             }
         }
         """;
+    private static final String CHAT_COMPLETION_RESPONSE_JSON = """
+        {
+            "id": "cmpl-ef780b96e82d46ceb1e45ee4188913bc",
+            "object": "chat.completion",
+            "created": 1752751862,
+            "model": "%s",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "%s"
+                    },
+                    "logprobs": null,
+                    "finish_reason": "stop",
+                    "stop_reason": null
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 9,
+                "total_tokens": 31,
+                "completion_tokens": 22
+            }
+        }
+        """;
+    private static final String INPUT_IS_TOO_LONG_ERROR_MESSAGE = """
+            {
+                "error": "Input length is too long"
+            }
+        """;
 
     // Mock server and client manager
     private final MockWebServer webServer = new MockWebServer();
@@ -453,31 +483,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         try (var sender = createSender(senderFactory)) {
             sender.startSynchronously();
 
-            String responseJson = Strings.format("""
-                {
-                    "id": "cmpl-ef780b96e82d46ceb1e45ee4188913bc",
-                    "object": "chat.completion",
-                    "created": 1752751862,
-                    "model": "%s",
-                    "choices": [
-                        {
-                            "index": 0,
-                            "message": {
-                                "role": "assistant",
-                                "content": "%s"
-                            },
-                            "logprobs": null,
-                            "finish_reason": "stop",
-                            "stop_reason": null
-                        }
-                    ],
-                    "usage": {
-                        "prompt_tokens": 9,
-                        "total_tokens": 31,
-                        "completion_tokens": 22
-                    }
-                }
-                """, MODEL_VALUE, COMPLETION_RESULT_VALUE);
+            String responseJson = Strings.format(CHAT_COMPLETION_RESPONSE_JSON, MODEL_VALUE, COMPLETION_RESULT_VALUE);
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
@@ -503,6 +509,58 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
             assertThat(requestMap.get(N_FIELD_NAME), is(N_VALUE));
             assertThat(requestMap.get(STREAM_FIELD_NAME), is(false));
+        }
+    }
+
+    public void testCreate_NvidiaChatCompletionModel_413StatusCode_ThrowsException() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            sender.startSynchronously();
+
+            webServer.enqueue(new MockResponse().setResponseCode(413).setBody(INPUT_IS_TOO_LONG_ERROR_MESSAGE));
+
+            var model = NvidiaChatCompletionModelTests.createCompletionModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
+            var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new ChatCompletionInput(INPUT_VALUE), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT)
+            );
+            assertThat(thrownException.getMessage(), is(Strings.format("""
+                Received a content too large status code for request from inference entity id [inferenceEntityId] status [413]. \
+                Error message: [%s]""", INPUT_IS_TOO_LONG_ERROR_MESSAGE)));
+        }
+    }
+
+    public void testCreate_NvidiaChatCompletionModel_400StatusCodeWithContentTooLargeMessage_ThrowsException() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            sender.startSynchronously();
+
+            String responseJsonContentTooLarge = """
+                    {
+                        "error": "Please reduce your prompt; or completion length."
+                    }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(400).setBody(responseJsonContentTooLarge));
+
+            var model = NvidiaChatCompletionModelTests.createCompletionModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
+            var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new ChatCompletionInput(INPUT_VALUE), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT)
+            );
+            assertThat(thrownException.getMessage(), is(Strings.format("""
+                Received a content too large status code for request from inference entity id [inferenceEntityId] status [400]. \
+                Error message: [%s]""", responseJsonContentTooLarge)));
         }
     }
 
@@ -569,13 +627,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         try (var sender = createSender(senderFactory)) {
             sender.startSynchronously();
 
-            String responseJsonContentTooLarge = """
-                    {
-                        "error": "Input length 18432 exceeds maximum allowed token size 8192"
-                    }
-                """;
-
-            webServer.enqueue(new MockResponse().setResponseCode(413).setBody(responseJsonContentTooLarge));
+            webServer.enqueue(new MockResponse().setResponseCode(413).setBody(INPUT_IS_TOO_LONG_ERROR_MESSAGE));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.services.nvidia;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 
 /**
  * Utility class for Nvidia inference services.
@@ -57,6 +59,27 @@ public final class NvidiaUtils {
      */
     public static boolean supportsNvidia(TransportVersion version) {
         return version.supports(ML_INFERENCE_NVIDIA_ADDED);
+    }
+
+    /**
+     * Determines if the given HTTP result indicates that the content is too large.
+     *
+     * @param result the HTTP result to check
+     * @param contentTooLargeMessage a substring to search for in the error message indicating content is too large
+     * @return true if the content is too large, false otherwise
+     */
+    public static boolean isContentTooLarge(HttpResult result, String contentTooLargeMessage) {
+        int statusCode = result.response().getStatusLine().getStatusCode();
+        if (statusCode == 413) {
+            return true;
+        }
+        if (statusCode == 400) {
+            var errorResponse = ErrorResponse.fromResponse(result);
+            return errorResponse != null
+                && errorResponse.getErrorMessage() != null
+                && errorResponse.getErrorMessage().contains(contentTooLargeMessage);
+        }
+        return false;
     }
 
     /**

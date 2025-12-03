@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia.completion;
 
+import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
+import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParserContract;
 import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponseUtils;
+import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 
 /**
@@ -31,5 +35,15 @@ public class NvidiaChatCompletionResponseHandler extends OpenAiUnifiedChatComple
      */
     public NvidiaChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, NVIDIA_ERROR_PARSER::parse, NVIDIA_ERROR_PARSER);
+    }
+
+    @Override
+    protected RetryException buildExceptionHandlingContentTooLarge(Request request, HttpResult result) {
+        return new RetryException(false, buildError(CONTENT_TOO_LARGE, request, result));
+    }
+
+    @Override
+    public boolean isContentTooLarge(HttpResult result) {
+        return NvidiaUtils.isContentTooLarge(result, CONTENT_TOO_LARGE_MESSAGE);
     }
 }

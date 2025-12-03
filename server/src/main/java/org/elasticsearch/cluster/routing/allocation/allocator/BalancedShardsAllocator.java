@@ -1503,12 +1503,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // Decision types are the same, take the lower weight
                 return newWeight < existingWeight;
             } else {
-                if (newDecision.type() == Type.NOT_PREFERRED) {
-                    assert existingDecision.type() != Type.NOT_PREFERRED;
-                    // The new decision is not-preferred and there's already a THROTTLE or YES option.
-                    return false;
-                }
-                return newWeight < existingWeight;
+                // Decision types are different, take the lower weight unless it's NOT_PREFERRED
+                float adjustedNewWeight = newDecision.type() == Type.NOT_PREFERRED ? Float.POSITIVE_INFINITY : newWeight;
+                float adjustedExistingWeight = existingDecision.type() == Type.NOT_PREFERRED ? Float.POSITIVE_INFINITY : existingWeight;
+                return adjustedNewWeight < adjustedExistingWeight;
             }
         }
 

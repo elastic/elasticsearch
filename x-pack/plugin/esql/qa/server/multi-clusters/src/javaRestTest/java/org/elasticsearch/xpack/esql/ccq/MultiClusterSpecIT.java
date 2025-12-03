@@ -430,11 +430,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         try {
             return RestEsqlTestCase.hasCapabilities(
                 client(),
-                List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V5.capabilityName())
+                List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V6.capabilityName())
             )
                 && RestEsqlTestCase.hasCapabilities(
                     remoteClusterClient(),
-                    List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V5.capabilityName())
+                    List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V6.capabilityName())
                 );
         } catch (IOException e) {
             throw new RuntimeException(e);

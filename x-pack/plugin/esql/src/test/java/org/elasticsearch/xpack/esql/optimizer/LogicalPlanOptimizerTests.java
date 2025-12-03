@@ -7847,7 +7847,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateHistogramSumWithImplicitMergeOverTime() {
-        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V5.isEnabled());
+        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V6.isEnabled());
         var query = """
             TS exp_histo_sample | STATS SUM(responseTime) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
@@ -7879,7 +7879,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateHistogramSumWithImplicitMergeOverTimeAndFilter() {
-        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V5.isEnabled());
+        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V6.isEnabled());
         var query = """
             TS exp_histo_sample | STATS SUM(responseTime) WHERE instance == "foobar" BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
@@ -7912,7 +7912,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateHistogramPercentileWithImplicitMergeOverTime() {
-        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V5.isEnabled());
+        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V6.isEnabled());
         var query = """
             TS exp_histo_sample | STATS PERCENTILE(responseTime, 50) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
@@ -7945,7 +7945,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateHistogramPercentileWithImplicitMergeOverTimeAndFilter() {
-        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V5.isEnabled());
+        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V6.isEnabled());
         var query = """
             TS exp_histo_sample | STATS PERCENTILE(responseTime, 50) WHERE instance == "foobar" BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;

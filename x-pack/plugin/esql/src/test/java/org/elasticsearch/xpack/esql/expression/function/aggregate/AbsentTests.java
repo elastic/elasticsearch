@@ -56,7 +56,8 @@ public class AbsentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geotileCases(1, 1000),
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
         ).flatMap(List::stream).map(AbsentTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
@@ -77,7 +78,8 @@ public class AbsentTests extends AbstractAggregationTestCase {
             DataType.LONG,
             DataType.TEXT,
             DataType.UNSIGNED_LONG,
-            DataType.VERSION
+            DataType.VERSION,
+            DataType.EXPONENTIAL_HISTOGRAM
         )) {
             suppliers.add(
                 new TestCaseSupplier(

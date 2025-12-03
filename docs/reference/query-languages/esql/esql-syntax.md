@@ -69,7 +69,7 @@ FROM index
 | WHERE first_name == "Georgi"
 ```
 
-If the literal string itself contains quotes, these need to be escaped (`\\"`). {{esql}} also supports the triple-quotes (`"""`) delimiter, for convenience:
+If the literal string itself contains quotes, these need to be escaped (`\"`). {{esql}} also supports the triple-quotes (`"""`) delimiter, for convenience:
 
 ```esql
 ROW name = """Indiana "Indy" Jones"""

@@ -346,7 +346,7 @@ public abstract class EngineTestCase extends ESTestCase {
         );
     }
 
-    public EngineConfig copy(EngineConfig config, MergePolicy mergePolicy) {
+    public static EngineConfig copy(EngineConfig config, MergePolicy mergePolicy) {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),

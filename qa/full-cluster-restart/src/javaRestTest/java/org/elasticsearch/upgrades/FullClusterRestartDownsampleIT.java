@@ -50,7 +50,7 @@ public class FullClusterRestartDownsampleIT extends ParameterizedFullClusterRest
         Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .version(Version.fromString(OLD_CLUSTER_VERSION))
+            .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
             .nodes(2)
             .setting("xpack.security.enabled", "false")
             .setting("indices.lifecycle.poll_interval", "5s")
@@ -58,7 +58,7 @@ public class FullClusterRestartDownsampleIT extends ParameterizedFullClusterRest
             .feature(FeatureFlag.TIME_SERIES_MODE)
             .feature(FeatureFlag.FAILURE_STORE_ENABLED);
 
-        if (oldVersion.before(Version.fromString("8.18.0"))) {
+        if (oldVersion.before(Version.fromString("8.18.0")) || isOldClusterDetachedVersion()) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
         }

@@ -44,7 +44,7 @@ docker run -p 9200:9200 -d --name elasticsearch \
   -e "xpack.security.enabled=false" \
   -e "xpack.security.http.ssl.enabled=false" \
   -e "xpack.license.self_generated.type=trial" \
-  docker.elastic.co/elasticsearch/elasticsearch:9.0.0
+  docker.elastic.co/elasticsearch/elasticsearch:9.1.4
 ```
 
 ::::{warning}
@@ -262,7 +262,7 @@ docker run \
 --rm \
 --tty -i \
 --network host \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:9.1.5 \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```

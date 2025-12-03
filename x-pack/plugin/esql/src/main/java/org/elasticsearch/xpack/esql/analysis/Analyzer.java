@@ -1365,11 +1365,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         record TypeResolutionKey(String fieldName, DataType fieldType) {}
 
-        private List<FieldAttribute> unionFieldAttributes;
-
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            unionFieldAttributes = new ArrayList<>();
+            List<FieldAttribute> unionFieldAttributes = new ArrayList<>();
             // Collect field attributes from previous runs
             plan.forEachUp(EsRelation.class, rel -> {
                 for (Attribute attr : rel.output()) {
@@ -1379,10 +1377,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             });
 
-            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p));
+            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p, unionFieldAttributes));
         }
 
-        private LogicalPlan doRule(LogicalPlan plan) {
+        private LogicalPlan doRule(LogicalPlan plan, List<FieldAttribute> unionFieldAttributes) {
             int alreadyAddedUnionFieldAttributes = unionFieldAttributes.size();
             // See if the eval function has an unresolved MultiTypeEsField field
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)

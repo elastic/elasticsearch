@@ -82,6 +82,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     private static final String ENABLE_DEBUG_JVM_ARGS = "-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=";
     private static final String ENTITLEMENT_POLICY_YAML = "entitlement-policy.yaml";
     private static final String PLUGIN_DESCRIPTOR_PROPERTIES = "plugin-descriptor.properties";
+    public static final String FIRST_DISTRO_WITH_JDK_21 = "8.11.0";
 
     private final DistributionResolver distributionResolver;
 
@@ -862,6 +863,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private Map<String, String> getEnvironmentVariables() {
             Map<String, String> environment = new HashMap<>(spec.resolveEnvironment());
+            String esFallbackJavaHome = System.getenv("ES_FALLBACK_JAVA_HOME");
+            if (jdkIsIncompatible(spec.getVersion()) && esFallbackJavaHome != null && esFallbackJavaHome.isEmpty() == false) {
+                environment.put("ES_JAVA_HOME", esFallbackJavaHome);
+            }
             environment.put("ES_PATH_CONF", configDir.toString());
             environment.put("ES_TMPDIR", workingDir.resolve("tmp").toString());
             // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
@@ -910,6 +915,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             environment.put("CLI_JAVA_OPTS", cliJavaOpts);
 
             return environment;
+        }
+
+        private boolean jdkIsIncompatible(Version version) {
+            return version.before(FIRST_DISTRO_WITH_JDK_21);
         }
 
         private Map<String, String> getJvmOptionsReplacements() {

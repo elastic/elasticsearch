@@ -298,6 +298,12 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
         return inherit(() -> parent.getVersion(), version);
     }
 
+    @Override
+    public T version(String version, boolean detachedVersion) {
+        this.version = Version.fromString(version, detachedVersion);
+        return cast(this);
+    }
+
     private <T> List<T> inherit(Supplier<List<T>> parent, List<T> child) {
         List<T> combinedList = new ArrayList<>();
         if (this.parent != null) {

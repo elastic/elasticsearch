@@ -18,15 +18,15 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     def runGenerateAndValidateTask(String... additionalArgs) {
         List<String> args = new ArrayList<>()
         args.add(":myserver:validateTransportVersionResources")
-        args.add(":myserver:generateTransportVersionDefinition")
-        args.addAll(additionalArgs);
+        args.add(":myserver:generateTransportVersion")
+        args.addAll(additionalArgs)
         return gradleRunner(args.toArray())
     }
 
     def runGenerateTask(String... additionalArgs) {
         List<String> args = new ArrayList<>()
-        args.add(":myserver:generateTransportVersionDefinition")
-        args.addAll(additionalArgs);
+        args.add(":myserver:generateTransportVersion")
+        args.addAll(additionalArgs)
         return gradleRunner(args.toArray())
     }
 
@@ -35,11 +35,11 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     }
 
     void assertGenerateSuccess(BuildResult result) {
-        assert result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        assert result.task(":myserver:generateTransportVersion").outcome == TaskOutcome.SUCCESS
     }
 
     void assertGenerateFailure(BuildResult result, String expectedOutput) {
-        assert result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.FAILED
+        assert result.task(":myserver:generateTransportVersion").outcome == TaskOutcome.FAILED
         assertOutputContains(result.output, expectedOutput)
     }
 
@@ -357,7 +357,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "new_tv,8123100")
     }
 
-    def "an invalid increment should fail"() {
+    def "a non-positive increment should fail"() {
         given:
         referencedTransportVersion("new_tv")
 
@@ -366,6 +366,17 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
         then:
         assertOutputContains(result.output, "Invalid increment 0, must be a positive integer")
+    }
+
+    def "an increment larger than 1000 should fail"() {
+        given:
+        referencedTransportVersion("new_tv")
+
+        when:
+        def result = runGenerateTask("--increment=1001").buildAndFail()
+
+        then:
+        assertOutputContains(result.output, "Invalid increment 1001, must be no larger than 1000")
     }
 
     def "a new definition exists and is in the latest file, but the version id is wrong and needs to be updated"(){
@@ -409,7 +420,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
     def "upper bounds files must exist for backport branches"() {
         when:
-        def result = runGenerateTask("--backport-branches=9.1,8.13,7.17,6.0").buildAndFail()
+        def result = runGenerateTask("--name", "new_tv", "--backport-branches=9.1,8.13,7.17,6.0").buildAndFail()
 
         then:
         assertGenerateFailure(result, "Missing upper bounds files for branches [6.0, 7.17, 8.13], known branches are [8.19, 9.0, 9.1, 9.2]")
@@ -449,7 +460,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         referencedTransportVersion("new_tv")
         file("myserver/alt_upper_bound.csv").text = "some_tv,8126000"
         file("myserver/build.gradle") << """
-            tasks.named('generateTransportVersionDefinition') {
+            tasks.named('generateTransportVersion') {
                 alternateUpperBoundFile = project.file("alt_upper_bound.csv")
             }
             tasks.named('validateTransportVersionResources') {
@@ -470,7 +481,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         referencedTransportVersion("new_tv")
         file("myserver/alt_upper_bound.csv").text = "some_tv,8122100"
         file("myserver/build.gradle") << """
-            tasks.named('generateTransportVersionDefinition') {
+            tasks.named('generateTransportVersion') {
                 alternateUpperBoundFile = project.file("alt_upper_bound.csv")
             }
             tasks.named('validateTransportVersionResources') {
@@ -484,5 +495,22 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertGenerateAndValidateSuccess(result)
         assertUpperBound("9.2", "new_tv,8124000")
         assertReferableDefinition("new_tv", "8124000")
+    }
+
+    def "generation is idempotent on upstream changes"() {
+        given:
+        execute("git checkout main")
+        referableAndReferencedTransportVersion("new_tv", "8124000")
+        transportVersionUpperBound("9.2", "new_tv", "8124000")
+        execute("git add .")
+        execute("git commit -m update")
+        execute("git checkout test")
+
+        when:
+        def result = runGenerateAndValidateTask().build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertUpperBound("9.2", "existing_92,8123000")
     }
 }

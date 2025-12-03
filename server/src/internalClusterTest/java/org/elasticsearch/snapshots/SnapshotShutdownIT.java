@@ -488,6 +488,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var otherNode = internalCluster().startDataOnlyNode();
         final var otherIndex = randomIdentifier();
         createIndexWithContent(otherIndex, indexSettings(numShards, 0).put(REQUIRE_NODE_NAME_SETTING, otherNode).build());
+        indexAllShardsToAnEqualOrGreaterMinimumSize(otherIndex, ByteSizeValue.of(2, ByteSizeUnit.KB).getBytes());
         blockDataNode(repoName, otherNode);
 
         final var nodeForRemoval = internalCluster().startDataOnlyNode(

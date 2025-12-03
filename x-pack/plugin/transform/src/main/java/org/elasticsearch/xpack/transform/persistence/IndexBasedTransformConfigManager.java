@@ -295,15 +295,18 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
         // use the transform context as we access system indexes
         try (ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().stashWithOrigin(TRANSFORM_ORIGIN)) {
-            indicesToDelete.addAll(
-                Arrays.asList(
-                    indexNameExpressionResolver.concreteIndexNames(
-                        state,
-                        IndicesOptions.lenientExpandHidden(),
-                        TransformInternalIndexConstants.INDEX_NAME_PATTERN
-                    )
-                )
+            var matchingIndexes = indexNameExpressionResolver.concreteIndices(
+                state,
+                IndicesOptions.lenientExpandHidden(),
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN
             );
+
+            for (var index : matchingIndexes) {
+                var meta = state.getMetadata().getIndexSafe(index);
+                if (meta.isSystem() == false) { // ignore system indices as these are automatically managed
+                    indicesToDelete.add(meta.getIndex().getName());
+                }
+            }
 
             indicesToDelete.addAll(
                 Arrays.asList(

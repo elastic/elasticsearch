@@ -29,7 +29,7 @@ public final class BinaryDocValuesSyntheticFieldLoaderLayer implements Composite
 
     @Override
     public long valueCount() {
-        return bytesValues == null ? 0 : bytesValues.docValueCount();
+        return hasValue ? bytesValues.docValueCount() : 0;
     }
 
     @Override

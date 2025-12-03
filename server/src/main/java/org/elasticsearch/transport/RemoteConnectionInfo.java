@@ -121,6 +121,23 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         return Objects.hash(modeInfo, initialConnectionTimeout, clusterAlias, skipUnavailable, hasClusterCredentials);
     }
 
+    @Override
+    public String toString() {
+        return "RemoteConnectionInfo{"
+            + "modeInfo="
+            + modeInfo
+            + ", initialConnectionTimeout="
+            + initialConnectionTimeout
+            + ", clusterAlias='"
+            + clusterAlias
+            + '\''
+            + ", skipUnavailable="
+            + skipUnavailable
+            + ", hasClusterCredentials="
+            + hasClusterCredentials
+            + '}';
+    }
+
     public interface ModeInfo extends ToXContentFragment, Writeable {
 
         boolean isConnected();

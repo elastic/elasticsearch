@@ -99,6 +99,29 @@ public final class Maths {
         }
     }
 
+    public static Number truncate(Number n, Number precision) {
+        long longPrecision = precision.longValue();
+        if (n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte) {
+            long nLong = n.longValue();
+            if (nLong == 0L || longPrecision >= 0) {
+                return n;
+            }
+
+            long digitsToTruncate = -longPrecision;
+            int digits = (int) (Math.log10(Math.abs(n.doubleValue())) + 1);
+            if (digits <= digitsToTruncate) {
+                return convertToIntegerType(0L, n.getClass());
+            }
+
+            long tenAtScale = (long) tenPower(digitsToTruncate);
+            return convertToIntegerType((nLong / tenAtScale) * tenAtScale, n.getClass());
+        }
+        double tenAtScale = Math.pow(10d, longPrecision);
+        double g = n.doubleValue() * tenAtScale;
+        Double result = (((n.doubleValue() < 0) ? Math.ceil(g) : Math.floor(g)) / tenAtScale);
+        return n instanceof Float ? result.floatValue() : result;
+    }
+
     // optimise very common cases for round and truncate
     private static double tenPower(long n) {
         if (n == 0L) {

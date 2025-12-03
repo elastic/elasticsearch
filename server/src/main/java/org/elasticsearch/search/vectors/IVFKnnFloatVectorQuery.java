@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+
 /** A {@link IVFKnnFloatVectorQuery} that uses the IVF search strategy. */
 public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
@@ -116,7 +118,15 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         boolean applyPostFilter = filterDocs instanceof ESAcceptDocs.TruePostFilterEsAcceptDocs;
 
         IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, knnCollectorManager.longAccumulator);
-        AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
+        // for post-filtering oversample
+        AbstractMaxScoreKnnCollector knnCollector = applyPostFilter
+            ? knnCollectorManager.newOptimisticCollector(
+                visitedLimit,
+                strategy,
+                context,
+                Math.round((1 + (3 * (1 - postFilteringThreshold))) * k)
+            )
+            : knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {
             return NO_RESULTS;
         }
@@ -137,43 +147,29 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
             return results;
         }
 
-        // Get a fresh iterator for filtering
-        var scorer = filterDocs.weight().scorer(filterDocs.context());
-        if (scorer == null) {
-            // No documents match the filter
+        var scorerSupplier = filterDocs.weight().scorerSupplier(filterDocs.context());
+        if (scorerSupplier == null) {
+            // No documents match the filter - should we revisit this or if we end up returning less than `k` ?
             return NO_RESULTS;
         }
-        DocIdSetIterator filterIterator = scorer.iterator();
-        var liveDocs = filterDocs.liveDocs();
+        DocIdSetIterator filterIterator = scorerSupplier.get(NO_MORE_DOCS).iterator();
 
-        // Sort scoreDocs by doc ID to ensure ascending order access to the iterator
         Arrays.sort(results.scoreDocs, Comparator.comparingInt(sd -> sd.doc));
-
-        // Filter results using the iterator
         ArrayList<ScoreDoc> filteredDocs = new ArrayList<>(results.scoreDocs.length);
-        int currentDoc = filterIterator.nextDoc();
-
+        assert filterIterator.docID() == -1;
         for (ScoreDoc scoreDoc : results.scoreDocs) {
-            // Check live docs first
-            if (liveDocs != null && liveDocs.get(scoreDoc.doc) == false) {
+            if (filterIterator.docID() == NO_MORE_DOCS) {
+                break;
+            }
+            if (filterIterator.docID() > scoreDoc.doc) {
                 continue;
             }
-
-            // Advance iterator to the current doc
-            while (currentDoc < scoreDoc.doc && currentDoc != DocIdSetIterator.NO_MORE_DOCS) {
-                currentDoc = filterIterator.nextDoc();
-            }
-
-            // Check if current doc matches the filter
-            if (currentDoc == scoreDoc.doc) {
+            if (filterIterator.advance(scoreDoc.doc) == scoreDoc.doc) {
                 filteredDocs.add(scoreDoc);
             }
         }
 
-        // Sort by score descending
         filteredDocs.sort(Comparator.comparingDouble((ScoreDoc sd) -> sd.score).reversed());
-
-        // Keep only top k results
         int numResults = Math.min(k, filteredDocs.size());
         ScoreDoc[] topK = new ScoreDoc[numResults];
         for (int i = 0; i < numResults; i++) {

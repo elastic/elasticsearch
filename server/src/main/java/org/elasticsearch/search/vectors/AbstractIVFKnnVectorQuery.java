@@ -148,31 +148,43 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 } else {
                     ScorerSupplier supplier = filterWeight.scorerSupplier(leafReaderContext);
                     if (supplier != null) {
-                        var filterCost = Math.toIntExact(supplier.cost());
-                        float selectivity = (float) filterCost / floatVectorValues.size();
+                        // use postFilteringThreshold as a global flag to control new vs legacy behavior
+                        if (postFilteringThreshold >= 0.5f) {
+                            // candidate - decide approach based on selectivity
+                            var filterCost = Math.toIntExact(supplier.cost());
+                            float selectivity = (float) filterCost / floatVectorValues.size();
 
-                        // Three-way decision based on selectivity
-                        if (selectivity >= 0.90f) {
-                            // Very high selectivity (≥90%): True post-filtering
-                            // Search without filter, then filter results afterward
-                            leafSearchMetas.add(
-                                new VectorLeafSearchFilterMeta(
-                                    leafReaderContext,
-                                    new ESAcceptDocs.TruePostFilterEsAcceptDocs(filterWeight, leafReaderContext, liveDocs)
-                                )
-                            );
-                        } else if (selectivity >= 0.40f) {
-                            // Medium-high selectivity (40-90%): Lazy evaluation
-                            // Use iterator with advance(), skip centroid filtering
-                            leafSearchMetas.add(
-                                new VectorLeafSearchFilterMeta(
-                                    leafReaderContext,
-                                    new ESAcceptDocs.LazyFilterEsAcceptDocs(filterWeight, leafReaderContext, liveDocs)
-                                )
-                            );
+                            if (selectivity >= 0.90f) {
+                                // for cases with > .90% selectivity, skip centroid filtering (most centroids will
+                                // be valid either way) skip filtering altogether and apply post filtering at the end
+                                // i.e. search without any filters, oversample, and then apply post filter using the iterator and
+                                // trim down to k results
+                                leafSearchMetas.add(
+                                    new VectorLeafSearchFilterMeta(
+                                        leafReaderContext,
+                                        new ESAcceptDocs.TruePostFilterEsAcceptDocs(filterWeight, leafReaderContext, liveDocs)
+                                    )
+                                );
+                            } else if (selectivity >= 0.30f) {
+                                // 30-90%: lazy evaluation
+                                // Use iterator with advance(), skip centroid filtering
+                                leafSearchMetas.add(
+                                    new VectorLeafSearchFilterMeta(
+                                        leafReaderContext,
+                                        new ESAcceptDocs.LazyFilterEsAcceptDocs(filterWeight, leafReaderContext, liveDocs)
+                                    )
+                                );
+                            } else {
+                                // low selectivity < 30% -> eager bitsets materialization and possible centroid filtering
+                                leafSearchMetas.add(
+                                    new VectorLeafSearchFilterMeta(
+                                        leafReaderContext,
+                                        new ESAcceptDocs.ScorerSupplierAcceptDocs(supplier, liveDocs, leafReader.maxDoc())
+                                    )
+                                );
+                            }
                         } else {
-                            // Low selectivity (<40%): Eager evaluation
-                            // Materialize BitSet, use centroid filtering
+                            // existing behavior using eager materialization
                             leafSearchMetas.add(
                                 new VectorLeafSearchFilterMeta(
                                     leafReaderContext,

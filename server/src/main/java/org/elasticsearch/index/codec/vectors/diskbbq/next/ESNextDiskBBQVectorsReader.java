@@ -719,7 +719,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
             // Determine filtering mode
             boolean isLazyEvaluation = filterDocs instanceof ESAcceptDocs.LazyFilterEsAcceptDocs;
-            boolean isTruePostFilter = filterDocs instanceof ESAcceptDocs.TruePostFilterEsAcceptDocs;
             DocIdSetIterator filterIterator = null;
             Bits filteredBits = null;
 

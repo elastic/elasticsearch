@@ -373,6 +373,25 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             return DocIdSetIterator.NO_MORE_DOCS;
         }
 
+        /**
+         * Skip as many documents as possible after a given document ID to find the first document ID matching the timestamp.
+         *
+         * @param timestamp the timestamp to match
+         * @param minDocID the min. document ID
+         * @return a docID to start scanning documents from in order to find the first document ID matching the provided timestamp
+         * @throws IOException if any I/O exception occurs
+         */
+        private int skipDocIDForTimestamp(long timestamp, int minDocID) throws IOException {
+            var skipper = docValuesProducer.getSkipper(timestampFieldInfo);
+            assert skipper != null;
+            if (skipper.minValue() > timestamp || timestamp > skipper.maxValue()) {
+                return DocIdSetIterator.NO_MORE_DOCS;
+            }
+            skipper.advance(minDocID);
+            skipper.advance(timestamp, Long.MAX_VALUE);
+            return Math.max(minDocID, skipper.minDocID(0));
+        }
+
         private int getTsIdValueCount() throws IOException {
             if (tsIdDocValues == null) {
                 tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
@@ -483,32 +502,37 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 return SeekStatus.END;
             }
 
-            // _tsid found, extract the timestamp
-            final long timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(id);
-
-            // Find the first document matching the _tsid
-            final int startDocID = docValues.findFirstDocWithTsIdOrdinalEqualTo(tsIdOrd);
+            // Find the first document ID matching the _tsid
+            int startDocID = docValues.findFirstDocWithTsIdOrdinalEqualTo(tsIdOrd);
             assert startDocID >= 0 : startDocID;
 
-            int docID = startDocID;
-            int docTsIdOrd = tsIdOrd;
-            long docTimestamp;
+            if (startDocID != DocIdSetIterator.NO_MORE_DOCS) {
+                // _tsid found, extract the timestamp
+                final long timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(id);
 
-            // Iterate over documents to find the first one matching the timestamp
-            for (; docID < maxDocs; docID++) {
-                docTimestamp = docValues.docTimestamp(docID);
-                if (startDocID < docID) {
-                    // After the first doc, we need to check again if _tsid matches
-                    docTsIdOrd = docValues.docTsIdOrdinal(docID);
-                }
-                if (docTsIdOrd == tsIdOrd && docTimestamp == timestamp) {
-                    // It's a match!
-                    current = new SyntheticTerm(docID, tsIdOrd, tsId, docTimestamp, docValues.docRoutingHash(docID));
-                    return SeekStatus.FOUND;
-                }
-                // Remaining docs don't match, stop here
-                if (tsIdOrd < docTsIdOrd || docTimestamp < timestamp) {
-                    break;
+                startDocID = docValues.skipDocIDForTimestamp(timestamp, startDocID);
+                if (startDocID != DocIdSetIterator.NO_MORE_DOCS) {
+                    int docID = startDocID;
+                    int docTsIdOrd = tsIdOrd;
+                    long docTimestamp;
+
+                    // Iterate over documents to find the first one matching the timestamp
+                    for (; docID < maxDocs; docID++) {
+                        docTimestamp = docValues.docTimestamp(docID);
+                        if (startDocID < docID) {
+                            // After the first doc, we need to check again if _tsid matches
+                            docTsIdOrd = docValues.docTsIdOrdinal(docID);
+                        }
+                        if (docTsIdOrd == tsIdOrd && docTimestamp == timestamp) {
+                            // It's a match!
+                            current = new SyntheticTerm(docID, tsIdOrd, tsId, docTimestamp, docValues.docRoutingHash(docID));
+                            return SeekStatus.FOUND;
+                        }
+                        // Remaining docs don't match, stop here
+                        if (tsIdOrd < docTsIdOrd || docTimestamp < timestamp) {
+                            break;
+                        }
+                    }
                 }
             }
             current = NO_MORE_DOCS;

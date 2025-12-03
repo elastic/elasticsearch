@@ -1392,7 +1392,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         @SuppressForbidden(reason = "use a http server")
         class AwaitsListMultipartUploads extends S3HttpHandler {
             AwaitsListMultipartUploads() {
-                super("bucket", S3ConsistencyModel.randomConsistencyModel());
+                super("bucket", S3ConsistencyModel.AWS_DEFAULT);
             }
 
             @Override

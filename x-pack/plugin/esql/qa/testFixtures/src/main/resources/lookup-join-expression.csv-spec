@@ -1014,6 +1014,46 @@ id_left:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:in
 1               | Alice            | foo            | beta           | 2000
 ;
 
+lookupJoinExpressionWithKqlAndTimezones
+required_capability: join_lookup_v12
+required_capability: kql_qstr_timezone_support
+
+SET time_zone = "Europe/Madrid"\;
+FROM multi_column_joinable
+| RENAME id_int AS id_left
+| LOOKUP JOIN multi_column_joinable_lookup ON KQL("date:\"1980-03-01T00:59:59.999\" AND date_nanos:\"1980-03-01T00:59:59.999999999\"") AND id_int == id_left
+| WHERE date IS NOT NULL
+| KEEP id_left, date, date_nanos
+| SORT id_left, date, date_nanos
+;
+
+warning:Line 4:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON KQL(\"date:\\\"1980-03-01T00:59:59.999\\\" AND date_nanos:\\\"1980-03-01T00:59:59.999999999\\\"\") AND id_int == id_left] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_left:integer | date:date                | date_nanos:date_nanos
+1               | 1980-02-29T23:59:59.999Z | 1980-02-29T23:59:59.999999999Z
+;
+
+lookupJoinExpressionWithQstrAndTimezones
+required_capability: join_lookup_v12
+required_capability: kql_qstr_timezone_support
+
+SET time_zone = "Europe/Madrid"\;
+FROM multi_column_joinable
+| RENAME id_int AS id_left
+| LOOKUP JOIN multi_column_joinable_lookup ON QSTR("date:[1980-03-01T00:59:59 TO 1980-03-01T00:59:59.999] AND date_nanos:[1980-03-01T00:59:59 TO 1980-03-01T00:59:59.999999999]") AND id_int == id_left
+| WHERE date IS NOT NULL
+| KEEP id_left, date, date_nanos
+| SORT id_left, date, date_nanos
+;
+
+warning:Line 4:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON QSTR(\"date:[1980-03-01T00:59:59 TO 1980-03-01T00:59:59.999] AND date_nanos:[1980-03-01T00:59:59 TO 1980-03-01T00:59:59.999999999]\") AND id_int == id_left] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_left:integer | date:date                | date_nanos:date_nanos
+1               | 1980-02-29T23:59:59.999Z | 1980-02-29T23:59:59.999999999Z
+;
+
 lookupJoinExpressionWithMultiMatch
 required_capability: join_lookup_v12
 required_capability: lookup_join_with_full_text_function

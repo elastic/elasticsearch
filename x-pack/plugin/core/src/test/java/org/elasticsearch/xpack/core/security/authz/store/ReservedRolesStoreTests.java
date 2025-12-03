@@ -985,6 +985,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
             );
         });
 
+        // Kibana Security Solution EDR workflows team
+        // Security Solution internal indexes in support of Elastic Defend functionality
+        Arrays.asList(".endpoint-script-file-meta", ".endpoint-script-file-data")
+            .forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
+
         // Elastic Defend internal index for response actions results
         Arrays.asList(".logs-endpoint.action.responses-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);

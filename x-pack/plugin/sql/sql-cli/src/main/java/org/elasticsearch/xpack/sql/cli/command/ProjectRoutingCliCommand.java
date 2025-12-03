@@ -17,13 +17,18 @@ import java.util.regex.Pattern;
 public class ProjectRoutingCliCommand extends AbstractCliCommand {
 
     public ProjectRoutingCliCommand() {
-        super(Pattern.compile("project(?: |_)routing(?: |_) *= *(.+)", Pattern.CASE_INSENSITIVE));
+        super(Pattern.compile("project(?: |_)routing *= *(.+)", Pattern.CASE_INSENSITIVE));
     }
 
     @Override
     protected boolean doHandle(CliTerminal terminal, CliSession cliSession, Matcher m, String line) {
-        cliSession.cfg().setProjectRouting(m.group(1));
-        terminal.line().text("project_routing set to ").em(cliSession.cfg().projectRouting()).end();
+        String val = m.group(1);
+        if (val == null || val.equals("null") || val.trim().isEmpty()) {
+            cliSession.cfg().setProjectRouting(null);
+        } else {
+            cliSession.cfg().setProjectRouting(val.trim());
+        }
+        terminal.line().text("project_routing set to ").em("" + cliSession.cfg().projectRouting()).end();
         return true;
     }
 }

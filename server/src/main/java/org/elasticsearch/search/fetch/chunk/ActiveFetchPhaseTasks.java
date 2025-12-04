@@ -22,21 +22,24 @@ import java.util.concurrent.ConcurrentMap;
  */
 public final class ActiveFetchPhaseTasks {
 
-    private final ConcurrentMap<Long, FetchPhaseResponseStream> tasks = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<ResponseStreamKey, FetchPhaseResponseStream> tasks = ConcurrentCollections.newConcurrentMap();
 
-    Releasable registerResponseBuilder(long coordinatingTaskId, FetchPhaseResponseStream responseStream) {
+    Releasable registerResponseBuilder(long coordinatingTaskId, int shardId, FetchPhaseResponseStream responseStream) {
         assert responseStream.hasReferences();
 
-        final var previous = tasks.putIfAbsent(coordinatingTaskId, responseStream);
+        ResponseStreamKey key = new ResponseStreamKey(coordinatingTaskId, shardId);
+
+        final var previous = tasks.putIfAbsent(key, responseStream);
         if (previous != null) {
-            final var exception = new IllegalStateException("already executing verify task [" + coordinatingTaskId + "]");
+            final var exception = new IllegalStateException("already executing fetch task [" + coordinatingTaskId + "]");
             assert false : exception;
-            throw exception;        }
+            throw exception;
+        }
 
         return Releasables.assertOnce(() -> {
-            final var removed = tasks.remove(coordinatingTaskId, responseStream);
+            final var removed = tasks.remove(key, responseStream);
             if (removed == false) {
-                final var exception = new IllegalStateException("already completed verify task [" + coordinatingTaskId + "]");
+                final var exception = new IllegalStateException("already completed fetch task [" + coordinatingTaskId + "]");
                 assert false : exception;
                 throw exception;
             }
@@ -47,10 +50,10 @@ public final class ActiveFetchPhaseTasks {
      * Obtain the response stream for the given coordinating-node task ID, and increment its refcount.
      * @throws ResourceNotFoundException if the task is not running or its refcount already reached zero (likely because it completed)
      */
-    public FetchPhaseResponseStream acquireResponseStream(long coordinatingTaskId) {
-        final var outerRequest  = tasks.get(coordinatingTaskId);
+    public FetchPhaseResponseStream acquireResponseStream(long coordinatingTaskId,  int shardId) {
+        final var outerRequest  = tasks.get(new ResponseStreamKey(coordinatingTaskId, shardId));
         if (outerRequest == null || outerRequest.tryIncRef() == false) {
-            throw new ResourceNotFoundException("verify task [" + coordinatingTaskId + "] not found");
+            throw new ResourceNotFoundException("fetch task [" + coordinatingTaskId + "] not found");
         }
         return outerRequest;
     }

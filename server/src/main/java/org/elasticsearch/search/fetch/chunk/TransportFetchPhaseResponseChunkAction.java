@@ -9,20 +9,18 @@
 
 package org.elasticsearch.search.fetch.chunk;// package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.concurrent.Executor;
 
 /**
  * This is the receiver for chunk requests from the data node.
@@ -32,19 +30,17 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
     TransportFetchPhaseResponseChunkAction.Request,
     ActionResponse.Empty> {
 
-    public static final String ACTION_NAME = "internal:search/fetch/chunk";
-
-    //static final String ACTION_NAME = TransportRepositoryVerifyIntegrityCoordinationAction.INSTANCE.name() + "[response_chunk]";
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("indices:data/read/fetch/chunk");
 
     private final ActiveFetchPhaseTasks activeFetchPhaseTasks;
 
-    TransportFetchPhaseResponseChunkAction(
+    @Inject
+    public TransportFetchPhaseResponseChunkAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        Executor executor,
         ActiveFetchPhaseTasks activeFetchPhaseTasks
     ) {
-        super(ACTION_NAME, transportService, actionFilters, Request::new, executor);
+        super(TYPE.name(), transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.activeFetchPhaseTasks = activeFetchPhaseTasks;
     }
 
@@ -84,7 +80,10 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
     @Override
     protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
         ActionListener.run(listener, l -> {
-            final var responseStream = activeFetchPhaseTasks.acquireResponseStream(request.coordinatingTaskId);
+            int shardId = request.chunkContents().shardIndex();
+            long coordTaskId = request.coordinatingTaskId;
+
+            final var responseStream = activeFetchPhaseTasks.acquireResponseStream(coordTaskId, shardId);
             try {
                 if (request.chunkContents.type() == FetchPhaseResponseChunk.Type.START_RESPONSE) {
                     responseStream.startResponse(() -> l.onResponse(ActionResponse.Empty.INSTANCE));

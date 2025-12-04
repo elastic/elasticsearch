@@ -423,6 +423,8 @@ import org.elasticsearch.rest.action.synonyms.RestGetSynonymsAction;
 import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
+import org.elasticsearch.search.fetch.chunk.ActiveFetchPhaseTasks;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
 import org.elasticsearch.snapshots.TransportUpdateSnapshotStatusAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -761,6 +763,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportMultiSearchAction.TYPE, TransportMultiSearchAction.class);
         actions.register(TransportExplainAction.TYPE, TransportExplainAction.class);
         actions.register(TransportClearScrollAction.TYPE, TransportClearScrollAction.class);
+        actions.register(TransportFetchPhaseResponseChunkAction.TYPE, TransportFetchPhaseResponseChunkAction.class);
         actions.register(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
         actions.register(TransportNodesReloadSecureSettingsAction.TYPE, TransportNodesReloadSecureSettingsAction.class);
         actions.register(AutoCreateAction.INSTANCE, AutoCreateAction.TransportAction.class);
@@ -1090,6 +1093,7 @@ public class ActionModule extends AbstractModule {
         bind(new TypeLiteral<RequestValidators<IndicesAliasesRequest>>() {
         }).toInstance(indicesAliasesRequestRequestValidators);
         bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
+        bind(ActiveFetchPhaseTasks.class).asEagerSingleton();
 
         // register ActionType -> transportAction Map used by NodeClient
         @SuppressWarnings("rawtypes")

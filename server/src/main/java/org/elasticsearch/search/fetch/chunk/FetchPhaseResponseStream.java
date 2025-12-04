@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.search.fetch.chunk;// package org.elasticsearch.action.search;
+package org.elasticsearch.search.fetch.chunk;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -33,16 +33,15 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     private final int shardIndex;
     private final int expectedDocs;
     private final List<SearchHit> hits = new ArrayList<>();
-    // or a fixed-size array indexed by "from + offset" if you want exact slot mapping
 
     FetchPhaseResponseStream(int shardIndex, int expectedDocs) {
-        //super("fetch_phase_accumulator_" + shardIndex);
         this.shardIndex = shardIndex;
         this.expectedDocs = expectedDocs;
     }
 
     void startResponse(Releasable releasable) {
-        // you can sanity-check expectedDocs etc
+        int x = 10;
+        // TODO CB checking
     }
 
     void writeChunk(FetchPhaseResponseChunk chunk, Releasable releasable) {
@@ -56,7 +55,6 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     }
 
     FetchSearchResult buildFinalResult(ShardSearchContextId ctxId, SearchShardTarget shardTarget) {
-        // construct a FetchSearchResult matching the usual semantics
         FetchSearchResult result = new FetchSearchResult(ctxId, shardTarget);
         SearchHits searchHits = new SearchHits(
             hits.toArray(SearchHit[]::new),

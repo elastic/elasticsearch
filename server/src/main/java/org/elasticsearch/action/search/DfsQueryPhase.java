@@ -27,6 +27,7 @@ import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -56,18 +57,23 @@ class DfsQueryPhase extends SearchPhase {
     private final AbstractSearchAsyncAction<?> context;
     private final SearchProgressListener progressListener;
     private long phaseStartTimeInNanos;
+    private final TransportFetchPhaseCoordinationAction fetchCoordinationAction;
 
-    DfsQueryPhase(SearchPhaseResults<SearchPhaseResult> queryResult, Client client, AbstractSearchAsyncAction<?> context) {
+    DfsQueryPhase(SearchPhaseResults<SearchPhaseResult> queryResult,
+                  Client client,
+                  AbstractSearchAsyncAction<?> context,
+                  TransportFetchPhaseCoordinationAction fetchCoordinationAction) {
         super(NAME);
         this.progressListener = context.getTask().getProgressListener();
         this.queryResult = queryResult;
         this.client = client;
         this.context = context;
+        this.fetchCoordinationAction = fetchCoordinationAction;
     }
 
     // protected for testing
     protected SearchPhase nextPhase(AggregatedDfs dfs) {
-        return SearchQueryThenFetchAsyncAction.nextPhase(client, context, queryResult, dfs);
+        return SearchQueryThenFetchAsyncAction.nextPhase(client, context, queryResult, dfs, fetchCoordinationAction);
     }
 
     @SuppressWarnings("unchecked")

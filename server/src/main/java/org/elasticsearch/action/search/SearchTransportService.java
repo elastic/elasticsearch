@@ -542,24 +542,30 @@ public class SearchTransportService {
             namedWriteableRegistry
         );
 
-        // Each chunk from FetchPhase is turned into a TransportFetchPhaseResponseChunkAction.Request
-        // and sent back to the coordinator with the coordinatingTaskId
-        final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandlerChunk =
-            (request, channel, task) -> {
+        final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> {
+            // Pattern matching - checks type and assigns variable in one step
+            if (request instanceof ShardFetchSearchRequest fetchSearchReq
+                && fetchSearchReq.getCoordinatingNode() != null) {
 
+                // CHUNKED PATH
                 final FetchPhaseResponseChunk.Writer writer = new FetchPhaseResponseChunk.Writer() {
-                    final Transport.Connection conn = transportService.getConnection(request.getCoordinatingNode());
+                    final Transport.Connection conn = transportService.getConnection(
+                        fetchSearchReq.getCoordinatingNode()
+                    );
 
                     @Override
-                    public void writeResponseChunk(FetchPhaseResponseChunk responseChunk, ActionListener<Void> listener) {
+                    public void writeResponseChunk(
+                        FetchPhaseResponseChunk responseChunk,
+                        ActionListener<Void> listener
+                    ) {
                         transportService.sendChildRequest(
                             conn,
-                            TransportFetchPhaseResponseChunkAction.ACTION_NAME,
+                            TransportFetchPhaseResponseChunkAction.TYPE.name(),
                             new TransportFetchPhaseResponseChunkAction.Request(
-                                request.getCoordinatingTaskId(),
+                                fetchSearchReq.getCoordinatingTaskId(),
                                 responseChunk
                             ),
-                            task,  // see section 2 below
+                            task,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
                                 listener.map(ignored -> null),
@@ -570,17 +576,24 @@ public class SearchTransportService {
                     }
                 };
 
+                // Execute with chunked writer
                 searchService.executeFetchPhase(
                     request,
                     (SearchShardTask) task,
                     writer,
                     new ChannelActionListener<>(channel)
                 );
-            };
 
+            } else {
+                // Normal path
+                searchService.executeFetchPhase(
+                    request,
+                    (SearchShardTask) task,
+                    new ChannelActionListener<>(channel)
+                );
+            }
+        };
 
-        final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> searchService
-            .executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
         transportService.registerRequestHandler(
             FETCH_ID_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,

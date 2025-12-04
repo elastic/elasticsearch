@@ -105,7 +105,7 @@ public final class FetchPhase {
                     System.currentTimeMillis(),
                     FetchPhaseResponseChunk.Type.START_RESPONSE,
                     context.shardTarget().getShardId().id(),
-                    context.queryResult().getContextId(),
+                    context.id(),
                     null,
                     0,
                     0,
@@ -129,7 +129,7 @@ public final class FetchPhase {
 
             if (writer != null) {
                 final int shardIndex = context.shardTarget().getShardId().id();
-                final ShardSearchContextId ctxId = context.queryResult().getContextId();
+                final ShardSearchContextId ctxId = context.id();
                 final int expectedDocs = docIdsToLoad.length;
 
                 // 1) START_RESPONSE chunk
@@ -148,7 +148,7 @@ public final class FetchPhase {
                 // 2) HITS chunks
                 SearchHit[] allHits = hits.getHits();
                 if (allHits != null && allHits.length > 0) {
-                    final int chunkSize = 128; // tune as needed
+                    final int chunkSize = 5; // TODO tune as needed
                     int from = 0;
                     while (from < allHits.length) {
                         int to = Math.min(from + chunkSize, allHits.length);
@@ -182,9 +182,7 @@ public final class FetchPhase {
             }
         } finally {
             try {
-                // Always finish profiling
                 ProfileResult profileResult = profiler.finish();
-                // Only set the shardResults if building search hits was successful
                 if (hits != null) {
                     context.fetchResult().shardResult(hits, profileResult);
                     hits = null;
@@ -196,7 +194,6 @@ public final class FetchPhase {
             }
         }
     }
-
 
     /**
      *

@@ -214,10 +214,6 @@ public class ComputeService {
         Tuple<List<PhysicalPlan>, PhysicalPlan> subplansAndMainPlan = PlannerUtils.breakPlanIntoSubPlansAndMainPlan(physicalPlan);
 
         List<PhysicalPlan> subplans = subplansAndMainPlan.v1();
-        // PlanTimeProfile is now passed from EsqlSession which already tracks logical/physical optimization time
-        if (planTimeProfile == null && configuration.profile()) {
-            planTimeProfile = new PlanTimeProfile();
-        }
 
         // take a snapshot of the initial cluster statuses, this is the status after index resolutions,
         // and it will be checked before executing data node plan on remote clusters
@@ -240,7 +236,7 @@ public class ComputeService {
                 listener,
                 null,
                 initialClusterStatuses,
-                null
+                planTimeProfile
             );
             return;
         }

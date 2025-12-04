@@ -84,7 +84,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
     private final boolean isRateOverTime;
-    private final int dateFactor;
+    private final double dateFactor;
 
     public RateDoubleGroupingAggregatorFunction(
         List<Integer> channels,
@@ -97,7 +97,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
         this.bigArrays = driverContext.bigArrays();
         this.isRateOverTime = isRateOverTime;
         ObjectArray<Buffer> buffers = driverContext.bigArrays().newObjectArray(256);
-        this.dateFactor = isDateNanos ? 1_000_000_000 : 1000;
+        this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
         try {
             this.reducedStates = driverContext.bigArrays().newObjectArray(256);
             this.buffers = buffers;
@@ -694,7 +694,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
         double rangeStartSec,
         double rangeEndSec,
         boolean isRateOverTime,
-        int dateFactor
+        double dateFactor
     ) {
         assert state.samples >= 2 : "rate requires at least two samples; got " + state.samples;
         final double firstTsSec = state.intervals[state.intervals.length - 1].t2 / dateFactor;

@@ -60,25 +60,7 @@ public class ToLong extends AbstractConvertFunction {
 
     public ToLong(
         Source source,
-        @Param(
-            name = "field",
-            type = {
-                "boolean",
-                "date",
-                "date_nanos",
-                "keyword",
-                "text",
-                "double",
-                "long",
-                "unsigned_long",
-                "integer",
-                "counter_integer",
-                "counter_long",
-                "geohash",
-                "geotile",
-                "geohex" },
-            description = "Input value. The input can be a single- or multi-valued column or an expression."
-        ) Expression field
+        Expression field
     ) {
         super(source, field);
     }

@@ -58,4 +58,8 @@ public class RestDownsampleAction extends BaseRestHandler {
         return "downsample_action";
     }
 
+    @Override
+    public Set<String> supportedCapabilities() {
+        return CAPABILITIES;
+    }
 }

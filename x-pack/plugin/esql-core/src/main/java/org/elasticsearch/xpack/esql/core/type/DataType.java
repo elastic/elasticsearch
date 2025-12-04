@@ -349,6 +349,16 @@ public enum DataType implements Writeable {
             .underConstruction()
     ),
 
+    /*
+    TDIGEST(
+        builder().esType("exponential_histogram")
+            .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
+            .docValues()
+            .underConstruction()
+    ),
+
+     */
+
     /**
      * Fields with this type are dense vectors, represented as an array of float values.
      */

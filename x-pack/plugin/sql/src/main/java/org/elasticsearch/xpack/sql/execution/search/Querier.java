@@ -126,14 +126,15 @@ public class Querier {
         if (log.isTraceEnabled()) {
             log.trace("About to execute query {} on {}", StringUtils.toString(sourceBuilder), index);
         }
-
+        boolean cps = cfg.crossProject() && query.isAggsOnly() && query.aggs().useImplicitGroupBy();
         SearchRequest search = prepareRequest(
             sourceBuilder,
             cfg,
             query.shouldIncludeFrozen(),
+            cps,
             Strings.commaDelimitedListToStringArray(index)
         );
-        if (cfg.crossProject() && query.isAggsOnly() && query.aggs().useImplicitGroupBy()) {
+        if (cps) {
             search.indicesOptions(
                 IndicesOptions.builder(search.indicesOptions())
                     .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
@@ -211,7 +212,23 @@ public class Querier {
         }
     }
 
-    public static SearchRequest prepareRequest(SearchSourceBuilder source, SqlConfiguration cfg, boolean includeFrozen, String... indices) {
+    /**
+     *
+     * @param source
+     * @param cfg
+     * @param includeFrozen
+     * @param cps add CPS options to the request (indices options, project routing).
+     *            If PIT is in use, CPS options are set on the PIT open request instead, so pass false here.
+     * @param indices
+     * @return
+     */
+    public static SearchRequest prepareRequest(
+        SearchSourceBuilder source,
+        SqlConfiguration cfg,
+        boolean includeFrozen,
+        boolean cps,
+        String... indices
+    ) {
         source.timeout(cfg.requestTimeout());
 
         SearchRequest searchRequest = new SearchRequest();
@@ -221,8 +238,15 @@ public class Querier {
                 includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
             );
         }
-        if (cfg.crossProject() && cfg.projectRouting() != null) {
-            searchRequest.setProjectRouting(cfg.projectRouting());
+        if (cps) {
+            searchRequest.indicesOptions(
+                IndicesOptions.builder(searchRequest.indicesOptions())
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            );
+            if (cfg.projectRouting() != null) {
+                searchRequest.setProjectRouting(cfg.projectRouting());
+            }
         }
         searchRequest.source(source);
         searchRequest.allowPartialSearchResults(cfg.allowPartialSearchResults());

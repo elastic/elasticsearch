@@ -134,13 +134,6 @@ public class Querier {
             cps,
             Strings.commaDelimitedListToStringArray(index)
         );
-        if (cps) {
-            search.indicesOptions(
-                IndicesOptions.builder(search.indicesOptions())
-                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                    .build()
-            );
-        }
 
         @SuppressWarnings("rawtypes")
         List<Tuple<Integer, Comparator>> sortingColumns = query.sortingColumns();

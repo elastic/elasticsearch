@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -28,6 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
+import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -714,14 +716,18 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             );
 
             var config = getRequestConfigMap(serviceSettingsMap, createTaskSettingsMap(), chunkingSettingsMap, createSecretSettingsMap());
-
             var listener = new PlainActionFuture<Model>();
 
-            // Exception will be passed to the listener we're checking below
             service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, listener);
 
-            // No exception should be thrown indicating correct parsing of (chunking) settings
-            listener.actionGet(TIMEOUT);
+            // Check chunking settings
+            CustomModel model = (CustomModel) listener.actionGet(TIMEOUT);
+            ChunkingSettings chunkingSettings = model.getConfigurations().getChunkingSettings();
+
+            assertThat(chunkingSettings, instanceOf(SentenceBoundaryChunkingSettings.class));
+            assertThat(chunkingSettings.getChunkingStrategy(), equalTo(ChunkingStrategy.SENTENCE));
+            assertThat(chunkingSettings.maxChunkSize(), equalTo(40));
+            assertThat(((SentenceBoundaryChunkingSettings) chunkingSettings).sentenceOverlap(), equalTo(0));
         }
     }
 

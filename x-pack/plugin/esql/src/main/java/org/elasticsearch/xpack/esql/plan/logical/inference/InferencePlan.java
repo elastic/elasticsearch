@@ -33,6 +33,8 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
     public static final String INFERENCE_ID_OPTION_NAME = "inference_id";
     public static final List<String> VALID_INFERENCE_OPTION_NAMES = List.of(INFERENCE_ID_OPTION_NAME);
 
+    protected static TransportVersion ESQL_INFERENCE_ROW_LIMIT_TRANSPORT_VERSION = TransportVersion.fromName("esql_inference_row_limit");
+
     private final Expression inferenceId;
 
     protected InferencePlan(Source source, LogicalPlan child, Expression inferenceId) {

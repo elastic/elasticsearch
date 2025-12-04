@@ -680,6 +680,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_0_0;
+        return TransportVersion.minimumCompatible();
     }
 }

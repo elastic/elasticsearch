@@ -31,7 +31,7 @@ public class SkipperSettingsTests extends ESTestCase {
             assertFalse(indexSettings.useDocValuesSkipper());
         }
         {
-            IndexSettings indexSettings = settings(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS,b -> {});
+            IndexSettings indexSettings = settings(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS, b -> {});
             assertTrue(indexSettings.useDocValuesSkipper());
         }
         {
@@ -74,13 +74,14 @@ public class SkipperSettingsTests extends ESTestCase {
     public void testLogsDBSkipperSettingDefaults() {
         assumeTrue("Skipper feature flag is not enabled", IndexSettings.DOC_VALUES_SKIPPER);
         {
-            IndexSettings indexSettings = settings(IndexVersion.current(), b -> {
-                b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName());
-            });
+            IndexSettings indexSettings = settings(
+                IndexVersion.current(),
+                b -> { b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()); }
+            );
             assertFalse(indexSettings.useDocValuesSkipper());
         }
         {
-            IndexSettings indexSettings = settings(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS,b -> {
+            IndexSettings indexSettings = settings(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS, b -> {
                 b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName());
             });
             assertTrue(indexSettings.useDocValuesSkipper());
@@ -99,8 +100,6 @@ public class SkipperSettingsTests extends ESTestCase {
         builder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
         builder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
         settingsConsumer.accept(builder);
-        return new IndexSettings(IndexMetadata.builder("test")
-            .settings(builder.build())
-            .build(), builder.build());
+        return new IndexSettings(IndexMetadata.builder("test").settings(builder.build()).build(), builder.build());
     }
 }

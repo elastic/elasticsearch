@@ -170,7 +170,7 @@ public class RoleDescriptorRequestValidator {
                 return addValidationError("invalid regular expression pattern [" + pattern + "]", validationException);
             }
         } else if (pattern.equals("*") == false) { // not a match all wildcard, validate as standard index name wildcard expression
-            String indexName = stripWildcards(pattern);
+            String indexName = normalize(pattern);
             try {
                 MetadataCreateIndexService.validateIndexOrAliasName(indexName, InvalidIndexNameException::new);
             } catch (InvalidIndexNameException e) {
@@ -183,16 +183,18 @@ public class RoleDescriptorRequestValidator {
         return validationException;
     }
 
-    private static String stripWildcards(String text) {
+    private static String normalize(String text) {
         // The following loop mirrors the logic in Automatons#wildcard(String),
         // which is used to build index name wildcard expression automatons for index privileges:
         // There are 3 special characters: '*', '?', and '\'
         // This normalizes the input by replacing '*' and '?' with 'x' and removing the escape character '\'
+        // Colon ':' is also replaced with 'x' here to accommodate remote cluster index names
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < text.length();) {
             final char c = text.charAt(i);
             int length = 1;
             switch (c) {
+                case ':': // normalize colon as well for remote cluster index names
                 case '*':
                 case '?':
                     sb.append('x');

@@ -27,6 +27,7 @@ import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.datageneration.matchers.Matcher;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -123,6 +124,9 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
 
     public void testIndexingSyntheticSource() throws IOException {
         Settings.Builder builder = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
+        if (randomBoolean()) {
+            builder.put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays");
+        }
         String indexNameBase = "test-index-synthetic-";
         for (int i = 0; i < NUM_INDICES; i++) {
             testIndexing(indexNameBase + i, builder);

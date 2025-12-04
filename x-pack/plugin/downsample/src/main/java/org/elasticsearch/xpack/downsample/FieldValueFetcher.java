@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleField
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Utility class used for fetching field values by reading field data.
@@ -57,7 +58,7 @@ class FieldValueFetcher {
         return numericFieldData.getDoubleValues();
     }
 
-    public AbstractDownsampleFieldProducer fieldProducer() {
+    AbstractDownsampleFieldProducer fieldProducer() {
         return fieldProducer;
     }
 
@@ -83,11 +84,12 @@ class FieldValueFetcher {
     /**
      * Retrieve field value fetchers for a list of fields.
      */
-    static List<FieldValueFetcher> create(SearchExecutionContext context, String[] fields) {
+    static List<FieldValueFetcher> create(SearchExecutionContext context, String[] fields, Map<String, String> multiFieldSources) {
         List<FieldValueFetcher> fetchers = new ArrayList<>();
         for (String field : fields) {
-            MappedFieldType fieldType = context.getFieldType(field);
-            assert fieldType != null : "Unknown field type for field: [" + field + "]";
+            String sourceField = multiFieldSources.getOrDefault(field, field);
+            MappedFieldType fieldType = context.getFieldType(sourceField);
+            assert fieldType != null : "Unknown field type for field: [" + sourceField + "]";
 
             if (fieldType instanceof AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType aggMetricFieldType) {
                 // If the field is an aggregate_metric_double field, we should load all its subfields
@@ -99,7 +101,7 @@ class FieldValueFetcher {
                     }
                 }
             } else {
-                if (context.fieldExistsInIndex(field)) {
+                if (context.fieldExistsInIndex(fieldType.name())) {
                     final IndexFieldData<?> fieldData;
                     if (fieldType instanceof FlattenedFieldMapper.RootFlattenedFieldType flattenedFieldType) {
                         var keyedFieldType = flattenedFieldType.getKeyedFieldType();
@@ -107,10 +109,7 @@ class FieldValueFetcher {
                     } else {
                         fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                     }
-                    final String fieldName = context.isMultiField(field)
-                        ? fieldType.name().substring(0, fieldType.name().lastIndexOf('.'))
-                        : fieldType.name();
-                    fetchers.add(new FieldValueFetcher(fieldName, fieldType, fieldData));
+                    fetchers.add(new FieldValueFetcher(field, fieldType, fieldData));
                 }
             }
         }

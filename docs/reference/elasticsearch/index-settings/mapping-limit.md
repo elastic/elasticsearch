@@ -38,7 +38,10 @@ $$$ignore-dynamic-beyond-limit$$$
 :   The maximum depth for a field, which is measured as the number of inner objects. For instance, if all fields are defined at the root object level, then the depth is `1`. If there is one object mapping, then the depth is `2`, etc. Default is `20`.
 
 `index.mapping.nested_fields.limit`
-:   The maximum number of distinct `nested` mappings in an index. The `nested` type should only be used in special cases, when arrays of objects need to be queried independently of each other. To safeguard against poorly designed mappings, this setting limits the number of unique `nested` types per index. Default is `50`.
+:   The maximum number of distinct `nested` mappings in an index. The `nested` type should only be used in special cases, when arrays of objects need to be queried independently of each other. To safeguard against poorly designed mappings, this setting limits the number of unique `nested` types per index. Default is `100`.
+
+`index.mapping.nested_parents.limit`
+:   The maximum number of nested fields that act as parents of other nested fields. Each nested parent requires its own in-memory parent bitset. Root-level nested fields share a parent bitset, but nested fields under other nested fields require additional bitsets. This setting limits the number of unique nested parents to prevent excessive memory usage. Default is `50`.
 
 `index.mapping.nested_objects.limit`
 :   The maximum number of nested JSON objects that a single document can contain across all `nested` types. This limit helps to prevent out of memory errors when a document contains too many nested objects. Default is `10000`.

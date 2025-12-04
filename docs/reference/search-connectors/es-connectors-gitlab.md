@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack: preview 9.3
+  serverless: preview
 navigation_title: "GitLab"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-gitlab.html

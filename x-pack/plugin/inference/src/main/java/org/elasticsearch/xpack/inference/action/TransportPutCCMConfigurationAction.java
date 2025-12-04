@@ -7,8 +7,13 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -17,14 +22,20 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.CCMEnabledActionResponse;
 import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
+import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMModel;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.ValidationAuthenticationFactory;
 
 import java.util.Objects;
 
@@ -34,9 +45,14 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
     PutCCMConfigurationAction.Request,
     CCMEnabledActionResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportPutCCMConfigurationAction.class);
+    static final String FAILED_VALIDATION_MESSAGE = "Failed to validate the Cloud Connected Mode API key";
+
     private final CCMFeature ccmFeature;
     private final CCMService ccmService;
     private final ProjectResolver projectResolver;
+    private final Sender eisSender;
+    private final ElasticInferenceServiceSettings eisSettings;
 
     @Inject
     public TransportPutCCMConfigurationAction(
@@ -46,7 +62,9 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
         ActionFilters actionFilters,
         CCMService ccmService,
         ProjectResolver projectResolver,
-        CCMFeature ccmFeature
+        CCMFeature ccmFeature,
+        Sender eisSender,
+        ElasticInferenceServiceSettings eisSettings
     ) {
         super(
             PutCCMConfigurationAction.NAME,
@@ -61,6 +79,8 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
         this.ccmService = Objects.requireNonNull(ccmService);
         this.projectResolver = Objects.requireNonNull(projectResolver);
         this.ccmFeature = Objects.requireNonNull(ccmFeature);
+        this.eisSender = Objects.requireNonNull(eisSender);
+        this.eisSettings = Objects.requireNonNull(eisSettings);
     }
 
     @Override
@@ -75,11 +95,37 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
             return;
         }
 
-        var enabledListener = listener.<Void>delegateFailureIgnoreResponseAndWrap(
-            delegate -> delegate.onResponse(new CCMEnabledActionResponse(true))
-        );
+        SubscribableListener.<ElasticInferenceServiceAuthorizationModel>newForked(authValidationListener -> {
+            var authRequestHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+                eisSettings.getElasticInferenceServiceUrl(),
+                threadPool,
+                new ValidationAuthenticationFactory(request.getApiKey())
+            );
 
-        ccmService.storeConfiguration(new CCMModel(request.getApiKey()), enabledListener);
+            var errorListener = authValidationListener.delegateResponse((delegate, exception) -> {
+                // The exception will likely be a RetryException, so unwrap it to get to the real cause
+                var unwrappedException = ExceptionsHelper.unwrapCause(exception);
+
+                logger.atWarn().withThrowable(unwrappedException).log(FAILED_VALIDATION_MESSAGE);
+
+                if (unwrappedException instanceof ElasticsearchStatusException statusException) {
+                    delegate.onFailure(
+                        new ElasticsearchStatusException(FAILED_VALIDATION_MESSAGE, statusException.status(), statusException)
+                    );
+                    return;
+                }
+
+                delegate.onFailure(new ElasticsearchStatusException(FAILED_VALIDATION_MESSAGE, RestStatus.BAD_REQUEST, unwrappedException));
+            });
+
+            authRequestHandler.getAuthorization(errorListener, eisSender);
+        }).<CCMEnabledActionResponse>andThen((storeConfigurationListener) -> {
+            var enabledListener = storeConfigurationListener.<Void>delegateFailureIgnoreResponseAndWrap(
+                delegate -> delegate.onResponse(new CCMEnabledActionResponse(true))
+            );
+
+            ccmService.storeConfiguration(new CCMModel(request.getApiKey()), enabledListener);
+        }).addListener(listener);
     }
 
     @Override

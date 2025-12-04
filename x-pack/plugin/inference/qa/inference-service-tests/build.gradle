@@ -7,6 +7,9 @@ dependencies {
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
   // Added this to have access to MockWebServer within the tests
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+
+  // Access public test classes/utilities from x-pack:inference tests
+  javaRestTestImplementation(testArtifact(project(xpackModule('inference'))))
 }
 
 tasks.named("javaRestTest").configure {

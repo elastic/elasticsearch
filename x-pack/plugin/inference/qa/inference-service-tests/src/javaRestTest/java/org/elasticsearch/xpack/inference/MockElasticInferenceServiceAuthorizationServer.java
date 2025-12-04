@@ -61,6 +61,10 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
     }
 
+    public MockWebServer getWebServer() {
+        return webServer;
+    }
+
     public String getUrl() {
         return format("http://%s:%s", webServer.getHostName(), webServer.getPort());
     }

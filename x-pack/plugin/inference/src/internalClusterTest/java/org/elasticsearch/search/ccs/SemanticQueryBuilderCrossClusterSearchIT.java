@@ -21,9 +21,11 @@ import java.util.Map;
 public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
     private static final String LOCAL_INDEX_NAME = "local-index";
     private static final String REMOTE_INDEX_NAME = "remote-index";
+    private static final String FULLY_QUALIFIED_REMOTE_INDEX_NAME = fullyQualifiedIndexName(REMOTE_CLUSTER, REMOTE_INDEX_NAME);
+
     private static final List<IndexWithBoost> QUERY_INDICES = List.of(
         new IndexWithBoost(LOCAL_INDEX_NAME, 10.0f),
-        new IndexWithBoost(fullyQualifiedIndexName(REMOTE_CLUSTER, REMOTE_INDEX_NAME))
+        new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)
     );
 
     private static final String COMMON_INFERENCE_ID_FIELD = "common-inference-id-field";
@@ -46,7 +48,7 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
         }
     }
 
-    public void testSemanticQuery() throws Exception {
+    public void testSemanticQueryWithCcMinimizeRoundTripsTrue() throws Exception {
         // Query a field has the same inference ID value across clusters, but with different backing inference services
         assertSearchResponse(
             new SemanticQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
@@ -65,6 +67,13 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
                 new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
                 new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))
             )
+        );
+
+        // Query an inference field on a remote cluster
+        assertSearchResponse(
+            new SemanticQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
+            List.of(new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)),
+            List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)))
         );
     }
 
@@ -89,6 +98,15 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
                 new SearchResult(null, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
                 new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))
             ),
+            null,
+            s -> s.setCcsMinimizeRoundtrips(false)
+        );
+
+        // Query an inference field on a remote cluster
+        assertSearchResponse(
+            new SemanticQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
+            List.of(new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)),
+            List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))),
             null,
             s -> s.setCcsMinimizeRoundtrips(false)
         );

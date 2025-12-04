@@ -14,11 +14,10 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT.bulkIndex;
+import static org.elasticsearch.upgrades.AbstractStringTypeRollingUpgradeIT.bulkIndex;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -33,7 +32,7 @@ public class LogsUsageRollingUpgradeIT extends AbstractRollingUpgradeWithSecurit
         assumeFalse("logsdb.prior_logs_usage only gets set in 8.x", oldClusterHasFeature("gte_v9.0.0"));
         String dataStreamName = "logs-mysql-error";
         if (isOldCluster()) {
-            bulkIndex(dataStreamName, 4, 256, Instant.now());
+            bulkIndex(dataStreamName, 4, 256);
             ensureGreen(dataStreamName);
             assertBusy(() -> {
                 var getClusterSettingsResponse = getClusterSettings();
@@ -42,7 +41,7 @@ public class LogsUsageRollingUpgradeIT extends AbstractRollingUpgradeWithSecurit
             }, 2, TimeUnit.MINUTES);
         } else {
             String newIndex = rolloverDataStream(dataStreamName);
-            bulkIndex(dataStreamName, 4, 256, Instant.now());
+            bulkIndex(dataStreamName, 4, 256);
             Map<?, ?> indexResponse = (Map<?, ?>) getIndexSettings(newIndex, true).get(newIndex);
             Map<?, ?> settings = (Map<?, ?>) indexResponse.get("settings");
             Map<?, ?> defaults = (Map<?, ?>) indexResponse.get("defaults");

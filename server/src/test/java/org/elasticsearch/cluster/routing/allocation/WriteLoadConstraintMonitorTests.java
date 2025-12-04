@@ -749,11 +749,15 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         }
 
         private TestState incrementClusterStateTerm() {
-            ClusterState state = ClusterState.builder(clusterState).metadata(
-                Metadata.builder(clusterState.metadata()).coordinationMetadata(
-                    CoordinationMetadata.builder(clusterState.metadata().coordinationMetadata())
-                        .term(clusterState.term() + 1)
-                        .build()))
+            ClusterState state = ClusterState.builder(clusterState)
+                .metadata(
+                    Metadata.builder(clusterState.metadata())
+                        .coordinationMetadata(
+                            CoordinationMetadata.builder(clusterState.metadata().coordinationMetadata())
+                                .term(clusterState.term() + 1)
+                                .build()
+                        )
+                )
                 .build();
 
             return new TestState(

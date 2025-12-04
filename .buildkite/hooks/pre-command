@@ -156,7 +156,7 @@ if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; 
         BUILD_SCAN_ID=$(echo "$BUILD_SCAN_URL" | sed 's|.*/s/||')
 
         # Validate BUILD_SCAN_ID format to prevent injection attacks
-        if [[ ! "$BUILD_SCAN_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        if [[ -z "$BUILD_SCAN_ID" ]] || [[ ! "$BUILD_SCAN_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
           echo "Smart Retry Configuration Issue"
           echo "Invalid build scan ID format: $BUILD_SCAN_ID"
           echo "Smart retry will be disabled for this run."

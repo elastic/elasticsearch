@@ -136,6 +136,8 @@ public class EsqlSession {
             PlanTimeProfile planTimeProfile,
             ActionListener<Result> listener
         );
+
+        default void reset() {}
     }
 
     private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");

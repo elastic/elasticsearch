@@ -407,26 +407,16 @@ public class Approximate {
                     listener.onResponse(result);
                 } else {
                     result.pages().forEach(Page::close);
-                    runner.run(
-                        toPhysicalPlan.apply(sourceCountPlan()),
-                        configuration,
-                        foldContext,
-                        planTimeProfile,
-                        sourceCountListener(listener)
-                    );
+                    runner.reset();
+                    runner.run(toPhysicalPlan.apply(sourceCountPlan()), configuration, foldContext, planTimeProfile, sourceCountListener(listener));
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
                 if (isCausedByUnsupported(e)) {
-                    runner.run(
-                        toPhysicalPlan.apply(sourceCountPlan()),
-                        configuration,
-                        foldContext,
-                        planTimeProfile,
-                        sourceCountListener(listener)
-                    );
+                    runner.reset();
+                    runner.run(toPhysicalPlan.apply(sourceCountPlan()), configuration, foldContext, planTimeProfile, sourceCountListener(listener));
                 } else {
                     logger.debug("stats query failed; returning error", e);
                     listener.onFailure(e);
@@ -473,24 +463,25 @@ public class Approximate {
             logger.debug("sourceCountPlan result: {} rows", sourceRowCount);
             if (sourceRowCount == 0) {
                 // If there are no rows, run the original query.
-                resetExecutionInfo(countResult);
+                runner.reset();
                 runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, planTimeProfile, listener);
                 return;
             }
             double sampleProbability = Math.min(1.0, (double) SAMPLE_ROW_COUNT / sourceRowCount);
             if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
                 // If the query preserves all rows, we can directly approximate with the sample probability.
-                resetExecutionInfo(countResult);
+                runner.reset();
                 runner.run(toPhysicalPlan.apply(approximatePlan(sampleProbability)), configuration, foldContext, planTimeProfile, listener);
             } else if (queryProperties.canIncreaseRowCount == false && sampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
                 // If the query cannot increase the number of rows, and the sample probability is large,
                 // we can directly run the original query without sampling.
                 logger.debug("using original plan (too few rows)");
-                resetExecutionInfo(countResult);
+                runner.reset();
                 runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, planTimeProfile, listener);
             } else {
                 // Otherwise, we need to sample the number of rows first to obtain a good sample probability.
                 sampleProbability = Math.min(1.0, (double) SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / sourceRowCount);
+                runner.reset();
                 runner.run(
                     toPhysicalPlan.apply(countPlan(sampleProbability)),
                     configuration,
@@ -500,12 +491,6 @@ public class Approximate {
                 );
             }
         });
-    }
-
-    private void resetExecutionInfo(Result result) {
-        if (result.executionInfo() != null) {
-            result.executionInfo().reset();
-        }
     }
 
     /**
@@ -560,11 +545,12 @@ public class Approximate {
             if (newSampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
                 // If the new sample probability is large, run the original query.
                 logger.debug("using original plan (too few rows)");
-                resetExecutionInfo(countResult);
+                runner.reset();
                 runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, planTimeProfile, listener);
             } else if (rowCount <= SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / 2) {
                 // Not enough rows are sampled yet; increase the sample probability and try again.
                 newSampleProbability = Math.min(1.0, sampleProbability * SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / Math.max(1, rowCount));
+                runner.reset();
                 runner.run(
                     toPhysicalPlan.apply(countPlan(newSampleProbability)),
                     configuration,
@@ -573,14 +559,8 @@ public class Approximate {
                     countListener(newSampleProbability, listener)
                 );
             } else {
-                resetExecutionInfo(countResult);
-                runner.run(
-                    toPhysicalPlan.apply(approximatePlan(newSampleProbability)),
-                    configuration,
-                    foldContext,
-                    planTimeProfile,
-                    listener
-                );
+                runner.reset();
+                runner.run(toPhysicalPlan.apply(approximatePlan(newSampleProbability)), configuration, foldContext, planTimeProfile, listener);
             }
         });
     }

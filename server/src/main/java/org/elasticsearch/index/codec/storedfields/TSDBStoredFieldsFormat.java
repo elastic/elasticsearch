@@ -22,7 +22,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.bloomfilter.BloomFilter;
 import org.elasticsearch.index.codec.bloomfilter.ES93BloomFilterStoredFieldsFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -262,24 +261,18 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
         public boolean mayContainTerm(String field, BytesRef term) throws IOException {
             return bloomFilter.mayContainTerm(field, term);
         }
-
-        @Override
-        public boolean isFilterAvailable() {
-            return bloomFilter.isFilterAvailable();
-        }
     }
 
-    @Nullable
-    public static BloomFilter maybeGetBloomFilterForId(SegmentReadState state) throws IOException {
+    public static BloomFilter getBloomFilterForId(SegmentReadState state) throws IOException {
         var codec = state.segmentInfo.getCodec();
         StoredFieldsReader storedFieldsReader = codec.storedFieldsFormat()
             .fieldsReader(state.directory, state.segmentInfo, state.fieldInfos, state.context);
 
-        if (storedFieldsReader instanceof BloomFilter bloomFilter && bloomFilter.isFilterAvailable()) {
+        if (storedFieldsReader instanceof BloomFilter bloomFilter) {
             return bloomFilter;
         } else {
             storedFieldsReader.close();
-            return null;
+            return BloomFilter.NO_FILTER;
         }
     }
 }

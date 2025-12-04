@@ -32,7 +32,6 @@ public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
     private final BloomFilter bloomFilter;
 
     public DelegatingBloomFilterFieldsProducer(FieldsProducer delegate, BloomFilter bloomFilter) {
-        assert bloomFilter.isFilterAvailable();
         this.delegate = delegate;
         this.bloomFilter = bloomFilter;
     }

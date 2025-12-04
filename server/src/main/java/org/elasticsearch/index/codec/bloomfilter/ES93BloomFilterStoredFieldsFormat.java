@@ -572,11 +572,6 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
         public boolean mayContainTerm(String field, BytesRef term) throws IOException {
             return bloomFilterFieldReader == null || bloomFilterFieldReader.mayContainTerm(field, term);
         }
-
-        @Override
-        public boolean isFilterAvailable() {
-            return bloomFilterFieldReader != null;
-        }
     }
 
     record BloomFilterMetadata(FieldInfo fieldInfo, long fileOffset, int sizeInBits, int numHashFunctions) {

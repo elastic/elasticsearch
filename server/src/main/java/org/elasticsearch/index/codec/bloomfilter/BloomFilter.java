@@ -15,6 +15,18 @@ import java.io.Closeable;
 import java.io.IOException;
 
 public interface BloomFilter extends Closeable {
+    BloomFilter NO_FILTER = new BloomFilter() {
+        @Override
+        public void close() throws IOException {
+
+        }
+
+        @Override
+        public boolean mayContainTerm(String field, BytesRef term) throws IOException {
+            return true;
+        }
+    };
+
     /**
      * Tests whether the given term may exist in the specified field.
      *
@@ -23,6 +35,4 @@ public interface BloomFilter extends Closeable {
      * @return true if term may be present, false if definitely absent
      */
     boolean mayContainTerm(String field, BytesRef term) throws IOException;
-
-    boolean isFilterAvailable();
 }

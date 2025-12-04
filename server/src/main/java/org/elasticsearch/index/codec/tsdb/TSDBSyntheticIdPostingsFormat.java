@@ -48,13 +48,13 @@ public class TSDBSyntheticIdPostingsFormat extends PostingsFormat {
         boolean success = false;
         try {
             var codec = state.segmentInfo.getCodec();
-            BloomFilter bloomFilter = TSDBStoredFieldsFormat.maybeGetBloomFilterForId(state);
+            BloomFilter bloomFilter = TSDBStoredFieldsFormat.getBloomFilterForId(state);
 
             // Erase the segment suffix (used only for reading postings)
             docValuesProducer = codec.docValuesFormat().fieldsProducer(new SegmentReadState(state, ""));
             var fieldsProducer = new TSDBSyntheticIdFieldsProducer(state, docValuesProducer);
             success = true;
-            return bloomFilter == null ? fieldsProducer : new DelegatingBloomFilterFieldsProducer(fieldsProducer, bloomFilter);
+            return new DelegatingBloomFilterFieldsProducer(fieldsProducer, bloomFilter);
         } finally {
             if (success == false) {
                 IOUtils.close(docValuesProducer);

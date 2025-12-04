@@ -6,7 +6,7 @@
 :   The input to chunk.
 
 `query`
-:   The query string to extract the best snippets for.
+:   The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed. 
 
 `options`
 :   Options to customize snippet extraction behavior.

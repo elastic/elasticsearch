@@ -1,7 +1,7 @@
 // Tests focused on query approximation.
 //
-// The data set "many_numbers" contains 20,010 rows with a multi-valued field
-// "value" containing 100 integers each. Aggregated all over rows, there are
+// The data set "many_numbers" contains 200,100 rows with a multi-valued field
+// "value" containing 10 integers each. Aggregated all over rows, there are
 // 1x1, 2x2, ..., 1999x1999 and 2000x2000, and no row contains the same number
 // twice. This adds up to over 2 million numbers, so that query approximation
 // kicks in. It's not one number per row, because that's slow to ingest. 

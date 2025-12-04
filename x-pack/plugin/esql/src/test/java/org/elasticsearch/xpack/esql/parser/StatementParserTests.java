@@ -16,6 +16,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -4204,6 +4205,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 assertThat(row.fields(), hasSize(1));
                 org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =
                     (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
+                if (functionCall instanceof UnresolvedFunction uf) {
+                    var functionName = registry.resolveAlias(uf.name());
+                    assertThat(registry.functionExists(functionName), is(true));
+                    var functionDef = registry.resolveFunction(functionName);
+                    functionCall = uf.buildResolved(EsqlTestUtils.TEST_CFG, functionDef);
+                }
                 assertThat(functionCall.dataType(), equalTo(expectedType));
                 report.field(nameOrAlias, registry.snapshotRegistry().functionName(functionCall.getClass()));
             }

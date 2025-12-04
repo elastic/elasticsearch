@@ -434,14 +434,11 @@ public class IndexResolver {
         ActionListener<IndexResolution> listener,
         BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> specificValidityVerifier
     ) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(
-            indexWildcard,
-            fieldNames,
-            includeFrozen,
-            runtimeMappings,
-            projectRouting
-        );
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, includeFrozen, runtimeMappings);
         if (setCpsOptions) {
+            if (projectRouting != null) {
+                fieldRequest.projectRouting(projectRouting);
+            }
             fieldRequest.indicesOptions(
                 IndicesOptions.builder(fieldRequest.indicesOptions())
                     .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
@@ -466,7 +463,7 @@ public class IndexResolver {
         BiConsumer<EsField, InvalidMappedField> fieldUpdater,
         Set<String> allowedMetadataFields
     ) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, includeFrozen, runtimeMappings, null);
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, includeFrozen, runtimeMappings);
         client.fieldCaps(
             fieldRequest,
             listener.delegateFailureAndWrap(
@@ -702,16 +699,6 @@ public class IndexResolver {
         IndicesOptions indicesOptions,
         Map<String, Object> runtimeMappings
     ) {
-        return createFieldCapsRequest(index, fieldNames, indicesOptions, runtimeMappings, null);
-    }
-
-    private static FieldCapabilitiesRequest createFieldCapsRequest(
-        String index,
-        Set<String> fieldNames,
-        IndicesOptions indicesOptions,
-        Map<String, Object> runtimeMappings,
-        String projectRouting
-    ) {
         FieldCapabilitiesRequest result = new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index))
             .fields(fieldNames.toArray(String[]::new))
             .includeUnmapped(true)
@@ -719,9 +706,6 @@ public class IndexResolver {
             // lenient because we throw our own errors looking at the response e.g. if something was not resolved
             // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
             .indicesOptions(indicesOptions);
-        if (projectRouting != null) {
-            result.projectRouting(projectRouting);
-        }
         return result;
     }
 
@@ -729,11 +713,10 @@ public class IndexResolver {
         String index,
         Set<String> fieldNames,
         boolean includeFrozen,
-        Map<String, Object> runtimeMappings,
-        String projectRouting
+        Map<String, Object> runtimeMappings
     ) {
         IndicesOptions indicesOptions = includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS;
-        return createFieldCapsRequest(index, fieldNames, indicesOptions, runtimeMappings, projectRouting);
+        return createFieldCapsRequest(index, fieldNames, indicesOptions, runtimeMappings);
     }
 
     /**
@@ -748,7 +731,7 @@ public class IndexResolver {
         String projectRouting,
         ActionListener<List<EsIndex>> listener
     ) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, ALL_FIELDS, includeFrozen, runtimeMappings, null);
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, ALL_FIELDS, includeFrozen, runtimeMappings);
         if (crossProjectEnabled) {
             fieldRequest.indicesOptions(
                 IndicesOptions.builder(fieldRequest.indicesOptions())

@@ -75,9 +75,6 @@ tests:
   - class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
     method: testErrorMidStream
     issue: https://github.com/elastic/elasticsearch/issues/113179
-  - class: org.elasticsearch.smoketest.MlWithSecurityIT
-    method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
-    issue: https://github.com/elastic/elasticsearch/issues/108997
   - class: org.elasticsearch.packaging.test.WindowsServiceTests
     method: test80JavaOptsInEnvVar
     issue: https://github.com/elastic/elasticsearch/issues/113219

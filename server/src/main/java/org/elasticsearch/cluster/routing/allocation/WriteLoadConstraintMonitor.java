@@ -41,6 +41,9 @@ import java.util.function.Supplier;
  * {@link RerouteService#reroute}) whenever a node crosses the node-level write load thresholds.
  */
 public class WriteLoadConstraintMonitor {
+    public static final String HOTSPOT_NODES_COUNT_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot.current";
+    public static final String HOTSPOT_DURATION_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot.duration.histogram";
+
     private static final Logger logger = LogManager.getLogger(WriteLoadConstraintMonitor.class);
     private static final int MAX_NODE_IDS_IN_MESSAGE = 3;
     private final WriteLoadConstraintSettings writeLoadConstraintSettings;
@@ -50,9 +53,6 @@ public class WriteLoadConstraintMonitor {
     private volatile long lastRerouteTimeMillis = 0;
     private final Map<String, Long> hotspotNodeStartTimes = new HashMap<>();
     private long hotspotNodeStartTimesLastTerm = -1L;
-
-    public static final String HOTSPOT_NODES_COUNT_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot.current";
-    public static final String HOTSPOT_DURATION_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot.duration.histogram";
 
     private volatile long hotspotNodesCount = 0; // metrics source of hotspotting node count
     private volatile boolean hotspotNodesCountUpdatedSinceLastRead = false; // turns off metrics when not master/onNewInfo isn't called

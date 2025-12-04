@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MappingVisitorTests extends ESTestCase {
 
-    public static final int MAPPING_GENERATION_ROUNDS = 500;
+    private static final int MAPPING_GENERATION_ROUNDS = 500;
 
     private static void collectTypes(Map<String, ?> mapping, Set<String> types) {
         MappingVisitor.visitMapping(mapping, (f, m) -> {
@@ -232,7 +232,8 @@ public class MappingVisitorTests extends ESTestCase {
         assertTrue(myMultiField.containsKey("fields"));
         Map<String, Object> foundFields = (Map<String, Object>) myMultiField.get("fields");
         assertTrue(foundFields.containsKey("my-long"));
-        assertEquals("keyword", ((Map<String, Object>) foundFields.get("my-long")).get("type"));
+        // multi fields are not converted to keyword
+        assertEquals("long", ((Map<String, Object>) foundFields.get("my-long")).get("type"));
         assertTrue(foundFields.containsKey("my-float"));
         assertEquals("float", ((Map<String, Object>) foundFields.get("my-float")).get("type"));
         assertEquals(1000, ((Map<String, Object>) foundFields.get("my-float")).get("scaling_factor"));

@@ -35,7 +35,7 @@ public final class VectorScoringUtils {
      */
     public static void scoreAndCollectAll(KnnCollector knnCollector, AcceptDocs acceptDocs, RandomVectorScorer scorer) throws IOException {
         // TODO we need to switch from scorer to VectorScorer and values so the filter can be lazily applied
-        //  building the bitset eagerly is silly for scoring everything
+        // building the bitset eagerly is silly for scoring everything
         if (knnCollector.k() == 0 || scorer == null) {
             return;
         }

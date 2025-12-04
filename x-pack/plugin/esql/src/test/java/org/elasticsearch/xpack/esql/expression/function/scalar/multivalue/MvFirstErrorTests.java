@@ -44,6 +44,6 @@ public class MvFirstErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected void assertNumberOfCheckedSignatures(int checked) {
-        assertThat("all signatures except dense_vector, aggregate_metric_double or date_range should be supported", checked, equalTo(2));
+        assertThat("all signatures except dense_vector, aggregate_metric_double or date_range should be supported", checked, equalTo(3));
     }
 }

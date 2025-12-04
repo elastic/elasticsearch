@@ -396,10 +396,10 @@ module org.elasticsearch.server {
         to
             org.elasticsearch.inference,
             org.elasticsearch.metering,
-            org.elasticsearch.stateless,
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering,
+            org.elasticsearch.serverless.stateless,
             org.elasticsearch.internal.security,
             org.elasticsearch.xpack.gpu,
             org.elasticsearch.xpack.diskbbq;

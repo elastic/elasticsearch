@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldSyntheticWriterHelper;
@@ -44,6 +46,8 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
             : "field type cannot be aggregate metric double: " + fieldType + " for field " + name;
         if ("histogram".equals(fieldType)) {
             return new LastValueFieldProducer.HistogramFieldProducer(name, true);
+        } else if ("exponential_histogram".equals(fieldType)) {
+            return new LastValueFieldProducer.ExponentialHistogramFieldProducer(name);
         } else if ("flattened".equals(fieldType)) {
             return new LastValueFieldProducer.FlattenedFieldProducer(name, true);
         }
@@ -196,6 +200,21 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
                 });
                 helper.write(builder);
                 builder.endObject();
+            }
+        }
+    }
+
+    static class ExponentialHistogramFieldProducer extends LastValueFieldProducer {
+        ExponentialHistogramFieldProducer(String name) {
+            // Exponential histograms do not support multi value anyway
+            super(name, false);
+        }
+
+        @Override
+        public void write(XContentBuilder builder) throws IOException {
+            if (isEmpty() == false) {
+                builder.field(name());
+                ExponentialHistogramXContent.serialize(builder, (ExponentialHistogram) lastValue());
             }
         }
     }

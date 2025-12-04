@@ -7,170 +7,305 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.EmptySecretSettings;
+import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
+import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Transforms the response from {@link ElasticInferenceServiceAuthorizationRequestHandler} into a format for consumption by the service.
+ * Transforms the response from {@link ElasticInferenceServiceAuthorizationRequestHandler} into a format
+ * for consumption by the {@link ElasticInferenceService}.
  */
 public class ElasticInferenceServiceAuthorizationModel {
 
-    private final Map<TaskType, Set<String>> taskTypeToModels;
-    private final EnumSet<TaskType> authorizedTaskTypes;
-    private final Set<String> authorizedModelIds;
+    private static final Logger logger = LogManager.getLogger(ElasticInferenceServiceAuthorizationModel.class);
+    private static final String UNKNOWN_TASK_TYPE_LOG_MESSAGE = "Authorized endpoint id [{}] has unknown task type [{}], skipping";
+    private static final String UNSUPPORTED_TASK_TYPE_LOG_MESSAGE = "Authorized endpoint id [{}] has unsupported task type [{}], skipping";
 
-    /**
-     * Converts an authorization response from Elastic Inference Service into the {@link ElasticInferenceServiceAuthorizationModel} format.
-     *
-     * @param responseEntity the {@link ElasticInferenceServiceAuthorizationResponseEntity} response from the upstream gateway.
-     * @return a new {@link ElasticInferenceServiceAuthorizationModel}
-     */
-    public static ElasticInferenceServiceAuthorizationModel of(ElasticInferenceServiceAuthorizationResponseEntity responseEntity) {
-        var taskTypeToModelsMap = new HashMap<TaskType, Set<String>>();
-        var enabledTaskTypesSet = EnumSet.noneOf(TaskType.class);
-        var enabledModelsSet = new HashSet<String>();
+    // public because it's used in tests outside the package
+    public static ElasticInferenceServiceAuthorizationModel of(
+        ElasticInferenceServiceAuthorizationResponseEntity responseEntity,
+        String baseEisUrl
+    ) {
+        var components = new ElasticInferenceServiceComponents(baseEisUrl);
+        return createInternal(responseEntity.getAuthorizedEndpoints(), components);
+    }
 
-        for (var model : responseEntity.getAuthorizedModels()) {
-            // if there are no task types we'll ignore the model because it's likely we didn't understand
-            // the task type and don't support it anyway
-            if (model.taskTypes().isEmpty() == false) {
-                for (var taskType : model.taskTypes()) {
-                    taskTypeToModelsMap.merge(taskType, Set.of(model.modelName()), (existingModelIds, newModelIds) -> {
-                        var combinedNames = new HashSet<>(existingModelIds);
-                        combinedNames.addAll(newModelIds);
-                        return combinedNames;
-                    });
-                    enabledTaskTypesSet.add(taskType);
-                }
-                enabledModelsSet.add(model.modelName());
+    private static ElasticInferenceServiceAuthorizationModel createInternal(
+        List<ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint> responseEndpoints,
+        ElasticInferenceServiceComponents components
+    ) {
+        var validEndpoints = new ArrayList<ElasticInferenceServiceModel>();
+        for (var authorizedEndpoint : responseEndpoints) {
+            var model = createModel(authorizedEndpoint, components);
+            if (model != null) {
+                validEndpoints.add(model);
             }
         }
 
-        return new ElasticInferenceServiceAuthorizationModel(taskTypeToModelsMap, enabledModelsSet, enabledTaskTypesSet);
+        return new ElasticInferenceServiceAuthorizationModel(validEndpoints);
     }
 
-    /**
-     * Returns an object indicating that the cluster has no access to Elastic Inference Service.
-     */
-    public static ElasticInferenceServiceAuthorizationModel newDisabledService() {
-        return new ElasticInferenceServiceAuthorizationModel(Map.of(), Set.of(), EnumSet.noneOf(TaskType.class));
-    }
-
-    private ElasticInferenceServiceAuthorizationModel(
-        Map<TaskType, Set<String>> taskTypeToModels,
-        Set<String> authorizedModelIds,
-        EnumSet<TaskType> authorizedTaskTypes
+    private static ElasticInferenceServiceModel createModel(
+        ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
+        ElasticInferenceServiceComponents components
     ) {
-        this.taskTypeToModels = Objects.requireNonNull(taskTypeToModels);
-        this.authorizedModelIds = Objects.requireNonNull(authorizedModelIds);
-        this.authorizedTaskTypes = Objects.requireNonNull(authorizedTaskTypes);
+        try {
+            var taskType = getTaskType(authorizedEndpoint.taskType().elasticsearchTaskType());
+            if (taskType == null) {
+                logger.warn(UNKNOWN_TASK_TYPE_LOG_MESSAGE, authorizedEndpoint.id(), authorizedEndpoint.taskType());
+                return null;
+            }
+
+            return switch (taskType) {
+                case CHAT_COMPLETION -> createCompletionModel(authorizedEndpoint, TaskType.CHAT_COMPLETION, components);
+                case COMPLETION -> createCompletionModel(authorizedEndpoint, TaskType.COMPLETION, components);
+                case SPARSE_EMBEDDING -> createSparseTextEmbeddingsModel(authorizedEndpoint, components);
+                case TEXT_EMBEDDING -> createDenseTextEmbeddingsModel(authorizedEndpoint, components);
+                case RERANK -> createRerankModel(authorizedEndpoint, components);
+                default -> {
+                    logger.info(UNSUPPORTED_TASK_TYPE_LOG_MESSAGE, authorizedEndpoint.id(), taskType);
+                    yield null;
+                }
+            };
+        } catch (Exception e) {
+            logger.atWarn()
+                .withThrowable(e)
+                .log(
+                    "Failed to create model for authorized endpoint id [{}] with task type [{}], skipping",
+                    authorizedEndpoint.id(),
+                    authorizedEndpoint.taskType()
+                );
+            return null;
+        }
+    }
+
+    private static TaskType getTaskType(String taskType) {
+        try {
+            return TaskType.fromString(taskType);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private static ElasticInferenceServiceCompletionModel createCompletionModel(
+        ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
+        TaskType taskType,
+        ElasticInferenceServiceComponents components
+    ) {
+        return new ElasticInferenceServiceCompletionModel(
+            authorizedEndpoint.id(),
+            taskType,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceCompletionServiceSettings(authorizedEndpoint.modelName()),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            components
+        );
+    }
+
+    private static ElasticInferenceServiceSparseEmbeddingsModel createSparseTextEmbeddingsModel(
+        ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
+        ElasticInferenceServiceComponents components
+    ) {
+        return new ElasticInferenceServiceSparseEmbeddingsModel(
+            authorizedEndpoint.id(),
+            TaskType.SPARSE_EMBEDDING,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(authorizedEndpoint.modelName(), null),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            components,
+            ChunkingSettingsBuilder.fromMap(getChunkingSettingsMap(getConfigurationOrEmpty(authorizedEndpoint)))
+        );
+    }
+
+    private static ElasticInferenceServiceAuthorizationResponseEntity.Configuration getConfigurationOrEmpty(
+        ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint
+    ) {
+        if (authorizedEndpoint.configuration() != null) {
+            return authorizedEndpoint.configuration();
+        }
+
+        return ElasticInferenceServiceAuthorizationResponseEntity.Configuration.EMPTY;
+    }
+
+    private static Map<String, Object> getChunkingSettingsMap(
+        ElasticInferenceServiceAuthorizationResponseEntity.Configuration configuration
+    ) {
+        // We intentionally want to return an empty map here instead of null, because ChunkingSettingsBuilder.fromMap()
+        // will return the "new" default value in that case
+        return Objects.requireNonNullElse(configuration.chunkingSettings(), new HashMap<>());
+    }
+
+    private static ElasticInferenceServiceDenseTextEmbeddingsModel createDenseTextEmbeddingsModel(
+        ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
+        ElasticInferenceServiceComponents components
+    ) {
+        var config = getConfigurationOrEmpty(authorizedEndpoint);
+        validateConfigurationForTextEmbedding(config);
+
+        return new ElasticInferenceServiceDenseTextEmbeddingsModel(
+            authorizedEndpoint.id(),
+            TaskType.TEXT_EMBEDDING,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
+                authorizedEndpoint.modelName(),
+                getSimilarityMeasure(config),
+                config.dimensions(),
+                null
+            ),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            components,
+            ChunkingSettingsBuilder.fromMap(getChunkingSettingsMap(config))
+        );
+    }
+
+    private static void validateConfigurationForTextEmbedding(ElasticInferenceServiceAuthorizationResponseEntity.Configuration config) {
+        validateFieldPresent(
+            ElasticInferenceServiceAuthorizationResponseEntity.Configuration.ELEMENT_TYPE,
+            config.elementType(),
+            TaskType.TEXT_EMBEDDING
+        );
+        validateFieldPresent(
+            ElasticInferenceServiceAuthorizationResponseEntity.Configuration.DIMENSIONS,
+            config.dimensions(),
+            TaskType.TEXT_EMBEDDING
+        );
+        validateFieldPresent(
+            ElasticInferenceServiceAuthorizationResponseEntity.Configuration.SIMILARITY,
+            config.similarity(),
+            TaskType.TEXT_EMBEDDING
+        );
+    }
+
+    private static void validateFieldPresent(String field, Object fieldValue, TaskType taskType) {
+        if (fieldValue == null) {
+            throw new IllegalArgumentException(
+                Strings.format("Required field [%s] is missing for task_type [%s]", field, taskType.toString())
+            );
+        }
+    }
+
+    private static SimilarityMeasure getSimilarityMeasure(ElasticInferenceServiceAuthorizationResponseEntity.Configuration configuration) {
+        return SimilarityMeasure.fromString(configuration.similarity());
+    }
+
+    private static ElasticInferenceServiceRerankModel createRerankModel(
+        ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
+        ElasticInferenceServiceComponents components
+    ) {
+        return new ElasticInferenceServiceRerankModel(
+            authorizedEndpoint.id(),
+            TaskType.RERANK,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceRerankServiceSettings(authorizedEndpoint.modelName()),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            components
+        );
     }
 
     /**
-     * Returns true if at least one task type and model is authorized.
-     * @return true if this cluster is authorized for at least one model and task type.
+     * Returns an object indicating that the cluster is not authorized for any endpoints from EIS.
+     */
+    public static ElasticInferenceServiceAuthorizationModel unauthorized() {
+        return new ElasticInferenceServiceAuthorizationModel(List.of());
+    }
+
+    private final Map<String, ElasticInferenceServiceModel> authorizedEndpoints;
+    private final EnumSet<TaskType> taskTypes;
+
+    // Default for testing
+    ElasticInferenceServiceAuthorizationModel(List<ElasticInferenceServiceModel> authorizedEndpoints) {
+        Objects.requireNonNull(authorizedEndpoints);
+        this.authorizedEndpoints = authorizedEndpoints.stream()
+            .collect(
+                Collectors.toMap(ElasticInferenceServiceModel::getInferenceEntityId, Function.identity(), (firstModel, secondModel) -> {
+                    logger.warn("Found inference id collision for id [{}], ignoring second model", firstModel.inferenceEntityId());
+                    return firstModel;
+                }, HashMap::new)
+            );
+
+        var taskTypesSet = EnumSet.noneOf(TaskType.class);
+        taskTypesSet.addAll(this.authorizedEndpoints.values().stream().map(ElasticInferenceServiceModel::getTaskType).toList());
+        this.taskTypes = taskTypesSet;
+    }
+
+    /**
+     * Returns true if at least one endpoint is authorized.
+     * @return true if this cluster is authorized for at least one endpoint.
      */
     public boolean isAuthorized() {
-        return authorizedModelIds.isEmpty() == false && taskTypeToModels.isEmpty() == false && authorizedTaskTypes.isEmpty() == false;
-    }
-
-    public Set<String> getAuthorizedModelIds() {
-        return Set.copyOf(authorizedModelIds);
-    }
-
-    public EnumSet<TaskType> getAuthorizedTaskTypes() {
-        return EnumSet.copyOf(authorizedTaskTypes);
+        return authorizedEndpoints.isEmpty() == false;
     }
 
     /**
      * Returns a new {@link ElasticInferenceServiceAuthorizationModel} object retaining only the specified task types
-     * and applicable models that leverage those task types. Any task types not specified in the passed in set will be
+     * and applicable models that leverage those task types. Any task types not specified in the provided parameter will be
      * excluded from the returned object. This is essentially an intersection.
      * @param taskTypes the task types to retain in the newly created object
-     * @return a new object containing models and task types limited to the specified set.
+     * @return a new object containing endpoints limited to the specified task types
      */
     public ElasticInferenceServiceAuthorizationModel newLimitedToTaskTypes(EnumSet<TaskType> taskTypes) {
-        var newTaskTypeToModels = new HashMap<TaskType, Set<String>>();
-        var taskTypesThatHaveModels = EnumSet.noneOf(TaskType.class);
-
-        for (var taskType : taskTypes) {
-            var models = taskTypeToModels.get(taskType);
-            if (models != null) {
-                newTaskTypeToModels.put(taskType, models);
-                // we only want task types that correspond to actual models to ensure we're only enabling valid task types
-                taskTypesThatHaveModels.add(taskType);
-            }
-        }
-
-        return new ElasticInferenceServiceAuthorizationModel(
-            newTaskTypeToModels,
-            enabledModels(newTaskTypeToModels),
-            taskTypesThatHaveModels
-        );
+        var endpoints = this.authorizedEndpoints.values().stream().filter(endpoint -> taskTypes.contains(endpoint.getTaskType())).toList();
+        return new ElasticInferenceServiceAuthorizationModel(endpoints);
     }
 
-    private static Set<String> enabledModels(Map<TaskType, Set<String>> taskTypeToModels) {
-        return taskTypeToModels.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+    public EnumSet<TaskType> getTaskTypes() {
+        return EnumSet.copyOf(taskTypes);
     }
 
-    /**
-     * Returns a new {@link ElasticInferenceServiceAuthorizationModel} that combines the current model and the passed in one.
-     * @param other model to merge into this one
-     * @return a new model
-     */
-    public ElasticInferenceServiceAuthorizationModel merge(ElasticInferenceServiceAuthorizationModel other) {
-        Map<TaskType, Set<String>> newTaskTypeToModels = taskTypeToModels.entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> new HashSet<>(e.getValue())));
+    public Set<String> getEndpointIds() {
+        return Set.copyOf(authorizedEndpoints.keySet());
+    }
 
-        for (var entry : other.taskTypeToModels.entrySet()) {
-            newTaskTypeToModels.merge(entry.getKey(), new HashSet<>(entry.getValue()), (existingModelIds, newModelIds) -> {
-                existingModelIds.addAll(newModelIds);
-                return existingModelIds;
-            });
-        }
+    public List<Model> getEndpoints(Set<String> endpointIds) {
+        return endpointIds.stream().<Model>map(authorizedEndpoints::get).filter(Objects::nonNull).toList();
+    }
 
-        var newAuthorizedTaskTypes = authorizedTaskTypes.isEmpty() ? EnumSet.noneOf(TaskType.class) : EnumSet.copyOf(authorizedTaskTypes);
-        newAuthorizedTaskTypes.addAll(other.authorizedTaskTypes);
-
-        return new ElasticInferenceServiceAuthorizationModel(
-            newTaskTypeToModels,
-            enabledModels(newTaskTypeToModels),
-            newAuthorizedTaskTypes
-        );
+    @Override
+    public String toString() {
+        return Strings.format("AuthorizationModel{authorizedEndpoints=%s, taskTypes=%s}", authorizedEndpoints, taskTypes);
     }
 
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         ElasticInferenceServiceAuthorizationModel that = (ElasticInferenceServiceAuthorizationModel) o;
-        return Objects.equals(taskTypeToModels, that.taskTypeToModels)
-            && Objects.equals(authorizedTaskTypes, that.authorizedTaskTypes)
-            && Objects.equals(authorizedModelIds, that.authorizedModelIds);
+        return Objects.equals(authorizedEndpoints, that.authorizedEndpoints) && Objects.equals(taskTypes, that.taskTypes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskTypeToModels, authorizedTaskTypes, authorizedModelIds);
-    }
-
-    @Override
-    public String toString() {
-        return "{"
-            + "taskTypeToModels="
-            + taskTypeToModels
-            + ", authorizedTaskTypes="
-            + authorizedTaskTypes
-            + ", authorizedModelIds="
-            + authorizedModelIds
-            + '}';
+        return Objects.hash(authorizedEndpoints, taskTypes);
     }
 }

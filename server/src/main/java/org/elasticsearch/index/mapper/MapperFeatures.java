@@ -64,6 +64,8 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature GENERIC_VECTOR_FORMAT = new NodeFeature("mapper.vectors.generic_vector_format");
     public static final NodeFeature FIX_DENSE_VECTOR_WRONG_FIELDS = new NodeFeature("mapper.fix_dense_vector_wrong_fields");
     static final NodeFeature BBQ_DISK_STATS_SUPPORT = new NodeFeature("mapper.bbq_disk_stats_support");
+    static final NodeFeature SKIPPERS_ON_UNINDEXED_FIELDS = new NodeFeature("mapper.skippers_on_unindexed_fields");
+    static final NodeFeature STORED_FIELDS_SPEC_MERGE_BUG = new NodeFeature("mapper.stored_fields_spec_merge_bug");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -108,7 +110,9 @@ public class MapperFeatures implements FeatureSpecification {
             EXCLUDE_VECTORS_DOCVALUE_BUGFIX,
             BASE64_DENSE_VECTORS,
             FIX_DENSE_VECTOR_WRONG_FIELDS,
-            BBQ_DISK_STATS_SUPPORT
+            BBQ_DISK_STATS_SUPPORT,
+            SKIPPERS_ON_UNINDEXED_FIELDS,
+            STORED_FIELDS_SPEC_MERGE_BUG
         );
         if (ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()) {
             features = new HashSet<>(features);

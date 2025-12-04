@@ -11,9 +11,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -26,23 +28,22 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
-import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
@@ -73,8 +74,13 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -90,9 +96,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.CROSS_CLUSTER;
-import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.DATE_MATH;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.INDEX_SELECTOR;
-import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.WILDCARD_PATTERN;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.quote;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPattern;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPatterns;
@@ -122,7 +126,7 @@ import static org.hamcrest.Matchers.startsWith;
  * Only parses a plan and builds an AST/Logical Plan for it.
  * Analysis is not run, so the plan will contain unresolved references.
  * Use this class to test cases where we throw a Parsing exception
- * especially if it is throw before we get to the Analysis phase
+ * especially if it is thrown before we get to the Analysis phase
  */
 public class StatementParserTests extends AbstractStatementParserTests {
 
@@ -3261,110 +3265,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(as(plan, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
     }
 
-    public void testValidJoinPatternFieldJoin() {
-        var basePattern = randomIndexPatterns(without(CROSS_CLUSTER));
-        var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN), without(CROSS_CLUSTER), without(INDEX_SELECTOR));
-        var numberOfOnFields = randomIntBetween(1, 5);
-        List<String> existingIdentifiers = new ArrayList<>();
-        StringBuilder onFields = new StringBuilder();
-        for (var i = 0; i < numberOfOnFields; i++) {
-            if (randomBoolean()) {
-                onFields.append(" ");
-            }
-            String onField = randomValueOtherThanMany(existingIdentifiers::contains, () -> randomIdentifier());
-            existingIdentifiers.add(onField);
-            onFields.append(onField);
-            if (randomBoolean()) {
-                onFields.append(" ");
-            }
-            if (i < numberOfOnFields - 1) {
-                onFields.append(", ");
-            }
-
-        }
-        var plan = statement("FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onFields);
-
-        var join = as(plan, LookupJoin.class);
-        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
-        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(joinPattern)));
-
-        assertThat(join.config().leftFields(), hasSize(numberOfOnFields));
-        for (int i = 0; i < numberOfOnFields; i++) {
-            assertThat(as(join.config().leftFields().get(i), UnresolvedAttribute.class).name(), equalTo(existingIdentifiers.get(i)));
-        }
-        assertThat(join.config().type().joinName(), equalTo("LEFT OUTER"));
-    }
-
-    /**
-     * Verify that both in snapshot and in release build the feature is enabled and the parsing works
-     * without checking for the capability
-     */
-    public void testExpressionJoinEnabled() {
-        var plan = statement("FROM test | LOOKUP JOIN test2 ON left_field >= right_field");
-        var join = as(plan, LookupJoin.class);
-    }
-
-    public void testValidJoinPatternExpressionJoin() {
-        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
-
-        var basePattern = randomIndexPatterns(without(CROSS_CLUSTER));
-        var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN), without(CROSS_CLUSTER), without(INDEX_SELECTOR));
-        var numberOfExpressions = randomIntBetween(1, 5);
-
-        var expressions = new ArrayList<Tuple<Tuple<String, String>, EsqlBinaryComparison.BinaryComparisonOperation>>();
-        StringBuilder onExpressionString = new StringBuilder();
-
-        for (var i = 0; i < numberOfExpressions; i++) {
-            var left = randomIdentifier();
-            var right = randomIdentifier();
-            var op = randomBinaryComparisonOperation();
-            expressions.add(new Tuple<>(new Tuple<>(left, right), op));
-
-            onExpressionString.append(left);
-            if (randomBoolean()) {
-                onExpressionString.append(" ");
-            }
-            onExpressionString.append(op.symbol());
-            if (randomBoolean()) {
-                onExpressionString.append(" ");
-            }
-            onExpressionString.append(right);
-
-            if (i < numberOfExpressions - 1) {
-                onExpressionString.append(" AND ");
-            }
-        }
-
-        String query = "FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onExpressionString;
-        var plan = statement(query);
-
-        var join = as(plan, LookupJoin.class);
-        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
-        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(joinPattern)));
-
-        var joinType = join.config().type();
-        assertThat(joinType.joinName(), startsWith("LEFT OUTER"));
-
-        List<Expression> actualExpressions = Predicates.splitAnd(join.config().joinOnConditions());
-        assertThat(actualExpressions.size(), equalTo(numberOfExpressions));
-
-        for (int i = 0; i < numberOfExpressions; i++) {
-            var expected = expressions.get(i);
-            var actual = actualExpressions.get(i);
-
-            assertThat(actual, instanceOf(EsqlBinaryComparison.class));
-            var actualComp = (EsqlBinaryComparison) actual;
-
-            assertThat(((UnresolvedAttribute) actualComp.left()).name(), equalTo(expected.v1().v1()));
-            assertThat(((UnresolvedAttribute) actualComp.right()).name(), equalTo(expected.v1().v2()));
-            assertThat(actualComp.getFunctionType(), equalTo(expected.v2()));
-        }
-    }
-
-    private EsqlBinaryComparison.BinaryComparisonOperation randomBinaryComparisonOperation() {
-        return randomFrom(EsqlBinaryComparison.BinaryComparisonOperation.values());
-    }
-
     public void testInvalidFromPatterns() {
         var sourceCommands = new String[] { "FROM", "TS" };
         var indexIsBlank = "Blank index specified in index pattern";
@@ -3485,334 +3385,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectError(query, "mismatched input ':'");
             }
         }
-    }
-
-    public void testValidJoinPatternWithRemoteFieldJoin() {
-        testValidJoinPatternWithRemote(randomIdentifier());
-    }
-
-    public void testValidJoinPatternWithRemoteExpressionJoin() {
-        assumeTrue(
-            "requires LOOKUP JOIN ON boolean expression capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
-        );
-        testValidJoinPatternWithRemote(singleExpressionJoinClause());
-    }
-
-    private void testValidJoinPatternWithRemote(String onClause) {
-        var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
-        var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
-        var plan = statement("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause);
-
-        var join = as(plan, LookupJoin.class);
-        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(fromPatterns)));
-        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(joinPattern)));
-    }
-
-    public void testInvalidJoinPatternsFieldJoin() {
-        testInvalidJoinPatterns(randomIdentifier());
-    }
-
-    public void testInvalidJoinPatternsFieldJoinTwo() {
-        testInvalidJoinPatterns(randomIdentifier() + ", " + randomIdentifier());
-    }
-
-    public void testInvalidJoinPatternsExpressionJoin() {
-        testInvalidJoinPatterns(singleExpressionJoinClause());
-    }
-
-    public void testInvalidJoinPatternsExpressionJoinTwo() {
-        testInvalidJoinPatterns(singleExpressionJoinClause() + " AND " + singleExpressionJoinClause());
-    }
-
-    public void testInvalidJoinPatternsExpressionJoinMix() {
-        testInvalidJoinPatterns(randomIdentifier() + ", " + singleExpressionJoinClause());
-    }
-
-    public void testInvalidJoinPatternsExpressionJoinMixTwo() {
-        testInvalidJoinPatterns(singleExpressionJoinClause() + " AND " + randomIdentifier());
-    }
-
-    public void testInvalidLookupJoinOnClause() {
-        assumeTrue(
-            "requires LOOKUP JOIN ON boolean expression capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
-        );
-        expectError(
-            "FROM test  | LOOKUP JOIN test2 ON " + randomIdentifier() + " , " + singleExpressionJoinClause(),
-            "JOIN ON clause must be a comma separated list of fields or a single expression, found"
-        );
-
-        expectError(
-            "FROM test  | LOOKUP JOIN test2 ON " + singleExpressionJoinClause() + " , " + randomIdentifier(),
-            "JOIN ON clause with expressions only supports a single expression, found"
-        );
-
-        expectError(
-            "FROM test  | LOOKUP JOIN test2 ON " + singleExpressionJoinClause() + " , " + singleExpressionJoinClause(),
-            "JOIN ON clause with expressions only supports a single expression, found"
-        );
-
-        expectError(
-            "FROM test  | LOOKUP JOIN test2 ON " + singleExpressionJoinClause() + " AND " + randomIdentifier(),
-            "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found"
-        );
-
-        expectError(
-            "FROM test  | LOOKUP JOIN test2 ON "
-                + singleExpressionJoinClause()
-                + " AND ("
-                + randomIdentifier()
-                + " OR "
-                + singleExpressionJoinClause()
-                + ")",
-            "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found"
-        );
-
-        expectError(
-            "FROM test  | LOOKUP JOIN test2 ON "
-                + singleExpressionJoinClause()
-                + " AND ("
-                + randomIdentifier()
-                + "OR"
-                + randomIdentifier()
-                + ")",
-            "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found"
-        );
-
-        expectError(
-            "FROM test  | LOOKUP JOIN test2 ON " + randomIdentifier() + " AND " + randomIdentifier(),
-            "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found"
-        );
-
-        expectError(
-            "FROM test  | LOOKUP JOIN test2 ON " + randomIdentifier() + " AND " + singleExpressionJoinClause(),
-            "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found "
-        );
-    }
-
-    private String singleExpressionJoinClause() {
-        var left = randomIdentifier();
-        var right = randomValueOtherThan(left, ESTestCase::randomIdentifier);
-        var op = randomBinaryComparisonOperation();
-        return left + (randomBoolean() ? " " : "") + op.symbol() + (randomBoolean() ? " " : "") + right;
-    }
-
-    private void testInvalidJoinPatterns(String onClause) {
-        {
-            // wildcard
-            var joinPattern = randomIndexPattern(WILDCARD_PATTERN, without(CROSS_CLUSTER), without(INDEX_SELECTOR));
-            expectError(
-                "FROM " + randomIndexPatterns() + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
-                "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], * is not allowed in LOOKUP JOIN"
-            );
-        }
-        {
-            // remote cluster on the right
-            var fromPatterns = randomIndexPatterns(without(CROSS_CLUSTER));
-            var joinPattern = randomIndexPattern(CROSS_CLUSTER, without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
-            expectError(
-                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
-                "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], remote clusters are not supported with LOOKUP JOIN"
-            );
-        }
-
-        {
-            // Generate a syntactically invalid (partial quoted) pattern.
-            var fromPatterns = quote(randomIdentifier()) + ":" + unquoteIndexPattern(randomIndexPattern(without(CROSS_CLUSTER)));
-            var joinPattern = randomIndexPattern();
-            expectError(
-                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
-                // Since the from pattern is partially quoted, we get an error at the end of the partially quoted string.
-                " mismatched input ':'"
-            );
-        }
-
-        {
-            // Generate a syntactically invalid (partial quoted) pattern.
-            var fromPatterns = randomIdentifier() + ":" + quote(randomIndexPatterns(without(CROSS_CLUSTER)));
-            var joinPattern = randomIndexPattern();
-            expectError(
-                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
-                // Since the from pattern is partially quoted, we get an error at the beginning of the partially quoted
-                // index name that we're expecting an unquoted string.
-                "expecting UNQUOTED_SOURCE"
-            );
-        }
-
-        {
-            var fromPatterns = randomIndexPattern();
-            // Generate a syntactically invalid (partial quoted) pattern.
-            var joinPattern = quote(randomIdentifier()) + ":" + unquoteIndexPattern(randomIndexPattern(without(CROSS_CLUSTER)));
-            expectError(
-                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
-                // Since the join pattern is partially quoted, we get an error at the end of the partially quoted string.
-                "mismatched input ':'"
-            );
-        }
-
-        {
-            var fromPatterns = randomIndexPattern();
-            // Generate a syntactically invalid (partially quoted) pattern.
-            var joinPattern = randomIdentifier() + ":" + quote(randomIndexPattern(without(CROSS_CLUSTER)));
-            expectError(
-                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
-                // Since the from pattern is partially quoted, we get an error at the beginning of the partially quoted
-                // index name that we're expecting an unquoted string.
-                "no viable alternative at input"
-            );
-        }
-
-        if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
-            {
-                // Selectors are not supported on the left of the join query if used with cluster ids.
-                // Unquoted case: The language specification does not allow mixing `:` and `::` characters in an index expression
-                var fromPatterns = randomIndexPatterns(CROSS_CLUSTER, without(DATE_MATH));
-                // We do different validation based on the quotation of the pattern
-                // Autogenerated patterns will not mix cluster ids with selectors. Unquote it to ensure stable tests
-                fromPatterns = unquoteIndexPattern(fromPatterns) + "::data";
-                var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
-                expectError(
-                    "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
-                    "mismatched input '::' expecting {"
-                );
-            }
-            {
-                // Selectors are not supported on the left of the join query if used with cluster ids.
-                // Quoted case: The language specification allows mixing `:` and `::` characters in a quoted expression, but this usage
-                // must cause a validation exception in the non-generated code.
-                var fromPatterns = randomIndexPatterns(CROSS_CLUSTER, without(INDEX_SELECTOR));
-                // We do different validation based on the quotation of the pattern
-                // Autogenerated patterns will not mix cluster ids with selectors. Unquote, modify, and requote it to ensure stable tests
-                fromPatterns = "\"" + unquoteIndexPattern(fromPatterns) + "::data\"";
-                var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
-                expectError(
-                    "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
-                    "Selectors are not yet supported on remote cluster patterns"
-                );
-            }
-            {
-                // Selectors are not yet supported in join patterns on the right.
-                // Unquoted case: The language specification does not allow mixing `:` and `::` characters in an index expression
-                var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(DATE_MATH), INDEX_SELECTOR);
-                // We do different validation based on the quotation of the pattern, so forcefully unquote the expression instead of leaving
-                // it to chance.
-                joinPattern = unquoteIndexPattern(joinPattern);
-                expectError(
-                    "FROM " + randomIndexPatterns(without(CROSS_CLUSTER)) + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
-                    "no viable alternative at input "
-                );
-            }
-            {
-                // Selectors are not yet supported in join patterns on the right.
-                // Quoted case: The language specification allows `::` characters in a quoted expression, but this usage
-                // must cause a validation exception in the non-generated code.
-                var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(DATE_MATH), INDEX_SELECTOR);
-                // We do different validation based on the quotation of the pattern, so forcefully quote the expression instead of leaving
-                // it to chance.
-                joinPattern = "\"" + unquoteIndexPattern(joinPattern) + "\"";
-                expectError(
-                    "FROM " + randomIndexPatterns(without(CROSS_CLUSTER)) + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
-                    "invalid index pattern ["
-                        + unquoteIndexPattern(joinPattern)
-                        + "], index pattern selectors are not supported in LOOKUP JOIN"
-                );
-            }
-
-            {
-                // Although we don't support selector strings for remote indices, it's alright.
-                // The parser error message takes precedence.
-                var fromPatterns = randomIndexPatterns();
-                var joinPattern = quote(randomIdentifier()) + "::" + randomFrom("data", "failures");
-                // After the end of the partially quoted string, i.e. the index name, parser now expects "ON..." and not a selector string.
-                expectError(
-                    "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
-                    "mismatched input ':' expecting 'on'"
-                );
-            }
-
-            {
-                // Although we don't support selector strings for remote indices, it's alright.
-                // The parser error message takes precedence.
-                var fromPatterns = randomIndexPatterns();
-                var joinPattern = randomIdentifier() + "::" + quote(randomFrom("data", "failures"));
-                // After the index name and "::", parser expects an unquoted string, i.e. the selector string should not be
-                // partially quoted.
-                expectError("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause, "no viable alternative at input");
-            }
-        }
-    }
-
-    public void testLookupJoinOnExpressionWithNamedQueryParameters() {
-        assumeTrue(
-            "requires LOOKUP JOIN ON boolean expression capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
-        );
-
-        // Test LOOKUP JOIN ON expression with named query parameters and MATCH function
-        var plan = statement(
-            "FROM test | LOOKUP JOIN test2 ON left_field >= right_field AND match(left_field, ?search_term)",
-            new QueryParams(List.of(paramAsConstant("search_term", "elasticsearch")))
-        );
-
-        var join = as(plan, LookupJoin.class);
-        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("test"));
-        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("test2"));
-
-        // Verify the join condition contains both the comparison and MATCH function
-        var condition = join.config().joinOnConditions();
-        assertThat(condition, instanceOf(And.class));
-        var andCondition = (And) condition;
-
-        // Check that we have both conditions in the correct order
-        assertThat(andCondition.children().size(), equalTo(2));
-
-        // First child should be a binary comparison (left_field >= right_field)
-        var firstChild = andCondition.children().get(0);
-        assertThat("First condition should be binary comparison", firstChild, instanceOf(EsqlBinaryComparison.class));
-
-        // Second child should be a MATCH function (match(left_field, ?search_term))
-        var secondChild = andCondition.children().get(1);
-        assertThat("Second condition should be UnresolvedFunction", secondChild, instanceOf(UnresolvedFunction.class));
-        var function = (UnresolvedFunction) secondChild;
-        assertThat("Second condition should be MATCH function", function.name(), equalTo("match"));
-    }
-
-    public void testLookupJoinOnExpressionWithPositionalQueryParameters() {
-        assumeTrue(
-            "requires LOOKUP JOIN ON boolean expression capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
-        );
-
-        // Test LOOKUP JOIN ON expression with positional query parameters and MATCH function
-        var plan = statement(
-            "FROM test | LOOKUP JOIN test2 ON left_field >= right_field AND match(left_field, ?2)",
-            new QueryParams(List.of(paramAsConstant(null, "dummy"), paramAsConstant(null, "elasticsearch")))
-        );
-
-        var join = as(plan, LookupJoin.class);
-        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("test"));
-        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("test2"));
-
-        // Verify the join condition contains both the comparison and MATCH function
-        var condition = join.config().joinOnConditions();
-        assertThat(condition, instanceOf(And.class));
-        var andCondition = (And) condition;
-
-        // Check that we have both conditions in the correct order
-        assertThat(andCondition.children().size(), equalTo(2));
-
-        // First child should be a binary comparison (left_field >= right_field)
-        var firstChild = andCondition.children().get(0);
-        assertThat("First condition should be binary comparison", firstChild, instanceOf(EsqlBinaryComparison.class));
-
-        // Second child should be a MATCH function (match(left_field, ?))
-        var secondChild = andCondition.children().get(1);
-        assertThat("Second condition should be UnresolvedFunction", secondChild, instanceOf(UnresolvedFunction.class));
-        var function = (UnresolvedFunction) secondChild;
-        assertThat("Second condition should be MATCH function", function.name(), equalTo("match"));
-        assertEquals(2, function.children().size());
-        assertEquals("elasticsearch", function.children().get(1).toString());
     }
 
     public void testInvalidInsistAsterisk() {
@@ -4504,775 +4076,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError(queryPrefix + " | FUSE GROUP BY foo SCORE BY my_score LINEAR", "line 1:111: extraneous input 'LINEAR' expecting <EOF>");
     }
 
-    public void testDoubleParamsForIdentifier() {
-        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
-        assumeTrue(
-            "requires LOOKUP JOIN ON boolean expression capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
-        );
-        // There are three variations of double parameters - named, positional or anonymous, e.g. ??n, ??1 or ??, covered.
-        // Each query is executed three times with the three variations.
-
-        // field names can appear in eval/where/stats/sort/keep/drop/rename/dissect/grok/enrich/mvexpand
-        // eval, where
-        List<List<String>> doubleParams = new ArrayList<>(3);
-        List<String> namedDoubleParams = List.of("??f0", "??fn1", "??f1", "??f2", "??f3");
-        List<String> positionalDoubleParams = List.of("??1", "??2", "??3", "??4", "??5");
-        List<String> anonymousDoubleParams = List.of("??", "??", "??", "??", "??");
-        doubleParams.add(namedDoubleParams);
-        doubleParams.add(positionalDoubleParams);
-        doubleParams.add(anonymousDoubleParams);
-        for (List<String> params : doubleParams) {
-            String query = LoggerMessageFormat.format(null, """
-                from test
-                | eval {} = {}({})
-                | where {} == {}
-                | limit 1""", params.get(0), params.get(1), params.get(2), params.get(3), params.get(4));
-            assertEqualsIgnoringIds(
-                new Limit(
-                    EMPTY,
-                    new Literal(EMPTY, 1, INTEGER),
-                    new Filter(
-                        EMPTY,
-                        new Eval(EMPTY, relation("test"), List.of(new Alias(EMPTY, "x", function("toString", List.of(attribute("f1.")))))),
-                        new Equals(EMPTY, attribute("f.2"), attribute("f3"))
-                    )
-                ),
-                statement(
-                    query,
-                    new QueryParams(
-                        List.of(
-                            paramAsConstant("f0", "x"),
-                            paramAsConstant("fn1", "toString"),
-                            paramAsConstant("f1", "f1."),
-                            paramAsConstant("f2", "f.2"),
-                            paramAsConstant("f3", "f3")
-                        )
-                    )
-                )
-            );
-        }
-
-        namedDoubleParams = List.of("??f0", "??fn1", "??f1", "??f2", "??f3", "??f4", "??f5", "??f6");
-        positionalDoubleParams = List.of("??1", "??2", "??3", "??4", "??5", "??6", "??7", "??8");
-        anonymousDoubleParams = List.of("??", "??", "??", "??", "??", "??", "??", "??");
-        doubleParams.clear();
-        doubleParams.add(namedDoubleParams);
-        doubleParams.add(positionalDoubleParams);
-        doubleParams.add(anonymousDoubleParams);
-        for (List<String> params : doubleParams) {
-            String query = LoggerMessageFormat.format(
-                null,
-                """
-                    from test
-                    | eval {} = {}({}.{})
-                    | where {}.{} == {}.{}
-                    | limit 1""",
-                params.get(0),
-                params.get(1),
-                params.get(2),
-                params.get(3),
-                params.get(4),
-                params.get(5),
-                params.get(6),
-                params.get(7)
-            );
-            assertEqualsIgnoringIds(
-                new Limit(
-                    EMPTY,
-                    new Literal(EMPTY, 1, INTEGER),
-                    new Filter(
-                        EMPTY,
-                        new Eval(
-                            EMPTY,
-                            relation("test"),
-                            List.of(new Alias(EMPTY, "x", function("toString", List.of(attribute("f1..f.2")))))
-                        ),
-                        new Equals(EMPTY, attribute("f3.*.f.4."), attribute("f.5.*.f.*.6"))
-                    )
-                ),
-                statement(
-                    query,
-                    new QueryParams(
-                        List.of(
-                            paramAsConstant("f0", "x"),
-                            paramAsConstant("fn1", "toString"),
-                            paramAsConstant("f1", "f1."),
-                            paramAsConstant("f2", "f.2"),
-                            paramAsConstant("f3", "f3.*"),
-                            paramAsConstant("f4", "f.4."),
-                            paramAsConstant("f5", "f.5.*"),
-                            paramAsConstant("f6", "f.*.6")
-                        )
-                    )
-                )
-            );
-        }
-
-        // stats, sort, mv_expand
-        namedDoubleParams = List.of("??fn2", "??f3", "??f4", "??f5", "??f6");
-        positionalDoubleParams = List.of("??1", "??2", "??3", "??4", "??5");
-        anonymousDoubleParams = List.of("??", "??", "??", "??", "??");
-        doubleParams.clear();
-        doubleParams.add(namedDoubleParams);
-        doubleParams.add(positionalDoubleParams);
-        doubleParams.add(anonymousDoubleParams);
-        for (List<String> params : doubleParams) {
-            String query = LoggerMessageFormat.format(null, """
-                from test
-                | stats y = {}({}) by {}
-                | sort {}
-                | mv_expand {}""", params.get(0), params.get(1), params.get(2), params.get(3), params.get(4));
-            assertEqualsIgnoringIds(
-                new MvExpand(
-                    EMPTY,
-                    new OrderBy(
-                        EMPTY,
-                        new Aggregate(
-                            EMPTY,
-                            relation("test"),
-                            List.of(attribute("f.4.")),
-                            List.of(new Alias(EMPTY, "y", function("count", List.of(attribute("f3.*")))), attribute("f.4."))
-                        ),
-                        List.of(new Order(EMPTY, attribute("f.5.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
-                    ),
-                    attribute("f.6*"),
-                    attribute("f.6*")
-                ),
-                statement(
-                    query,
-                    new QueryParams(
-                        List.of(
-                            paramAsConstant("fn2", "count"),
-                            paramAsConstant("f3", "f3.*"),
-                            paramAsConstant("f4", "f.4."),
-                            paramAsConstant("f5", "f.5.*"),
-                            paramAsConstant("f6", "f.6*")
-                        )
-                    )
-                )
-            );
-        }
-
-        namedDoubleParams = List.of("??fn2", "??f7", "??f8", "??f9", "??f10", "??f11", "??f12", "??f13", "??f14");
-        positionalDoubleParams = List.of("??1", "??2", "??3", "??4", "??5", "??6", "??7", "??8", "??9");
-        anonymousDoubleParams = List.of("??", "??", "??", "??", "??", "??", "??", "??", "??");
-        doubleParams.clear();
-        doubleParams.add(namedDoubleParams);
-        doubleParams.add(positionalDoubleParams);
-        doubleParams.add(anonymousDoubleParams);
-        for (List<String> params : doubleParams) {
-            String query = LoggerMessageFormat.format(
-                null,
-                """
-                    from test
-                    | stats y = {}({}.{}) by {}.{}
-                    | sort {}.{}
-                    | mv_expand {}.{}""",
-                params.get(0),
-                params.get(1),
-                params.get(2),
-                params.get(3),
-                params.get(4),
-                params.get(5),
-                params.get(6),
-                params.get(7),
-                params.get(8)
-            );
-            assertEqualsIgnoringIds(
-                new MvExpand(
-                    EMPTY,
-                    new OrderBy(
-                        EMPTY,
-                        new Aggregate(
-                            EMPTY,
-                            relation("test"),
-                            List.of(attribute("f.9.f10.*")),
-                            List.of(new Alias(EMPTY, "y", function("count", List.of(attribute("f.7*.f8.")))), attribute("f.9.f10.*"))
-                        ),
-                        List.of(new Order(EMPTY, attribute("f.11..f.12.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
-                    ),
-                    attribute("f.*.13.f.14*"),
-                    attribute("f.*.13.f.14*")
-                ),
-                statement(
-                    query,
-                    new QueryParams(
-                        List.of(
-                            paramAsConstant("fn2", "count"),
-                            paramAsConstant("f7", "f.7*"),
-                            paramAsConstant("f8", "f8."),
-                            paramAsConstant("f9", "f.9"),
-                            paramAsConstant("f10", "f10.*"),
-                            paramAsConstant("f11", "f.11."),
-                            paramAsConstant("f12", "f.12.*"),
-                            paramAsConstant("f13", "f.*.13"),
-                            paramAsConstant("f14", "f.14*")
-                        )
-                    )
-                )
-            );
-        }
-
-        // keep, drop, rename, grok, dissect, lookup join
-        namedDoubleParams = List.of("??f1", "??f2", "??f3", "??f4", "??f5", "??f6", "??f7", "??f8", "??f9");
-        positionalDoubleParams = List.of("??1", "??2", "??3", "??4", "??5", "??6", "??7", "??8", "??9");
-        anonymousDoubleParams = List.of("??", "??", "??", "??", "??", "??", "??", "??", "??");
-        doubleParams.clear();
-        doubleParams.add(namedDoubleParams);
-        doubleParams.add(positionalDoubleParams);
-        doubleParams.add(anonymousDoubleParams);
-        for (List<String> params : doubleParams) {
-            String query = LoggerMessageFormat.format(
-                null,
-                """
-                    from test
-                    | keep {}, {}
-                    | drop {}, {}
-                    | dissect {} "%{bar}"
-                    | grok {} "%{WORD:foo}"
-                    | rename {} as {}
-                    | lookup join idx on {}
-                    | limit 1""",
-                params.get(0),
-                params.get(1),
-                params.get(2),
-                params.get(3),
-                params.get(4),
-                params.get(5),
-                params.get(6),
-                params.get(7),
-                params.get(8)
-            );
-            LogicalPlan plan = statement(
-                query,
-                new QueryParams(
-                    List.of(
-                        paramAsConstant("f1", "f.1.*"),
-                        paramAsConstant("f2", "f.2"),
-                        paramAsConstant("f3", "f3."),
-                        paramAsConstant("f4", "f4.*"),
-                        paramAsConstant("f5", "f.5*"),
-                        paramAsConstant("f6", "f.6."),
-                        paramAsConstant("f7", "f7*."),
-                        paramAsConstant("f8", "f.8"),
-                        paramAsConstant("f9", "f9")
-                    )
-                )
-            );
-            Limit limit = as(plan, Limit.class);
-            LookupJoin join = as(limit.child(), LookupJoin.class);
-            UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
-            assertEquals(ur.indexPattern().indexPattern(), "idx");
-            assertEquals(join.config().type().joinName(), "LEFT OUTER");
-            assertEqualsIgnoringIds(join.config().leftFields(), List.of(attribute("f9")));
-            Rename rename = as(join.left(), Rename.class);
-            assertEqualsIgnoringIds(rename.renamings(), List.of(new Alias(EMPTY, "f.8", attribute("f7*."))));
-            Grok grok = as(rename.child(), Grok.class);
-            assertEqualsIgnoringIds(grok.input(), attribute("f.6."));
-            assertEquals("%{WORD:foo}", grok.parser().pattern());
-            assertEqualsIgnoringIds(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
-            Dissect dissect = as(grok.child(), Dissect.class);
-            assertEqualsIgnoringIds(dissect.input(), attribute("f.5*"));
-            assertEquals("%{bar}", dissect.parser().pattern());
-            assertEquals("", dissect.parser().appendSeparator());
-            assertEqualsIgnoringIds(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
-            Drop drop = as(dissect.child(), Drop.class);
-            List<? extends NamedExpression> removals = drop.removals();
-            assertEqualsIgnoringIds(removals, List.of(attribute("f3."), attribute("f4.*")));
-            Keep keep = as(drop.child(), Keep.class);
-            assertEqualsIgnoringIds(keep.projections(), List.of(attribute("f.1.*"), attribute("f.2")));
-        }
-
-        namedDoubleParams = List.of(
-            "??f1",
-            "??f2",
-            "??f3",
-            "??f4",
-            "??f5",
-            "??f6",
-            "??f7",
-            "??f8",
-            "??f9",
-            "??f10",
-            "??f11",
-            "??f12",
-            "??f13",
-            "??f14"
-        );
-        positionalDoubleParams = List.of(
-            "??1",
-            "??2",
-            "??3",
-            "??4",
-            "??5",
-            "??6",
-            "??7",
-            "??8",
-            "??9",
-            "??10",
-            "??11",
-            "??12",
-            "??13",
-            "??14"
-        );
-        anonymousDoubleParams = List.of("??", "??", "??", "??", "??", "??", "??", "??", "??", "??", "??", "??", "??", "??");
-        doubleParams.clear();
-        doubleParams.add(namedDoubleParams);
-        doubleParams.add(positionalDoubleParams);
-        doubleParams.add(anonymousDoubleParams);
-        for (List<String> params : doubleParams) {
-            String query = LoggerMessageFormat.format(
-                null,
-                """
-                    from test
-                    | keep {}.{}
-                    | drop {}.{}
-                    | dissect {}.{} "%{bar}"
-                    | grok {}.{} "%{WORD:foo}"
-                    | rename {}.{} as {}.{}
-                    | lookup join idx on {}.{}
-                    | limit 1""",
-                params.get(0),
-                params.get(1),
-                params.get(2),
-                params.get(3),
-                params.get(4),
-                params.get(5),
-                params.get(6),
-                params.get(7),
-                params.get(8),
-                params.get(9),
-                params.get(10),
-                params.get(11),
-                params.get(12),
-                params.get(13)
-            );
-            LogicalPlan plan = statement(
-                query,
-                new QueryParams(
-                    List.of(
-                        paramAsConstant("f1", "f.1.*"),
-                        paramAsConstant("f2", "f.2"),
-                        paramAsConstant("f3", "f3."),
-                        paramAsConstant("f4", "f4.*"),
-                        paramAsConstant("f5", "f.5*"),
-                        paramAsConstant("f6", "f.6."),
-                        paramAsConstant("f7", "f7*."),
-                        paramAsConstant("f8", "f.8"),
-                        paramAsConstant("f9", "f.9*"),
-                        paramAsConstant("f10", "f.10."),
-                        paramAsConstant("f11", "f11*."),
-                        paramAsConstant("f12", "f.12"),
-                        paramAsConstant("f13", "f13"),
-                        paramAsConstant("f14", "f14")
-                    )
-                )
-            );
-            Limit limit = as(plan, Limit.class);
-            LookupJoin join = as(limit.child(), LookupJoin.class);
-            UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
-            assertEquals(ur.indexPattern().indexPattern(), "idx");
-            assertEquals(join.config().type().joinName(), "LEFT OUTER");
-            assertEqualsIgnoringIds(join.config().leftFields(), List.of(attribute("f13.f14")));
-            Rename rename = as(join.left(), Rename.class);
-            assertEqualsIgnoringIds(rename.renamings(), List.of(new Alias(EMPTY, "f11*..f.12", attribute("f.9*.f.10."))));
-            Grok grok = as(rename.child(), Grok.class);
-            assertEqualsIgnoringIds(grok.input(), attribute("f7*..f.8"));
-            assertEquals("%{WORD:foo}", grok.parser().pattern());
-            assertEqualsIgnoringIds(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
-            Dissect dissect = as(grok.child(), Dissect.class);
-            assertEqualsIgnoringIds(dissect.input(), attribute("f.5*.f.6."));
-            assertEquals("%{bar}", dissect.parser().pattern());
-            assertEquals("", dissect.parser().appendSeparator());
-            assertEqualsIgnoringIds(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
-            Drop drop = as(dissect.child(), Drop.class);
-            List<? extends NamedExpression> removals = drop.removals();
-            assertEqualsIgnoringIds(removals, List.of(attribute("f3..f4.*")));
-            Keep keep = as(drop.child(), Keep.class);
-            assertEqualsIgnoringIds(keep.projections(), List.of(attribute("f.1.*.f.2")));
-        }
-
-        // enrich, lookup join
-        namedDoubleParams = List.of("??f1", "??f2", "??f3");
-        positionalDoubleParams = List.of("??1", "??2", "??3");
-        anonymousDoubleParams = List.of("??", "??", "??");
-        doubleParams.clear();
-        doubleParams.add(namedDoubleParams);
-        doubleParams.add(positionalDoubleParams);
-        doubleParams.add(anonymousDoubleParams);
-        for (List<String> params : doubleParams) {
-            String query = LoggerMessageFormat.format(
-                null,
-                "from idx1 | ENRICH idx2 ON {} WITH {} = {}",
-                params.get(0),
-                params.get(1),
-                params.get(2)
-            );
-            assertEqualsIgnoringIds(
-                new Enrich(
-                    EMPTY,
-                    relation("idx1"),
-                    null,
-                    Literal.keyword(EMPTY, "idx2"),
-                    attribute("f.1.*"),
-                    null,
-                    Map.of(),
-                    List.of(new Alias(EMPTY, "f.2", attribute("f.3*")))
-                ),
-                statement(
-                    query,
-                    new QueryParams(List.of(paramAsConstant("f1", "f.1.*"), paramAsConstant("f2", "f.2"), paramAsConstant("f3", "f.3*")))
-                )
-            );
-        }
-
-        // lookup join on expression
-        namedDoubleParams = List.of("??f1", "??f2", "??f3", "??f4");
-        positionalDoubleParams = List.of("??1", "??2", "??3", "??4");
-        anonymousDoubleParams = List.of("??", "??", "??", "??");
-        doubleParams.clear();
-        doubleParams.add(namedDoubleParams);
-        doubleParams.add(positionalDoubleParams);
-        doubleParams.add(anonymousDoubleParams);
-        for (List<String> params : doubleParams) {
-            String query = LoggerMessageFormat.format(null, """
-                from test
-                | lookup join idx on {}.{} == {}.{}
-                | limit 1""", params.get(0), params.get(1), params.get(2), params.get(3));
-            LogicalPlan plan = statement(
-                query,
-                new QueryParams(
-                    List.of(
-                        paramAsConstant("f1", "f.1"),
-                        paramAsConstant("f2", "f.2"),
-                        paramAsConstant("f3", "f.3"),
-                        paramAsConstant("f4", "f.4")
-                    )
-                )
-            );
-            Limit limit = as(plan, Limit.class);
-            LookupJoin join = as(limit.child(), LookupJoin.class);
-            UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
-            assertEquals(ur.indexPattern().indexPattern(), "idx");
-            assertTrue(join.config().type().joinName().contains("LEFT OUTER"));
-            EsqlBinaryComparison on = as(join.config().joinOnConditions(), EsqlBinaryComparison.class);
-            assertEquals(on.getFunctionType(), EsqlBinaryComparison.BinaryComparisonOperation.EQ);
-            assertEquals(as(on.left(), UnresolvedAttribute.class).name(), "f.1.f.2");
-            assertEquals(as(on.right(), UnresolvedAttribute.class).name(), "f.3.f.4");
-        }
-
-        namedDoubleParams = List.of("??f1", "??f2", "??f3", "??f4", "??f5", "??f6");
-        positionalDoubleParams = List.of("??1", "??2", "??3", "??4", "??5", "??6");
-        anonymousDoubleParams = List.of("??", "??", "??", "??", "??", "??");
-        doubleParams.clear();
-        doubleParams.add(namedDoubleParams);
-        doubleParams.add(positionalDoubleParams);
-        doubleParams.add(anonymousDoubleParams);
-        for (List<String> params : doubleParams) {
-            String query = LoggerMessageFormat.format(
-                null,
-                "from idx1 | ENRICH idx2 ON {}.{} WITH {}.{} = {}.{}",
-                params.get(0),
-                params.get(1),
-                params.get(2),
-                params.get(3),
-                params.get(4),
-                params.get(5)
-            );
-            assertEqualsIgnoringIds(
-                new Enrich(
-                    EMPTY,
-                    relation("idx1"),
-                    null,
-                    Literal.keyword(EMPTY, "idx2"),
-                    attribute("f.1.*.f.2"),
-                    null,
-                    Map.of(),
-                    List.of(new Alias(EMPTY, "f.3*.f.4.*", attribute("f.5.f.6*")))
-                ),
-                statement(
-                    query,
-                    new QueryParams(
-                        List.of(
-                            paramAsConstant("f1", "f.1.*"),
-                            paramAsConstant("f2", "f.2"),
-                            paramAsConstant("f3", "f.3*"),
-                            paramAsConstant("f4", "f.4.*"),
-                            paramAsConstant("f5", "f.5"),
-                            paramAsConstant("f6", "f.6*")
-                        )
-                    )
-                )
-            );
-        }
-    }
-
-    public void testMixedSingleDoubleParams() {
-        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
-        assumeTrue(
-            "requires LOOKUP JOIN ON boolean expression capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
-        );
-        // This is a subset of testDoubleParamsForIdentifier, with single and double parameter markers mixed in the queries
-        // Single parameter markers represent a constant value or pattern
-        // double parameter markers represent identifiers - field or function names
-
-        // mixed constant and identifier, eval/where
-        List<List<String>> doubleParams = new ArrayList<>(3);
-        List<String> namedDoubleParams = List.of("??f0", "??fn1", "?v1", "??f2", "?v3");
-        List<String> positionalDoubleParams = List.of("??1", "??2", "?3", "??4", "?5");
-        List<String> anonymousDoubleParams = List.of("??", "??", "?", "??", "?");
-        doubleParams.add(namedDoubleParams);
-        doubleParams.add(positionalDoubleParams);
-        doubleParams.add(anonymousDoubleParams);
-        for (List<String> params : doubleParams) {
-            String query = LoggerMessageFormat.format(null, """
-                from test
-                | eval {} = {}({})
-                | where {} == {}
-                | limit 1""", params.get(0), params.get(1), params.get(2), params.get(3), params.get(4));
-            assertEqualsIgnoringIds(
-                new Limit(
-                    EMPTY,
-                    new Literal(EMPTY, 1, INTEGER),
-                    new Filter(
-                        EMPTY,
-                        new Eval(
-                            EMPTY,
-                            relation("test"),
-                            List.of(new Alias(EMPTY, "x", function("toString", List.of(Literal.keyword(EMPTY, "constant_value")))))
-                        ),
-                        new Equals(EMPTY, attribute("f.2"), new Literal(EMPTY, 100, INTEGER))
-                    )
-                ),
-                statement(
-                    query,
-                    new QueryParams(
-                        List.of(
-                            paramAsConstant("f0", "x"),
-                            paramAsConstant("fn1", "toString"),
-                            paramAsConstant("v1", "constant_value"),
-                            paramAsConstant("f2", "f.2"),
-                            paramAsConstant("v3", 100)
-                        )
-                    )
-                )
-            );
-        }
-
-        // mixed constant and identifier, stats/sort/mv_expand
-        namedDoubleParams = List.of("??fn2", "?v3", "??f4", "??f5", "??f6");
-        positionalDoubleParams = List.of("??1", "?2", "??3", "??4", "??5");
-        anonymousDoubleParams = List.of("??", "?", "??", "??", "??");
-        doubleParams.clear();
-        doubleParams.add(namedDoubleParams);
-        doubleParams.add(positionalDoubleParams);
-        doubleParams.add(anonymousDoubleParams);
-        for (List<String> params : doubleParams) {
-            String query = LoggerMessageFormat.format(null, """
-                from test
-                | stats y = {}({}) by {}
-                | sort {}
-                | mv_expand {}""", params.get(0), params.get(1), params.get(2), params.get(3), params.get(4));
-            assertEqualsIgnoringIds(
-                new MvExpand(
-                    EMPTY,
-                    new OrderBy(
-                        EMPTY,
-                        new Aggregate(
-                            EMPTY,
-                            relation("test"),
-                            List.of(attribute("f.4.")),
-                            List.of(new Alias(EMPTY, "y", function("count", List.of(Literal.keyword(EMPTY, "*")))), attribute("f.4."))
-                        ),
-                        List.of(new Order(EMPTY, attribute("f.5.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
-                    ),
-                    attribute("f.6*"),
-                    attribute("f.6*")
-                ),
-                statement(
-                    query,
-                    new QueryParams(
-                        List.of(
-                            paramAsConstant("fn2", "count"),
-                            paramAsConstant("v3", "*"),
-                            paramAsConstant("f4", "f.4."),
-                            paramAsConstant("f5", "f.5.*"),
-                            paramAsConstant("f6", "f.6*")
-                        )
-                    )
-                )
-            );
-        }
-
-        // mixed field name and field name pattern
-        LogicalPlan plan = statement(
-            "from test | keep ??f1, ?f2 | drop ?f3, ??f4 | lookup join idx on ??f5",
-            new QueryParams(
-                List.of(
-                    paramAsConstant("f1", "f*1."),
-                    paramAsPattern("f2", "f.2*"),
-                    paramAsPattern("f3", "f3.*"),
-                    paramAsConstant("f4", "f.4.*"),
-                    paramAsConstant("f5", "f5")
-                )
-            )
-        );
-
-        LookupJoin join = as(plan, LookupJoin.class);
-        UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
-        assertEquals(ur.indexPattern().indexPattern(), "idx");
-        assertEquals(join.config().type().joinName(), "LEFT OUTER");
-        assertEqualsIgnoringIds(join.config().leftFields(), List.of(attribute("f5")));
-        Drop drop = as(join.left(), Drop.class);
-        List<? extends NamedExpression> removals = drop.removals();
-        assertEquals(removals.size(), 2);
-        UnresolvedNamePattern up = as(removals.get(0), UnresolvedNamePattern.class);
-        assertEquals(up.name(), "f3.*");
-        assertEquals(up.pattern(), "f3.*");
-        UnresolvedAttribute ua = as(removals.get(1), UnresolvedAttribute.class);
-        assertEquals(ua.name(), "f.4.*");
-        Keep keep = as(drop.child(), Keep.class);
-        assertEquals(keep.projections().size(), 2);
-        ua = as(keep.projections().get(0), UnresolvedAttribute.class);
-        assertEquals(ua.name(), "f*1.");
-        up = as(keep.projections().get(1), UnresolvedNamePattern.class);
-        assertEquals(up.name(), "f.2*");
-        assertEquals(up.pattern(), "f.2*");
-        ur = as(keep.child(), UnresolvedRelation.class);
-        assertEqualsIgnoringIds(ur, relation("test"));
-
-        // test random single and double params
-        // commands in group1 take both constants(?) and identifiers(??)
-        List<String> commandWithRandomSingleOrDoubleParamsGroup1 = List.of(
-            "eval x = {}f1, y = {}f2, z = {}f3",
-            "eval x = fn({}f1), y = {}f2 + {}f3",
-            "where {}f1 == \"a\" and {}f2 > 1 and {}f3 in (1, 2)",
-            "stats x = fn({}f1) by {}f2, {}f3",
-            "sort {}f1, {}f2, {}f3",
-            "dissect {}f1 \"%{bar}\"",
-            "grok {}f1 \"%{WORD:foo}\""
-        );
-        for (String command : commandWithRandomSingleOrDoubleParamsGroup1) {
-            String param1 = randomBoolean() ? "?" : "??";
-            String param2 = randomBoolean() ? "?" : "??";
-            String param3 = randomBoolean() ? "?" : "??";
-            plan = statement(
-                LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
-                new QueryParams(List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")))
-            );
-            assertNotNull(plan);
-        }
-        // commands in group2 only take identifiers(??)
-        List<String> commandWithRandomSingleOrDoubleParamsGroup2 = List.of(
-            "eval x = {}f1(), y = {}f2(), z = {}f3()",
-            "where {}f1 : \"b\" and {}f2() > 0 and {}f3()",
-            "stats x = {}f1(), {}f2(), {}f3()",
-            "rename {}f1 as {}f2, {}f3 as x",
-            "enrich idx2 ON {}f1 WITH {}f2 = {}f3",
-            "keep {}f1, {}f2, {}f3",
-            "drop {}f1, {}f2, {}f3",
-            "mv_expand {}f1 | mv_expand {}f2 | mv_expand {}f3",
-            "lookup join idx1 on {}f1 | lookup join idx2 on {}f2 | lookup join idx3 on {}f3"
-        );
-
-        for (String command : commandWithRandomSingleOrDoubleParamsGroup2) {
-            String param1 = randomBoolean() ? "?" : "??";
-            String param2 = randomBoolean() ? "?" : "??";
-            String param3 = randomBoolean() ? "?" : "??";
-            if (param1.equals("?") || param2.equals("?") || param3.equals("?")) {
-                if (command.contains("lookup join") == false) {
-                    expectError(
-                        LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
-                        List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")),
-                        "declared as a constant, cannot be used as an identifier"
-                    );
-                } else {
-                    expectError(
-                        LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
-                        List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")),
-                        "JOIN ON clause must be a comma separated list of fields or a single expression, found"
-                    );
-
-                }
-            }
-        }
-    }
-
-    public void testInvalidDoubleParamsNames() {
-        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
-        expectError(
-            "from test | where x < ??n1 | eval y = ??n2",
-            List.of(paramAsConstant("n1", "f1"), paramAsConstant("n3", "f2")),
-            "line 1:39: Unknown query parameter [n2], did you mean any of [n3, n1]?"
-        );
-
-        expectError("from test | where x < ??@1", List.of(paramAsConstant("@1", "f1")), "line 1:25: extraneous input '@1' expecting <EOF>");
-
-        expectError("from test | where x < ??#1", List.of(paramAsConstant("#1", "f1")), "line 1:25: token recognition error at: '#'");
-
-        expectError("from test | where x < ??Å", List.of(paramAsConstant("Å", "f1")), "line 1:25: token recognition error at: 'Å'");
-
-        expectError("from test | eval x = ??Å", List.of(paramAsConstant("Å", "f1")), "line 1:24: token recognition error at: 'Å'");
-    }
-
-    public void testInvalidDoubleParamsPositions() {
-        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
-        expectError(
-            "from test | where x < ??0",
-            List.of(paramAsConstant(null, "f1")),
-            "line 1:23: No parameter is defined for position 0, did you mean position 1"
-        );
-
-        expectError(
-            "from test | where x < ??2",
-            List.of(paramAsConstant(null, "f1")),
-            "line 1:23: No parameter is defined for position 2, did you mean position 1"
-        );
-
-        expectError(
-            "from test | where x < ??0 and y < ??2",
-            List.of(paramAsConstant(null, "f1")),
-            "line 1:23: No parameter is defined for position 0, did you mean position 1?; "
-                + "line 1:35: No parameter is defined for position 2, did you mean position 1?"
-        );
-
-        expectError(
-            "from test | where x < ??0",
-            List.of(paramAsConstant(null, "f1"), paramAsConstant(null, "f2")),
-            "line 1:23: No parameter is defined for position 0, did you mean any position between 1 and 2?"
-        );
-    }
-
-    public void testInvalidDoubleParamsType() {
-        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
-        // double parameter markers cannot be declared as identifier patterns
-        String error = "Query parameter [??f1][f1] declared as a pattern, cannot be used as an identifier";
-        List<String> commandWithDoubleParams = List.of(
-            "eval x = ??f1",
-            "eval x = ??f1(f1)",
-            "where ??f1 == \"a\"",
-            "stats x = count(??f1)",
-            "sort ??f1",
-            "rename ??f1 as ??f2",
-            "dissect ??f1 \"%{bar}\"",
-            "grok ??f1 \"%{WORD:foo}\"",
-            "enrich idx2 ON ??f1 WITH ??f2 = ??f3",
-            "keep ??f1",
-            "drop ??f1",
-            "mv_expand ??f1",
-            "lookup join idx on ??f1"
-        );
-        for (String command : commandWithDoubleParams) {
-            expectError(
-                "from test | " + command,
-                List.of(paramAsPattern("f1", "f1*"), paramAsPattern("f2", "f2*"), paramAsPattern("f3", "f3*")),
-                error
-            );
-        }
-    }
-
     public void testUnclosedParenthesis() {
         String[] queries = {
             "row a = )",
@@ -5367,5 +4170,101 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 assertThat(right.indexPattern().indexPattern(), is(indexName));
             }
         }
+    }
+
+    /**
+     * Tests the inline cast syntax {@code <value>::<type>} for all supported types and
+     * builds a little json report of the valid types.
+     */
+    public void testInlineCast() throws IOException {
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir"))
+            .resolve("query-languages")
+            .resolve("esql")
+            .resolve("kibana")
+            .resolve("definition");
+        Files.createDirectories(dir);
+        Path file = dir.resolve("inline_cast.json");
+        try (XContentBuilder report = new XContentBuilder(JsonXContent.jsonXContent, Files.newOutputStream(file))) {
+            report.humanReadable(true).prettyPrint();
+            report.startObject();
+            List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
+            if (EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled() == false) {
+                // Some types do not have a converter function if the capability is disabled
+                namesAndAliases.removeAll(List.of("geohash", "geotile", "geohex"));
+            }
+            Collections.sort(namesAndAliases);
+            for (String nameOrAlias : namesAndAliases) {
+                DataType expectedType = DataType.fromNameOrAlias(nameOrAlias);
+                if (EsqlDataTypeConverter.converterFunctionFactory(expectedType) == null) {
+                    continue;
+                }
+                LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias);
+                Row row = as(plan, Row.class);
+                assertThat(row.fields(), hasSize(1));
+                org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =
+                    (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
+                assertThat(functionCall.dataType(), equalTo(expectedType));
+                report.field(nameOrAlias, registry.snapshotRegistry().functionName(functionCall.getClass()));
+            }
+            report.endObject();
+        }
+        logger.info("Wrote to file: {}", file);
+    }
+
+    public void testTooBigQuery() {
+        StringBuilder query = new StringBuilder("FROM foo | EVAL a = a");
+        while (query.length() < EsqlParser.MAX_LENGTH) {
+            query.append(", a = CONCAT(a, a)");
+        }
+        expectError(query.toString(), "-1:-1: ESQL statement is too large [1000011 characters > 1000000]");
+    }
+
+    public void testInvalidLimit() {
+        assertLimitWithAndWithoutParams("foo", "\"foo\"", DataType.KEYWORD);
+        assertLimitWithAndWithoutParams(1.2, "1.2", DataType.DOUBLE);
+        assertLimitWithAndWithoutParams(-1, "-1", DataType.INTEGER);
+        assertLimitWithAndWithoutParams(true, "true", DataType.BOOLEAN);
+        assertLimitWithAndWithoutParams(false, "false", DataType.BOOLEAN);
+        assertLimitWithAndWithoutParams(null, "null", DataType.NULL);
+    }
+
+    private void assertLimitWithAndWithoutParams(Object value, String valueText, DataType type) {
+        expectError(
+            "row a = 1 | limit " + valueText,
+            "1:13: value of [limit "
+                + valueText
+                + "] must be a non negative integer, found value ["
+                + valueText
+                + "] type ["
+                + type.typeName()
+                + "]"
+        );
+
+        expectError(
+            "row a = 1 | limit ?param",
+            List.of(new QueryParam("param", value, type, ParserUtils.ParamClassification.VALUE)),
+            "1:13: value of [limit ?param] must be a non negative integer, found value [?param] type [" + type.typeName() + "]"
+        );
+
+    }
+
+    public void testInvalidSample() {
+        expectError(
+            "row a = 1 | sample \"foo\"",
+            "1:13: invalid value for SAMPLE probability [foo], expecting a number between 0 and 1, exclusive"
+        );
+        expectError(
+            "row a = 1 | sample -1.0",
+            "1:13: invalid value for SAMPLE probability [-1.0], expecting a number between 0 and 1, exclusive"
+        );
+        expectError(
+            "row a = 1 | sample 0",
+            "1:13: invalid value for SAMPLE probability [0], expecting a number between 0 and 1, exclusive"
+        );
+        expectError(
+            "row a = 1 | sample 1",
+            "1:13: invalid value for SAMPLE probability [1], expecting a number between 0 and 1, exclusive"
+        );
     }
 }

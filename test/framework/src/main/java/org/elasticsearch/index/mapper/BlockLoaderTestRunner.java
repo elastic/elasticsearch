@@ -66,6 +66,7 @@ public class BlockLoaderTestRunner {
                 XContentType.JSON,
                 null,
                 Map.of(),
+                Map.of(),
                 true,
                 XContentMeteringParserDecorator.NOOP,
                 null

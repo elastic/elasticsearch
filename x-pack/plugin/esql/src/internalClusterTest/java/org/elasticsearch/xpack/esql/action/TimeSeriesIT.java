@@ -9,28 +9,36 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -53,6 +61,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             .setMapping(
                 "@timestamp",
                 "type=date",
+                "project",
+                "type=keyword",
                 "host",
                 "type=keyword,time_series_dimension=true",
                 "cpu",
@@ -62,7 +72,15 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         run("TS empty_index | LIMIT 1").close();
     }
 
-    record Doc(String host, String cluster, long timestamp, int requestCount, double cpu, ByteSizeValue memory) {}
+    record Doc(
+        Collection<String> project,
+        String host,
+        String cluster,
+        long timestamp,
+        int requestCount,
+        double cpu,
+        ByteSizeValue memory
+    ) {}
 
     final List<Doc> docs = new ArrayList<>();
 
@@ -98,6 +116,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             .setMapping(
                 "@timestamp",
                 "type=date",
+                "project",
+                "type=keyword",
                 "host",
                 "type=keyword,time_series_dimension=true",
                 "cluster",
@@ -118,6 +138,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         int numDocs = between(20, 100);
         docs.clear();
         Map<String, Integer> requestCounts = new HashMap<>();
+        List<String> allProjects = List.of("project-1", "project-2", "project-3");
         for (int i = 0; i < numDocs; i++) {
             List<String> hosts = randomSubsetOf(between(1, hostToClusters.size()), hostToClusters.keySet());
             timestamp += between(1, 10) * 1000L;
@@ -131,7 +152,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 });
                 int cpu = randomIntBetween(0, 100);
                 ByteSizeValue memory = ByteSizeValue.ofBytes(randomIntBetween(1024, 1024 * 1024));
-                docs.add(new Doc(host, hostToClusters.get(host), timestamp, requestCount, cpu, memory));
+                List<String> projects = randomSubsetOf(between(1, 3), allProjects);
+                docs.add(new Doc(projects, host, hostToClusters.get(host), timestamp, requestCount, cpu, memory));
             }
         }
         Randomness.shuffle(docs);
@@ -140,6 +162,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 .setSource(
                     "@timestamp",
                     doc.timestamp,
+                    "project",
+                    doc.project,
                     "host",
                     doc.host,
                     "cluster",
@@ -576,24 +600,27 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 List<DriverProfile> dataProfiles = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
                 assertThat(dataProfiles, hasSize(1));
                 List<OperatorStatus> ops = dataProfiles.get(0).operators();
-                assertThat(ops, hasSize(8));
+                assertThat(ops, hasSize(9));
                 assertThat(ops.get(0).operator(), containsString("LuceneSourceOperator"));
                 assertThat(ops.get(0).status(), Matchers.instanceOf(LuceneSourceOperator.Status.class));
                 LuceneSourceOperator.Status status = (LuceneSourceOperator.Status) ops.get(0).status();
                 assertThat(status.processedShards().size(), Matchers.lessThanOrEqualTo(3));
-                assertThat(ops.get(1).operator(), containsString("EvalOperator"));
+                // read _timestamp
+                assertThat(ops.get(1).operator(), containsString("ValuesSourceReaderOperator"));
+                // round _timestamp
+                assertThat(ops.get(2).operator(), containsString("EvalOperator"));
                 // read _tisd, cpu
-                assertThat(ops.get(2).operator(), containsString("ValuesSourceReaderOperator"));
-                var readMetrics = (ValuesSourceReaderOperatorStatus) ops.get(2).status();
+                assertThat(ops.get(3).operator(), containsString("ValuesSourceReaderOperator"));
+                var readMetrics = (ValuesSourceReaderOperatorStatus) ops.get(3).status();
                 assertThat(
                     readMetrics.readersBuilt().keySet(),
                     equalTo(
                         Set.of("_tsid:column_at_a_time:BytesRefsFromOrds.Singleton", "cpu:column_at_a_time:DoublesFromDocValues.Singleton")
                     )
                 );
-                assertThat(ops.get(3).operator(), containsString("TimeSeriesAggregationOperator"));
-                assertThat(ops.get(4).operator(), containsString("ValuesSourceReaderOperator"));
-                var readDimensions = (ValuesSourceReaderOperatorStatus) ops.get(4).status();
+                assertThat(ops.get(4).operator(), containsString("TimeSeriesAggregationOperator"));
+                assertThat(ops.get(5).operator(), containsString("ValuesSourceReaderOperator"));
+                var readDimensions = (ValuesSourceReaderOperatorStatus) ops.get(5).status();
                 assertThat(readDimensions.readersBuilt(), aMapWithSize(1));
                 assertThat(
                     Iterables.get(readDimensions.readersBuilt().keySet(), 0),
@@ -601,9 +628,9 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                         equalTo("cluster:column_at_a_time:BytesRefsFromOrds.Singleton")
                     )
                 );
-                assertThat(ops.get(5).operator(), containsString("EvalOperator"));
-                assertThat(ops.get(6).operator(), containsString("ProjectOperator"));
-                assertThat(ops.get(7).operator(), containsString("ExchangeSinkOperator"));
+                assertThat(ops.get(6).operator(), containsString("EvalOperator"));
+                assertThat(ops.get(7).operator(), containsString("ProjectOperator"));
+                assertThat(ops.get(8).operator(), containsString("ExchangeSinkOperator"));
             }
         }
     }
@@ -669,7 +696,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             });
             int cpu = randomIntBetween(0, 100);
             ByteSizeValue memory = ByteSizeValue.ofBytes(randomIntBetween(1024, 1024 * 1024));
-            sparseDocs.add(new Doc(host, hostToClusters.get(host), timestamp, requestCount, cpu, memory));
+            String project = randomFrom("project-1", "project-2", "project-3");
+            sparseDocs.add(new Doc(List.of(project), host, hostToClusters.get(host), timestamp, requestCount, cpu, memory));
         }
 
         Randomness.shuffle(sparseDocs);
@@ -726,4 +754,185 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testGroupByProject() {
+        record TimeSeries(String cluster, String host) {
+
+        }
+        record Sample(int count, double sum) {
+
+        }
+        Map<TimeSeries, Tuple<Sample, Set<String>>> buckets = new HashMap<>();
+        for (Doc doc : docs) {
+            TimeSeries timeSeries = new TimeSeries(doc.cluster, doc.host);
+            buckets.compute(timeSeries, (k, v) -> {
+                if (v == null) {
+                    return Tuple.tuple(new Sample(1, doc.cpu), Set.copyOf(doc.project));
+                } else {
+                    Set<String> projects = Sets.union(v.v2(), Sets.newHashSet(doc.project));
+                    return Tuple.tuple(new Sample(v.v1().count + 1, v.v1().sum + doc.cpu), projects);
+                }
+            });
+        }
+        try (var resp = run("TS host* | STATS avg(avg_over_time(cpu)) BY project")) {
+            Map<String, Integer> countPerProject = new HashMap<>();
+            Map<String, Double> sumOfAvgPerProject = new HashMap<>();
+            for (var e : buckets.entrySet()) {
+                Sample sample = e.getValue().v1();
+                for (String project : e.getValue().v2()) {
+                    countPerProject.merge(project, 1, Integer::sum);
+                    sumOfAvgPerProject.merge(project, sample.sum / sample.count, Double::sum);
+                }
+            }
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(sumOfAvgPerProject.size()));
+            for (List<Object> r : rows) {
+                String project = (String) r.get(1);
+                double actualAvg = (Double) r.get(0);
+                double expectedAvg = sumOfAvgPerProject.get(project) / countPerProject.get(project);
+                assertThat(actualAvg, closeTo(expectedAvg, 0.5));
+            }
+        }
+        try (var resp = run("TS host* | STATS avg(avg_over_time(cpu)) BY project, cluster")) {
+            record Key(String project, String cluster) {
+
+            }
+            Map<Key, Integer> countPerProject = new HashMap<>();
+            Map<Key, Double> sumOfAvgPerProject = new HashMap<>();
+            for (var e : buckets.entrySet()) {
+                Sample sample = e.getValue().v1();
+                for (String project : e.getValue().v2()) {
+                    Key key = new Key(project, e.getKey().cluster);
+                    countPerProject.merge(key, 1, Integer::sum);
+                    sumOfAvgPerProject.merge(key, sample.sum / sample.count, Double::sum);
+                }
+            }
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(sumOfAvgPerProject.size()));
+            for (List<Object> r : rows) {
+                Key key = new Key((String) r.get(1), (String) r.get(2));
+                double actualAvg = (Double) r.get(0);
+                double expectedAvg = sumOfAvgPerProject.get(key) / countPerProject.get(key);
+                assertThat(actualAvg, closeTo(expectedAvg, 0.5));
+            }
+        }
+    }
+
+    public void testGroupByProjectAndTBucket() {
+        record TimeSeries(String cluster, String host, String tbucket) {
+
+        }
+        record Sample(int count, double sum) {
+
+        }
+        Map<TimeSeries, Tuple<Sample, Set<String>>> buckets = new HashMap<>();
+        var rounding = new Rounding.Builder(TimeValue.timeValueMillis(TimeValue.timeValueMinutes(1).millis())).build().prepareForUnknown();
+        for (Doc doc : docs) {
+            var tbucket = DEFAULT_DATE_TIME_FORMATTER.formatMillis(rounding.round(doc.timestamp));
+            TimeSeries timeSeries = new TimeSeries(doc.cluster, doc.host, tbucket);
+            buckets.compute(timeSeries, (k, v) -> {
+                if (v == null) {
+                    return Tuple.tuple(new Sample(1, doc.cpu), Set.copyOf(doc.project));
+                } else {
+                    Set<String> projects = Sets.union(v.v2(), Sets.newHashSet(doc.project));
+                    return Tuple.tuple(new Sample(v.v1().count + 1, v.v1().sum + doc.cpu), projects);
+                }
+            });
+        }
+        try (var resp = run("TS host* | STATS avg(avg_over_time(cpu)) BY project, tbucket(1minute)")) {
+            record Key(String project, String tbucket) {
+
+            }
+            Map<Key, Integer> countPerProject = new HashMap<>();
+            Map<Key, Double> sumOfAvgPerProject = new HashMap<>();
+            for (var e : buckets.entrySet()) {
+                Sample sample = e.getValue().v1();
+                for (String project : e.getValue().v2()) {
+                    Key key = new Key(project, e.getKey().tbucket);
+                    countPerProject.merge(key, 1, Integer::sum);
+                    sumOfAvgPerProject.merge(key, sample.sum / sample.count, Double::sum);
+                }
+            }
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(sumOfAvgPerProject.size()));
+            for (List<Object> r : rows) {
+                Key key = new Key((String) r.get(1), (String) r.get(2));
+                double actualAvg = (Double) r.get(0);
+                double expectedAvg = sumOfAvgPerProject.get(key) / countPerProject.get(key);
+                assertThat(actualAvg, closeTo(expectedAvg, 0.5));
+            }
+        }
+        try (var resp = run("TS host* | STATS avg(avg_over_time(cpu)) BY  tbucket(1minute), project, cluster")) {
+            record Key(String project, String cluster, String tbucket) {
+
+            }
+            Map<Key, Integer> countPerProject = new HashMap<>();
+            Map<Key, Double> sumOfAvgPerProject = new HashMap<>();
+            for (var e : buckets.entrySet()) {
+                Sample sample = e.getValue().v1();
+                for (String project : e.getValue().v2()) {
+                    Key key = new Key(project, e.getKey().cluster, e.getKey().tbucket);
+                    countPerProject.merge(key, 1, Integer::sum);
+                    sumOfAvgPerProject.merge(key, sample.sum / sample.count, Double::sum);
+                }
+            }
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(sumOfAvgPerProject.size()));
+            for (List<Object> r : rows) {
+                Key key = new Key((String) r.get(2), (String) r.get(3), (String) r.get(1));
+                double actualAvg = (Double) r.get(0);
+                double expectedAvg = sumOfAvgPerProject.get(key) / countPerProject.get(key);
+                assertThat(actualAvg, closeTo(expectedAvg, 0.5));
+            }
+        }
+
+    }
+
+    public void testWithDateTrunc() {
+        try (
+            var resp1 = run("TS host* | STATS avg(avg_over_time(cpu)) BY cluster, TBUCKET(1minute)");
+            var resp2 = run("TS host* | EVAL tbucket = DATE_TRUNC(1m, @timestamp) | STATS avg(avg_over_time(cpu)) BY cluster, tbucket");
+        ) {
+            record Key(String cluster, String tbucket) {
+
+            }
+            Map<Key, Double> results1 = EsqlTestUtils.getValuesList(resp1)
+                .stream()
+                .collect(Collectors.toMap(e -> new Key((String) e.get(1), (String) e.get(2)), e -> round((Double) e.get(0))));
+            Map<Key, Double> results2 = EsqlTestUtils.getValuesList(resp2)
+                .stream()
+                .collect(Collectors.toMap(e -> new Key((String) e.get(1), (String) e.get(2)), e -> round((Double) e.get(0))));
+            assertThat(results1, equalTo(results2));
+        }
+        try (
+            var resp1 = run("TS host* | STATS max(avg_over_time(cpu)) BY TBUCKET(1minute)");
+            var resp2 = run("TS host* | EVAL tbucket = DATE_TRUNC(1m, @timestamp) | STATS max(avg_over_time(cpu)) BY tbucket");
+        ) {
+            Map<String, Double> results1 = EsqlTestUtils.getValuesList(resp1)
+                .stream()
+                .collect(Collectors.toMap(e -> (String) e.get(1), e -> round((Double) e.get(0))));
+            Map<String, Double> results2 = EsqlTestUtils.getValuesList(resp2)
+                .stream()
+                .collect(Collectors.toMap(e -> (String) e.get(1), e -> round((Double) e.get(0))));
+            assertThat(results1, equalTo(results2));
+        }
+        try (
+            var resp1 = run("TS host* | STATS avg(avg_over_time(cpu, 5m)) BY cluster, TBUCKET(1minute)");
+            var resp2 = run("TS host* | EVAL tbucket = DATE_TRUNC(1m, @timestamp) | STATS avg(avg_over_time(cpu, 5m)) BY cluster, tbucket");
+        ) {
+            record Key(String cluster, String tbucket) {
+
+            }
+            Map<Key, Double> results1 = EsqlTestUtils.getValuesList(resp1)
+                .stream()
+                .collect(Collectors.toMap(e -> new Key((String) e.get(1), (String) e.get(2)), e -> round((Double) e.get(0))));
+            Map<Key, Double> results2 = EsqlTestUtils.getValuesList(resp2)
+                .stream()
+                .collect(Collectors.toMap(e -> new Key((String) e.get(1), (String) e.get(2)), e -> round((Double) e.get(0))));
+            assertThat(results1, equalTo(results2));
+        }
+    }
+
+    private static double round(double value) {
+        return new BigDecimal(value).setScale(6, RoundingMode.HALF_UP).doubleValue();
+    }
 }

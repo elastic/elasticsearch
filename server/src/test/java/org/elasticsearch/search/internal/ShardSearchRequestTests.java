@@ -233,9 +233,6 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             if (Optional.ofNullable(request.source()).map(SearchSourceBuilder::knnSearch).map(List::size).orElse(0) > 1) {
                 version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_7_0, TransportVersion.current());
             }
-            if (request.source() != null && request.source().rankBuilder() != null) {
-                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_8_0, TransportVersion.current());
-            }
             if (request.source() != null && request.source().subSearches().size() >= 2) {
                 version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_9_X, TransportVersion.current());
             }

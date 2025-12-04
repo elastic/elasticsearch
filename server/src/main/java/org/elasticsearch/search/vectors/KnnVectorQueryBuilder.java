@@ -285,11 +285,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             }
         }
         this.filterQueries.addAll(readQueries(in));
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            this.vectorSimilarity = in.readOptionalFloat();
-        } else {
-            this.vectorSimilarity = null;
-        }
+        this.vectorSimilarity = in.readOptionalFloat();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
         } else {
@@ -397,9 +393,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             }
         }
         writeQueries(out, filterQueries);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalFloat(vectorSimilarity);
-        }
+        out.writeOptionalFloat(vectorSimilarity);
         if (out.getTransportVersion().before(TransportVersions.V_8_14_0) && queryVectorBuilder != null) {
             throw new IllegalArgumentException(
                 format(

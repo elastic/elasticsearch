@@ -41,7 +41,8 @@ public class DiskBBQLicensingIT extends ESIntegTestCase {
     }
 
     public void testCreateDiskBBQIndexRestricted() {
-        disableLicensing(randomInvalidLicenseType());
+        // disable any license
+        disableLicensing();
         // doesn't throw
         client().admin().indices().prepareCreate("diskbbq-index").setMapping("""
               {
@@ -56,6 +57,14 @@ public class DiskBBQLicensingIT extends ESIntegTestCase {
             }""").get();
         // throws on write
         var e = expectThrows(ElasticsearchException.class, () -> client().prepareIndex("diskbbq-index").setSource("""
+              {
+                "vector": [0.1, 0.2, 0.3, 0.4]
+              }
+            """, XContentType.JSON).get());
+        assertTrue(e.getMessage().contains("current license is non-compliant"));
+        // apply an invalid license
+        enableLicensing(randomInvalidLicenseType());
+        e = expectThrows(ElasticsearchException.class, () -> client().prepareIndex("diskbbq-index").setSource("""
               {
                 "vector": [0.1, 0.2, 0.3, 0.4]
               }
@@ -109,7 +118,11 @@ public class DiskBBQLicensingIT extends ESIntegTestCase {
         client().prepareSearch("diskbbq-index")
             .setKnnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f, 0.4f }, 10, 10, null, null, null)))
             .get();
-        // disable license and read, it should not throw on read
+        disableLicensing();
+        client().prepareSearch("diskbbq-index")
+            .setKnnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f, 0.4f }, 10, 10, null, null, null)))
+            .get();
+        enableLicensing(randomInvalidLicenseType());
         client().prepareSearch("diskbbq-index")
             .setKnnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f, 0.4f }, 10, 10, null, null, null)))
             .get();

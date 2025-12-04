@@ -333,25 +333,99 @@ public final class TextStructureUtils {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
-            Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = guessMappingAndCalculateFieldStats(
-                explanation,
-                fieldName,
-                fieldValues,
-                timeoutChecker,
-                ecsCompatibility,
-                timestampFormatOverride
-            );
-            if (mappingAndFieldStats != null) {
-                if (mappingAndFieldStats.v1() != null) {
-                    mappings.put(fieldName, mappingAndFieldStats.v1());
-                }
-                if (mappingAndFieldStats.v2() != null) {
-                    fieldStats.put(fieldName, mappingAndFieldStats.v2());
+            // Process nested fields dynamically (recursively if needed)
+            if (isNestedField(fieldValues)) {
+                // Recursively process nested fields
+                List<Map<String, ?>> nestedFieldValues = extractNestedFieldValues(sampleRecords, fieldName);
+
+                Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> nestedResult = guessMappingsAndCalculateFieldStats(
+                    explanation,
+                    nestedFieldValues,
+                    timeoutChecker,
+                    ecsCompatibility,
+                    timestampFormatOverride
+                );
+                // Create a nested mapping for the parent field and merge the nested field mappings
+                mappings.put(fieldName, createNestedMapping(nestedResult.v1(), determineNestedFieldType(nestedFieldValues)));  // Apply
+                                                                                                                               // type:
+                                                                                                                               // nested for
+                                                                                                                               // the parent
+                                                                                                                               // field
+                fieldStats.putAll(nestedResult.v2());
+
+            } else {
+                // For non-nested fields, process them normally
+                Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = guessMappingAndCalculateFieldStats(
+                    explanation,
+                    fieldName,
+                    fieldValues,
+                    timeoutChecker,
+                    ecsCompatibility,
+                    timestampFormatOverride
+                );
+                if (mappingAndFieldStats != null) {
+                    if (mappingAndFieldStats.v1() != null) {
+                        mappings.put(fieldName, mappingAndFieldStats.v1());
+                    }
+                    if (mappingAndFieldStats.v2() != null) {
+                        fieldStats.put(fieldName, mappingAndFieldStats.v2());
+                    }
                 }
             }
         }
 
         return new Tuple<>(mappings, fieldStats);
+    }
+
+    /**
+     * Extracts the nested field values for a given field from a list of sample records.
+     *
+     * @param sampleRecords The list of records, where each record is a map containing field names as keys.
+     * @param fieldName The name of the field whose values are to be extracted from each record.
+     * @return A list of Maps representing the nested field values for the specified field.
+     */
+    private static List<Map<String, ?>> extractNestedFieldValues(List<Map<String, ?>> sampleRecords, String fieldName) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, ?>> extractedFieldValue = sampleRecords.stream()
+            .map(record -> record.get(fieldName))
+            .filter(Objects::nonNull)
+            .filter(val -> val instanceof Map)
+            .map(val -> (Map<String, ?>) val)
+            .collect(Collectors.toList());
+        return extractedFieldValue;
+    }
+
+    /**
+     * Creates a mapping for a nested field, either as a "nested" or "object" field type.
+     *
+     * @param nestedFieldMappings A map containing the field mappings for the nested fields.
+     * @param nestingType The type of the nested field (either "nested" or "object").
+     * @return A map representing the field mapping for the nested field with the specified type.
+     */
+    private static Object createNestedMapping(SortedMap<String, Object> nestedFieldMappings, String nestingType) {
+        SortedMap<String, Object> nestedMapping = new TreeMap<>();
+        nestedMapping.put(MAPPING_TYPE_SETTING, nestingType);
+        nestedMapping.put(MAPPING_PROPERTIES_SETTING, nestedFieldMappings);
+        return nestedMapping;
+    }
+
+    /**
+     * @param fieldValues value of a field in the sample records
+     * @return boolean for whether the field is nested (i.e., Map or List of Maps)
+     */
+    static boolean isNestedField(List<Object> fieldValues) {
+        return fieldValues.stream().anyMatch(val -> val instanceof Map || val instanceof List);
+    }
+
+    /**
+     * @param nestedFieldValues value of a nested field in the sample records
+     * @return "nested" or "object" based on the data structure
+     * @TODO: If the field values contain a List of Maps and need to be queried independently, set as "nested"
+     *        If not, treat it as a regular "object"
+     */
+    static String determineNestedFieldType(List<Map<String, ?>> nestedFieldValues) {
+        // just supports object for now
+        return "object";
     }
 
     /**

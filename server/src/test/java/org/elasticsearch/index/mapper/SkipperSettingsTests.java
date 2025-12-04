@@ -17,13 +17,11 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
-import org.junit.Test;
 
 import java.util.function.Consumer;
 
 public class SkipperSettingsTests extends ESTestCase {
 
-    @Test
     public void testSkipperSettingDefaults() {
         assumeTrue("Skipper feature flag is not enabled", IndexSettings.DOC_VALUES_SKIPPER);
         {
@@ -40,7 +38,6 @@ public class SkipperSettingsTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testTSDBSkipperSettingDefaults() {
         assumeTrue("Skipper feature flag is not enabled", IndexSettings.DOC_VALUES_SKIPPER);
         {
@@ -70,7 +67,6 @@ public class SkipperSettingsTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testLogsDBSkipperSettingDefaults() {
         assumeTrue("Skipper feature flag is not enabled", IndexSettings.DOC_VALUES_SKIPPER);
         {

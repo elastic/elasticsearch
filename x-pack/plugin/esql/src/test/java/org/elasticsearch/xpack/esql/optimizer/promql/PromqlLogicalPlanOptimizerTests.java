@@ -578,7 +578,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     protected LogicalPlan planPromql(String query) {
         query = query.replace("$now-1h", '"' + Instant.now().minus(1, ChronoUnit.HOURS).toString() + '"');
         query = query.replace("$now", '"' + Instant.now().toString() + '"');
-        var analyzed = tsAnalyzer.analyze(parser.createStatement(query));
+        var analyzed = tsAnalyzer.analyze(parser.parseQuery(query));
         logger.trace("analyzed plan:\n{}", analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         logger.trace("optimized plan:\n{}", optimized);

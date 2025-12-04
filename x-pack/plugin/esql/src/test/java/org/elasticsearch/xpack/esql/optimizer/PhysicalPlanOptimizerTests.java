@@ -235,7 +235,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      */
     private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataType.KEYWORD);
 
-    private EsqlParser parser;
     private Mapper mapper;
     private TestDataSource testData;
     private TestDataSource testDataLimitedRaw;
@@ -297,7 +296,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     @Before
     public void init() {
-        parser = new EsqlParser();
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper();
         var enrichResolution = setupEnrichResolution();
@@ -7615,7 +7613,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(query + "::long"));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ESQL query exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -7630,7 +7628,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(query + expression));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ESQL query exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -7645,7 +7643,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(query + expression));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ESQL query exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -7660,7 +7658,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(query + "(" + expression + ")"));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ESQL query exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -7681,7 +7679,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(from + prefix + expression + suffix));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ESQL query exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -7692,7 +7690,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }
         physicalPlan(from.toString());
         var e = expectThrows(ParsingException.class, () -> physicalPlan(from + (randomBoolean() ? "| sort a" : " | eval c = 10")));
-        assertThat(e.getMessage(), containsString("ESQL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
+        assertThat(e.getMessage(), containsString("ESQL query exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
     }
 
     public void testMaxQueryDepthPlusExpressionDepth() {
@@ -7710,11 +7708,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(mainQuery + cast + "::int"));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ESQL query exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
 
         e = expectThrows(ParsingException.class, () -> physicalPlan(mainQuery + cast + " | eval x = 10"));
-        assertThat(e.getMessage(), containsString("ESQL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
+        assertThat(e.getMessage(), containsString("ESQL query exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
     }
 
     @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
@@ -8603,7 +8601,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {
         var logicalOptimizer = dataSource.logicalOptimizer();
-        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query)));
+        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(new Versioned<>(logical, dataSource.minimumVersion()));
         // System.out.println("Physical\n" + physical);

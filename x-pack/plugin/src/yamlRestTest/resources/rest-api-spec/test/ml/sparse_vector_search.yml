@@ -122,6 +122,34 @@ teardown:
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
+"Test multiple sparse_vector to check for embeddings reuse for duplicated query and inference id":
+  - do:
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            bool:
+              must:
+                - sparse_vector:
+                    field: ml.tokens
+                    inference_id: text_expansion_model
+                    query: "octopus comforter smells"
+                - sparse_vector:
+                    field: ml.tokens
+                    inference_id: text_expansion_model
+                    query: "octopus comforter smells"
+                - sparse_vector:
+                    field: ml.tokens
+                    inference_id: text_expansion_model
+                    query: "smells"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
+  - match: { hits.hits.0._score: 11.0 }
+  - match: { hits.hits.1._source.source_text: "washing machine smells" }
+  - match: { hits.hits.1._score: 3.0 }
+
+---
 "Test sparse_vector search with pruning config - note this will not change returned results due to model limitations":
   - do:
       search:

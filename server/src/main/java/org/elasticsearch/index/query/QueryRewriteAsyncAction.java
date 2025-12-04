@@ -46,7 +46,11 @@ public abstract class QueryRewriteAsyncAction<T> {
         ActionListener<T> actionListener = new ActionListener<T>() {
             @Override
             public void onResponse(T result) {
-                consumers.forEach(consumer -> ((Consumer<T>) consumer).accept(result));
+                try {
+                    consumers.forEach(consumer -> ((Consumer<T>) consumer).accept(result));
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
                 listener.onResponse(null);
             }
 

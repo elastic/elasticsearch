@@ -1525,6 +1525,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterValueName(EsqlBaseParser.ValueNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitValueName(EsqlBaseParser.ValueNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterPromqlParam(EsqlBaseParser.PromqlParamContext ctx) { }
   /**
    * {@inheritDoc}

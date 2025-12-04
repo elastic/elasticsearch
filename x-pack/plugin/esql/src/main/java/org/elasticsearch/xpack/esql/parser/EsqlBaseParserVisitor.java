@@ -810,6 +810,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#valueName}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitValueName(EsqlBaseParser.ValueNameContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#promqlParam}.
    * @param ctx the parse tree
    * @return the visitor result

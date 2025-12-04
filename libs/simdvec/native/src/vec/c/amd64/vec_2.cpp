@@ -16,14 +16,20 @@
 #include <math.h>
 #include "vec.h"
 
-#ifdef _MSC_VER
-#include <intrin.h>
-#elif __clang__
+// AVX-512 code
+#ifdef __clang__
 #pragma clang attribute push(__attribute__((target("arch=skylake-avx512"))), apply_to=function)
-#include <x86intrin.h>
 #elif __GNUC__
 #pragma GCC push_options
 #pragma GCC target ("arch=skylake-avx512")
+#endif
+
+// Includes for intrinsics
+#ifdef _MSC_VER
+#include <intrin.h>
+#elif __clang__
+#include <x86intrin.h>
+#elif __GNUC__
 #include <x86intrin.h>
 #endif
 
@@ -51,7 +57,7 @@ inline __m512i fma8(__m512i acc, const int8_t* p1, const int8_t* p2) {
     return _mm512_add_epi32(_mm512_madd_epi16(ones, dot), acc);
 }
 
-static inline int32_t dot7u_inner_avx512(int8_t* a, const int8_t* b, const int32_t dims) {
+static inline int32_t dot7u_inner_avx512(const int8_t* a, const int8_t* b, const int32_t dims) {
     constexpr int stride8 = 8 * STRIDE_BYTES_LEN;
     constexpr int stride4 = 4 * STRIDE_BYTES_LEN;
     const int8_t* p1 = a;
@@ -104,7 +110,7 @@ static inline int32_t dot7u_inner_avx512(int8_t* a, const int8_t* b, const int32
     return _mm512_reduce_add_epi32(_mm512_add_epi32(acc0, acc4));
 }
 
-EXPORT int32_t vec_dot7u_2(int8_t* a, int8_t* b, const int32_t dims) {
+EXPORT int32_t vec_dot7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > STRIDE_BYTES_LEN) {
@@ -117,29 +123,61 @@ EXPORT int32_t vec_dot7u_2(int8_t* a, int8_t* b, const int32_t dims) {
     return res;
 }
 
-EXPORT void vec_dot7u_bulk_2(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    int32_t res = 0;
+template <int64_t(*mapper)(int32_t, const int32_t*)>
+static inline void dot7u_inner_bulk(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
     if (dims > STRIDE_BYTES_LEN) {
         const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
         for (int32_t c = 0; c < count; c++) {
+            const int8_t* a0 = a + (mapper(c, offsets) * pitch);
             int i = limit;
-            res = dot7u_inner_avx512(a, b, i);
+            int32_t res = dot7u_inner_avx512(a0, b, i);
             for (; i < dims; i++) {
-                res += a[i] * b[i];
+                res += a0[i] * b[i];
             }
             results[c] = (f32_t)res;
-            a += dims;
         }
     } else {
         for (int32_t c = 0; c < count; c++) {
-            res = 0;
+            const int8_t* a0 = a + (mapper(c, offsets) * pitch);
+            int32_t res = 0;
             for (int32_t i = 0; i < dims; i++) {
-                res += a[i] * b[i];
+                res += a0[i] * b[i];
             }
             results[c] = (f32_t)res;
-            a += dims;
         }
     }
+}
+
+static inline int64_t identity(const int32_t i, const int32_t* offsets) {
+   return i;
+}
+
+static inline int64_t index(const int32_t i, const int32_t* offsets) {
+   return offsets[i];
+}
+
+EXPORT void vec_dot7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    dot7u_inner_bulk<identity>(a, b, dims, dims, NULL, count, results);
+}
+
+
+EXPORT void vec_dot7u_bulk_offsets_2(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    dot7u_inner_bulk<index>(a, b, dims, pitch, offsets, count, results);
 }
 
 template<int offsetRegs>

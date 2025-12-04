@@ -13,29 +13,28 @@ import org.elasticsearch.xpack.esql.action.AbstractCrossClusterTestCase;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlResolvedIndexExpressionIT extends AbstractCrossClusterTestCase {
 
     public void testLocalIndices() {
         createIndex(LOCAL_CLUSTER, "index-1");
 
-        assertThat(resolveIndices("index-1"), hasEntry(LOCAL_CLUSTER, resolvedIndexExpression("index-1", "index-1")));
+        assertThat(resolveIndices("index-1"), equalTo(Map.of(LOCAL_CLUSTER, resolvedIndexExpression("index-1", "index-1"))));
     }
 
     public void testLocalAlias() {
         createIndex(LOCAL_CLUSTER, "index-1");
         createAlias(LOCAL_CLUSTER, "alias-1", "index-1");
 
-        assertThat(resolveIndices("alias-1"), hasEntry(LOCAL_CLUSTER, resolvedIndexExpression("alias-1", "index-1")));
+        assertThat(resolveIndices("alias-1"), equalTo(Map.of(LOCAL_CLUSTER, resolvedIndexExpression("alias-1", "index-1"))));
     }
 
     public void testLocalPattern() {
         createIndex(LOCAL_CLUSTER, "index-1");
         createIndex(LOCAL_CLUSTER, "index-2");
 
-        assertThat(resolveIndices("index-*"), hasEntry(LOCAL_CLUSTER, resolvedIndexExpression("index-*", "index-1,index-2")));
+        assertThat(resolveIndices("index-*"), equalTo(Map.of(LOCAL_CLUSTER, resolvedIndexExpression("index-*", "index-1,index-2"))));
     }
 
     public void testLocalMultiple() {
@@ -44,7 +43,7 @@ public class EsqlResolvedIndexExpressionIT extends AbstractCrossClusterTestCase 
 
         assertThat(
             resolveIndices("index-1,index-2"),
-            hasEntry(LOCAL_CLUSTER, resolvedIndexExpression("index-1,index-2", "index-1,index-2"))
+            equalTo(Map.of(LOCAL_CLUSTER, resolvedIndexExpression("index-1,index-2", "index-1,index-2")))
         );
     }
 
@@ -55,11 +54,24 @@ public class EsqlResolvedIndexExpressionIT extends AbstractCrossClusterTestCase 
 
         assertThat(
             resolveIndices("index-*,*:index-*"),
-            allOf(
-                hasEntry(LOCAL_CLUSTER, resolvedIndexExpression("index-*", "index-1")),
-                hasEntry(REMOTE_CLUSTER_1, resolvedIndexExpression("index-*", "index-2")),
-                hasEntry(REMOTE_CLUSTER_2, resolvedIndexExpression("index-*", "index-3"))
+            equalTo(
+                Map.ofEntries(
+                    Map.entry(LOCAL_CLUSTER, resolvedIndexExpression("index-*", "index-1")),
+                    Map.entry(REMOTE_CLUSTER_1, resolvedIndexExpression("index-*", "index-2")),
+                    Map.entry(REMOTE_CLUSTER_2, resolvedIndexExpression("index-*", "index-3"))
+                )
             )
+        );
+    }
+
+    public void testRemoteIndices() {
+        createIndex(LOCAL_CLUSTER, "index-1");
+        createIndex(REMOTE_CLUSTER_1, "index-2");
+        createIndex(REMOTE_CLUSTER_2, "index-3");
+
+        assertThat(
+            resolveIndices(REMOTE_CLUSTER_1 + ":index-*"),
+            equalTo(Map.of(REMOTE_CLUSTER_1, resolvedIndexExpression("index-*", "index-2")))
         );
     }
 

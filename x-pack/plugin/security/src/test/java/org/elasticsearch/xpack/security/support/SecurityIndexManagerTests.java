@@ -75,6 +75,8 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
+import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.FILE_SETTINGS_METADATA_NAMESPACE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -277,6 +279,58 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
     private ClusterChangedEvent event(ClusterState clusterState) {
         return new ClusterChangedEvent("test-event", clusterState, EMPTY_CLUSTER_STATE);
+    }
+
+    public void testStateChangeListenerIsCalledIfMigrationIsRequired() {
+        final AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        final AtomicReference<SecurityIndexManager.State> previousState = new AtomicReference<>();
+        final AtomicReference<SecurityIndexManager.State> currentState = new AtomicReference<>();
+        final BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> listener = (prevState, state) -> {
+            previousState.set(prevState);
+            currentState.set(state);
+            listenerCalled.set(true);
+        };
+        manager.addStateListener(listener);
+
+        // index doesn't exist and now exists
+        ClusterState.Builder clusterStateBuilder = createClusterState(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS
+        );
+        clusterStateBuilder = setMigrationVersion(
+            clusterStateBuilder.build(),
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            randomIntBetween(1, SecurityMigrations.highestMigrationVersion() - 1)
+        );
+
+        final ClusterState clusterState = markShardsAvailable(clusterStateBuilder);
+        manager.clusterChanged(event(clusterState));
+
+        assertThat(listenerCalled.get(), is(true));
+
+        for (int i = 0; i < 3; i++) {
+            listenerCalled.set(false);
+            ClusterChangedEvent event = new ClusterChangedEvent("same index state", clusterState, clusterState);
+            manager.clusterChanged(event);
+
+            assertThat(listenerCalled.get(), is(true));
+            assertThat(previousState.get(), equalTo(currentState.get()));
+        }
+
+        final var newClusterState = setMigrationVersion(
+            clusterState,
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecurityMigrations.highestMigrationVersion()
+        ).build();
+
+        listenerCalled.set(false);
+        manager.clusterChanged(new ClusterChangedEvent("modified index state", newClusterState, clusterState));
+        assertThat(listenerCalled.get(), is(true));
+        assertThat(previousState.get(), not(equalTo(currentState.get())));
+
+        listenerCalled.set(false);
+        manager.clusterChanged(new ClusterChangedEvent("same index state", newClusterState, newClusterState));
+        assertThat(listenerCalled.get(), is(false));
     }
 
     public void testIndexHealthChangeListeners() {
@@ -898,6 +952,21 @@ public class SecurityIndexManagerTests extends ESTestCase {
             .build();
     }
 
+    private ClusterState.Builder setMigrationVersion(ClusterState clusterState, String indexName, Integer version) {
+        final ClusterState.Builder csBuilder = ClusterState.builder(clusterState);
+
+        final Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
+        final IndexMetadata.Builder indexBuilder = IndexMetadata.builder(clusterState.metadata().index(indexName));
+        if (version == null) {
+            indexBuilder.removeCustom(MIGRATION_VERSION_CUSTOM_KEY);
+        } else {
+            indexBuilder.putCustom(MIGRATION_VERSION_CUSTOM_KEY, Map.of(MIGRATION_VERSION_CUSTOM_DATA_KEY, Integer.toString(version)));
+        }
+        metadataBuilder.put(indexBuilder);
+        csBuilder.metadata(metadataBuilder);
+        return csBuilder;
+    }
+
     private static ClusterState state() {
         final DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(DiscoveryNodeUtils.builder("1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build())
@@ -921,7 +990,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
         if (mappings != null) {
             indexMetadata.putMapping(mappings);
         }
-
         return indexMetadata;
     }
 

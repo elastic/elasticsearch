@@ -370,6 +370,22 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         }
     }
 
+    @Override
+    protected boolean supportsTDigestField() {
+        try {
+            return RestEsqlTestCase.hasCapabilities(
+                client(),
+                List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.capabilityName())
+            )
+                && RestEsqlTestCase.hasCapabilities(
+                    remoteClusterClient(),
+                    List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.capabilityName())
+                );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     /**
      * Convert index patterns and subqueries in FROM commands to use remote indices for a given test case.
      */

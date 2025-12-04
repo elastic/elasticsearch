@@ -114,4 +114,11 @@ public class EsqlTestUtilsTests extends ESTestCase {
              | DISSECT a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip};"\s
              | KEEP Y, M, D, h, m, s, msg, ip"""));
     }
+
+    public void testOverlap() {
+        assertThat(
+            EsqlTestUtils.addRemoteIndices("FROM sample_data_ts_nanos, sample_data", Set.of(), false),
+            equalTo("FROM *:sample_data_ts_nanos,sample_data_ts_nanos, *:sample_data,sample_data")
+        );
+    }
 }

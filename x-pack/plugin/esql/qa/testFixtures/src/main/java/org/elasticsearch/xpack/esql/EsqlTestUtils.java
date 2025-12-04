@@ -1327,10 +1327,12 @@ public final class EsqlTestUtils {
                         commandArgs = commandArgs.substring(0, i) + newIndex + commandArgs.substring(i + index.length());
                     } else if (command.equalsIgnoreCase("PROMQL")) {
                         // PROMQL queries may not list indices explicitly, relying on the default value
-                        commandArgs = "index=" + newIndex + " " + commandArgs;
+                        newIndex = "index=" + newIndex + " ";
+                        commandArgs = newIndex + commandArgs;
                     } else {
                         throw new IllegalStateException("Could not find index [" + index + "] in command arguments [" + commandArgs + "]");
                     }
+                    i += newIndex.length();
                 }
                 String newFirstCommand = command + " " + commandArgs;
                 return (setStatements + " " + newFirstCommand.trim() + query.substring(first.length())).trim();

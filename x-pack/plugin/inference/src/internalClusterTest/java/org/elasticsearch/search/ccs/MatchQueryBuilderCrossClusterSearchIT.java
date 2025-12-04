@@ -49,7 +49,7 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
         }
     }
 
-    public void testMatchQuery() throws Exception {
+    public void testMatchQueryWithCcsMinimizeRoundTripsTrue() throws Exception {
         // Query a field has the same inference ID value across clusters, but with different backing inference services
         assertSearchResponse(
             new MatchQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
@@ -86,6 +86,28 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
                 new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
                 new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
             )
+        );
+
+        // Query an inference field on a remote cluster
+        assertSearchResponse(
+            new MatchQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
+            List.of(new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)),
+            List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)))
+        );
+
+        // Validate that a CCS match query functions when only text fields are queried
+        assertSearchResponse(
+            new MatchQueryBuilder(TEXT_FIELD, "e"),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(TEXT_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(TEXT_FIELD))
+            )
+        );
+        assertSearchResponse(
+            new MatchQueryBuilder(TEXT_FIELD, "e"),
+            List.of(new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)),
+            List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(TEXT_FIELD)))
         );
     }
 

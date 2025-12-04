@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderShardWriteLoadType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
@@ -142,13 +143,15 @@ public class DiskUsageTests extends ESTestCase {
         Map<ShardId, Double> shardWriteLoads = new HashMap<>();
         Map<ShardId, Long> shardDataSetSizes = new HashMap<>();
         Map<ClusterInfo.NodeAndShard, String> routingToPath = new HashMap<>();
+        WriteLoadDeciderShardWriteLoadType type = randomFrom(WriteLoadDeciderShardWriteLoadType.values());
         InternalClusterInfoService.buildShardLevelInfo(
             stats,
             shardWriteLoads,
             shardSizes,
             shardDataSetSizes,
             routingToPath,
-            new HashMap<>()
+            new HashMap<>(),
+            type
         );
 
         assertThat(
@@ -176,12 +179,19 @@ public class DiskUsageTests extends ESTestCase {
             equalTo(
                 Map.of(
                     test_0.shardId(),
-                    commonStats0.indexing.getTotal().getRecentWriteLoad(),
+                    getWriteLoadType(type, commonStats0.indexing.getTotal()),
                     test_1.shardId(),
-                    Math.max(commonStats1.indexing.getTotal().getRecentWriteLoad(), commonStats2.indexing.getTotal().getRecentWriteLoad())
+                    Math.max(
+                        getWriteLoadType(type, commonStats1.indexing.getTotal()),
+                        getWriteLoadType(type, commonStats2.indexing.getTotal())
+                    )
                 )
             )
         );
+    }
+
+    private double getWriteLoadType(WriteLoadDeciderShardWriteLoadType type, IndexingStats.Stats stats) {
+        return (type == WriteLoadDeciderShardWriteLoadType.PEAK) ? stats.getPeakWriteLoad() : stats.getRecentWriteLoad();
     }
 
     private IndexingStats randomIndexingStats() {

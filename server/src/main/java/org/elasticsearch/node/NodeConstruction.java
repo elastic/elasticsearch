@@ -712,7 +712,8 @@ class NodeConstruction {
         modules.bindToInstance(RootObjectMapperNamespaceValidator.class, namespaceValidator);
 
         assert nodeEnvironment.nodeId() != null : "node ID must be set before constructing the Node";
-        TaskManager taskManager = new TaskManager(
+        TaskManager taskManager = serviceProvider.newTaskManager(
+            pluginsService,
             settings,
             threadPool,
             Stream.concat(

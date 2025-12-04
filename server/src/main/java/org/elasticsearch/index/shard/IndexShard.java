@@ -3778,9 +3778,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return useRetentionLeasesInPeerRecovery;
     }
 
+    /**
+     * @return SafeCommitInfo of the current engine. But if engine is null or engine is locked for reset then returns SafeCommitInfo.EMPTY.
+     */
     private SafeCommitInfo getSafeCommitInfo() {
-        final Engine engine = getEngineOrNull();
-        return engine == null ? SafeCommitInfo.EMPTY : engine.getSafeCommitInfo();
+        return tryWithEngineOrNull(engine -> engine == null ? SafeCommitInfo.EMPTY : engine.getSafeCommitInfo());
+
     }
 
     class ShardEventListener implements Engine.EventListener {

@@ -75,11 +75,7 @@ public class NodeInfo extends BaseNodeResponse {
         } else {
             Version legacyVersion = Version.readVersion(in);
             version = legacyVersion.toString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                compatibilityVersions = new CompatibilityVersions(TransportVersion.readVersion(in), Map.of()); // unknown mappings versions
-            } else {
-                compatibilityVersions = new CompatibilityVersions(TransportVersion.fromId(legacyVersion.id), Map.of());
-            }
+            compatibilityVersions = new CompatibilityVersions(TransportVersion.readVersion(in), Map.of()); // unknown mappings versions;
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                 indexVersion = IndexVersion.readVersion(in);
             } else {
@@ -111,9 +107,7 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
         addInfoIfNonNull(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
         addInfoIfNonNull(AggregationInfo.class, in.readOptionalWriteable(AggregationInfo::new));
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            addInfoIfNonNull(RemoteClusterServerInfo.class, in.readOptionalWriteable(RemoteClusterServerInfo::new));
-        }
+        addInfoIfNonNull(RemoteClusterServerInfo.class, in.readOptionalWriteable(RemoteClusterServerInfo::new));
     }
 
     public NodeInfo(
@@ -253,8 +247,6 @@ public class NodeInfo extends BaseNodeResponse {
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
             compatibilityVersions.writeTo(out);
-        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            TransportVersion.writeVersion(compatibilityVersions.transportVersion(), out);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             IndexVersion.writeVersion(indexVersion, out);
@@ -282,8 +274,6 @@ public class NodeInfo extends BaseNodeResponse {
         out.writeOptionalWriteable(getInfo(PluginsAndModules.class));
         out.writeOptionalWriteable(getInfo(IngestInfo.class));
         out.writeOptionalWriteable(getInfo(AggregationInfo.class));
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalWriteable(getInfo(RemoteClusterServerInfo.class));
-        }
+        out.writeOptionalWriteable(getInfo(RemoteClusterServerInfo.class));
     }
 }

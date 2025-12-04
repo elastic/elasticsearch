@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -51,7 +52,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final String roleName = randomAlphaOfLength(5);
         String[] indices = Stream.of(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
-            .map(String::toLowerCase)
+            .map(s -> s.toLowerCase(Locale.ROOT))
             .toArray(String[]::new);
         getSecurityClient().putRole(
             new RoleDescriptor(

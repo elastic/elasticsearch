@@ -1085,6 +1085,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) {
         assert source.dynamicTemplates().isEmpty() || origin == Engine.Operation.Origin.PRIMARY
             : "dynamic_templates parameter can only be associated with primary operations";
+        assert source.dynamicTemplateParams().isEmpty() || origin == Engine.Operation.Origin.PRIMARY
+            : "dynamic_template_params parameter can only be associated with primary operations";
         DocumentMapper documentMapper = mapperService.documentMapper();
         Mapping mapping = null;
         if (documentMapper == null) {

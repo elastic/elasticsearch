@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -46,6 +48,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -369,18 +372,19 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     }
 
     public void testHotspotCountTurnsOff() {
-        // test that collecting metrics without calling WriteLoadConstraintMonitor::onNewInfo returns no new data
+        /* Test that collecting metrics without calling WriteLoadConstraintMonitor::onNewInfo returns no new data,
+        and that changing the term on cluster state clears the hotspot duration table */
         TestState testState = createTestStateWithNumberOfNodesAndHotSpots(10, 1, 1, 2, true);
 
         final long nowMillis = System.currentTimeMillis();
         final AtomicLong currentTimeMillis = new AtomicLong(nowMillis);
-        final ClusterState clusterState = testState.clusterState();
+        final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(testState.clusterState());
 
         final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
             testState.clusterSettings,
             currentTimeMillis::get,
-            () -> clusterState,
+            clusterStateRef::get,
             testState.mockRerouteService,
             recordingMeterRegistry
         );
@@ -404,6 +408,15 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         // no count is issued for this collection round, as onNewInfo hasn't been called
         recordingMeterRegistry.getRecorder().collect();
         assertMetricsCollected(recordingMeterRegistry, List.of(2L, 1L), List.of(duration / 1000.0));
+
+        // change cluster state term, and see that the hotspot table is reset
+        testState = testState.removeFromClusterInfoHotspot(testState.hotspotNodeIds());
+        testState = testState.incrementClusterStateTerm();
+        clusterStateRef.set(testState.clusterState());
+
+        writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(recordingMeterRegistry, List.of(2L, 1L, 0L), List.of(duration / 1000.0));
     }
 
     public void testHotspotDurationsAreRecorded() {
@@ -732,6 +745,27 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                 clusterState,
                 mockRerouteService,
                 createClusterInfoWithHotSpots(clusterState, newHotspotNodeIds, latencyThresholdMillis, highUtilizationThresholdPercent)
+            );
+        }
+
+        private TestState incrementClusterStateTerm() {
+            ClusterState state = ClusterState.builder(clusterState).metadata(
+                Metadata.builder(clusterState.metadata()).coordinationMetadata(
+                    CoordinationMetadata.builder(clusterState.metadata().coordinationMetadata())
+                        .term(clusterState.term() + 1)
+                        .build()))
+                .build();
+
+            return new TestState(
+                latencyThresholdMillis,
+                highUtilizationThresholdPercent,
+                numberOfNodes,
+                hotspotNodeIds,
+                clusterSettings,
+                currentTimeSupplier,
+                state,
+                mockRerouteService,
+                clusterInfo
             );
         }
     }

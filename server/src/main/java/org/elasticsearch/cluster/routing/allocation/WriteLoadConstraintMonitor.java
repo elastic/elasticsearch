@@ -49,6 +49,7 @@ public class WriteLoadConstraintMonitor {
     private final RerouteService rerouteService;
     private volatile long lastRerouteTimeMillis = 0;
     private final Map<String, Long> hotspotNodeStartTimes = new HashMap<>();
+    private long hotspotNodeStartTimesLastTerm = -1L;
 
     public static final String HOTSPOT_NODES_COUNT_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot.current";
     public static final String HOTSPOT_DURATION_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot.duration.histogram";
@@ -129,6 +130,12 @@ public class WriteLoadConstraintMonitor {
             } else {
                 haveWriteNodesBelowQueueLatencyThreshold = true;
             }
+        }
+
+        // reset hotspotNodeStartTimes if the term has changed
+        if (state.term() != hotspotNodeStartTimesLastTerm) {
+            hotspotNodeStartTimesLastTerm = state.term();
+            hotspotNodeStartTimes.clear();
         }
 
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();

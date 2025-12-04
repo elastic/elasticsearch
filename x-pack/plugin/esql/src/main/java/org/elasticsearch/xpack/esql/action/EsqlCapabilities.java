@@ -1521,6 +1521,7 @@ public class EsqlCapabilities {
         TS_LINREG_DERIVATIVE,
         TS_RATE_DATENANOS,
         TS_RATE_DATENANOS_2,
+        TS_DERIV_DATENANOS,
         /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011

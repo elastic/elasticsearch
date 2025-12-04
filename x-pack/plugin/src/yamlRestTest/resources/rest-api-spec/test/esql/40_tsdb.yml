@@ -846,7 +846,9 @@ error on rename timestamp:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ ts_command_v0, ts_rename_timestamp_error_message ]
+          # inline_stats_with_no_columns is a stand-in for a missed capability that should have been introduced along with the
+          # TimestampAware interface. This capability is the first one added past #137040.
+          capabilities: [ ts_command_v0, ts_rename_timestamp_error_message, inline_stats_with_no_columns ]
       reason: "TS specific check"
 
   - do:

@@ -9,18 +9,15 @@ package org.elasticsearch.license;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.xpack.diskbbq.LocalStateDiskBBQ;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
 import org.junit.Before;
 
-import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 
@@ -148,27 +145,6 @@ public class DiskBBQLicensingIT extends ESIntegTestCase {
     public static void enableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
             licenseState.update(new XPackLicenseStatus(operationMode, true, null));
-        }
-    }
-
-    public static class LocalStateDiskBBQ extends LocalStateCompositeXPackPlugin {
-        private final DiskBBQPlugin plugin;
-
-        public LocalStateDiskBBQ(final Settings settings, final Path configPath) {
-            super(settings, configPath);
-            LocalStateDiskBBQ thisVar = this;
-            plugin = new DiskBBQPlugin(settings) {
-                @Override
-                protected XPackLicenseState getLicenseState() {
-                    return thisVar.getLicenseState();
-                }
-            };
-            plugins.add(plugin);
-        }
-
-        @Override
-        public VectorsFormatProvider getVectorsFormatProvider() {
-            return plugin.getVectorsFormatProvider();
         }
     }
 

@@ -2117,35 +2117,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertThat(knnVectorsFormat, hasToString(startsWith(expectedString)));
     }
 
-    public void testKnnBBQIVFVectorsFormat() throws IOException {
-        final int dims = randomIntBetween(64, 4096);
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("dims", dims);
-            b.field("index", true);
-            b.field("similarity", "dot_product");
-            b.startObject("index_options");
-            b.field("type", "bbq_disk");
-            b.endObject();
-        }));
-        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
-        Codec codec = codecService.codec("default");
-        KnnVectorsFormat knnVectorsFormat;
-        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
-            assertThat(codec, instanceOf(PerFieldMapperCodec.class));
-            knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        } else {
-            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-                codec = deduplicateFieldInfosCodec.delegate();
-            }
-            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-            knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        }
-        String expectedString = Build.current().isSnapshot()
-            ? "ESNextDiskBBQVectorsFormat(vectorPerCluster=384)"
-            : "ES920DiskBBQVectorsFormat(vectorPerCluster=384)";
-        assertEquals(expectedString, knnVectorsFormat.toString());
-    }
 
     public void testInvalidVectorDimensionsBBQ() {
         for (String quantizedFlatFormat : new String[] { "bbq_hnsw", "bbq_flat" }) {

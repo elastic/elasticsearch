@@ -335,11 +335,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             repositoryName = in.readOptionalString();
             snapshotName = in.readOptionalString();
             shrinkIndexName = in.readOptionalString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-                indexCreationDate = in.readOptionalLong();
-            } else {
-                indexCreationDate = null;
-            }
+            indexCreationDate = in.readOptionalLong();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 previousStepInfo = in.readOptionalBytesReference();
             } else {
@@ -394,9 +390,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             out.writeOptionalString(repositoryName);
             out.writeOptionalString(snapshotName);
             out.writeOptionalString(shrinkIndexName);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-                out.writeOptionalLong(indexCreationDate);
-            }
+            out.writeOptionalLong(indexCreationDate);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeOptionalBytesReference(previousStepInfo);
             }

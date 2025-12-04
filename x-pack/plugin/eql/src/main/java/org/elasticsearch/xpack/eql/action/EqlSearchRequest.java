@@ -90,6 +90,7 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     static final String KEY_MAX_SAMPLES_PER_KEY = "max_samples_per_key";
     static final String KEY_ALLOW_PARTIAL_SEARCH_RESULTS = "allow_partial_search_results";
     static final String KEY_ALLOW_PARTIAL_SEQUENCE_RESULTS = "allow_partial_sequence_results";
+    static final String KEY_PROJECT_ROUTING = "project_routing";
 
     static final ParseField FILTER = new ParseField(KEY_FILTER);
     static final ParseField TIMESTAMP_FIELD = new ParseField(KEY_TIMESTAMP_FIELD);
@@ -106,6 +107,7 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     static final ParseField MAX_SAMPLES_PER_KEY = new ParseField(KEY_MAX_SAMPLES_PER_KEY);
     static final ParseField ALLOW_PARTIAL_SEARCH_RESULTS = new ParseField(KEY_ALLOW_PARTIAL_SEARCH_RESULTS);
     static final ParseField ALLOW_PARTIAL_SEQUENCE_RESULTS = new ParseField(KEY_ALLOW_PARTIAL_SEQUENCE_RESULTS);
+    static final ParseField PROJECT_ROUTING = new ParseField(KEY_PROJECT_ROUTING);
 
     private static final ObjectParser<EqlSearchRequest, Void> PARSER = objectParser(EqlSearchRequest::new);
 
@@ -136,13 +138,8 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             maxSamplesPerKey = in.readInt();
         }
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            allowPartialSearchResults = in.readOptionalBoolean();
-            allowPartialSequenceResults = in.readOptionalBoolean();
-        } else {
-            allowPartialSearchResults = false;
-            allowPartialSequenceResults = false;
-        }
+        allowPartialSearchResults = in.readOptionalBoolean();
+        allowPartialSequenceResults = in.readOptionalBoolean();
     }
 
     @Override
@@ -301,6 +298,7 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
         parser.declareInt(EqlSearchRequest::maxSamplesPerKey, MAX_SAMPLES_PER_KEY);
         parser.declareBoolean(EqlSearchRequest::allowPartialSearchResults, ALLOW_PARTIAL_SEARCH_RESULTS);
         parser.declareBoolean(EqlSearchRequest::allowPartialSequenceResults, ALLOW_PARTIAL_SEQUENCE_RESULTS);
+        parser.declareString(EqlSearchRequest::projectRouting, PROJECT_ROUTING);
         return parser;
     }
 
@@ -519,10 +517,8 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeInt(maxSamplesPerKey);
         }
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeOptionalBoolean(allowPartialSearchResults);
-            out.writeOptionalBoolean(allowPartialSequenceResults);
-        }
+        out.writeOptionalBoolean(allowPartialSearchResults);
+        out.writeOptionalBoolean(allowPartialSequenceResults);
     }
 
     @Override

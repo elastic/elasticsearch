@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
@@ -85,7 +84,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -347,27 +345,13 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             // Validate downsampling interval
             validateDownsamplingConfiguration(mapperService, request.getDownsampleConfig(), sourceIndexMetadata);
 
-            final List<String> dimensionFields = new ArrayList<>();
-            final List<String> metricFields = new ArrayList<>();
-            final List<String> labelFields = new ArrayList<>();
-            final TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(mapperService).build(
+            final TimeSeriesFields timeSeriesFields = new TimeSeriesFields.Collector(
+                mapperService,
                 request.getDownsampleConfig().getTimestampField()
-            );
-            MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
-                var flattenedDimensions = helper.extractFlattenedDimensions(field, mapping);
-                if (flattenedDimensions != null) {
-                    dimensionFields.addAll(flattenedDimensions);
-                } else if (helper.isTimeSeriesDimension(field, mapping)) {
-                    dimensionFields.add(field);
-                } else if (helper.isTimeSeriesMetric(field, mapping)) {
-                    metricFields.add(field);
-                } else if (helper.isTimeSeriesLabel(field, mapping)) {
-                    labelFields.add(field);
-                }
-            });
+            ).collect(sourceIndexMappings);
 
             ActionRequestValidationException validationException = new ActionRequestValidationException();
-            if (dimensionFields.isEmpty()) {
+            if (timeSeriesFields.dimensionFields().length == 0) {
                 validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any dimension fields");
             }
 
@@ -379,7 +363,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
             final String mapping;
             try {
-                mapping = createDownsampleIndexMapping(helper, request.getDownsampleConfig(), sourceIndexMappings);
+                mapping = createDownsampleIndexMapping(request.getDownsampleConfig(), sourceIndexMappings);
             } catch (IOException e) {
                 recordFailureMetrics(startTime);
                 delegate.onFailure(e);
@@ -416,9 +400,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             downsampleIndexName,
                             parentTask,
                             startTime,
-                            metricFields,
-                            labelFields,
-                            dimensionFields
+                            timeSeriesFields.metricFields(),
+                            timeSeriesFields.labelFields(),
+                            timeSeriesFields.dimensionFields(),
+                            timeSeriesFields.multiFieldSources()
                         );
                     } else {
                         recordFailureMetrics(startTime);
@@ -446,9 +431,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             downsampleIndexName,
                             parentTask,
                             startTime,
-                            metricFields,
-                            labelFields,
-                            dimensionFields
+                            timeSeriesFields.metricFields(),
+                            timeSeriesFields.labelFields(),
+                            timeSeriesFields.dimensionFields(),
+                            timeSeriesFields.multiFieldSources()
                         );
                     } else {
                         recordFailureMetrics(startTime);
@@ -518,9 +504,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         String downsampleIndexName,
         TaskId parentTask,
         long startTime,
-        List<String> metricFields,
-        List<String> labelFields,
-        List<String> dimensionFields
+        String[] metricFields,
+        String[] labelFields,
+        String[] dimensionFields,
+        Map<String, String> multiFieldSources
     ) {
         final int numberOfShards = sourceIndexMetadata.getNumberOfShards();
         final Index sourceIndex = sourceIndexMetadata.getIndex();
@@ -542,6 +529,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 metricFields,
                 labelFields,
                 dimensionFields,
+                multiFieldSources,
                 shardId
             );
             Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> predicate = runningTask -> {
@@ -673,9 +661,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final DownsampleConfig downsampleConfig,
         final IndexMetadata sourceIndexMetadata,
         final String targetIndexName,
-        final List<String> metricFields,
-        final List<String> labelFields,
-        final List<String> dimensionFields,
+        final String[] metricFields,
+        final String[] labelFields,
+        final String[] dimensionFields,
+        final Map<String, String> multiFieldSources,
         final ShardId shardId
     ) {
         return new DownsampleShardTaskParams(
@@ -684,9 +673,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             parseTimestamp(sourceIndexMetadata, IndexSettings.TIME_SERIES_START_TIME),
             parseTimestamp(sourceIndexMetadata, IndexSettings.TIME_SERIES_END_TIME),
             shardId,
-            metricFields.toArray(new String[0]),
-            labelFields.toArray(new String[0]),
-            dimensionFields.toArray(new String[0])
+            metricFields,
+            labelFields,
+            dimensionFields,
+            multiFieldSources
         );
     }
 
@@ -714,11 +704,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
      * @param sourceIndexMappings a map with the source index mapping
      * @return the mapping of the downsample index
      */
-    public static String createDownsampleIndexMapping(
-        final TimeseriesFieldTypeHelper helper,
-        final DownsampleConfig config,
-        final Map<String, Object> sourceIndexMappings
-    ) throws IOException {
+    public static String createDownsampleIndexMapping(final DownsampleConfig config, final Map<String, Object> sourceIndexMappings)
+        throws IOException {
 
         final String timestampField = config.getTimestampField();
         final String dateIntervalType = config.getIntervalType();
@@ -733,7 +720,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         visitAndCopyMapping(sourceIndexMappings, downsampledMapping, (fieldName, sourceMapping, updatedMapping) -> {
             if (timestampField.equals(fieldName)) {
                 updateTimestampField(sourceMapping, updatedMapping, dateIntervalType, dateInterval, timezone);
-            } else if (helper.isTimeSeriesMetric(fieldName, sourceMapping)) {
+            } else if (TimeSeriesFields.isTimeSeriesMetric(sourceMapping)) {
                 processMetricField(sourceMapping, updatedMapping, config.getSamplingMethodOrDefault());
             } else {
                 copyMapping(sourceMapping, updatedMapping);
@@ -825,6 +812,30 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }
 
         return new AggregateMetricDoubleFieldSupportedMetrics(defaultMetric, supportedAggs);
+    }
+
+    private static void addMetricFieldMapping(final XContentBuilder builder, final String field, final Map<String, ?> fieldProperties)
+        throws IOException {
+        final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.fromString(
+            fieldProperties.get(TIME_SERIES_METRIC_PARAM).toString()
+        );
+        builder.startObject(field);
+        if (metricType == TimeSeriesParams.MetricType.GAUGE) {
+            var supported = getSupportedMetrics(metricType, fieldProperties);
+
+            builder.field("type", AggregateMetricDoubleFieldMapper.CONTENT_TYPE)
+                .stringListField(AggregateMetricDoubleFieldMapper.Names.METRICS, supported.supportedMetrics)
+                .field(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC, supported.defaultMetric)
+                .field(TIME_SERIES_METRIC_PARAM, metricType);
+        } else {
+            // For counters and histograms, we keep the same field type.
+            // Counters because they store the last value (for now)
+            // Histograms because they are merged to a histogram
+            for (String fieldProperty : fieldProperties.keySet()) {
+                builder.field(fieldProperty, fieldProperties.get(fieldProperty));
+            }
+        }
+        builder.endObject();
     }
 
     private static void validateDownsamplingConfiguration(

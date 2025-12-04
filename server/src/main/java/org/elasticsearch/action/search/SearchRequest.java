@@ -102,6 +102,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     private boolean ccsMinimizeRoundtrips;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+    public static final IndicesOptions DEFAULT_CPS_INDICES_OPTIONS = IndicesOptions.cpsStrictExpandOpenAndForbidClosedIgnoreThrottled();
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
@@ -295,11 +296,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         }
         waitForCheckpoints = in.readMap(StreamInput::readLongArray);
         waitForCheckpointsTimeout = in.readTimeValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            forceSyntheticSource = in.readBoolean();
-        } else {
-            forceSyntheticSource = false;
-        }
+        forceSyntheticSource = in.readBoolean();
         if (in.getTransportVersion().supports(SEARCH_PROJECT_ROUTING)) {
             this.projectRouting = in.readOptionalString();
         } else {
@@ -344,13 +341,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         }
         out.writeMap(waitForCheckpoints, StreamOutput::writeLongArray);
         out.writeTimeValue(waitForCheckpointsTimeout);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeBoolean(forceSyntheticSource);
-        } else {
-            if (forceSyntheticSource) {
-                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
-            }
-        }
+        out.writeBoolean(forceSyntheticSource);
         if (out.getTransportVersion().supports(SEARCH_PROJECT_ROUTING)) {
             out.writeOptionalString(this.projectRouting);
         }
@@ -380,8 +371,12 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
                     validationException
                 );
             }
-            if (indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false) {
+            if (indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false
+                && indicesOptions().equals(DEFAULT_CPS_INDICES_OPTIONS) == false) {
                 validationException = addValidationError("[indicesOptions] cannot be used with point in time", validationException);
+            }
+            if (getProjectRouting() != null) {
+                validationException = addValidationError("[projectRouting] cannot be used with point in time", validationException);
             }
             if (routing() != null) {
                 validationException = addValidationError("[routing] cannot be used with point in time", validationException);

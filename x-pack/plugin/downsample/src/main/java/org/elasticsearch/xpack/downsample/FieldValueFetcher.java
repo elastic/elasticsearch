@@ -18,15 +18,19 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Utility class used for fetching field values by reading field data.
  * For fields whose type is multivalued the 'name' matches the parent field
- * name (normally used for indexing data), while the actual subfield
+ * name (normally used for indexing data), while the actual multiField
  * name is accessible by means of {@link MappedFieldType#name()}.
  */
 class FieldValueFetcher {
@@ -62,7 +66,12 @@ class FieldValueFetcher {
         return numericFieldData.getDoubleValues();
     }
 
-    public AbstractDownsampleFieldProducer fieldProducer() {
+    public ExponentialHistogramValuesReader getExponentialHistogramLeaf(LeafReaderContext context) throws IOException {
+        LeafExponentialHistogramFieldData exponentialHistogramFieldData = (LeafExponentialHistogramFieldData) fieldData.load(context);
+        return exponentialHistogramFieldData.getHistogramValues();
+    }
+
+    AbstractDownsampleFieldProducer fieldProducer() {
         return fieldProducer;
     }
 
@@ -71,9 +80,14 @@ class FieldValueFetcher {
             : "Aggregate metric double should be handled by a dedicated FieldValueFetcher";
         if (fieldType.getMetricType() != null) {
             return switch (fieldType.getMetricType()) {
-                case GAUGE -> MetricFieldProducer.createFieldProducerForGauge(name(), samplingMethod);
+                case GAUGE -> NumericMetricFieldProducer.createFieldProducerForGauge(name(), samplingMethod);
                 case COUNTER -> LastValueFieldProducer.createForMetric(name());
-                case HISTOGRAM -> throw new IllegalArgumentException("Unsupported metric type [histogram] for downsampling, coming soon");
+                case HISTOGRAM -> {
+                    if ("exponential_histogram".equals(fieldType.typeName())) {
+                        yield ExponentialHistogramMetricFieldProducer.createMetricProducerForExponentialHistogram(name(), samplingMethod);
+                    }
+                    throw new IllegalArgumentException("Time series metrics supports only exponential histogram");
+                }
                 // TODO: Support POSITION in downsampling
                 case POSITION -> throw new IllegalArgumentException("Unsupported metric type [position] for down-sampling");
             };
@@ -86,16 +100,22 @@ class FieldValueFetcher {
     /**
      * Retrieve field value fetchers for a list of fields.
      */
-    static List<FieldValueFetcher> create(SearchExecutionContext context, String[] fields, DownsampleConfig.SamplingMethod samplingMethod) {
+    static List<FieldValueFetcher> create(
+        SearchExecutionContext context,
+        String[] fields,
+        Map<String, String> multiFieldSources,
+        DownsampleConfig.SamplingMethod samplingMethod
+    ) {
         List<FieldValueFetcher> fetchers = new ArrayList<>();
         for (String field : fields) {
-            MappedFieldType fieldType = context.getFieldType(field);
-            assert fieldType != null : "Unknown field type for field: [" + field + "]";
+            String sourceField = multiFieldSources.getOrDefault(field, field);
+            MappedFieldType fieldType = context.getFieldType(sourceField);
+            assert fieldType != null : "Unknown field type for field: [" + sourceField + "]";
 
             if (fieldType instanceof AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType aggMetricFieldType) {
                 fetchers.addAll(AggregateSubMetricFieldValueFetcher.create(context, aggMetricFieldType, samplingMethod));
             } else {
-                if (context.fieldExistsInIndex(field)) {
+                if (context.fieldExistsInIndex(fieldType.name())) {
                     final IndexFieldData<?> fieldData;
                     if (fieldType instanceof FlattenedFieldMapper.RootFlattenedFieldType flattenedFieldType) {
                         var keyedFieldType = flattenedFieldType.getKeyedFieldType();
@@ -103,7 +123,7 @@ class FieldValueFetcher {
                     } else {
                         fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                     }
-                    fetchers.add(new FieldValueFetcher(fieldType.name(), fieldType, fieldData, samplingMethod));
+                    fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, samplingMethod));
                 }
             }
         }

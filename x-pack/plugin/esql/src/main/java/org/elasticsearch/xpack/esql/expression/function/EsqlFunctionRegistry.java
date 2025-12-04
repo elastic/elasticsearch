@@ -434,7 +434,8 @@ public class EsqlFunctionRegistry {
                 def(Trim.class, Trim::new, "trim"),
                 def(UrlEncode.class, UrlEncode::new, "url_encode"),
                 def(UrlEncodeComponent.class, UrlEncodeComponent::new, "url_encode_component"),
-                def(UrlDecode.class, UrlDecode::new, "url_decode") },
+                def(UrlDecode.class, UrlDecode::new, "url_decode"),
+                def(Chunk.class, bi(Chunk::new), "chunk") },
             // date
             new FunctionDefinition[] {
                 def(DateDiff.class, tric(DateDiff::new), "date_diff"),
@@ -524,11 +525,11 @@ public class EsqlFunctionRegistry {
             // fulltext functions
             new FunctionDefinition[] {
                 def(Decay.class, quad(Decay::new), "decay"),
-                def(Kql.class, bi(Kql::new), "kql"),
+                def(Kql.class, bic(Kql::new), "kql"),
                 def(Knn.class, tri(Knn::new), "knn"),
                 def(Match.class, tri(Match::new), "match"),
                 def(MultiMatch.class, MultiMatch::new, "multi_match"),
-                def(QueryString.class, bi(QueryString::new), "qstr"),
+                def(QueryString.class, bic(QueryString::new), "qstr"),
                 def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase"),
                 def(Score.class, uni(Score::new), "score") },
             // time-series functions
@@ -572,8 +573,7 @@ public class EsqlFunctionRegistry {
                 def(L1Norm.class, L1Norm::new, "v_l1_norm"),
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
-                def(Hamming.class, Hamming::new, "v_hamming"),
-                def(Chunk.class, bi(Chunk::new), "chunk") } };
+                def(Hamming.class, Hamming::new, "v_hamming") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

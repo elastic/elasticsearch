@@ -55,7 +55,7 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
     protected TestPlannerOptimizer plannerOptimizer;
     protected TestPlannerOptimizer plannerOptimizerDateDateNanosUnionTypes;
     protected TestPlannerOptimizer plannerOptimizerTimeSeries;
-    private Analyzer timeSeriesAnalyzer;
+    protected Analyzer timeSeriesAnalyzer;
 
     private static final String PARAM_FORMATTING = "%1$s";
 

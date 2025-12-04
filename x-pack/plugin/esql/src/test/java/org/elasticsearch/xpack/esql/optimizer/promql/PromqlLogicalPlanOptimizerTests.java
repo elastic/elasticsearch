@@ -92,8 +92,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
         var plan = planPromql("""
             EXPLAIN (
-            TS k8s
-            | promql step 5m ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
+            PROMQL k8s step=5m ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
             | LIMIT 1000
             )
             """);
@@ -143,8 +142,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=\"{{from}}\"
         // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
         var plan = planPromql("""
-            TS k8s
-            | promql step 1h ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
+            PROMQL k8s step=1h ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
             | LIMIT 1000
             """);
 
@@ -296,8 +294,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // TS metrics-hostmetricsreceiver.otel-default
         // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY TBUCKET(1h) | LIMIT 10000"
         var plan = planPromql("""
-            TS k8s
-            | promql step 1h (
+            PROMQL k8s step=1h (
                 avg(avg_over_time(network.bytes_in[1h]))
               )
             | LIMIT 1000
@@ -305,10 +302,14 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
 
     }
 
+    public void testPromqlTrailingSpaces() {
+        planPromql("PROMQL k8s step=1h (max(network.bytes_in)) ");
+        planPromql("PROMQL k8s step=1h (max(network.bytes_in)) | SORT step");
+    }
+
     public void testPromqlMaxOfLongField() {
         var plan = planPromql("""
-            TS k8s
-            | promql step 1h (
+            PROMQL k8s step=1h (
                 max(network.bytes_in)
               )
             """);
@@ -318,8 +319,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
 
     public void testSort() {
         var plan = planPromql("""
-            TS k8s
-            | promql step 1h (
+            PROMQL k8s step=1h (
                 avg(network.bytes_in) by (pod)
               )
             | SORT step, pod, `avg(network.bytes_in) by (pod)`
@@ -358,8 +358,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=\"{{from}}\"
         // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
         var plan = planPromql("""
-            TS k8s
-            | promql step 1h ( max by (pod) (avg_over_time(network.bytes_in[1h])) )
+            PROMQL k8s step=1h ( max by (pod) (avg_over_time(network.bytes_in[1h])) )
             """);
 
     }
@@ -370,8 +369,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <= \"{{from}}\"
         // | STATS AVG(RATE(`metrics.system.cpu.time`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
         String testQuery = """
-            TS k8s
-            | promql step 1h (
+            PROMQL k8s step=1h (
                 avg by (pod) (rate(network.bytes_in[1h]))
                 )
             """;
@@ -401,8 +399,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      */
     public void testStartEndStep() {
         String testQuery = """
-            TS k8s
-            | promql start $now-1h end $now step 5m (
+            PROMQL k8s start=$now-1h end=$now step=5m (
                 avg(avg_over_time(network.bytes_in[5m]))
                 )
             """;
@@ -441,8 +438,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // | WHERE host.name IN(\"host-0\", \"host-1\", \"host-2\")
         // | STATS AVG(AVG_OVER_TIME(`system.cpu.load_average.1m`)) BY host.name, TBUCKET(5m) | LIMIT 10000"
         String testQuery = """
-            TS k8s
-            | promql time $now (
+            PROMQL k8s time=$now (
                 max by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[5m]))
               )
             """;
@@ -460,8 +456,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // | WHERE host.name LIKE \"host-*\"
         // STATS AVG(AVG_OVER_TIME(`metrics.system.cpu.load_average.1m`)) BY host.name, TBUCKET(5 minutes)"
         String testQuery = """
-            TS k8s
-            | promql time $now (
+            PROMQL k8s time=$now (
                 avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-.*"}[5m]))
                 )
             """;
@@ -476,8 +471,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
 
     public void testLabelSelectorProperPrefix() {
         var plan = planPromql("""
-            TS k8s
-            | promql time $now (
+            PROMQL k8s time=$now (
                 avg(avg_over_time(network.bytes_in{pod=~"host-.+"}[1h]))
               )
             """);
@@ -511,8 +505,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      */
     public void testLabelSelectorRegex() {
         var plan = planPromql("""
-            TS k8s
-            | promql time $now (
+            PROMQL k8s time=$now (
                 avg(avg_over_time(network.bytes_in{pod=~"[a-z]+"}[1h]))
               )
             """);
@@ -534,10 +527,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
 
         // topk(5, sum by (host.name, mountpoint) (last_over_time(system.filesystem.usage{state=~"used|free"}[5m])))
         String testQuery = """
-            TS k8s
-            | promql step 5m (
-                sum by (host.name, mountpoint) (last_over_time(system.filesystem.usage{state=~"used|free"}[5m]))
-                )
+            PROMQL k8s step=5m (
+              sum by (host.name, mountpoint) (last_over_time(system.filesystem.usage{state=~"used|free"}[5m]))
+            )
             """;
 
         var plan = planPromql(testQuery);
@@ -554,10 +546,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
 
         // topk(5, sum by (host.name, mountpoint) (last_over_time(system.filesystem.usage{state=~"used|free"}[5m])))
         String testQuery = """
-            TS k8s
-            | promql step 5m (
-                foo or bar
-                )
+            PROMQL k8s step=5m (
+              foo or bar
+            )
             """;
 
         var plan = planPromql(testQuery);
@@ -567,19 +558,19 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     // // TODO doesn't parse
     // // line 1:27: Invalid query '1+1'[ArithmeticBinaryContext] given; expected LogicalPlan but found VectorBinaryArithmetic
     // assertThat(
-    // error("TS test | PROMQL step 5m (1+1)", tsdb),
+    // error("PROMQL k8s step=5m (1+1)", tsdb),
     // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
     // );
     // assertThat(
-    // error("TS test | PROMQL step 5m ( foo and bar )", tsdb),
+    // error("PROMQL k8s step=5m ( foo and bar )", tsdb),
     // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
     // );
     // assertThat(
-    // error("TS test | PROMQL step 5m (1+foo)", tsdb),
+    // error("PROMQL k8s step=5m (1+foo)", tsdb),
     // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
     // );
     // assertThat(
-    // error("TS test | PROMQL step 5m (foo+bar)", tsdb),
+    // error("PROMQL k8s step=5m (foo+bar)", tsdb),
     // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
     // );
     // }

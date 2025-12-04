@@ -23,13 +23,22 @@ public final class MappingVisitor {
     private MappingVisitor() {}
 
     public static void visitMapping(Map<String, ?> mapping, BiConsumer<String, Map<String, ?>> fieldMappingConsumer) {
-        visitMapping(mapping, "", fieldMappingConsumer);
+        visitMapping(mapping, "", fieldMappingConsumer, fieldMappingConsumer);
+    }
+
+    public static void visitMapping(
+        Map<String, ?> mapping,
+        BiConsumer<String, Map<String, ?>> fieldMappingConsumer,
+        final BiConsumer<String, Map<String, ?>> multiFieldsMappingConsumer
+    ) {
+        visitMapping(mapping, "", fieldMappingConsumer, multiFieldsMappingConsumer);
     }
 
     private static void visitMapping(
         final Map<String, ?> mapping,
         final String path,
-        final BiConsumer<String, Map<String, ?>> fieldMappingConsumer
+        final BiConsumer<String, Map<String, ?>> propertiesMappingConsumer,
+        final BiConsumer<String, Map<String, ?>> multiFieldsMappingConsumer
     ) {
         Object properties = mapping.get(PROPERTIES);
         if (properties instanceof Map) {
@@ -42,8 +51,8 @@ public final class MappingVisitor {
                     @SuppressWarnings("unchecked")
                     Map<String, ?> fieldMapping = (Map<String, ?>) v;
                     final String prefix = path + entry.getKey();
-                    fieldMappingConsumer.accept(prefix, fieldMapping);
-                    visitMapping(fieldMapping, prefix + ".", fieldMappingConsumer);
+                    propertiesMappingConsumer.accept(prefix, fieldMapping);
+                    visitMapping(fieldMapping, prefix + ".", propertiesMappingConsumer, multiFieldsMappingConsumer);
 
                     // Multi fields
                     Object fieldsO = fieldMapping.get(MULTI_FIELDS);
@@ -55,7 +64,7 @@ public final class MappingVisitor {
                             if (v2 instanceof Map) {
                                 @SuppressWarnings("unchecked")
                                 Map<String, ?> fieldMapping2 = (Map<String, ?>) v2;
-                                fieldMappingConsumer.accept(prefix + "." + subfieldEntry.getKey(), fieldMapping2);
+                                multiFieldsMappingConsumer.accept(prefix + "." + subfieldEntry.getKey(), fieldMapping2);
                             }
                         }
                     }

@@ -63,12 +63,8 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         roleMappingStoreUsage = in.readGenericMap();
         fips140Usage = in.readGenericMap();
         operatorPrivilegesUsage = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            domainsUsage = in.readGenericMap();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            userProfileUsage = in.readGenericMap();
-        }
+        domainsUsage = in.readGenericMap();
+        userProfileUsage = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             remoteClusterServerUsage = in.readGenericMap();
         }
@@ -127,12 +123,8 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         out.writeGenericMap(roleMappingStoreUsage);
         out.writeGenericMap(fips140Usage);
         out.writeGenericMap(operatorPrivilegesUsage);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            out.writeGenericMap(domainsUsage);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            out.writeGenericMap(userProfileUsage);
-        }
+        out.writeGenericMap(domainsUsage);
+        out.writeGenericMap(userProfileUsage);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeGenericMap(remoteClusterServerUsage);
         }

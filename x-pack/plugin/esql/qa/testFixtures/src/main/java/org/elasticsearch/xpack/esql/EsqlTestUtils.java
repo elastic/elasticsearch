@@ -1292,7 +1292,7 @@ public final class EsqlTestUtils {
         });
     }
 
-    private static final Pattern SET_SPLIT_PATTERN = Pattern.compile("^\\s*SET\\b[^;]+?;\\s*\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SET_SPLIT_PATTERN = Pattern.compile("^(\\s*SET\\b[^;]+;)+\\s*\\b", Pattern.CASE_INSENSITIVE);
 
     public static String addRemoteIndices(String query, Set<String> lookupIndices, boolean onlyRemotes) {
         String[] commands = query.split("\\|");
@@ -1312,6 +1312,7 @@ public final class EsqlTestUtils {
         String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
 
         String command = commandParts[0].trim();
+        assert command.equalsIgnoreCase("set") == false : "didn't correctly extract the SET statement from the query";
         if (SourceCommand.isSourceCommand(command)) {
             String commandArgs = commandParts[1].trim();
             String[] indices = new EsqlParser().createStatement(afterSetStatements)

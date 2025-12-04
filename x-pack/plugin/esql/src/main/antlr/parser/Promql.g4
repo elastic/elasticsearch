@@ -11,7 +11,7 @@ promqlCommand
     ;
 
 promqlParam
-    : name=promqlParamContent value=promqlParamContent
+    : name=promqlParamContent ASSIGN value=promqlParamContent
     ;
 
 promqlParamContent

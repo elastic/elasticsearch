@@ -205,6 +205,14 @@ public class CrossClusterAsyncSearchAuthRestIT extends ESRestTestCase {
 
     @Before
     public void setupIndices() throws Exception {
+        // Delete indices if they exist (from previous test runs)
+        try {
+            Request deleteLocalIndex = new Request("DELETE", "/" + LOCAL_INDEX);
+            client().performRequest(deleteLocalIndex);
+        } catch (ResponseException e) {
+            // Ignore if index doesn't exist
+        }
+
         // Create indices on both clusters
         Request createLocalIndex = new Request("PUT", "/" + LOCAL_INDEX);
         createLocalIndex.setJsonEntity("""
@@ -232,6 +240,14 @@ public class CrossClusterAsyncSearchAuthRestIT extends ESRestTestCase {
         // Create index on remote cluster
         RestClient remoteClient = buildRestClient(remoteCluster);
         try {
+            // Delete index if it exists (from previous test runs)
+            try {
+                Request deleteRemoteIndex = new Request("DELETE", "/" + REMOTE_INDEX);
+                performRequestWithAdminUser(remoteClient, deleteRemoteIndex);
+            } catch (ResponseException e) {
+                // Ignore if index doesn't exist
+            }
+
             Request createRemoteIndex = new Request("PUT", "/" + REMOTE_INDEX);
             createRemoteIndex.setJsonEntity("""
                 {

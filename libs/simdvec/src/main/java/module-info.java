@@ -12,5 +12,5 @@ module org.elasticsearch.simdvec {
     requires org.apache.lucene.core;
     requires org.elasticsearch.logging;
 
-    exports org.elasticsearch.simdvec to org.elasticsearch.server, org.elasticsearch.compute, org.elasticsearch.swisshash;
+    exports org.elasticsearch.simdvec; // to org.elasticsearch.server, org.elasticsearch.swisshash;
 }

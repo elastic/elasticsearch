@@ -14,11 +14,10 @@ dependencies {
   compileOnly project('ann')
   compileOnly project(xpackModule('core'))
   compileOnly project(xpackModule('ml'))
-  compileOnly project(':libs:simdvec')
-  compileOnly project(':libs:swisshash')
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
   api project(':libs:exponential-histogram')
+  implementation project(':libs:swisshash')
 
   testImplementation(project(':modules:analysis-common'))
   testImplementation(project(':test:framework'))

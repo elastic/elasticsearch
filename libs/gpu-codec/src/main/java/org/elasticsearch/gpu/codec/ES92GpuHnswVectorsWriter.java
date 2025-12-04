@@ -605,7 +605,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
                 byte[] vector = new byte[fieldInfo.getVectorDimension()];
                 for (int i = 0; i < numVectors; ++i) {
-                    input.readBytes(vector, 0, fieldInfo.getVectorDimension());
+                    slice.readBytes(vector, 0, fieldInfo.getVectorDimension());
                     builder.addVector(vector);
                 }
 
@@ -682,7 +682,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
                 float[] vector = new float[fieldInfo.getVectorDimension()];
                 for (int i = 0; i < numVectors; ++i) {
-                    input.readFloats(vector, 0, fieldInfo.getVectorDimension());
+                    slice.readFloats(vector, 0, fieldInfo.getVectorDimension());
                     builder.addVector(vector);
                 }
 

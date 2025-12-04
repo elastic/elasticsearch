@@ -1,15 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.upgrades;
-
-import com.carrotsearch.randomizedtesting.annotations.Name;
+package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -43,16 +39,12 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class RandomizedRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
-    public RandomizedRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
-        super(upgradedNodes);
-    }
+public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCase {
 
     private record TestIndexConfig(
         String indexName,
@@ -65,8 +57,6 @@ public class RandomizedRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
             this(indexName, template, settings, mapping, new ArrayList<>());
         }
     }
-
-    private static final Map<String, TestIndexConfig> indexConfigs = new TreeMap<>();
 
     private static final int NUM_INDICES = 8;
     private static final int NUM_DOCS = 16;
@@ -101,21 +91,24 @@ public class RandomizedRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
     }
 
     private void testIndexing(String indexName, Settings.Builder settings) throws IOException {
-        if (isOldCluster()) {
-            assert indexConfigs.containsKey(indexName) == false;
-            var template = templateGenerator.generate();
-            TestIndexConfig indexConfig = new TestIndexConfig(indexName, template, settings, mappingGenerator.generate(template));
-            indexConfigs.put(indexName, indexConfig);
+        var template = templateGenerator.generate();
+        TestIndexConfig indexConfig = new TestIndexConfig(indexName, template, settings, mappingGenerator.generate(template));
 
-            @SuppressWarnings("unchecked")
-            Map<String, Object> mappingRaw = (Map<String, Object>) indexConfig.mapping.raw().get("_doc");
-            String mappingStr = Strings.toString(XContentFactory.jsonBuilder().map(mappingRaw));
-            logger.info(indexName + " mappings: " + mappingStr);
-            createIndex(indexName, settings.build(), mappingStr);
-        }
-        var indexConfig = indexConfigs.get(indexName);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mappingRaw = (Map<String, Object>) indexConfig.mapping.raw().get("_doc");
+        String mappingStr = Strings.toString(XContentFactory.jsonBuilder().map(mappingRaw));
+        logger.info(indexName + " mappings: " + mappingStr);
+        createIndex(indexName, settings.build(), mappingStr);
+
         indexDocuments(indexConfig);
         testQueryAll(indexConfig);
+
+        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
+        for (int i = 0; i < numNodes; i++) {
+            upgradeNode(i);
+            indexDocuments(indexConfig);
+            testQueryAll(indexConfig);
+        }
     }
 
     public void testIndexingStandardSource() throws IOException {

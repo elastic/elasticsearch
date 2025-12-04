@@ -114,6 +114,7 @@ class DownsampleShardIndexer {
         final String[] metrics,
         final String[] labels,
         final String[] dimensions,
+        final Map<String, String> multiFieldSources,
         final DownsampleShardPersistentTaskState state
     ) {
         this.task = task;
@@ -139,9 +140,10 @@ class DownsampleShardIndexer {
             this.rounding = config.createRounding();
 
             List<FieldValueFetcher> fetchers = new ArrayList<>(metrics.length + labels.length + dimensions.length);
-            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, metrics));
-            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, labels));
-            fetchers.addAll(DimensionFieldValueFetcher.create(searchExecutionContext, dimensions));
+            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, metrics, multiFieldSources));
+            // Labels are downsampled using the last value, they are not influenced by the requested sampling method
+            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, labels, multiFieldSources));
+            fetchers.addAll(DimensionFieldValueFetcher.create(searchExecutionContext, dimensions, multiFieldSources));
             this.fieldValueFetchers = Collections.unmodifiableList(fetchers);
             toClose = null;
         } finally {

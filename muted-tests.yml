@@ -490,6 +490,9 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/139024
+- class: org.elasticsearch.xpack.security.authc.TokenServiceTests
+  method: testInvalidateRefreshTokenThatIsAlreadyInvalidated
+  issue: https://github.com/elastic/elasticsearch/issues/139026
 
 # Examples:
 #

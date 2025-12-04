@@ -211,51 +211,6 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
     protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
         InferenceConfigUpdate adjustedUpdate = mutateInferenceConfigUpdate(instance.getUpdate(), version);
 
-        if (version.before(TransportVersions.V_8_3_0)) {
-            return new Request(
-                instance.getId(),
-                adjustedUpdate,
-                instance.getObjectsToInfer(),
-                null,
-                TimeValue.MAX_VALUE,
-                instance.isPreviouslyLicensed()
-            );
-        } else if (version.before(TransportVersions.V_8_7_0)) {
-            return new Request(
-                instance.getId(),
-                adjustedUpdate,
-                instance.getObjectsToInfer(),
-                null,
-                instance.getInferenceTimeout(),
-                instance.isPreviouslyLicensed()
-            );
-        } else if (version.before(TransportVersions.V_8_12_0)) {
-            var r = new Request(
-                instance.getId(),
-                adjustedUpdate,
-                instance.getObjectsToInfer(),
-                instance.getTextInput(),
-                instance.getInferenceTimeout(),
-                instance.isPreviouslyLicensed()
-            );
-            r.setHighPriority(instance.isHighPriority());
-            r.setPrefixType(TrainedModelPrefixStrings.PrefixType.NONE);
-            return r;
-        } else if (version.before(TransportVersions.V_8_15_0)) {
-            var r = new Request(
-                instance.getId(),
-                adjustedUpdate,
-                instance.getObjectsToInfer(),
-                instance.getTextInput(),
-                instance.getInferenceTimeout(),
-                instance.isPreviouslyLicensed()
-            );
-            r.setHighPriority(instance.isHighPriority());
-            r.setPrefixType(instance.getPrefixType());
-            r.setChunked(false);  // r.setChunked(instance.isChunked()); for the next version
-            return r;
-        }
-
         return instance;
     }
 }

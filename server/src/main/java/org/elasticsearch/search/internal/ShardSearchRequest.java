@@ -330,16 +330,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         channelVersion = TransportVersion.min(TransportVersion.readVersion(in), in.getTransportVersion());
         waitForCheckpoint = in.readLong();
         waitForCheckpointsTimeout = in.readTimeValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            forceSyntheticSource = in.readBoolean();
-        } else {
-            /*
-             * Synthetic source is not supported before 8.3.0 so any request
-             * from a coordinating node of that version will not want to
-             * force it.
-             */
-            forceSyntheticSource = false;
-        }
+        forceSyntheticSource = in.readBoolean();
         if (in.getTransportVersion().supports(SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
             splitShardCountSummary = new SplitShardCountSummary(in);
         } else {
@@ -386,13 +377,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         TransportVersion.writeVersion(channelVersion, out);
         out.writeLong(waitForCheckpoint);
         out.writeTimeValue(waitForCheckpointsTimeout);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeBoolean(forceSyntheticSource);
-        } else {
-            if (forceSyntheticSource) {
-                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
-            }
-        }
+        out.writeBoolean(forceSyntheticSource);
         if (out.getTransportVersion().supports(SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
             splitShardCountSummary.writeTo(out);
         }

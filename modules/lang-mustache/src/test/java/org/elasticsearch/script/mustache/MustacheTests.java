@@ -484,7 +484,7 @@ public class MustacheTests extends ESTestCase {
 
         final String script2 = "{{>*foobar}}";
         e = expectThrows(ScriptException.class, () -> compile(script2));
-        assertThat(e.getMessage(), equalTo("Cannot expand '*foobar' because partial templates are not supported"));
+        assertThat(e.getMessage(), equalTo("Cannot expand '*foobar' because dynamic partial templates are not supported"));
     }
 
     private void assertScript(String script, Map<String, Object> vars, Matcher<String> matcher) {

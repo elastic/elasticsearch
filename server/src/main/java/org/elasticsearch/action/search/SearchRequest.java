@@ -296,11 +296,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         }
         waitForCheckpoints = in.readMap(StreamInput::readLongArray);
         waitForCheckpointsTimeout = in.readTimeValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            forceSyntheticSource = in.readBoolean();
-        } else {
-            forceSyntheticSource = false;
-        }
+        forceSyntheticSource = in.readBoolean();
         if (in.getTransportVersion().supports(SEARCH_PROJECT_ROUTING)) {
             this.projectRouting = in.readOptionalString();
         } else {
@@ -345,13 +341,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         }
         out.writeMap(waitForCheckpoints, StreamOutput::writeLongArray);
         out.writeTimeValue(waitForCheckpointsTimeout);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeBoolean(forceSyntheticSource);
-        } else {
-            if (forceSyntheticSource) {
-                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
-            }
-        }
+        out.writeBoolean(forceSyntheticSource);
         if (out.getTransportVersion().supports(SEARCH_PROJECT_ROUTING)) {
             out.writeOptionalString(this.projectRouting);
         }

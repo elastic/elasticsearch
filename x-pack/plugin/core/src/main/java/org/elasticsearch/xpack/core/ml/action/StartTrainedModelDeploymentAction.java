@@ -175,9 +175,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             }
             threadsPerAllocation = in.readVInt();
             queueCapacity = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-                this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
-            }
+            this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
                 this.priority = in.readEnum(Priority.class);
             } else {
@@ -299,9 +297,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             }
             out.writeVInt(threadsPerAllocation);
             out.writeVInt(queueCapacity);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-                out.writeOptionalWriteable(cacheSize);
-            }
+            out.writeOptionalWriteable(cacheSize);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
                 out.writeEnum(priority);
             }
@@ -571,11 +567,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             this.threadsPerAllocation = in.readVInt();
             this.numberOfAllocations = in.readVInt();
             this.queueCapacity = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-                this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
-            } else {
-                this.cacheSize = null;
-            }
+            this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
                 this.priority = in.readEnum(Priority.class);
             } else {
@@ -635,9 +627,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeVInt(threadsPerAllocation);
             out.writeVInt(numberOfAllocations);
             out.writeVInt(queueCapacity);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-                out.writeOptionalWriteable(cacheSize);
-            }
+            out.writeOptionalWriteable(cacheSize);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
                 out.writeEnum(priority);
             }

@@ -13,6 +13,7 @@ import com.nvidia.cuvs.GPUInfoProvider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.indices.IndicesService;
@@ -76,7 +77,7 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         GPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
 
-        var format = vectorsFormatProvider.getKnnVectorsFormat(null, null, null);
+        var format = vectorsFormatProvider.getKnnVectorsFormat(null, null, null, null);
         assertNull(format);
     }
 
@@ -95,7 +96,9 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            randomGPUSupportedSimilarity(indexOptions.getType())
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            // TODO add other type support
+            DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNotNull(format);
     }
@@ -114,7 +117,9 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            randomGPUSupportedSimilarity(indexOptions.getType())
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            // TODO add other type support
+            DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNull(format);
     }
@@ -134,7 +139,9 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            randomGPUSupportedSimilarity(indexOptions.getType())
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            // TODO add other type support
+            DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNull(format);
     }
@@ -154,7 +161,9 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            randomGPUSupportedSimilarity(indexOptions.getType())
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            // TODO add other type support
+            DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNotNull(format);
     }
@@ -173,7 +182,9 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            randomGPUSupportedSimilarity(indexOptions.getType())
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            // TODO add other type support
+            DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNull(format);
     }
@@ -193,7 +204,9 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            randomGPUSupportedSimilarity(indexOptions.getType())
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            // TODO add other type support
+            DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNull(format);
     }
@@ -213,7 +226,9 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            randomGPUSupportedSimilarity(indexOptions.getType())
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            // TODO add other type support
+            DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNull(format);
     }

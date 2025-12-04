@@ -284,9 +284,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 in.readBoolean(); // used for byteQueryVector, which was always null
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            this.filterQueries.addAll(readQueries(in));
-        }
+        this.filterQueries.addAll(readQueries(in));
         this.vectorSimilarity = in.readOptionalFloat();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
@@ -394,9 +392,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 out.writeBoolean(false); // used for byteQueryVector, which was always null
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            writeQueries(out, filterQueries);
-        }
+        writeQueries(out, filterQueries);
         out.writeOptionalFloat(vectorSimilarity);
         if (out.getTransportVersion().before(TransportVersions.V_8_14_0) && queryVectorBuilder != null) {
             throw new IllegalArgumentException(

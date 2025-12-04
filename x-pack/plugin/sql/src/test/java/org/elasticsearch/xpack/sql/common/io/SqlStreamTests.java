@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -20,6 +21,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThan;
 
 public class SqlStreamTests extends ESTestCase {
@@ -47,19 +49,6 @@ public class SqlStreamTests extends ESTestCase {
 
         String result = out.streamAsString();
         assertThat(result.length(), lessThan(1000));
-    }
-
-    public void testVersionCanBeReadByOldNodes() throws IOException {
-        TransportVersion version = TransportVersions.V_8_1_0;
-        SqlStreamOutput out = SqlStreamOutput.create(version, randomZone());
-        out.writeString("payload");
-        out.close();
-        String encoded = out.streamAsString();
-
-        byte[] bytes = Base64.getDecoder().decode(encoded);
-        InputStreamStreamInput in = new InputStreamStreamInput(new ByteArrayInputStream(bytes));
-
-        assertEquals(version, TransportVersion.readVersion(in));
     }
 
 }

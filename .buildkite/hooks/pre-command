@@ -196,7 +196,7 @@ if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; 
             # Create Buildkite annotation for visibility
             # Use unique context per job to support multiple retries
             cat << EOF | buildkite-agent annotate --style info --context "smart-retry-$BUILDKITE_JOB_ID"
-Rerunning tests that failed in [$ORIGIN_JOB_NAME]($BUILD_SCAN_URL)
+Rerunning failed build job [$ORIGIN_JOB_NAME]($BUILD_SCAN_URL)
 
 **Gradle Tasks with Failures:** $FILTERED_WORK_UNITS
 

@@ -45,6 +45,62 @@ public class RoleDescriptorRequestValidatorTests extends ESTestCase {
             validateAndAssertSelectorNotAllowed(roleWithIndexPrivileges(indexName), indexName);
             validateAndAssertSelectorNotAllowed(roleWithRemoteIndexPrivileges(indexName), indexName);
         }
+
+        // these are not necessarily valid index names, but they should not trigger the selector validation
+        String[] validIndexNames = {
+            "index:failures", // single colon is allowed
+            ":failures",
+            "no double colon",
+            ":",
+            ": :",
+            "",
+            " ",
+            ":\n:",
+            null,
+            "a:",
+            ":b:",
+            "*",
+            "c?-*",
+            "d-*e",
+            "f:g:h",
+            "/[a-b]*test:[a-b]*:failures/", // while this regex can match test::failures, it is not rejected - doing so would be too complex
+            randomIntBetween(-10, 10) + "",
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphanumericOfLength(10) };
+        for (String indexName : validIndexNames) {
+            validateAndAssertNoException(roleWithIndexPrivileges(indexName), indexName);
+            validateAndAssertNoException(roleWithRemoteIndexPrivileges(indexName), indexName);
+        }
+    }
+
+    public void testCommaValidation() {
+        String[] invalidIndexNames = {
+            "index1,index2",
+            "logs-*,metrics-*",
+            ",leading",
+            "trailing,",
+            "a,b,c",
+            "my,index",
+            randomAlphaOfLengthBetween(3, 6) + "," + randomAlphaOfLengthBetween(3, 6) };
+        for (String indexName : invalidIndexNames) {
+            validateAndAssertCommaNotAllowed(roleWithIndexPrivileges(indexName), indexName);
+            validateAndAssertCommaNotAllowed(roleWithRemoteIndexPrivileges(indexName), indexName);
+        }
+
+        String[] validIndexNames = {
+            "no-comma",
+            "logs-*",
+            "*",
+            "",
+            null,
+            "index:with:colons",
+            "/regex,with,commas/",
+            "/[a-z]+,[0-9]+/",
+            "/logs-(foo|bar),.*/" };
+        for (String indexName : validIndexNames) {
+            validateAndAssertNoException(roleWithIndexPrivileges(indexName), indexName);
+            validateAndAssertNoException(roleWithRemoteIndexPrivileges(indexName), indexName);
+        }
     }
 
     private static void validateAndAssertSelectorNotAllowed(RoleDescriptor roleDescriptor, String indexName) {
@@ -56,129 +112,13 @@ public class RoleDescriptorRequestValidatorTests extends ESTestCase {
         );
     }
 
-    public void testUppercaseIndexExpressionValidation() {
-        String[] invalidIndexNames = { "MY-INDEX", "My-Index", "my-INDEX-*", "MY-*", "*-SUFFIX", "pre?X-UPPER", "logs-2024.01.?-UPPER" };
-        for (String indexName : invalidIndexNames) {
-            validateAndAssertLowercaseRequired(roleWithIndexPrivileges(indexName), indexName);
-            validateAndAssertLowercaseRequired(roleWithRemoteIndexPrivileges(indexName), indexName);
-        }
-    }
-
-    public void testLuceneRegexValidation() {
-        String[] invalidRegexPatterns = {
-            "/",           // incomplete regex
-            "/unclosed",   // missing closing /
-            "/[invalid/",  // malformed regex syntax
-            "/(/",         // unbalanced parentheses
-            "/[a-/" };     // incomplete character class
-        for (String pattern : invalidRegexPatterns) {
-            validateAndAssertInvalidRegex(roleWithIndexPrivileges(pattern), pattern);
-            validateAndAssertInvalidRegex(roleWithRemoteIndexPrivileges(pattern), pattern);
-        }
-
-        String[] validRegexPatterns = {
-            "/logs-.*/",
-            "/[a-z]+/",
-            "/[abc]{2,5}/",
-            "/index-[0-9]{4}/",
-            "/.*/",
-            "/*/",         // valid Lucene regex (matches any string)
-            "/logs-[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}/" };
-        for (String pattern : validRegexPatterns) {
-            validateAndAssertNoException(roleWithIndexPrivileges(pattern), pattern);
-            validateAndAssertNoException(roleWithRemoteIndexPrivileges(pattern), pattern);
-        }
-    }
-
-    public void testInvalidCharactersValidation() {
-        String[] invalidIndexNames = {
-            "my index",    // space
-            "my,index",    // comma
-            "my\"index",   // quote
-            "my<index",    // less than
-            "my>index",    // greater than
-            "my|index",    // pipe
-            "my/index",    // forward slash (not a regex)
-            "#hashtag",    // hash
-            "_private",    // leading underscore
-            "-dashstart",  // leading dash
-            "+plusstart",  // leading plus
-            ".",           // dot only
-            ".." };        // double dot
-        for (String indexName : invalidIndexNames) {
-            validateAndAssertInvalidExpression(roleWithIndexPrivileges(indexName), indexName);
-            validateAndAssertInvalidExpression(roleWithRemoteIndexPrivileges(indexName), indexName);
-        }
-    }
-
-    public void testValidWildcardPatterns() {
-        String[] validIndexNames = {
-            "*",                    // match all
-            "logs-*",               // prefix wildcard
-            "*-logs",               // suffix wildcard
-            "*-logs-*",             // infix
-            "logs-2024.*",          // dot prefix
-            "logs-?",               // single char wildcard
-            "logs-????-*",          // multiple wildcards
-            ".hidden-*",            // hidden index pattern
-            "my-index",             // exact match
-            "my_index",             // underscore
-            "my.index.name",        // dots
-            "123-numeric",          // starts with number
-            "logs-2024.01.01" };    // date pattern
-        for (String indexName : validIndexNames) {
-            validateAndAssertNoException(roleWithIndexPrivileges(indexName), indexName);
-            validateAndAssertNoException(roleWithRemoteIndexPrivileges(indexName), indexName);
-        }
-    }
-
-    public void testEmptyIndexExpressionAllowed() {
-        validateAndAssertNoException(roleWithIndexPrivileges(""), "empty string");
-        validateAndAssertNoException(roleWithRemoteIndexPrivileges(""), "empty string");
-        validateAndAssertNoException(roleWithIndexPrivileges(""), "empty string");
-        validateAndAssertNoException(roleWithRemoteIndexPrivileges(""), "empty string");
-    }
-
-    public void testEscapeCharacterHandling() {
-        // Escaped backslash becomes literal backslash - which is invalid in index names
-        // So \\-data stripped becomes \-data which contains invalid backslash
-        String[] invalidEscapedPatterns = {
-            "logs-\\*-data",        // escaped asterisk becomes literal * (invalid char)
-            "logs-\\?-data",        // escaped question mark becomes literal ? (invalid char)
-            "logs-\\\\-data",       // escaped backslash becomes literal \ (invalid char)
-            "logs-\\ -data",        // escaped space is still invalid
-            "logs-\\,-data" };      // escaped comma is still invalid
-        for (String pattern : invalidEscapedPatterns) {
-            validateAndAssertInvalidExpression(roleWithIndexPrivileges(pattern), pattern);
-            validateAndAssertInvalidExpression(roleWithRemoteIndexPrivileges(pattern), pattern);
-        }
-
-        // Escaping letters is valid (just becomes the letter)
-        String[] validEscapedPatterns = {
-            "logs-\\a-data",        // escaped 'a' becomes literal 'a'
-            "logs-\\x-data" };      // escaped 'x' becomes literal 'x'
-        for (String pattern : validEscapedPatterns) {
-            validateAndAssertNoException(roleWithIndexPrivileges(pattern), pattern);
-            validateAndAssertNoException(roleWithRemoteIndexPrivileges(pattern), pattern);
-        }
-    }
-
-    private static void validateAndAssertInvalidExpression(RoleDescriptor roleDescriptor, String indexName) {
+    private static void validateAndAssertCommaNotAllowed(RoleDescriptor roleDescriptor, String indexName) {
         var validationException = RoleDescriptorRequestValidator.validate(roleDescriptor);
         assertThat("expected validation exception for " + indexName, validationException, notNullValue());
-        assertThat(validationException.validationErrors(), containsInAnyOrder("invalid index name expression [" + indexName + "]"));
-    }
-
-    private static void validateAndAssertLowercaseRequired(RoleDescriptor roleDescriptor, String indexName) {
-        var validationException = RoleDescriptorRequestValidator.validate(roleDescriptor);
-        assertThat("expected validation exception for " + indexName, validationException, notNullValue());
-        assertThat(validationException.validationErrors(), containsInAnyOrder("index name must be lowercase [" + indexName + "]"));
-    }
-
-    private static void validateAndAssertInvalidRegex(RoleDescriptor roleDescriptor, String pattern) {
-        var validationException = RoleDescriptorRequestValidator.validate(roleDescriptor);
-        assertThat("expected validation exception for " + pattern, validationException, notNullValue());
-        assertThat(validationException.validationErrors(), containsInAnyOrder("invalid regular expression pattern [" + pattern + "]"));
+        assertThat(
+            validationException.validationErrors(),
+            containsInAnyOrder("commas [,] are not allowed in the index name expression [" + indexName + "]")
+        );
     }
 
     private static void validateAndAssertNoException(RoleDescriptor roleDescriptor, String indexName) {

@@ -58,11 +58,11 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
             new ClusterPermission.Builder(new RestrictedIndices(TestRestrictedIndices.RESTRICTED_INDICES.getAutomaton()))
         ).build();
 
-        assertAllowedIndexPatterns(permission, randomArray(1, 10, String[]::new, () -> "allowed-" + randomIdentifier()), true);
-        assertAllowedIndexPatterns(permission, randomArray(1, 10, String[]::new, () -> "not-allowed-" + randomIdentifier()), false);
+        assertAllowedIndexPatterns(permission, randomArray(1, 10, String[]::new, () -> "allowed-" + randomAlphaOfLength(5)), true);
+        assertAllowedIndexPatterns(permission, randomArray(1, 10, String[]::new, () -> "not-allowed-" + randomAlphaOfLength(5)), false);
         assertAllowedIndexPatterns(
             permission,
-            new String[] { "allowed-" + randomIdentifier(), "not-allowed-" + randomIdentifier() },
+            new String[] { "allowed-" + randomAlphaOfLength(5), "not-allowed-" + randomAlphaOfLength(5) },
             false
         );
     }

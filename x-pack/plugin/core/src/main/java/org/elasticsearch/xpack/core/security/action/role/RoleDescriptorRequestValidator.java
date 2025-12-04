@@ -7,11 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -22,7 +19,6 @@ import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.support.Validation;
 
 import java.util.Arrays;
-import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -134,11 +130,8 @@ public class RoleDescriptorRequestValidator {
         String indexNameExpression,
         ActionRequestValidationException validationException
     ) {
-        if (indexNameExpression == null || indexNameExpression.isEmpty()) {
-            return validationException;
-        }
         if (IndexNameExpressionResolver.hasSelectorSuffix(indexNameExpression)) {
-            return addValidationError(
+            validationException = addValidationError(
                 "selectors ["
                     + IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR
                     + "] are not allowed in the index name expression ["
@@ -147,73 +140,12 @@ public class RoleDescriptorRequestValidator {
                 validationException
             );
         }
-        return doValidateIndexNameExpression(indexNameExpression, validationException);
-    }
-
-    private static ActionRequestValidationException doValidateIndexNameExpression(
-        String pattern,
-        ActionRequestValidationException validationException
-    ) {
-        // The following 3 categories mirror the logic in Automatons#buildAutomaton(String),
-        // which is used to build index name expression automatons for index privileges:
-        // 1. Lucene regexp
-        // 2. Match all wildcard
-        // 3. Standard index name expression (may contain wildcards)
-        if (pattern.startsWith("/")) { // it's a lucene regexp
-            if (pattern.length() == 1 || pattern.endsWith("/") == false) {
-                return addValidationError("invalid regular expression pattern [" + pattern + "]", validationException);
-            }
-            String regex = pattern.substring(1, pattern.length() - 1);
-            try {
-                new RegExp(regex);
-            } catch (IllegalArgumentException e) {
-                return addValidationError("invalid regular expression pattern [" + pattern + "]", validationException);
-            }
-        } else if (pattern.equals("*") == false) { // not a match all wildcard, validate as standard index name wildcard expression
-            String indexName = normalize(pattern);
-            try {
-                MetadataCreateIndexService.validateIndexOrAliasName(indexName, InvalidIndexNameException::new);
-            } catch (InvalidIndexNameException e) {
-                return addValidationError("invalid index name expression [" + pattern + "]", validationException);
-            }
-            if (indexName.toLowerCase(Locale.ROOT).equals(indexName) == false) {
-                return addValidationError("index name must be lowercase [" + pattern + "]", validationException);
-            }
+        if (indexNameExpression != null && indexNameExpression.startsWith("/") == false && indexNameExpression.contains(",")) {
+            validationException = addValidationError(
+                "commas [,] are not allowed in the index name expression [" + indexNameExpression + "]",
+                validationException
+            );
         }
         return validationException;
-    }
-
-    private static String normalize(String text) {
-        // The following loop mirrors the logic in Automatons#wildcard(String),
-        // which is used to build index name wildcard expression automatons for index privileges:
-        // There are 3 special characters: '*', '?', and '\'
-        // This normalizes the input by replacing '*' and '?' with 'x' and removing the escape character '\'
-        // Colon ':' is also replaced with 'x' here to accommodate remote cluster index names
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < text.length();) {
-            final char c = text.charAt(i);
-            int length = 1;
-            switch (c) {
-                case ':': // normalize colon as well for remote cluster index names
-                case '*':
-                case '?':
-                    sb.append('x');
-                    break;
-                case '\\':
-                    // add the next codepoint instead, if it exists
-                    if (i + length < text.length()) {
-                        final char nextChar = text.charAt(i + length);
-                        length += 1;
-                        sb.append(nextChar);
-                    } else {
-                        sb.append(c);
-                    }
-                    break;
-                default:
-                    sb.append(c);
-            }
-            i += length;
-        }
-        return sb.toString();
     }
 }

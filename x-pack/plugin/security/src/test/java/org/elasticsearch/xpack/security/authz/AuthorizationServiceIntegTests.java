@@ -30,11 +30,9 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_VALUE;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,9 +49,6 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
     public void testGetRoleDescriptorsIntersectionForRemoteCluster() throws IOException, InterruptedException {
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final String roleName = randomAlphaOfLength(5);
-        String[] indices = Stream.of(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
-            .map(s -> s.toLowerCase(Locale.ROOT))
-            .toArray(String[]::new);
         getSecurityClient().putRole(
             new RoleDescriptor(
                 roleName,
@@ -63,7 +58,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                     : new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder()
                             .privileges(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
-                            .indices(indices)
+                            .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
                             .allowRestrictedIndices(randomBoolean())
                             .build() },
                 null,

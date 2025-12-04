@@ -304,10 +304,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         Map<String, Float> concreteIndexBoosts = new HashMap<>();
         for (SearchSourceBuilder.IndexBoost ib : source.indexBoosts()) {
-            if (RemoteClusterAware.isRemoteIndexName(ib.getIndex())) {
-                continue;
-                // FIXME: no, but really, what is supposed to happen here???
-            }
             Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(
                 clusterState,
                 searchRequest.indicesOptions(),

@@ -27,11 +27,10 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.junit.Assert.assertNotNull;
-
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertNotNull;
 
 /**
  * REST test to reproduce a bug where a user can submit an async cross-cluster search
@@ -348,10 +347,7 @@ public class CrossClusterAsyncSearchAuthRestIT extends ESRestTestCase {
             Request statusRequest = new Request("GET", "/_async_search/status/" + searchId);
             setRunAsHeader(statusRequest, OTHER_USER);
 
-            ResponseException exception = expectThrows(
-                ResponseException.class,
-                () -> client().performRequest(statusRequest)
-            );
+            ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(statusRequest));
 
             // Verify it's a 404 (not found) because the user doesn't own the search
             assertThat(
@@ -423,10 +419,7 @@ public class CrossClusterAsyncSearchAuthRestIT extends ESRestTestCase {
             Request statusRequest = new Request("GET", "/_async_search/status/" + searchId);
             setRunAsHeader(statusRequest, noPermsUser);
 
-            ResponseException exception = expectThrows(
-                ResponseException.class,
-                () -> client().performRequest(statusRequest)
-            );
+            ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(statusRequest));
 
             // Verify it's a 403 (forbidden) because the user doesn't have permissions
             assertThat(
@@ -434,11 +427,7 @@ public class CrossClusterAsyncSearchAuthRestIT extends ESRestTestCase {
                 exception.getResponse().getStatusLine().getStatusCode(),
                 equalTo(403)
             );
-            assertThat(
-                "Exception should be related to authorization",
-                exception.getMessage(),
-                containsString("unauthorized")
-            );
+            assertThat("Exception should be related to authorization", exception.getMessage(), containsString("unauthorized"));
         } finally {
             // Clean up users/roles
             try {
@@ -453,12 +442,7 @@ public class CrossClusterAsyncSearchAuthRestIT extends ESRestTestCase {
     }
 
     private static void setRunAsHeader(Request request, String user) {
-        request.setOptions(
-            request.getOptions()
-                .toBuilder()
-                .addHeader(RUN_AS_USER_HEADER, user)
-                .build()
-        );
+        request.setOptions(request.getOptions().toBuilder().addHeader(RUN_AS_USER_HEADER, user).build());
     }
 
     private static RestClient buildRestClient(ElasticsearchCluster cluster) {
@@ -486,4 +470,3 @@ public class CrossClusterAsyncSearchAuthRestIT extends ESRestTestCase {
         return client.performRequest(request);
     }
 }
-

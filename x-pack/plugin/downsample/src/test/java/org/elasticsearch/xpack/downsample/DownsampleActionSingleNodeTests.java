@@ -1220,9 +1220,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         Map<String, TimeSeriesParams.MetricType> metricFields = new HashMap<>();
         Map<String, String> labelFields = new HashMap<>();
         MappingVisitor.visitMapping(sourceIndexMappings, (field, fieldMapping) -> {
-            if (TimeSeriesFields.isTimeSeriesMetric(field, fieldMapping)) {
+            if (TimeSeriesFields.isTimeSeriesMetric(fieldMapping)) {
                 metricFields.put(field, TimeSeriesParams.MetricType.fromString(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
-            } else if (TimeSeriesFields.isTimeSeriesLabel(field, fieldMapping, mapperService, config.getTimestampField())) {
+            } else if (TimeSeriesFields.isTimeSeriesLabel(field, mapperService, config.getTimestampField())) {
                 labelFields.put(field, fieldMapping.get("type").toString());
             }
         });

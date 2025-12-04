@@ -744,7 +744,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             return;
         }
         MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
-            if (TimeSeriesFields.isTimeSeriesMetric(field, mapping)) {
+            if (TimeSeriesFields.isTimeSeriesMetric(mapping)) {
                 try {
                     addMetricFieldMapping(builder, field, mapping);
                 } catch (IOException e) {

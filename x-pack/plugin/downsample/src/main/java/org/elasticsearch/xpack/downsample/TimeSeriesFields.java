@@ -65,13 +65,7 @@ import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC
 record TimeSeriesFields(String[] metricFields, String[] dimensionFields, String[] labelFields, Map<String, String> multiFieldSources) {
     public static final Set<TimeSeriesParams.MetricType> METRIC_TYPES = Set.of(TimeSeriesParams.MetricType.values());
 
-    // For testing
-    public static boolean isTimeSeriesLabel(
-        final String field,
-        final Map<String, ?> unused,
-        MapperService mapperService,
-        String timestampField
-    ) {
+    static boolean isTimeSeriesLabel(final String field, MapperService mapperService, String timestampField) {
         final MappingLookup lookup = mapperService.mappingLookup();
         final MappedFieldType fieldType = lookup.getFieldType(field);
         return fieldType != null
@@ -81,7 +75,7 @@ record TimeSeriesFields(String[] metricFields, String[] dimensionFields, String[
             && (mapperService.isMetadataField(field) == false);
     }
 
-    public static boolean isTimeSeriesMetric(final String unused, final Map<String, ?> fieldMapping) {
+    static boolean isTimeSeriesMetric(final Map<String, ?> fieldMapping) {
         final String metricType = (String) fieldMapping.get(TIME_SERIES_METRIC_PARAM);
         return metricType != null && METRIC_TYPES.contains(TimeSeriesParams.MetricType.fromString(metricType));
     }
@@ -113,17 +107,17 @@ record TimeSeriesFields(String[] metricFields, String[] dimensionFields, String[
             var flattenedDimensions = extractFlattenedDimensions(field, mapping);
             if (flattenedDimensions != null) {
                 dimensionFields.addAll(flattenedDimensions);
-            } else if (isTimeSeriesDimension(field, mapping)) {
+            } else if (isTimeSeriesDimension(mapping)) {
                 dimensionFields.add(field);
-            } else if (isTimeSeriesMetric(field, mapping)) {
+            } else if (isTimeSeriesMetric(mapping)) {
                 metricFields.add(field);
-            } else if (isTimeSeriesLabel(field, mapping)) {
+            } else if (isTimeSeriesLabel(field)) {
                 labelFields.add(field);
             }
         }
 
         private void trackMultiFields(String field, Map<String, ?> mapping) {
-            if (isTimeSeriesMetric(field, mapping)) {
+            if (isTimeSeriesMetric(mapping)) {
                 throw new IllegalArgumentException(
                     "Downsampling failed because index mapping contains time series metrics as a multi field [" + field + "]"
                 );
@@ -135,21 +129,21 @@ record TimeSeriesFields(String[] metricFields, String[] dimensionFields, String[
             }
             // We do not check for flattened dimension subfields because even if it is accepted as a valid mapping
             // indexing a document fails.
-            if (isTimeSeriesDimension(field, mapping)) {
+            if (isTimeSeriesDimension(mapping)) {
                 dimensionFields.add(parentField);
                 labelFields.remove(parentField);
                 alternativeSources.put(parentField, field);
-            } else if (isTimeSeriesLabel(field, mapping) && labelFields.contains(parentField) == false) {
+            } else if (isTimeSeriesLabel(field) && labelFields.contains(parentField) == false) {
                 labelFields.add(parentField);
                 alternativeSources.put(parentField, field);
             }
         }
 
-        public boolean isTimeSeriesLabel(final String field, final Map<String, ?> unused) {
-            return TimeSeriesFields.isTimeSeriesLabel(field, unused, mapperService, timestampField);
+        public boolean isTimeSeriesLabel(final String field) {
+            return TimeSeriesFields.isTimeSeriesLabel(field, mapperService, timestampField);
         }
 
-        public boolean isTimeSeriesDimension(final String unused, final Map<String, ?> fieldMapping) {
+        public boolean isTimeSeriesDimension(final Map<String, ?> fieldMapping) {
             return Boolean.TRUE.equals(fieldMapping.get(TIME_SERIES_DIMENSION_PARAM)) && isPassthroughField(fieldMapping) == false;
         }
 

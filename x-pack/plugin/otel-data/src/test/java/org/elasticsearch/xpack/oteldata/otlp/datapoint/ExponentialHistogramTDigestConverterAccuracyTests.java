@@ -34,7 +34,7 @@ import java.util.function.DoubleFunction;
 
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class ExponentialHistogramConverterAccuracyTests extends ExponentialHistogramTestCase {
+public class ExponentialHistogramTDigestConverterAccuracyTests extends ExponentialHistogramTestCase {
     public static final double[] QUANTILES_TO_TEST = { 0, 0.0000001, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 0.999999, 1.0 };
 
     private static final TDigestArrays arrays = new MemoryTrackingTDigestArrays(new NoopCircuitBreaker("default-wrapper-tdigest-arrays"));
@@ -99,9 +99,9 @@ public class ExponentialHistogramConverterAccuracyTests extends ExponentialHisto
     private static TDigest convertToTDigest(ExponentialHistogramDataPoint otlpHistogram) {
         TDigest result = TDigest.createAvlTreeDigest(arrays, 100);
         List<Double> centroidValues = new ArrayList<>();
-        HistogramConverter.centroidValues(otlpHistogram, centroidValues::add);
+        TDigestConverter.centroidValues(otlpHistogram, centroidValues::add);
         List<Long> counts = new ArrayList<>();
-        HistogramConverter.counts(otlpHistogram, counts::add);
+        TDigestConverter.counts(otlpHistogram, counts::add);
         assertEquals(centroidValues.size(), counts.size());
         for (int i = 0; i < centroidValues.size(); i++) {
             if (counts.get(i) > 0) {

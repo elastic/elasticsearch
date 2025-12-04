@@ -45,7 +45,7 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
-    static final Setting<Boolean> USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE = Setting.boolSetting(
+    public static final Setting<Boolean> USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE = Setting.boolSetting(
         "xpack.otel_data.use_exponential_histogram_field_type",
         false,
         Setting.Property.NodeScope,

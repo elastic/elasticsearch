@@ -487,6 +487,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.TokenServiceTests
   method: testSupersedingTokenEncryption
   issue: https://github.com/elastic/elasticsearch/issues/139031
+- class: org.elasticsearch.repositories.s3.S3BlobStoreRepositoryTimeoutTests
+  method: testWriteTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/139041
 
 # Examples:
 #

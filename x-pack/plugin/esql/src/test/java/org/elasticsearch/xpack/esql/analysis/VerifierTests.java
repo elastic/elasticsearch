@@ -3336,6 +3336,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTopSnippetsFunctionInvalidInputs() {
+        assumeTrue("Requires top snippet function", EsqlCapabilities.Cap.TOP_SNIPPETS_FUNCTION.isEnabled());
         assertThat(
             error("from test | EVAL snippets = TOP_SNIPPETS(42, \"query\")", fullTextAnalyzer, VerificationException.class),
             equalTo("1:29: first argument of [TOP_SNIPPETS(42, \"query\")] must be [string], found value [42] type [integer]")
@@ -3375,6 +3376,24 @@ public class VerifierTests extends ESTestCase {
                 VerificationException.class
             ),
             startsWith("1:29: Invalid option [invalid] in [TOP_SNIPPETS(body, \"query\", {\"invalid\": \"foobar\"})]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": \"foobar\"})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: Invalid option [num_words] in [TOP_SNIPPETS(body, \"query\", {\"num_words\": \"foobar\"})], " +
+                "cannot cast [foobar] to [integer]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": \"foobar\"})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: Invalid option [num_snippets] in [TOP_SNIPPETS(body, \"query\", {\"num_snippets\": \"foobar\"})], " +
+                "cannot cast [foobar] to [integer]")
         );
     }
 

@@ -229,7 +229,13 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
 
         int numSnippets = numSnippets();
+        if (numSnippets <= 0) {
+            throw new IllegalArgumentException(NUM_SNIPPETS + " parameter must be a positive integer, found [" + numSnippets + "]");
+        }
         int numWords = numWords();
+        if (numWords <= 0) {
+            throw new IllegalArgumentException(NUM_WORDS + " parameter must be a positive integer, found [" + numWords + "]");
+        }
         return new TopSnippetsBytesRefEvaluator.Factory(
             source(),
             toEvaluator.apply(field),

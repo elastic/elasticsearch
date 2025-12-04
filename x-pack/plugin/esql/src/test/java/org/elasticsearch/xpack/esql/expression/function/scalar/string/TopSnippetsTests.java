@@ -11,6 +11,8 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -183,6 +185,38 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
         List<String> result = process(PARAGRAPH_INPUT, query, numSnippets, numWords);
         assertNull(result);
+    }
+
+    public void testNegativeNumWords() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> process(PARAGRAPH_INPUT, "nature", 3, -1)
+        );
+        assertThat(e.getMessage(), equalTo("num_words parameter must be a positive integer, found [-1]"));
+    }
+
+    public void testZeroNumWords() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> process(PARAGRAPH_INPUT, "nature", 3, 0)
+        );
+        assertThat(e.getMessage(), equalTo("num_words parameter must be a positive integer, found [0]"));
+    }
+
+    public void testNegativeNumSnippets() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> process(PARAGRAPH_INPUT, "nature", -1, 100)
+        );
+        assertThat(e.getMessage(), equalTo("num_snippets parameter must be a positive integer, found [-1]"));
+    }
+
+    public void testZeroNumSnippets() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> process(PARAGRAPH_INPUT, "nature", 0, 100)
+        );
+        assertThat(e.getMessage(), equalTo("num_snippets parameter must be a positive integer, found [0]"));
     }
 
     private void verifySnippets(String query, Integer numSnippets, Integer numWords, int expectedNumChunksReturned) {

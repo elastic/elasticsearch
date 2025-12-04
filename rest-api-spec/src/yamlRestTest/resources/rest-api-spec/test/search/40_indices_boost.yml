@@ -151,3 +151,14 @@ setup:
   - match: { hits.total: 2}
   - match: { hits.hits.0._index: test_2 }
   - match: { hits.hits.1._index: test_1 }
+
+---
+"Remote expressions not supported in indices boost":
+  - do:
+      catch: /Cross-cluster calls are not supported in this context but remote indices were requested:/
+      search:
+        rest_total_hits_as_int: true
+        ignore_unavailable: true
+        index: _all
+        body:
+          indices_boost: [{nonexistent: 2.0}, {test_1: 1.0}, {test_2: 2.0}]

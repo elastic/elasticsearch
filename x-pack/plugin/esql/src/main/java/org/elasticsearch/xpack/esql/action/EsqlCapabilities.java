@@ -1673,7 +1673,7 @@ public class EsqlCapabilities {
         CHUNK_FUNCTION_V2(),
 
         /**
-         * Support for vector similarity functtions pushdown
+         * Support for vector similarity functions pushdown
          */
         VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN(Build.current().isSnapshot()),
 
@@ -1722,6 +1722,11 @@ public class EsqlCapabilities {
          * with all the dimensions.
          */
         METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS,
+
+        /**
+         * Support query approximation.
+         */
+        APPROXIMATE(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

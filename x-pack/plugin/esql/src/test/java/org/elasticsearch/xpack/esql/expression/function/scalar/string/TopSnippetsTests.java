@@ -11,8 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -91,7 +89,9 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "field"),
                         new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query")
                     ),
-                    "TopSnippetsBytesRefEvaluator[str=Attribute[channel=0], query=Attribute[channel=1], numSnippets=5, numWords=300]",
+                    "TopSnippetsBytesRefEvaluator[str=Attribute[channel=0], query=Attribute[channel=1], "
+                        + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}, "
+                        + "scorer=MemoryIndexChunkScorer, numSnippets=5]",
                     DataType.KEYWORD,
                     equalTo(expectedResult)
                 );
@@ -122,7 +122,9 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(new BytesRef(text), DataType.TEXT, "field"),
                         new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query")
                     ),
-                    "TopSnippetsBytesRefEvaluator[str=Attribute[channel=0], query=Attribute[channel=1], numSnippets=5, numWords=300]",
+                    "TopSnippetsBytesRefEvaluator[str=Attribute[channel=0], query=Attribute[channel=1], "
+                        + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}, "
+                        + "scorer=MemoryIndexChunkScorer, numSnippets=5]",
                     DataType.KEYWORD,
                     equalTo(expectedResult)
                 );
@@ -188,34 +190,22 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testNegativeNumWords() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> process(PARAGRAPH_INPUT, "nature", 3, -1)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> process(PARAGRAPH_INPUT, "nature", 3, -1));
         assertThat(e.getMessage(), equalTo("num_words parameter must be a positive integer, found [-1]"));
     }
 
     public void testZeroNumWords() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> process(PARAGRAPH_INPUT, "nature", 3, 0)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> process(PARAGRAPH_INPUT, "nature", 3, 0));
         assertThat(e.getMessage(), equalTo("num_words parameter must be a positive integer, found [0]"));
     }
 
     public void testNegativeNumSnippets() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> process(PARAGRAPH_INPUT, "nature", -1, 100)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> process(PARAGRAPH_INPUT, "nature", -1, 100));
         assertThat(e.getMessage(), equalTo("num_snippets parameter must be a positive integer, found [-1]"));
     }
 
     public void testZeroNumSnippets() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> process(PARAGRAPH_INPUT, "nature", 0, 100)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> process(PARAGRAPH_INPUT, "nature", 0, 100));
         assertThat(e.getMessage(), equalTo("num_snippets parameter must be a positive integer, found [0]"));
     }
 

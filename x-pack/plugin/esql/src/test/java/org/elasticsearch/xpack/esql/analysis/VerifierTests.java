@@ -3383,8 +3383,10 @@ public class VerifierTests extends ESTestCase {
                 fullTextAnalyzer,
                 VerificationException.class
             ),
-            equalTo("1:29: Invalid option [num_words] in [TOP_SNIPPETS(body, \"query\", {\"num_words\": \"foobar\"})], " +
-                "cannot cast [foobar] to [integer]")
+            equalTo(
+                "1:29: Invalid option [num_words] in [TOP_SNIPPETS(body, \"query\", {\"num_words\": \"foobar\"})], "
+                    + "cannot cast [foobar] to [integer]"
+            )
         );
         assertThat(
             error(
@@ -3392,8 +3394,10 @@ public class VerifierTests extends ESTestCase {
                 fullTextAnalyzer,
                 VerificationException.class
             ),
-            equalTo("1:29: Invalid option [num_snippets] in [TOP_SNIPPETS(body, \"query\", {\"num_snippets\": \"foobar\"})], " +
-                "cannot cast [foobar] to [integer]")
+            equalTo(
+                "1:29: Invalid option [num_snippets] in [TOP_SNIPPETS(body, \"query\", {\"num_snippets\": \"foobar\"})], "
+                    + "cannot cast [foobar] to [integer]"
+            )
         );
     }
 

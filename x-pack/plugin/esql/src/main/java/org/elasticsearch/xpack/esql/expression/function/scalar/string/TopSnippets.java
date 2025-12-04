@@ -201,13 +201,18 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
     }
 
     @Evaluator(extraName = "BytesRef")
-    static void process(BytesRefBlock.Builder builder, BytesRef str, BytesRef query, @Fixed int numSnippets, @Fixed int numWords) {
+    static void process(
+        BytesRefBlock.Builder builder,
+        BytesRef str,
+        BytesRef query,
+        @Fixed ChunkingSettings chunkingSettings,
+        @Fixed MemoryIndexChunkScorer scorer,
+        @Fixed int numSnippets
+    ) {
         String content = str.utf8ToString();
         String queryString = query.utf8ToString();
 
-        ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(numWords, 0);
         List<String> chunks = chunkText(content, chunkingSettings);
-        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
         List<MemoryIndexChunkScorer.ScoredChunk> scoredChunks = scorer.scoreChunks(chunks, queryString, numSnippets, false);
         List<String> snippets = scoredChunks.stream().map(MemoryIndexChunkScorer.ScoredChunk::content).limit(numSnippets).toList();
         emitChunks(builder, snippets);
@@ -236,12 +241,17 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
         if (numWords <= 0) {
             throw new IllegalArgumentException(NUM_WORDS + " parameter must be a positive integer, found [" + numWords + "]");
         }
+
+        ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(numWords, 0);
+        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
+
         return new TopSnippetsBytesRefEvaluator.Factory(
             source(),
             toEvaluator.apply(field),
             toEvaluator.apply(query),
-            numSnippets,
-            numWords
+            chunkingSettings,
+            scorer,
+            numSnippets
         );
     }
 }

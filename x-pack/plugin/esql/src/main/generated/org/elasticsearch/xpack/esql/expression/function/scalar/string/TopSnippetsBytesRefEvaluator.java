@@ -17,6 +17,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -32,22 +34,25 @@ public final class TopSnippetsBytesRefEvaluator implements EvalOperator.Expressi
 
   private final EvalOperator.ExpressionEvaluator query;
 
-  private final int numSnippets;
+  private final ChunkingSettings chunkingSettings;
 
-  private final int numWords;
+  private final MemoryIndexChunkScorer scorer;
+
+  private final int numSnippets;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public TopSnippetsBytesRefEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator query, int numSnippets, int numWords,
-      DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator query, ChunkingSettings chunkingSettings,
+      MemoryIndexChunkScorer scorer, int numSnippets, DriverContext driverContext) {
     this.source = source;
     this.str = str;
     this.query = query;
+    this.chunkingSettings = chunkingSettings;
+    this.scorer = scorer;
     this.numSnippets = numSnippets;
-    this.numWords = numWords;
     this.driverContext = driverContext;
   }
 
@@ -105,7 +110,7 @@ public final class TopSnippetsBytesRefEvaluator implements EvalOperator.Expressi
         }
         BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
         BytesRef query = queryBlock.getBytesRef(queryBlock.getFirstValueIndex(p), queryScratch);
-        TopSnippets.process(result, str, query, this.numSnippets, this.numWords);
+        TopSnippets.process(result, str, query, this.chunkingSettings, this.scorer, this.numSnippets);
       }
       return result.build();
     }
@@ -119,7 +124,7 @@ public final class TopSnippetsBytesRefEvaluator implements EvalOperator.Expressi
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef str = strVector.getBytesRef(p, strScratch);
         BytesRef query = queryVector.getBytesRef(p, queryScratch);
-        TopSnippets.process(result, str, query, this.numSnippets, this.numWords);
+        TopSnippets.process(result, str, query, this.chunkingSettings, this.scorer, this.numSnippets);
       }
       return result.build();
     }
@@ -127,7 +132,7 @@ public final class TopSnippetsBytesRefEvaluator implements EvalOperator.Expressi
 
   @Override
   public String toString() {
-    return "TopSnippetsBytesRefEvaluator[" + "str=" + str + ", query=" + query + ", numSnippets=" + numSnippets + ", numWords=" + numWords + "]";
+    return "TopSnippetsBytesRefEvaluator[" + "str=" + str + ", query=" + query + ", chunkingSettings=" + chunkingSettings + ", scorer=" + scorer + ", numSnippets=" + numSnippets + "]";
   }
 
   @Override
@@ -154,27 +159,31 @@ public final class TopSnippetsBytesRefEvaluator implements EvalOperator.Expressi
 
     private final EvalOperator.ExpressionEvaluator.Factory query;
 
+    private final ChunkingSettings chunkingSettings;
+
+    private final MemoryIndexChunkScorer scorer;
+
     private final int numSnippets;
 
-    private final int numWords;
-
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
-        EvalOperator.ExpressionEvaluator.Factory query, int numSnippets, int numWords) {
+        EvalOperator.ExpressionEvaluator.Factory query, ChunkingSettings chunkingSettings,
+        MemoryIndexChunkScorer scorer, int numSnippets) {
       this.source = source;
       this.str = str;
       this.query = query;
+      this.chunkingSettings = chunkingSettings;
+      this.scorer = scorer;
       this.numSnippets = numSnippets;
-      this.numWords = numWords;
     }
 
     @Override
     public TopSnippetsBytesRefEvaluator get(DriverContext context) {
-      return new TopSnippetsBytesRefEvaluator(source, str.get(context), query.get(context), numSnippets, numWords, context);
+      return new TopSnippetsBytesRefEvaluator(source, str.get(context), query.get(context), chunkingSettings, scorer, numSnippets, context);
     }
 
     @Override
     public String toString() {
-      return "TopSnippetsBytesRefEvaluator[" + "str=" + str + ", query=" + query + ", numSnippets=" + numSnippets + ", numWords=" + numWords + "]";
+      return "TopSnippetsBytesRefEvaluator[" + "str=" + str + ", query=" + query + ", chunkingSettings=" + chunkingSettings + ", scorer=" + scorer + ", numSnippets=" + numSnippets + "]";
     }
   }
 }

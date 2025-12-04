@@ -176,11 +176,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             threadsPerAllocation = in.readVInt();
             queueCapacity = in.readVInt();
             this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-                this.priority = in.readEnum(Priority.class);
-            } else {
-                this.priority = Priority.NORMAL;
-            }
+            this.priority = in.readEnum(Priority.class);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 this.deploymentId = in.readString();
             } else {
@@ -302,9 +298,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeVInt(threadsPerAllocation);
             out.writeVInt(queueCapacity);
             out.writeOptionalWriteable(cacheSize);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-                out.writeEnum(priority);
-            }
+            out.writeEnum(priority);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeString(deploymentId);
             }
@@ -574,11 +568,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             this.numberOfAllocations = in.readVInt();
             this.queueCapacity = in.readVInt();
             this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-                this.priority = in.readEnum(Priority.class);
-            } else {
-                this.priority = Priority.NORMAL;
-            }
+            this.priority = in.readEnum(Priority.class);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 this.deploymentId = in.readString();
             } else {
@@ -638,9 +628,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeVInt(numberOfAllocations);
             out.writeVInt(queueCapacity);
             out.writeOptionalWriteable(cacheSize);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-                out.writeEnum(priority);
-            }
+            out.writeEnum(priority);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeString(deploymentId);
             }

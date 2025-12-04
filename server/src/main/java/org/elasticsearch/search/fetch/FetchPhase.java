@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -27,11 +28,13 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
+import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.profile.ProfileResult;
@@ -71,6 +74,129 @@ public final class FetchPhase {
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
         execute(context, docIdsToLoad, rankDocs, null);
     }
+
+    public void execute(
+        SearchContext context,
+        int[] docIdsToLoad,
+        RankDocShardInfo rankDocs,
+        @Nullable IntConsumer memoryChecker,
+        @Nullable FetchPhaseResponseChunk.Writer writer
+    ) {
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("{}", new SearchContextSourcePrinter(context));
+        }
+
+        if (context.isCancelled()) {
+            throw new TaskCancelledException("cancelled");
+        }
+
+        if (docIdsToLoad == null || docIdsToLoad.length == 0) {
+            // no individual hits to process, so we shortcut
+            // keep existing behavior on the data node
+            context.fetchResult()
+                .shardResult(
+                    SearchHits.empty(context.queryResult().getTotalHits(), context.queryResult().getMaxScore()),
+                    null
+                );
+
+            // optionally inform the coordinator that this shard produced no docs
+            if (writer != null) {
+                FetchPhaseResponseChunk start = new FetchPhaseResponseChunk(
+                    System.currentTimeMillis(),
+                    FetchPhaseResponseChunk.Type.START_RESPONSE,
+                    context.shardTarget().getShardId().id(),
+                    context.queryResult().getContextId(),
+                    null,
+                    0,
+                    0,
+                    0
+                );
+                writer.writeResponseChunk(start, ActionListener.running(() -> {}));
+            }
+            return;
+        }
+
+        // same profiling logic as the original execute(...)
+        final Profiler profiler = context.getProfilers() == null
+            || (context.request().source() != null && context.request().source().rankBuilder() != null)
+            ? Profiler.NOOP
+            : Profilers.startProfilingFetchPhase();
+
+        SearchHits hits = null;
+        try {
+            // build all hits using the existing code path
+            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker);
+
+            if (writer != null) {
+                final int shardIndex = context.shardTarget().getShardId().id();
+                final ShardSearchContextId ctxId = context.queryResult().getContextId();
+                final int expectedDocs = docIdsToLoad.length;
+
+                // 1) START_RESPONSE chunk
+                FetchPhaseResponseChunk start = new FetchPhaseResponseChunk(
+                    System.currentTimeMillis(),
+                    FetchPhaseResponseChunk.Type.START_RESPONSE,
+                    shardIndex,
+                    ctxId,
+                    null,
+                    0,
+                    0,
+                    expectedDocs
+                );
+                writer.writeResponseChunk(start, ActionListener.running(() -> {}));
+
+                // 2) HITS chunks
+                SearchHit[] allHits = hits.getHits();
+                if (allHits != null && allHits.length > 0) {
+                    final int chunkSize = 128; // tune as needed
+                    int from = 0;
+                    while (from < allHits.length) {
+                        int to = Math.min(from + chunkSize, allHits.length);
+                        int size = to - from;
+
+                        SearchHit[] slice = new SearchHit[size];
+                        System.arraycopy(allHits, from, slice, 0, size);
+
+                        // This SearchHits is only for the chunk; totalHits here is the chunk size
+                        SearchHits chunkHits = new SearchHits(
+                            slice,
+                            new TotalHits(size, TotalHits.Relation.EQUAL_TO),
+                            hits.getMaxScore()
+                        );
+
+                        FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(
+                            System.currentTimeMillis(),
+                            FetchPhaseResponseChunk.Type.HITS,
+                            shardIndex,
+                            ctxId,
+                            chunkHits,
+                            from,
+                            size,
+                            expectedDocs
+                        );
+                        writer.writeResponseChunk(chunk, ActionListener.running(() -> {}));
+
+                        from = to;
+                    }
+                }
+            }
+        } finally {
+            try {
+                // Always finish profiling
+                ProfileResult profileResult = profiler.finish();
+                // Only set the shardResults if building search hits was successful
+                if (hits != null) {
+                    context.fetchResult().shardResult(hits, profileResult);
+                    hits = null;
+                }
+            } finally {
+                if (hits != null) {
+                    hits.decRef();
+                }
+            }
+        }
+    }
+
 
     /**
      *

@@ -12,6 +12,7 @@ package org.elasticsearch.search.fetch;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.search.SearchShardTask;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -42,6 +43,10 @@ public class ShardFetchRequest extends AbstractTransportRequest {
     @Nullable
     private final ScoreDoc lastEmittedDoc;
 
+    private DiscoveryNode coordinatingNode;
+
+    private long coordinatingTaskId;
+
     public ShardFetchRequest(ShardSearchContextId contextId, List<Integer> docIds, ScoreDoc lastEmittedDoc) {
         this.contextId = contextId;
         this.docIds = docIds.stream().mapToInt(Integer::intValue).toArray();
@@ -66,6 +71,8 @@ public class ShardFetchRequest extends AbstractTransportRequest {
         } else {
             lastEmittedDoc = null;
         }
+        coordinatingNode = in.readOptionalWriteable(DiscoveryNode::new);
+        coordinatingTaskId = in.readLong();
     }
 
     @Override
@@ -82,6 +89,8 @@ public class ShardFetchRequest extends AbstractTransportRequest {
             out.writeByte((byte) 2);
             Lucene.writeScoreDoc(out, lastEmittedDoc);
         }
+        out.writeOptionalWriteable(coordinatingNode);
+        out.writeLong(coordinatingTaskId);
     }
 
     public ShardSearchContextId contextId() {
@@ -124,5 +133,17 @@ public class ShardFetchRequest extends AbstractTransportRequest {
     @Nullable
     public RankDocShardInfo getRankDocks() {
         return null;
+    }
+
+    public DiscoveryNode getCoordinatingNode() { return coordinatingNode; }
+
+    public long getCoordinatingTaskId() { return coordinatingTaskId; }
+
+    public void setCoordinatingNode(DiscoveryNode coordinatingNode) {
+        this.coordinatingNode = coordinatingNode;
+    }
+
+    public void setCoordinatingTaskId(long coordinatingTaskId) {
+        this.coordinatingTaskId = coordinatingTaskId;
     }
 }

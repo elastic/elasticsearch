@@ -102,6 +102,7 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
+import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
@@ -1002,6 +1003,52 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         // This will incRef the QuerySearchResult when it gets created
         return QueryFetchSearchResult.of(context.queryResult(), context.fetchResult());
+    }
+
+    public void executeFetchPhase(ShardFetchRequest request,
+                                  CancellableTask task,
+                                  FetchPhaseResponseChunk.Writer writer,
+                                  ActionListener<FetchSearchResult> listener) {
+
+        final ReaderContext readerContext = findReaderContext(request.contextId(), request);
+        final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
+        final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
+
+        rewriteAndFetchShardRequest(readerContext.indexShard(), shardSearchRequest, listener.delegateFailure((l, rewritten) -> {
+            runAsync(getExecutor(readerContext.indexShard()), () -> {
+                try (SearchContext searchContext = createContext(readerContext, rewritten, task, ResultsType.FETCH, false)) {
+                    if (request.lastEmittedDoc() != null) {
+                        searchContext.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
+                    }
+                    searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
+                    searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
+
+                    final long startTime = System.nanoTime();
+                    var opsListener = searchContext.indexShard().getSearchOperationListener();
+                    opsListener.onPreFetchPhase(searchContext);
+                    try {
+                        fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks(),/* memoryChecker */ null, writer);
+                        if (readerContext.singleSession()) {
+                            freeReaderContext(request.contextId());
+                        }
+                        opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime);
+                        opsListener = null;
+                    } finally {
+                        if (opsListener != null) {
+                            opsListener.onFailedFetchPhase(searchContext);
+                        }
+                    }
+
+                    var fetchResult = searchContext.fetchResult();
+                    fetchResult.incRef();
+                    return fetchResult;
+                } catch (Exception e) {
+                    assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
+                    // we handle the failure in the failure listener below
+                    throw e;
+                }
+            },  wrapFailureListener(listener, readerContext, markAsUsed));
+        }));
     }
 
     public void executeQueryPhase(

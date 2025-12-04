@@ -39,6 +39,8 @@ import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -539,6 +541,43 @@ public class SearchTransportService {
             RankFeatureResult::new,
             namedWriteableRegistry
         );
+
+        // Each chunk from FetchPhase is turned into a TransportFetchPhaseResponseChunkAction.Request
+        // and sent back to the coordinator with the coordinatingTaskId
+        final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandlerChunk =
+            (request, channel, task) -> {
+
+                final FetchPhaseResponseChunk.Writer writer = new FetchPhaseResponseChunk.Writer() {
+                    final Transport.Connection conn = transportService.getConnection(request.getCoordinatingNode());
+
+                    @Override
+                    public void writeResponseChunk(FetchPhaseResponseChunk responseChunk, ActionListener<Void> listener) {
+                        transportService.sendChildRequest(
+                            conn,
+                            TransportFetchPhaseResponseChunkAction.ACTION_NAME,
+                            new TransportFetchPhaseResponseChunkAction.Request(
+                                request.getCoordinatingTaskId(),
+                                responseChunk
+                            ),
+                            task,  // see section 2 below
+                            TransportRequestOptions.EMPTY,
+                            new ActionListenerResponseHandler<>(
+                                listener.map(ignored -> null),
+                                in -> ActionResponse.Empty.INSTANCE,
+                                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                            )
+                        );
+                    }
+                };
+
+                searchService.executeFetchPhase(
+                    request,
+                    (SearchShardTask) task,
+                    writer,
+                    new ChannelActionListener<>(channel)
+                );
+            };
+
 
         final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> searchService
             .executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));

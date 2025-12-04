@@ -28,6 +28,8 @@ import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.HollowShardsMetrics;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
+import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
@@ -82,6 +84,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -93,6 +96,7 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.shard.IndexShard;
@@ -102,6 +106,7 @@ import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -146,6 +151,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -198,7 +204,7 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(TestServerlessStatelessPluginCatchFlushUpload.class);
+        plugins.add(TestServerlessStatelessPluginCatchUnhollow.class);
         plugins.add(DataStreamsPlugin.class);
         plugins.add(CustomIngestTestPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
@@ -207,11 +213,14 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
         return plugins;
     }
 
-    public static class TestServerlessStatelessPluginCatchFlushUpload extends TestServerlessStatelessPlugin {
+    public static class TestServerlessStatelessPluginCatchUnhollow extends TestServerlessStatelessPlugin {
         public final AtomicReference<Semaphore> uploadRequestedSemaphoreReference = new AtomicReference<>();
         public final AtomicReference<Semaphore> uploadContinueSemaphoreReference = new AtomicReference<>();
 
-        public TestServerlessStatelessPluginCatchFlushUpload(Settings settings) {
+        public final AtomicReference<Semaphore> newIndexEngineStartedSemaphoreReference = new AtomicReference<>();
+        public final AtomicReference<Semaphore> newIndexEngineContinueSemaphoreReference = new AtomicReference<>();
+
+        public TestServerlessStatelessPluginCatchUnhollow(Settings settings) {
             super(settings);
         }
 
@@ -251,6 +260,39 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
                     super.ensureMaxGenerationToUploadForFlush(shardId, generation);
                 }
             };
+        }
+
+        @Override
+        protected IndexEngine newIndexEngine(
+            EngineConfig engineConfig,
+            TranslogReplicator translogReplicator,
+            Function<String, BlobContainer> translogBlobContainer,
+            StatelessCommitService statelessCommitService,
+            HollowShardsService hollowShardsService,
+            SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
+            RefreshThrottler.Factory refreshThrottlerFactory,
+            DocumentParsingProvider documentParsingProvider,
+            IndexEngine.EngineMetrics engineMetrics
+        ) {
+            Semaphore newIndexEngineStartedSemaphore = newIndexEngineStartedSemaphoreReference.get();
+            if (newIndexEngineStartedSemaphore != null) {
+                newIndexEngineStartedSemaphore.release();
+            }
+            Semaphore newIndexEngineContinueSemaphore = newIndexEngineContinueSemaphoreReference.get();
+            if (newIndexEngineContinueSemaphore != null) {
+                safeAcquire(newIndexEngineContinueSemaphore);
+            }
+            return super.newIndexEngine(
+                engineConfig,
+                translogReplicator,
+                translogBlobContainer,
+                statelessCommitService,
+                hollowShardsService,
+                sharedBlobCacheWarmingService,
+                refreshThrottlerFactory,
+                documentParsingProvider,
+                engineMetrics
+            );
         }
     }
 
@@ -2806,7 +2848,7 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
         assertBusy(() -> assertThat(hollowShardsService.isHollowableIndexShard(indexShard), equalTo(true)));
         assertBusy(() -> assertNull(commitServiceA.getCurrentVirtualBcc(shardId)));
 
-        final var testStatelessPlugin = findPlugin(indexNodeA, TestServerlessStatelessPluginCatchFlushUpload.class);
+        final var testStatelessPlugin = findPlugin(indexNodeA, TestServerlessStatelessPluginCatchUnhollow.class);
         Semaphore uploadRequestedSemaphore = new Semaphore(0);
         testStatelessPlugin.uploadRequestedSemaphoreReference.set(uploadRequestedSemaphore);
         Semaphore uploadContinueSemaphore = new Semaphore(0);
@@ -2870,6 +2912,115 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
         });
 
         hollowVbcc.close();
+    }
+
+    public void testHollowingAndRetentionLeasesDeadlock() throws Exception {
+        // This test checks the following deadlock risk scenario:
+        // - Create a shard on node A
+        // - Index some docs, flush to create new segment
+        // - Delete some docs, flush to create a segment with 0 new docs. We want SegmentReader.numdDocs() == 0.
+        // We want reset engine thread to call the ReplicationTracker. For that we want to trigger mergePolicy.keepFullyDeletedSegment()
+        // path in in StandardDirectoryReader.open().
+        // - Hollow the shard by relocating it to node B by excluding node A from allocation.
+        // - Make index yellow by adding unallocated replicas, so that allShardStarted == false.
+        // This is needed to trigger getMinimumReasonableRetainedSeqNo() call eventually.
+        // - In one thread call force merge, which triggers engine reset during unhollowing. Using a semaphore we pause the engine reset.
+        // This thread at this time holds the engine reset write lock.
+        // - In another thread call sync retention leases. This acquires the monitor on ReplicationTracker and then tries to acquire the
+        // engine reset read lock. This must not block as otherwise we will have a deadlock.
+        // - Enable the engine reset thread to continue. It tries to acquire the ReplicationTracker monitor.
+
+        startMasterOnlyNode();
+        var indexNodeSettings = Settings.builder().put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO).build();
+        String indexNodeA = startIndexNode(indexNodeSettings);
+        ensureStableCluster(2);
+
+        // Create a shard, index some docs, flush the non-hollow commit
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        var index = resolveIndex(indexName);
+        int numDocs = randomIntBetween(16, 128);
+        logger.debug("--> indexing {} docs", numDocs);
+        var bulkResponse = indexDocs(indexName, numDocs);
+        flush(indexName);
+
+        // Create a segment with 0 new docs by deleting some docs and flushing.
+        final var validIds = Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).toList();
+        final List<String> someInsertedDocs = randomSubsetOf(validIds);
+        var bulkDeleteRequest = client().prepareBulk();
+        someInsertedDocs.forEach(n -> bulkDeleteRequest.add(client().prepareDelete(indexName, String.valueOf(n))));
+        bulkDeleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        assertNoFailures(bulkDeleteRequest.get());
+        flush(indexName);
+
+        var indexShardA = findIndexShard(index, 0);
+        var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        assertBusy(() -> assertThat(hollowShardsService.isHollowableIndexShard(indexShardA), equalTo(true)));
+
+        // Hollow the shard by relocating it to another node.
+        String indexNodeB = startIndexNode(indexNodeSettings);
+        ensureStableCluster(3);
+        logger.debug("--> relocating hollowable shard from {} to {}", indexNodeA, indexNodeB);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        waitForRelocation(ClusterHealthStatus.GREEN);
+
+        var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexNodeB);
+        var indexShardB = findIndexShard(index, 0);
+        assertBusy(() -> {
+            hollowShardsServiceB.ensureHollowShard(indexShardB.shardId(), true);
+            indexShardB.withEngine(e -> {
+                assertThat(e, instanceOf(HollowIndexEngine.class));
+                return null;
+            });
+        });
+
+        // Put index into yellow state by adding an unallocated replica, so that allShardStarted == false
+        setReplicaCount(1, indexName);
+        ensureYellow(indexName);
+
+        // Now unhollow, and catch engine reset
+        final var testStatelessPlugin = findPlugin(indexNodeB, TestServerlessStatelessPluginCatchUnhollow.class);
+        Semaphore newIndexEngineStartedSemaphore = new Semaphore(0);
+        testStatelessPlugin.newIndexEngineStartedSemaphoreReference.set(newIndexEngineStartedSemaphore);
+        Semaphore newIndexEngineContinueSemaphore = new Semaphore(0);
+        testStatelessPlugin.newIndexEngineContinueSemaphoreReference.set(newIndexEngineContinueSemaphore);
+
+        // Unhollow via force merge
+        var forceMergeFuture = client().admin().indices().prepareForceMerge(indexName).execute();
+
+        // engineReset() will block on the semaphore. But it is holding the engine reset lock.
+        safeAcquire(newIndexEngineStartedSemaphore);
+
+        // In a new thread call the sync retention leases method, which also needs the engine reset lock. It must not block while holding
+        // ReplicationTracker monitor as that would lead to deadlock.
+        var retentionLeasesStarted = new CountDownLatch(1);
+        var retentionLeasesEnded = new CountDownLatch(1);
+        Thread syncRetentionLeasesThread = new Thread(() -> {
+            try {
+                logger.debug("--> calling syncRetentionLeases()");
+                retentionLeasesStarted.countDown();
+                indexShardB.syncRetentionLeases();
+                logger.debug("--> syncRetentionLeases() returned");
+                retentionLeasesEnded.countDown();
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        }, "SyncRetentionLeasesThread");
+        syncRetentionLeasesThread.start();
+        safeAwait(retentionLeasesStarted);
+
+        // We continue with the engine reset, now is the risk of hitting deadlock.
+        logger.debug("--> continuing with engineReset");
+        newIndexEngineContinueSemaphore.release();
+
+        safeAwait(retentionLeasesEnded);
+        safeGet(forceMergeFuture);
+        syncRetentionLeasesThread.join();
+
+        setReplicaCount(0, indexName);
+        ensureGreen(indexName);
     }
 
     public void testRealTimeGet() throws Exception {

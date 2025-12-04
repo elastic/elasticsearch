@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -137,6 +139,8 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
     }
 
     private void downsampleWithSamplingMethod(DownsampleConfig.SamplingMethod method) throws Exception {
+        // TODO: remove when FeatureFlag is removed and add minimum required version to yaml spec
+        assumeTrue("Only when exponential_histogram feature flag is enabled", Build.current().isSnapshot());
         String dataStreamName = "metrics-foo";
         String mapping = """
             {

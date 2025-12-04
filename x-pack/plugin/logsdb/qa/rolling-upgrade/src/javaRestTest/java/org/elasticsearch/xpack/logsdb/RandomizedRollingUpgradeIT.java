@@ -19,6 +19,7 @@ import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.datageneration.MappingGenerator;
 import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.TemplateGenerator;
+import org.elasticsearch.datageneration.datasource.ASCIIStringsHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
@@ -82,7 +83,8 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
                 }
             }))
             .withDataSourceHandlers(List.of(MultifieldAddonHandler.STRING_TYPE_HANDLER))
-            // .withDataSourceHandlers(List.of(new ASCIIStringsHandler()))
+            // TODO: Remove ASCIIStringHandlers once the test has stabilized
+            .withDataSourceHandlers(List.of(new ASCIIStringsHandler()))
             .build();
 
         documentGenerator = new DocumentGenerator(specification);

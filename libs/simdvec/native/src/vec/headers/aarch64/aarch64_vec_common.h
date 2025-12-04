@@ -7,9 +7,6 @@
     // Cache line size is 128 bytes on Apple M silicon
     // Source: sysctl -a hw machdep.cpu | grep hw.cachelinesize
     #define CACHE_LINE_SIZE 128
-    #else
-        #error "Unsupported Apple platform"
-    #endif
 #elif __linux__
     // We mostly care about ARMv8a like Neoverse N1 (e.g. Graviton 2) and V1 (e.g. Graviton 3), and ARMv9a
     // like Neoverse V2 (e.g. Graviton 4) architectures.

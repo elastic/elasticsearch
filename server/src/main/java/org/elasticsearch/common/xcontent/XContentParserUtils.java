@@ -86,7 +86,7 @@ public final class XContentParserUtils {
         }
     }
 
-    private static ParsingException parsingException(XContentParser parser, Token expected, Token actual) {
+    public static ParsingException parsingException(XContentParser parser, Token expected, Token actual) {
         return new ParsingException(
             parser.getTokenLocation(),
             String.format(Locale.ROOT, "Failed to parse object: expecting token of type [%s] but found [%s]", expected, actual)

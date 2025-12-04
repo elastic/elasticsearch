@@ -396,10 +396,10 @@ module org.elasticsearch.server {
         to
             org.elasticsearch.inference,
             org.elasticsearch.metering,
-            org.elasticsearch.stateless,
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering,
+            org.elasticsearch.serverless.stateless,
             org.elasticsearch.internal.security,
             org.elasticsearch.xpack.gpu;
 
@@ -445,6 +445,7 @@ module org.elasticsearch.server {
 
     provides org.apache.lucene.codecs.PostingsFormat
         with
+            org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat,
             org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.postings.ES812PostingsFormat;

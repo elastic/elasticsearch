@@ -141,7 +141,6 @@ class DownsampleShardIndexer {
 
             List<FieldValueFetcher> fetchers = new ArrayList<>(metrics.length + labels.length + dimensions.length);
             fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, metrics, multiFieldSources));
-            // Labels are downsampled using the last value, they are not influenced by the requested sampling method
             fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, labels, multiFieldSources));
             fetchers.addAll(DimensionFieldValueFetcher.create(searchExecutionContext, dimensions, multiFieldSources));
             this.fieldValueFetchers = Collections.unmodifiableList(fetchers);

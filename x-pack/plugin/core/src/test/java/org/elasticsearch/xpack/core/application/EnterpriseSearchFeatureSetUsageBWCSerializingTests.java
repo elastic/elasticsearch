@@ -14,8 +14,6 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage.QUERY_RULES_TRANSPORT_VERSION;
-
 public class EnterpriseSearchFeatureSetUsageBWCSerializingTests extends AbstractBWCWireSerializationTestCase<
     EnterpriseSearchFeatureSetUsage> {
 

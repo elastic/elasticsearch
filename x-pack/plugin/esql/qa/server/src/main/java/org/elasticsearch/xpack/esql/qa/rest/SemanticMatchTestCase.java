@@ -133,9 +133,11 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
 
         String query = """
-            FROM test-semantic2
+            FROM test-semantic2 METADATA _score
             | WHERE MATCH(keyword_field, "label_1")
             | WHERE MATCH(semantic_text_field, "violins")
+            | SORT _score DESC
+            | KEEP keyword_field, semantic_text_field
             | LIMIT 10
             """;
 

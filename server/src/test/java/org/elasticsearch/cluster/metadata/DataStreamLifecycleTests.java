@@ -547,13 +547,10 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
             IllegalArgumentException.class,
             () -> new DataStreamFailureStore(
                 randomBoolean(),
-                new DataStreamLifecycle(
-                    DataStreamLifecycle.LifecycleType.FAILURES,
-                    null,
-                    null,
-                    DataStreamLifecycleTests.randomDownsamplingRounds(),
-                    DownsampleConfigTests.randomSamplingMethod()
-                )
+                DataStreamLifecycle.failuresLifecycleBuilder()
+                    .downsamplingRounds(randomDownsamplingRounds())
+                    .downsamplingMethod(DownsampleConfigTests.randomSamplingMethod())
+                    .build()
             )
         );
         assertThat(

@@ -975,6 +975,7 @@ max:double | inc:double | time_bucket:date_nanos     | cluster:keyword
 derivative_of_gauge_metric
 required_capability: ts_command_v0
 required_capability: ts_linreg_derivative
+required_capability: ts_deriv_datenanos
 
 // tag::deriv[]
 TS k8s

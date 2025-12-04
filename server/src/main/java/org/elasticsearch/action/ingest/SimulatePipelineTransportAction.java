@@ -133,21 +133,35 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
             } else {
                 DiscoveryNode ingestNode = getRandomIngestNode(ingestNodes.values());
                 logger.trace("forwarding request [{}] to ingest node [{}]", actionName, ingestNode);
-                ActionListenerResponseHandler<SimulatePipelineResponse> handler = new ActionListenerResponseHandler<>(
-                    listener,
-                    SimulatePipelineResponse::new,
-                    TransportResponseHandler.TRANSPORT_WORKER
-                );
                 if (task == null) {
-                    transportService.sendRequest(ingestNode, actionName, request, handler);
+                    transportService.sendRequest(
+                        ingestNode,
+                        actionName,
+                        request,
+                        new ActionListenerResponseHandler<>(
+                            listener,
+                            SimulatePipelineResponse::new,
+                            TransportResponseHandler.TRANSPORT_WORKER
+                        )
+                    );
                 } else {
                     transportService.sendChildRequest(
                         ingestNode,
                         actionName,
                         request,
                         task,
-                        TransportRequestOptions.timeout(ingestNodeTransportActionTimeout),
-                        handler
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(
+                            ActionListener.addTimeout(
+                                ingestNodeTransportActionTimeout,
+                                transportService.getThreadPool(),
+                                TransportResponseHandler.TRANSPORT_WORKER,
+                                listener,
+                                () -> { /* TODO cancel the remote task? */}
+                            ),
+                            SimulatePipelineResponse::new,
+                            TransportResponseHandler.TRANSPORT_WORKER
+                        )
                     );
                 }
             }

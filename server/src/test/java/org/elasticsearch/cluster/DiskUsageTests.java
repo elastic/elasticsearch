@@ -176,9 +176,9 @@ public class DiskUsageTests extends ESTestCase {
             equalTo(
                 Map.of(
                     test_0.shardId(),
-                    commonStats0.indexing.getTotal().getPeakWriteLoad(),
+                    commonStats0.indexing.getTotal().getRecentWriteLoad(),
                     test_1.shardId(),
-                    Math.max(commonStats1.indexing.getTotal().getPeakWriteLoad(), commonStats2.indexing.getTotal().getPeakWriteLoad())
+                    Math.max(commonStats1.indexing.getTotal().getRecentWriteLoad(), commonStats2.indexing.getTotal().getRecentWriteLoad())
                 )
             )
         );

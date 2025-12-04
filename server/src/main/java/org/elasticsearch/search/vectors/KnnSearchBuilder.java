@@ -350,11 +350,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             this.queryVectorBuilder = null;
         }
         this.querySupplier = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            this.similarity = in.readOptionalFloat();
-        } else {
-            this.similarity = null;
-        }
+        this.similarity = in.readOptionalFloat();
         if (in.getTransportVersion().onOrAfter(V_8_11_X)) {
             this.innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
         }
@@ -621,9 +617,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeOptionalNamedWriteable(queryVectorBuilder);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalFloat(similarity);
-        }
+        out.writeOptionalFloat(similarity);
         if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
             out.writeOptionalWriteable(innerHitBuilder);
         }

@@ -15,7 +15,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,6 +39,16 @@ public class DownsampleIT extends AbstractRollingUpgradeWithSecurityTestCase {
 
     public DownsampleIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    private static TemporaryFolder repoDirectory = new TemporaryFolder();
+    private static ElasticsearchCluster cluster = DefaultClusters.buildCluster(repoDirectory);
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     private static final String POLICY = """

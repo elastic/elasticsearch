@@ -18,8 +18,13 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -72,6 +77,16 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSe
 
     public LogsdbIndexingRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    private static TemporaryFolder repoDirectory = new TemporaryFolder();
+    private static ElasticsearchCluster cluster = Clusters.buildCluster(repoDirectory);
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     public void testIndexing() throws Exception {

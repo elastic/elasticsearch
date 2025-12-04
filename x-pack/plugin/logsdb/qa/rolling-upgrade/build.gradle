@@ -12,6 +12,9 @@ apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.fwc-test'
 apply plugin: 'elasticsearch.bc-upgrade-test'
 
+// Necessary to use tests in Serverless
+apply plugin: 'elasticsearch.internal-test-artifact'
+
 dependencies {
   javaRestTestImplementation project(xpackModule('logsdb'))
   javaRestTestImplementation project(':test:test-clusters')

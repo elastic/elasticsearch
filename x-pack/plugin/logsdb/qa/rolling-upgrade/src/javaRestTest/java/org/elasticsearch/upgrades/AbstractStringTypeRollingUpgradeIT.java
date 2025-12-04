@@ -14,13 +14,21 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,6 +53,46 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
     private static final int IGNORE_ABOVE_MAX = 256;
     private static final int NUM_REQUESTS = 4;
     private static final int NUM_DOCS_PER_REQUEST = 1024;
+
+    // static class ClusterWrapper implements Closeable {
+    //
+    // private final TemporaryFolder repoDirectory;
+    // private final ElasticsearchCluster cluster;
+    //
+    // ClusterWrapper() {
+    // repoDirectory = new TemporaryFolder();
+    // cluster = Clusters.buildCluster(repoDirectory);
+    // }
+    //
+    //
+    // @Override
+    // public void close() {
+    // cluster.close();
+    // repoDirectory.delete();
+    // }
+    //
+    // public ElasticsearchCluster getCluster() {
+    // return cluster;
+    // }
+    // }
+
+    private static TemporaryFolder repoDirectory = new TemporaryFolder();
+    private static ElasticsearchCluster cluster = Clusters.buildCluster(repoDirectory);
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        System.out.println("Rest Client settings, user: " + Clusters.user());
+
+        String token = basicAuthHeaderValue(Clusters.user(), new SecureString(Clusters.password().toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
 
     static String BULK_ITEM_TEMPLATE =
         """

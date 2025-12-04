@@ -173,8 +173,12 @@ public class InferenceQueryUtils {
             inferenceFieldCount += inferenceFieldMetadataSet.size();
         }
 
-        if (inferenceFieldCount == 0 || query == null) {
-            // Either no inference fields were queried, or no query was provided. Either way, there are no inference results to generate.
+        if ((inferenceFieldCount == 0 && inferenceIdOverride == null) || query == null) {
+            // Skip local inference result generation if:
+            // - No inference fields were queried and no inference ID override was specified
+            // - The query is null
+            // We perform local inference result generation if an inference ID override is specified and the query is non-null because
+            // remote cluster fields (either inference or non-inference) may need this inference result to handle the query.
             localInferenceInfoListener.onResponse(
                 new InferenceInfo(
                     inferenceFieldCount,

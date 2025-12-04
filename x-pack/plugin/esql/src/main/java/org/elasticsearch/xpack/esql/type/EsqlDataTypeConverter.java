@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -811,30 +812,7 @@ public class EsqlDataTypeConverter {
     }
 
     public static String tDigestToString(TDigestHolder digest) {
-        // TODO: this is largely duplicated from TDigestFieldMapepr's synthetic source support, and we should refactor all of that.
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
-
-            if (Double.isNaN(digest.getMin()) == false) {
-                builder.field("min", digest.getMin());
-            }
-            if (Double.isNaN(digest.getMax()) == false) {
-                builder.field("max", digest.getMax());
-            }
-            if (Double.isNaN(digest.getSum()) == false) {
-                builder.field("sum", digest.getSum());
-            }
-
-            // TODO: Decode and return the cetrnoid and count arrays here.  I'm skipping it for now because I don't want to get bogged
-            //       down in safe allocation logic here.
-            builder.field("tech_preview_warning", "For the tech preview, direct retrieval of centroids and counts is not supported");
-
-            builder.endArray();
-            builder.endObject();
-            return Strings.toString(builder);
-        } catch (IOException e) {
-            throw new IllegalStateException("error rendering TDigest", e);
-        }
+        return digest.toString();
     }
 
     public static String aggregateMetricDoubleLiteralToString(AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral aggMetric) {

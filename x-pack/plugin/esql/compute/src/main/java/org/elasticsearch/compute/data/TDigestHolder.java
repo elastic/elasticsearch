@@ -8,9 +8,16 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -96,6 +103,51 @@ public class TDigestHolder {
 
     public long getValueCount() {
         return valueCount;
+    }
+
+    @Override
+    public String toString() {
+        // TODO: this is largely duplicated from TDigestFieldMapepr's synthetic source support, and we should refactor all of that.
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+
+            if (Double.isNaN(this.getMin()) == false) {
+                builder.field("min", this.getMin());
+            }
+            if (Double.isNaN(this.getMax()) == false) {
+                builder.field("max", this.getMax());
+            }
+            if (Double.isNaN(this.getSum()) == false) {
+                builder.field("sum", this.getSum());
+            }
+
+            // TODO: Would be nice to wrap all of this in reusable objects and minimize allocations here
+            ByteArrayStreamInput values = new ByteArrayStreamInput();
+            values.reset(encodedDigest.bytes, encodedDigest.offset, encodedDigest.length);
+            List<Double> centroids = new ArrayList<>();
+            List<Long> counts = new ArrayList<>();
+            while (values.available() > 0) {
+                counts.add(values.readVLong());
+                centroids.add(values.readDouble());
+            }
+
+            // TODO: reuse the constans from the field type
+            builder.startArray("centroids");
+            for (Double centroid : centroids) {
+                builder.value(centroid.doubleValue());
+            }
+            builder.endArray();
+
+            builder.startArray("counts");
+            for (Long count : counts) {
+                builder.value(count.longValue());
+            }
+            builder.endArray();
+            builder.endObject();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new IllegalStateException("error rendering TDigest", e);
+        }
     }
 
 }

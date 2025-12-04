@@ -72,11 +72,16 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
             Filter.class,
             filter -> filter.child() instanceof UnionAll unionAll ? maybePushDownPastUnionAll(filter, unionAll) : filter
         );
+        // TODO clean up the commented code after fully testing subqueries without implicit limit
+        /*
         // push down limit or limit + filter below Subquery
         return planWithFilterPushedDownPastUnionAll.transformDown(
             Limit.class,
             PushDownFilterAndLimitIntoUnionAll::pushLimitAndFilterPastSubquery
         );
+         */
+        // push down filter below Subquery
+        return planWithFilterPushedDownPastUnionAll.transformDown(Filter.class, PushDownFilterAndLimitIntoUnionAll::pushFilterPastSubquery);
     }
 
     private static LogicalPlan maybePushDownPastUnionAll(Filter filter, UnionAll unionAll) {
@@ -162,6 +167,8 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
         if (resolvedPushable == null) {
             return project;
         }
+        return filterWithPlanAsChild(project, resolvedPushable);
+        /*
         LogicalPlan child = project.child();
         // check if the predicates' attributes' name and id are in the child's output, if so push down
         Tuple<List<Expression>, List<Expression>> pushablesAndNonPushables = splitPushableAndNonPushablePredicates(
@@ -193,6 +200,8 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
         return newResolvedNonPushable.isEmpty()
             ? planWithNewResolvedPushablePushedDown
             : filterWithPlanAsChild(planWithNewResolvedPushablePushedDown, newResolvedNonPushable); // create a filter above the new plan
+
+         */
     }
 
     /**
@@ -401,5 +410,17 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
             return subquery.replaceChild(newLimit);
         }
         return limit;
+    }
+
+    /**
+     * Subquery does not create any new attributes, so filter can be pushed down safely.
+     */
+    private static LogicalPlan pushFilterPastSubquery(Filter filter) {
+        LogicalPlan child = filter.child();
+        if (child instanceof Subquery subquery) {
+            Filter newFilter = filter.replaceChild(subquery.child());
+            return subquery.replaceChild(newFilter);
+        }
+        return filter;
     }
 }

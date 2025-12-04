@@ -3252,27 +3252,6 @@ public class VerifierTests extends ESTestCase {
         assertThat(errorMessage, containsString("1:6: FORK after subquery is not supported"));
     }
 
-    // InlineStats after subquery is not supported
-    public void testSubqueryInFromWithInlineStatsInMainQuery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        String errorMessage = error("""
-            FROM test, (FROM test_mixed_types
-                                 | WHERE languages > 0
-                                 | EVAL emp_no = emp_no::int
-                                 | KEEP emp_no)
-            | INLINE STATS cnt = count(*)
-            | SORT emp_no
-            """);
-        assertThat(
-            errorMessage,
-            containsString(
-                "1:6: INLINE STATS after subquery is not supported, "
-                    + "as INLINE STATS cannot be used after an explicit or implicit LIMIT command"
-            )
-        );
-        assertThat(errorMessage, containsString("line 5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command,"));
-    }
-
     // LookupJoin on FTF after subquery is not supported, as join is not pushed down into subquery yet
     // FTF on the join(after subquery) on condition is not visible inside subquery yet. FTF after Fork fails with a similar error.
     public void testSubqueryInFromWithLookupJoinOnFullTextFunction() {

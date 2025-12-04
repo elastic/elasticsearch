@@ -658,7 +658,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
             """);
     }
 
-    private void initManyBigFieldsIndex(int docs, String type) throws IOException {
+    void initManyBigFieldsIndex(int docs, String type) throws IOException {
         logger.info("loading many documents with many big fields");
         int docsPerBulk = 5;
         int fields = 1000;
@@ -701,7 +701,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
         initIndex("manybigfields", bulk.toString());
     }
 
-    private void initGiantTextField(int docs) throws IOException {
+    void initGiantTextField(int docs) throws IOException {
         int docsPerBulk = 10;
         for (Map<?, ?> nodeInfo : getNodesInfo(adminClient()).values()) {
             for (Object module : (List<?>) nodeInfo.get("modules")) {

@@ -19,6 +19,8 @@ import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.TDigestBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
@@ -89,7 +91,7 @@ public record RandomBlock(List<List<Object>> values, Block block) {
     ) {
         List<List<Object>> values = new ArrayList<>();
         Block.MvOrdering mvOrdering = Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING;
-        if (elementType == ElementType.EXPONENTIAL_HISTOGRAM) {
+        if (elementType == ElementType.EXPONENTIAL_HISTOGRAM || elementType == ElementType.TDIGEST) {
             // histograms do not support multi-values
             // TODO(b/133393) remove this when we support multi-values in exponential histogram blocks
             minValuesPerPosition = Math.min(1, minValuesPerPosition);
@@ -171,6 +173,12 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                             ExponentialHistogram histogram = BlockTestUtils.randomExponentialHistogram();
                             b.append(histogram);
                             valuesAtPosition.add(histogram);
+                        }
+                        case TDIGEST -> {
+                            TDigestBlockBuilder b = (TDigestBlockBuilder) builder;
+                            TDigestHolder digest = BlockTestUtils.randomTDigest();
+                            b.append(digest);
+                            valuesAtPosition.add(digest);
                         }
                         default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
                     }

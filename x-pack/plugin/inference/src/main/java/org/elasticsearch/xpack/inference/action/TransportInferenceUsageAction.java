@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
@@ -49,6 +50,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.inference.InferenceFeatures.EMBEDDING_TASK_TYPE;
 
 public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAction {
 
@@ -62,6 +64,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         TaskType.SPARSE_EMBEDDING
     );
 
+    private final FeatureService featureService;
     private final ModelRegistry modelRegistry;
     private final Client client;
 
@@ -72,11 +75,13 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         ThreadPool threadPool,
         ActionFilters actionFilters,
         ModelRegistry modelRegistry,
-        Client client
+        Client client,
+        FeatureService featureService
     ) {
         super(XPackUsageFeatureAction.INFERENCE.name(), transportService, clusterService, threadPool, actionFilters);
         this.modelRegistry = modelRegistry;
         this.client = new OriginSettingClient(client, ML_ORIGIN);
+        this.featureService = featureService;
     }
 
     @Override
@@ -143,7 +148,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
      * In addition, adds aggregate usage stats per task type across all services.
      * Those aggregate stats have "_all" as the service name.
      */
-    private static void addStatsByServiceAndTask(
+    private void addStatsByServiceAndTask(
         Map<ServiceAndTaskType, Map<String, List<InferenceFieldMetadata>>> inferenceFieldsByIndexServiceAndTask,
         List<ModelConfigurations> endpoints,
         Map<String, ModelStats> endpointStats
@@ -182,12 +187,14 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         );
     }
 
-    private static void addTopLevelStatsByTask(
+    private void addTopLevelStatsByTask(
         Map<ServiceAndTaskType, Map<String, List<InferenceFieldMetadata>>> inferenceFieldsByIndexServiceAndTask,
         Map<String, ModelStats> endpointStats
     ) {
         for (TaskType taskType : TaskType.values()) {
-            if (taskType == TaskType.ANY) {
+            if (taskType == TaskType.ANY
+                || (taskType == TaskType.EMBEDDING
+                    && featureService.clusterHasFeature(clusterService.state(), EMBEDDING_TASK_TYPE) == false)) {
                 continue;
             }
             ModelStats allStatsForTaskType = endpointStats.computeIfAbsent(

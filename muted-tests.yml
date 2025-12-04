@@ -46,9 +46,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test start/stop/start transform}
   issue: https://github.com/elastic/elasticsearch/issues/119508
-- class: org.elasticsearch.smoketest.MlWithSecurityIT
-  method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
-  issue: https://github.com/elastic/elasticsearch/issues/119548
 - class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/119983
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
@@ -322,15 +319,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/200_dense_vector_docvalue_fields/Enable docvalue_fields parameter for dense_vector fields}
   issue: https://github.com/elastic/elasticsearch/issues/136443
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
-  method: testManyConcat
-  issue: https://github.com/elastic/elasticsearch/issues/136728
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testRemoteClusterOnlyCCSWithFailuresOnAllShards
   issue: https://github.com/elastic/elasticsearch/issues/136894
-- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichTopNTests
-  method: testTopNSortExpressionWithinRemoteEnrichAliasing
-  issue: https://github.com/elastic/elasticsearch/issues/136957
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/117208
@@ -439,6 +430,12 @@ tests:
 - class: org.elasticsearch.xpack.unsignedlong.UnsignedLongSyntheticSourceNativeArrayIntegrationTests
   method: testSynthesizeArrayRandom
   issue: https://github.com/elastic/elasticsearch/issues/138684
+- class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
+  method: testAggregateMetricDoubleInlineStats
+  issue: https://github.com/elastic/elasticsearch/issues/138620
+- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
+  method: testAggregateMetricDoubleInlineStats
+  issue: https://github.com/elastic/elasticsearch/issues/138620
 - class: org.elasticsearch.index.mapper.HalfFloatSyntheticSourceNativeArrayIntegrationTests
   method: testSynthesizeArrayRandom
   issue: https://github.com/elastic/elasticsearch/issues/138730
@@ -466,8 +463,30 @@ tests:
 - class: org.elasticsearch.index.mapper.LongSyntheticSourceNativeArrayIntegrationTests
   method: testSynthesizeArrayRandom
   issue: https://github.com/elastic/elasticsearch/issues/138819
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  issue: https://github.com/elastic/elasticsearch/issues/138796
+- class: org.elasticsearch.xpack.ilm.actions.DownsampleActionIT
+  method: testILMWaitsForTimeSeriesEndTimeToLapse
+  issue: https://github.com/elastic/elasticsearch/issues/138843
+- class: org.elasticsearch.common.settings.ScopedSettingsTests
+  method: testValidateArchivedSetting
+  issue: https://github.com/elastic/elasticsearch/issues/138895
+- class: org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCaseMultipleFailuresIT
+  method: test {p0=/20_multiple_failures/Test with multiple failures}
+  issue: https://github.com/elastic/elasticsearch/issues/138896
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/610_function_score/formulating a function score query with a negative number returns bad request}
+  issue: https://github.com/elastic/elasticsearch/issues/138908
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_byte_quantized/Test create, merge, and search cosine}
+  issue: https://github.com/elastic/elasticsearch/issues/138909
+- class: org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitorTests
+  method: testRerouteIsNotCalledWhenNoNodesAreHotSpotting
+  issue: https://github.com/elastic/elasticsearch/issues/138924
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/60_dense_vector_dynamic_mapping/Sub-objects mapped as dense_vector without dims dynamically map the dim size to the first
+    indexed document}
+  issue: https://github.com/elastic/elasticsearch/issues/138945
+- class: org.elasticsearch.xpack.gpu.GPUClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/138946
 
 # Examples:
 #

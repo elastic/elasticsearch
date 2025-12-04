@@ -48,6 +48,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -55,6 +56,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.createInferenceEndpoint;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -210,6 +213,30 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
                 }
             }
         });
+    }
+
+    protected <T extends Exception> void assertSearchFailure(
+        QueryBuilder queryBuilder,
+        @Nullable List<IndexWithBoost> indices,
+        Class<T> expectedExceptionClass,
+        String expectedMessage,
+        @Nullable Consumer<SearchRequest> searchRequestModifier
+    ) {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder);
+        SearchRequest searchRequest = new SearchRequest().source(searchSourceBuilder);
+        if (indices != null) {
+            searchRequest.indices(convertToArray(indices));
+        }
+        if (searchRequestModifier != null) {
+            searchRequestModifier.accept(searchRequest);
+        }
+
+        ExecutionException executionException = assertThrows(
+            ExecutionException.class,
+            () -> assertResponse(client().search(searchRequest), response -> {})
+        );
+        assertThat(executionException.getCause(), instanceOf(expectedExceptionClass));
+        assertThat(executionException.getCause().getMessage(), containsString(expectedMessage));
     }
 
     protected static MinimalServiceSettings sparseEmbeddingServiceSettings() {

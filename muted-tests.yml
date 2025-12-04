@@ -367,12 +367,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/138128
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/138129
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/138130
 - class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/138206
@@ -490,6 +484,12 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/139024
+- class: org.elasticsearch.xpack.security.authc.TokenServiceTests
+  method: testInvalidateRefreshTokenThatIsAlreadyInvalidated
+  issue: https://github.com/elastic/elasticsearch/issues/139026
+- class: org.elasticsearch.xpack.security.authc.TokenServiceTests
+  method: testSupersedingTokenEncryption
+  issue: https://github.com/elastic/elasticsearch/issues/139031
 
 # Examples:
 #

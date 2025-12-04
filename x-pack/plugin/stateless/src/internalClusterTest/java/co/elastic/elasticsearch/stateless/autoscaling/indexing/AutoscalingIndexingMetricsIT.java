@@ -177,6 +177,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractServerlessStatelessPlu
                 .put(IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE.getKey(), TimeValue.timeValueSeconds(1))
                 // Use a higher alpha than the default so that the observed ingestion load converges faster towards the expected value.
                 .put(ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING.getKey(), 0.1)
+                .put(AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey(), 0.2)
                 // Make sure initially queue contribution is not ignored
                 .put(IngestLoadProbe.INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION.getKey(), TimeValue.ZERO)
                 .put(IngestLoadProbe.MAX_MANAGEABLE_QUEUED_WORK.getKey(), TimeValue.ZERO)

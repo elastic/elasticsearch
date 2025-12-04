@@ -24,7 +24,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.AverageWriteLoadSampler.DEFAULT_EWMA_ALPHA;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.AverageWriteLoadSampler.QUEUE_SIZE_DEFAULT_EWMA_ALPHA;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.AverageWriteLoadSampler.WRITE_LOAD_DEFAULT_EWMA_ALPHA;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.AverageWriteLoadSampler.ensureRange;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
@@ -41,7 +42,12 @@ public class AverageWriteLoadSamplerTests extends ESTestCase {
     public void testAverageWriteLoadInitialValue() throws Exception {
         var threadpool = new TestThreadPool("test");
         try {
-            var writeLoadSampler = new AverageWriteLoadSampler(threadpool, timeValueSeconds(1), DEFAULT_EWMA_ALPHA, DEFAULT_EWMA_ALPHA);
+            var writeLoadSampler = new AverageWriteLoadSampler(
+                threadpool,
+                timeValueSeconds(1),
+                WRITE_LOAD_DEFAULT_EWMA_ALPHA,
+                QUEUE_SIZE_DEFAULT_EWMA_ALPHA
+            );
             writeLoadSampler.sample();
             assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.WRITE).averageLoad(), equalTo(0.0));
             assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.SYSTEM_WRITE).averageLoad(), equalTo(0.0));

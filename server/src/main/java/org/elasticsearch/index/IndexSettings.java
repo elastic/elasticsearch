@@ -755,24 +755,19 @@ public final class IndexSettings {
     );
 
     public static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
-    public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting(
-        "index.mapping.use_doc_values_skipper",
-        s -> {
-            IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
-            if (MODE.get(s) == IndexMode.TIME_SERIES) {
-                if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)) {
-                    return "true";
-                }
-                return "false";
-            }
-            if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && iv.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB)) {
+    public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
+        IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
+        if (MODE.get(s) == IndexMode.TIME_SERIES) {
+            if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)) {
                 return "true";
             }
             return "false";
-        },
-        Property.IndexScope,
-        Property.Final
-    );
+        }
+        if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && iv.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB)) {
+            return "true";
+        }
+        return "false";
+    }, Property.IndexScope, Property.Final);
 
     public static final Setting<SourceFieldMapper.Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
         SourceFieldMapper.Mode.class,

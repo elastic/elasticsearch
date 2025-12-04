@@ -1118,10 +1118,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (scoreAttribute.qualifier() != null) {
             throw qualifiersUnsupportedInFieldDefinitions(scoreAttribute.source(), ctx.targetField.getText());
         }
+        Literal rowLimit = Literal.integer(source, 1000);
 
         return p -> {
             checkForRemoteClusters(p, source, "RERANK");
-            return applyRerankOptions(new Rerank(source, p, queryText, rerankFields, scoreAttribute), ctx.commandNamedParameters());
+            return applyRerankOptions(
+                new Rerank(source, p, rowLimit, queryText, rerankFields, scoreAttribute),
+                ctx.commandNamedParameters()
+            );
         };
     }
 
@@ -1160,9 +1164,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
         }
 
+        Literal rowLimit = Literal.integer(source, 100);
+
         return p -> {
             checkForRemoteClusters(p, source, "COMPLETION");
-            return applyCompletionOptions(new Completion(source, p, prompt, targetField), ctx.commandNamedParameters());
+            return applyCompletionOptions(new Completion(source, p, rowLimit, prompt, targetField), ctx.commandNamedParameters());
         };
     }
 

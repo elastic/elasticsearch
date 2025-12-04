@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -14,9 +15,11 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 import org.elasticsearch.xpack.esql.plan.logical.Streaming;
+import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
@@ -28,7 +31,8 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
         Streaming,
         SortAgnostic,
         GeneratingPlan<InferencePlan<PlanType>>,
-        ExecutesOn.Coordinator {
+        ExecutesOn.Coordinator,
+        SurrogateLogicalPlan {
 
     public static final String INFERENCE_ID_OPTION_NAME = "inference_id";
     public static final List<String> VALID_INFERENCE_OPTION_NAMES = List.of(INFERENCE_ID_OPTION_NAME);
@@ -36,10 +40,12 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
     protected static TransportVersion ESQL_INFERENCE_ROW_LIMIT_TRANSPORT_VERSION = TransportVersion.fromName("esql_inference_row_limit");
 
     private final Expression inferenceId;
+    private final Expression rowLimit;
 
-    protected InferencePlan(Source source, LogicalPlan child, Expression inferenceId) {
+    protected InferencePlan(Source source, LogicalPlan child, Expression inferenceId, Expression rowLimit) {
         super(source, child);
         this.inferenceId = inferenceId;
+        this.rowLimit = rowLimit;
     }
 
     @Override
@@ -47,15 +53,22 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
         source().writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteable(inferenceId());
+        if (out.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT_TRANSPORT_VERSION)) {
+            out.writeNamedWriteable(rowLimit());
+        }
     }
 
     public Expression inferenceId() {
         return inferenceId;
     }
 
+    public Expression rowLimit() {
+        return rowLimit;
+    }
+
     @Override
     public boolean expressionsResolved() {
-        return inferenceId.resolved();
+        return inferenceId.resolved() && rowLimit.resolved();
     }
 
     @Override
@@ -64,12 +77,17 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         InferencePlan<?> other = (InferencePlan<?>) o;
-        return Objects.equals(inferenceId(), other.inferenceId());
+        return Objects.equals(inferenceId(), other.inferenceId()) && Objects.equals(rowLimit(), other.rowLimit());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), inferenceId());
+        return Objects.hash(super.hashCode(), inferenceId(), rowLimit());
+    }
+
+    @Override
+    public LogicalPlan surrogate() {
+        return this.replaceChild(new Limit(Source.EMPTY, rowLimit(), child()));
     }
 
     public abstract TaskType taskType();

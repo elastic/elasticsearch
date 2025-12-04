@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 public class Completion extends InferencePlan<Completion> implements TelemetryAware, PostAnalysisVerificationAware {
 
     public static final String DEFAULT_OUTPUT_FIELD_NAME = "completion";
+    private static final int DEFAULT_ROW_LIMIT = 100;
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -46,12 +47,19 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     private final Attribute targetField;
     private List<Attribute> lazyOutput;
 
-    public Completion(Source source, LogicalPlan p, Expression prompt, Attribute targetField) {
-        this(source, p, Literal.keyword(Source.EMPTY, DEFAULT_OUTPUT_FIELD_NAME), prompt, targetField);
+    public Completion(Source source, LogicalPlan p, Expression rowLimit, Expression prompt, Attribute targetField) {
+        this(source, p, Literal.NULL, rowLimit, prompt, targetField);
     }
 
-    public Completion(Source source, LogicalPlan child, Expression inferenceId, Expression prompt, Attribute targetField) {
-        super(source, child, inferenceId);
+    public Completion(
+        Source source,
+        LogicalPlan child,
+        Expression inferenceId,
+        Expression rowLimit,
+        Expression prompt,
+        Attribute targetField
+    ) {
+        super(source, child, inferenceId, rowLimit);
         this.prompt = prompt;
         this.targetField = targetField;
     }
@@ -61,6 +69,9 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT_TRANSPORT_VERSION)
+                ? in.readNamedWriteable(Expression.class)
+                : Literal.integer(Source.EMPTY, DEFAULT_ROW_LIMIT),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Attribute.class)
         );
@@ -87,12 +98,12 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             return this;
         }
 
-        return new Completion(source(), child(), newInferenceId, prompt, targetField);
+        return new Completion(source(), child(), newInferenceId, rowLimit(), prompt, targetField);
     }
 
     @Override
     public Completion replaceChild(LogicalPlan newChild) {
-        return new Completion(source(), newChild, inferenceId(), prompt, targetField);
+        return new Completion(source(), newChild, inferenceId(), rowLimit(), prompt, targetField);
     }
 
     @Override
@@ -122,7 +133,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     @Override
     public Completion withGeneratedNames(List<String> newNames) {
         checkNumberOfNewNames(newNames);
-        return new Completion(source(), child(), inferenceId(), prompt, this.renameTargetField(newNames.get(0)));
+        return new Completion(source(), child(), inferenceId(), rowLimit(), prompt, this.renameTargetField(newNames.get(0)));
     }
 
     private Attribute renameTargetField(String newName) {
@@ -157,7 +168,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Completion::new, child(), inferenceId(), prompt, targetField);
+        return NodeInfo.create(this, Completion::new, child(), inferenceId(), rowLimit(), prompt, targetField);
     }
 
     @Override

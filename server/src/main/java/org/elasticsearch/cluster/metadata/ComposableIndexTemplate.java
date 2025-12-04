@@ -547,14 +547,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         DataStreamTemplate(StreamInput in) throws IOException {
             hidden = in.readBoolean();
             allowCustomRouting = in.readBoolean();
-            if (in.getTransportVersion().between(TransportVersions.V_8_1_0, TransportVersions.V_8_3_0)) {
-                // Accidentally included index_mode to binary node to node protocol in previous releases.
-                // (index_mode is removed and was part of code based when tsdb was behind a feature flag)
-                // (index_mode was behind a feature in the xcontent parser, so it could never actually used)
-                // (this used to be an optional enum, so just need to (de-)serialize a false boolean value here)
-                boolean value = in.readBoolean();
-                assert value == false : "expected false, because this used to be an optional enum that never got set";
-            }
         }
 
         /**
@@ -587,10 +579,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
             out.writeBoolean(allowCustomRouting);
-            if (out.getTransportVersion().between(TransportVersions.V_8_1_0, TransportVersions.V_8_3_0)) {
-                // See comment in constructor.
-                out.writeBoolean(false);
-            }
         }
 
         @Override

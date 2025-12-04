@@ -42,7 +42,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * Used if shard size is not available
      */
     public static final long UNAVAILABLE_EXPECTED_SHARD_SIZE = -1;
-    private static final TransportVersion EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION = TransportVersions.V_8_5_0;
     private static final TransportVersion RELOCATION_FAILURE_INFO_VERSION = TransportVersions.V_8_6_0;
 
     private final ShardId shardId;
@@ -349,9 +348,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             relocationFailureInfo = RelocationFailureInfo.NO_FAILURES;
         }
         allocationId = in.readOptionalWriteable(AllocationId::new);
-        if (state == ShardRoutingState.RELOCATING
-            || state == ShardRoutingState.INITIALIZING
-            || (state == ShardRoutingState.STARTED && in.getTransportVersion().onOrAfter(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION))) {
+        if (state == ShardRoutingState.RELOCATING || state == ShardRoutingState.INITIALIZING || state == ShardRoutingState.STARTED) {
             expectedShardSize = in.readLong();
         } else {
             expectedShardSize = UNAVAILABLE_EXPECTED_SHARD_SIZE;
@@ -387,9 +384,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             relocationFailureInfo.writeTo(out);
         }
         out.writeOptionalWriteable(allocationId);
-        if (state == ShardRoutingState.RELOCATING
-            || state == ShardRoutingState.INITIALIZING
-            || (state == ShardRoutingState.STARTED && out.getTransportVersion().onOrAfter(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION))) {
+        if (state == ShardRoutingState.RELOCATING || state == ShardRoutingState.INITIALIZING || state == ShardRoutingState.STARTED) {
             out.writeLong(expectedShardSize);
         }
 

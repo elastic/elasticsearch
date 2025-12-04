@@ -24,7 +24,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOConsumer;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.Build;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -2116,7 +2115,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 + "flatVectorScorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())))";
         assertThat(knnVectorsFormat, hasToString(startsWith(expectedString)));
     }
-
 
     public void testInvalidVectorDimensionsBBQ() {
         for (String quantizedFlatFormat : new String[] { "bbq_hnsw", "bbq_flat" }) {

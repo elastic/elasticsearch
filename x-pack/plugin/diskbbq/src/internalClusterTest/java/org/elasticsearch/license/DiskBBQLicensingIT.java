@@ -9,13 +9,13 @@ package org.elasticsearch.license;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.xpack.diskbbq.LocalStateDiskBBQ;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.diskbbq.LocalStateDiskBBQ;
 import org.junit.Before;
 
 import java.util.Collection;

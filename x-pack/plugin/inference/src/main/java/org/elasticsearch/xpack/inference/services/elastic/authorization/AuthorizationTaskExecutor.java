@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -45,6 +46,8 @@ import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.common.BroadcastMessageAction;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -71,6 +74,8 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     private final AtomicReference<AuthorizationPoller> currentTask = new AtomicReference<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final FeatureService featureService;
+    private Instant nextCreateTaskAttemptTime;
+    private final Clock clock;
 
     public static AuthorizationTaskExecutor create(
         ClusterService clusterService,
@@ -84,7 +89,8 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
             clusterService,
             new PersistentTasksService(clusterService, parameters.serviceComponents().threadPool(), parameters.client()),
             featureService,
-            parameters
+            parameters,
+            Clock.systemUTC()
         );
     }
 
@@ -93,13 +99,16 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         ClusterService clusterService,
         PersistentTasksService persistentTasksService,
         FeatureService featureService,
-        AuthorizationPoller.Parameters pollerParameters
+        AuthorizationPoller.Parameters pollerParameters,
+        Clock clock
     ) {
         super(TASK_NAME, pollerParameters.serviceComponents().threadPool().executor(UTILITY_THREAD_POOL_NAME));
         this.clusterService = Objects.requireNonNull(clusterService);
         this.featureService = Objects.requireNonNull(featureService);
         this.persistentTasksService = Objects.requireNonNull(persistentTasksService);
         this.pollerParameters = Objects.requireNonNull(pollerParameters);
+        this.clock = Objects.requireNonNull(clock);
+        this.nextCreateTaskAttemptTime = Instant.MIN;
     }
 
     /**
@@ -144,6 +153,8 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
             return;
         }
 
+        updateNextCreateTaskAttemptTime();
+
         persistentTasksService.sendClusterStartRequest(
             TASK_NAME,
             TASK_NAME,
@@ -166,7 +177,10 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
             return true;
         }
 
-        return clusterCanSupportFeature(state) == false || running.get() == false || authorizationTaskExists(state);
+        return clusterCanSupportFeature(state) == false
+            || running.get() == false
+            || authorizationTaskExists(state)
+            || hasAttemptedToCreateTaskRecently();
     }
 
     private boolean clusterCanSupportFeature(@Nullable ClusterState state) {
@@ -183,6 +197,25 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         }
 
         return ClusterPersistentTasksCustomMetadata.getTaskWithId(state, TASK_NAME) != null;
+    }
+
+    private boolean hasAttemptedToCreateTaskRecently() {
+        return Instant.now(clock).isBefore(nextCreateTaskAttemptTime);
+    }
+
+    private void updateNextCreateTaskAttemptTime() {
+        var random = Randomness.get();
+        var jitter = (long) (pollerParameters.elasticInferenceServiceSettings().getMaxAuthorizationRequestJitter().millis() * random
+            .nextDouble());
+        var waitTimeMillis = pollerParameters.elasticInferenceServiceSettings().getAuthRequestInterval().millis() + jitter;
+
+        nextCreateTaskAttemptTime = Instant.now(clock).plusMillis(waitTimeMillis);
+        logger.debug(
+            "Create task rate limit info interval: [{}] ms, jitter: [{}] ms",
+            pollerParameters.elasticInferenceServiceSettings().getAuthRequestInterval().millis(),
+            jitter
+        );
+        logger.debug("Next create task attempt time [{}]", nextCreateTaskAttemptTime);
     }
 
     public synchronized void stop() {

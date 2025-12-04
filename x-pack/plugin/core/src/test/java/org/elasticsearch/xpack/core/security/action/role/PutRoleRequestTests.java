@@ -86,7 +86,7 @@ public class PutRoleRequestTests extends ESTestCase {
         request.name(randomAlphaOfLengthBetween(4, 9));
         String unknownIndexPrivilegeName = "unknown_" + randomAlphaOfLengthBetween(3, 9);
         request.addIndex(
-            new String[] { randomAlphaOfLength(5) },
+            new String[] { randomIdentifier() },
             new String[] { "index", unknownIndexPrivilegeName },
             null,
             null,
@@ -127,7 +127,7 @@ public class PutRoleRequestTests extends ESTestCase {
         request.name(randomAlphaOfLengthBetween(4, 9));
         request.addRemoteIndex(
             new String[] { randomAlphaOfLength(5), "" },
-            new String[] { randomAlphaOfLength(5) },
+            new String[] { randomIdentifier() },
             new String[] { "index", "write", "indices:data/read" },
             null,
             null,
@@ -155,7 +155,7 @@ public class PutRoleRequestTests extends ESTestCase {
         if (randomBoolean()) {
             request.addRemoteIndex(
                 new String[] { randomAlphaOfLength(5), "*", "* " },
-                new String[] { randomAlphaOfLength(5) },
+                new String[] { randomIdentifier() },
                 new String[] { "index", "write", "indices:data/read" },
                 null,
                 null,
@@ -190,7 +190,7 @@ public class PutRoleRequestTests extends ESTestCase {
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));
         request.addIndex(
-            new String[] { randomAlphaOfLength(5) },
+            new String[] { randomIdentifier() },
             new String[] { "index", "write", "indices:data/read" },
             null,
             null,

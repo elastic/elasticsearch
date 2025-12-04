@@ -493,6 +493,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.TokenServiceTests
   method: testInvalidateRefreshTokenThatIsAlreadyInvalidated
   issue: https://github.com/elastic/elasticsearch/issues/139026
+- class: org.elasticsearch.xpack.security.authc.TokenServiceTests
+  method: testSupersedingTokenEncryption
+  issue: https://github.com/elastic/elasticsearch/issues/139031
 
 # Examples:
 #

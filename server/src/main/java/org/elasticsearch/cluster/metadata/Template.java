@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -173,18 +172,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         } else {
             this.aliases = null;
         }
-        if (in.getTransportVersion().onOrAfter(DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
-            this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle.Template::read);
-        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            boolean isExplicitNull = in.readBoolean();
-            if (isExplicitNull) {
-                this.lifecycle = DISABLED_LIFECYCLE;
-            } else {
-                this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle.Template::read);
-            }
-        } else {
-            this.lifecycle = null;
-        }
+        this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle.Template::read);
         dataStreamOptions = ResettableValue.read(in, DataStreamOptions.Template::read);
     }
 
@@ -239,12 +227,6 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }
         if (out.getTransportVersion().onOrAfter(DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
             out.writeOptionalWriteable(lifecycle);
-        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            boolean isExplicitNull = lifecycle != null && lifecycle.enabled() == false;
-            out.writeBoolean(isExplicitNull);
-            if (isExplicitNull == false) {
-                out.writeOptionalWriteable(lifecycle);
-            }
         }
         ResettableValue.write(out, dataStreamOptions, (o, v) -> v.writeTo(o));
     }

@@ -126,14 +126,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
-        TransportVersion version = TransportVersionUtils.randomVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         if (version.before(TransportVersions.V_8_7_0) && searchRequest.hasKnnSearch() && searchRequest.source().knnSearch().size() > 1) {
             // Versions before 8.7.0 don't support more than one KNN clause
             searchRequest.source().knnSearch(List.of(searchRequest.source().knnSearch().get(0)));
-        }
-        if (version.before(TransportVersions.V_8_9_X) && searchRequest.source() != null) {
-            // Versions before 8_500_999 don't support queries
-            searchRequest.source().subSearches(new ArrayList<>());
         }
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());

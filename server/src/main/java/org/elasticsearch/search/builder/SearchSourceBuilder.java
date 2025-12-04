@@ -236,14 +236,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         indexBoosts = in.readCollectionAsList(IndexBoost::new);
         minScore = in.readOptionalFloat();
         postQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            subSearchSourceBuilders = in.readCollectionAsList(SubSearchSourceBuilder::new);
-        } else {
-            QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-            if (queryBuilder != null) {
-                subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
-            }
-        }
+        subSearchSourceBuilders = in.readCollectionAsList(SubSearchSourceBuilder::new);
         if (in.readBoolean()) {
             rescoreBuilders = in.readNamedWriteableCollectionAsList(RescorerBuilder.class);
         }

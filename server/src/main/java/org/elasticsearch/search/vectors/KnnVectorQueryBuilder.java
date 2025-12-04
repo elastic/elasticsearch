@@ -284,9 +284,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 in.readBoolean(); // used for byteQueryVector, which was always null
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            this.filterQueries.addAll(readQueries(in));
-        }
+        this.filterQueries.addAll(readQueries(in));
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             this.vectorSimilarity = in.readOptionalFloat();
         } else {
@@ -398,9 +396,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 out.writeBoolean(false); // used for byteQueryVector, which was always null
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            writeQueries(out, filterQueries);
-        }
+        writeQueries(out, filterQueries);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalFloat(vectorSimilarity);
         }

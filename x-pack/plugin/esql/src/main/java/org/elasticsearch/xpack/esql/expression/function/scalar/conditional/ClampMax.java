@@ -44,7 +44,7 @@ public class ClampMax extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long", "double", "keyword", "ip", "boolean", "date", "version" },
-        description = "Returns clamps the values of all input samples clamped to have an upper limit of max.",
+        description = "Limits (or clamps) all input sample values to an upper bound of max. Any value above max is reduced to max.",
         examples = @Example(file = "k8s-timeseries-clamp", tag = "clamp-max"),
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )

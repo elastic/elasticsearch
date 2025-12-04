@@ -14,7 +14,7 @@ highlight:
     required compared to `element_type: float`. This can be specified with `element_type: bfloat16`
     when creating the index, for all `dense_vector` indexing types.
 
-    Float values are automatically truncated to two bytes when writing to disk, so this format can be used
+    Float values are automatically rounded to two bytes when writing to disk, so this format can be used
     with original source vectors at two- or four-byte precision. BFloat16 values are zero-expanded back to four-byte floats
     when read into memory. Using `bfloat16` will cause a loss of precision compared to
     the original vector values, as well as a small performance hit due to converting between `bfloat16` and `float`

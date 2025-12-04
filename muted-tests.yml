@@ -325,9 +325,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/117208
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/40_tsdb/error on rename timestamp}
-  issue: https://github.com/elastic/elasticsearch/issues/137259
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/136955
@@ -487,6 +484,15 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.TokenServiceTests
   method: testSupersedingTokenEncryption
   issue: https://github.com/elastic/elasticsearch/issues/139031
+- class: org.elasticsearch.repositories.s3.S3BlobStoreRepositoryTimeoutTests
+  method: testWriteTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/139041
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/370_profile/dfs knn vector profiling collector name}
+  issue: https://github.com/elastic/elasticsearch/issues/139065
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.highlight/50_synthetic_source/text multi unified from vectors}
+  issue: https://github.com/elastic/elasticsearch/issues/139066
 
 # Examples:
 #

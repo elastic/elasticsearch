@@ -1292,7 +1292,7 @@ public final class EsqlTestUtils {
         });
     }
 
-    private static final Pattern SET_SPLIT_PATTERN = Pattern.compile("^\\s*SET\\b[^;]+?;\\s*\\b");
+    private static final Pattern SET_SPLIT_PATTERN = Pattern.compile("^\\s*SET\\b[^;]+?;\\s*\\b", Pattern.CASE_INSENSITIVE);
 
     public static String addRemoteIndices(String query, Set<String> lookupIndices, boolean onlyRemotes) {
         String[] commands = query.split("\\|");

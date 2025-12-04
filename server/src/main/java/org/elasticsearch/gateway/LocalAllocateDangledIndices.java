@@ -274,6 +274,7 @@ public class LocalAllocateDangledIndices {
         }
     }
 
+    // TODO: can this be removed completely?
     public static class AllocateDangledResponse extends TransportResponse {
 
         private AllocateDangledResponse(StreamInput in) throws IOException {}

@@ -50,7 +50,6 @@ import java.util.function.Supplier;
 
 public class CommonStats implements Writeable, ToXContentFragment {
 
-    private static final TransportVersion VERSION_SUPPORTING_NODE_MAPPINGS = TransportVersions.V_8_5_0;
     private static final TransportVersion VERSION_SUPPORTING_DENSE_VECTOR_STATS = TransportVersions.V_8_10_X;
     private static final TransportVersion VERSION_SUPPORTING_SPARSE_VECTOR_STATS = TransportVersions.V_8_15_0;
 
@@ -225,9 +224,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         recoveryStats = in.readOptionalWriteable(RecoveryStats::new);
         bulk = in.readOptionalWriteable(BulkStats::new);
         shards = in.readOptionalWriteable(ShardCountStats::new);
-        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
-            nodeMappings = in.readOptionalWriteable(NodeMappingStats::new);
-        }
+        nodeMappings = in.readOptionalWriteable(NodeMappingStats::new);
         if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
             denseVectorStats = in.readOptionalWriteable(DenseVectorStats::new);
         }
@@ -256,9 +253,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(recoveryStats);
         out.writeOptionalWriteable(bulk);
         out.writeOptionalWriteable(shards);
-        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
-            out.writeOptionalWriteable(nodeMappings);
-        }
+        out.writeOptionalWriteable(nodeMappings);
         if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
             out.writeOptionalWriteable(denseVectorStats);
         }

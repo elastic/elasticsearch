@@ -291,13 +291,11 @@ by the last `test*` pattern.
 
 {applies_to}`stack: ga 9.3` A dash-prefixed (`-`) expression is always treated as an exclusion.
 
-::::{note}
 In previous versions, dash-prefixed expressions were sometimes not treated as exclusions due to a bug. For example:
 - `test,-test` threw an `IndexNotFoundException` instead of excluding `test`
 - `test3,-test*` incorrectly resolved to `test3` instead of excluding matches to the wildcard pattern
 
 This bug is fixed in 9.3.
-::::
 
 ::::{important}
 Aliases are resolved after wildcard expressions. This can result in a request that targets an excluded alias. For example, if `test3` is an index alias, the pattern `test*,-test3` still targets the indices for `test3`. To avoid this, exclude the concrete indices for the alias instead.

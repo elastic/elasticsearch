@@ -50,6 +50,7 @@ public abstract class QueryRewriteAsyncAction<T> {
                     consumers.forEach(consumer -> ((Consumer<T>) consumer).accept(result));
                 } catch (Exception e) {
                     listener.onFailure(e);
+                    return;
                 }
                 listener.onResponse(null);
             }

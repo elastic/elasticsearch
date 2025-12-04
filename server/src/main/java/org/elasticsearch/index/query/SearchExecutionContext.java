@@ -49,6 +49,7 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.Script;
@@ -103,6 +104,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     private final Map<String, Query> namedQueries = new HashMap<>();
     private NestedScope nestedScope;
+    private AutoPrefilteringScope autoPrefilteringScope;
     private QueryBuilder aliasFilter;
     private boolean rewriteToNamedQueries = false;
 
@@ -291,6 +293,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.bitsetFilterCache = bitsetFilterCache;
         this.indexFieldDataLookup = indexFieldDataLookup;
         this.nestedScope = new NestedScope();
+        this.autoPrefilteringScope = new AutoPrefilteringScope();
         this.searcher = searcher;
         this.requestSize = requestSize;
         this.mapperMetrics = mapperMetrics;
@@ -301,7 +304,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.lookup = null;
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
-
+        this.autoPrefilteringScope = new AutoPrefilteringScope();
     }
 
     // Set alias filter, so it can be applied for queries that need it (e.g. knn query)
@@ -554,6 +557,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public NestedScope nestedScope() {
         return nestedScope;
+    }
+
+    public AutoPrefilteringScope autoPrefilteringScope() {
+        return autoPrefilteringScope;
     }
 
     public IndexVersion indexVersionCreated() {

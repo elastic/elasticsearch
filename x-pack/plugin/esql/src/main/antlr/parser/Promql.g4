@@ -7,11 +7,16 @@
 parser grammar Promql;
 
 promqlCommand
-    : DEV_PROMQL (indexPattern (COMMA indexPattern)*)? promqlParam+ LP promqlQueryPart* RP
+    : DEV_PROMQL (indexPattern (COMMA indexPattern)*)? promqlParam+ (valueName ASSIGN)? LP promqlQueryPart* RP
+    ;
+
+valueName
+    : UNQUOTED_SOURCE
+    | QUOTED_IDENTIFIER
     ;
 
 promqlParam
-    : name=promqlParamContent value=promqlParamContent
+    : name=promqlParamContent ASSIGN value=promqlParamContent
     ;
 
 promqlParamContent

@@ -3269,7 +3269,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             // if plugins provided alternative KnnVectorsFormat for this indexOptions, use it instead of standard
             KnnVectorsFormat extraKnnFormat = null;
             for (VectorsFormatProvider vectorsFormatProvider : extraVectorsFormatProviders) {
-                extraKnnFormat = vectorsFormatProvider.getKnnVectorsFormat(indexSettings, indexOptions, fieldType().similarity());
+                extraKnnFormat = vectorsFormatProvider.getKnnVectorsFormat(
+                    indexSettings,
+                    indexOptions,
+                    fieldType().similarity(),
+                    fieldType().element.elementType()
+                );
                 if (extraKnnFormat != null) {
                     break;
                 }

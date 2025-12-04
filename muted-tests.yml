@@ -325,9 +325,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/117208
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/40_tsdb/error on rename timestamp}
-  issue: https://github.com/elastic/elasticsearch/issues/137259
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/136955
@@ -367,12 +364,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/138128
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/138129
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/138130
 - class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/138206
@@ -469,9 +460,6 @@ tests:
 - class: org.elasticsearch.common.settings.ScopedSettingsTests
   method: testValidateArchivedSetting
   issue: https://github.com/elastic/elasticsearch/issues/138895
-- class: org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCaseMultipleFailuresIT
-  method: test {p0=/20_multiple_failures/Test with multiple failures}
-  issue: https://github.com/elastic/elasticsearch/issues/138896
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/610_function_score/formulating a function score query with a negative number returns bad request}
   issue: https://github.com/elastic/elasticsearch/issues/138908
@@ -496,6 +484,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.TokenServiceTests
   method: testSupersedingTokenEncryption
   issue: https://github.com/elastic/elasticsearch/issues/139031
+- class: org.elasticsearch.repositories.s3.S3BlobStoreRepositoryTimeoutTests
+  method: testWriteTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/139041
 
 # Examples:
 #

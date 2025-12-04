@@ -42,18 +42,19 @@ public class AverageWriteLoadSampler {
         Names.WRITE_COORDINATION,
         Names.SYSTEM_WRITE_COORDINATION
     );
-    static final double DEFAULT_EWMA_ALPHA = 0.2;
+    static final double WRITE_LOAD_DEFAULT_EWMA_ALPHA = 0.02;
     public static final Setting<Double> WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING = Setting.doubleSetting(
         "serverless.autoscaling.indexing.sampler.write_load_ewma_alpha",
-        DEFAULT_EWMA_ALPHA,
+        WRITE_LOAD_DEFAULT_EWMA_ALPHA,
         0.0,
         1.0,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );
+    static final double QUEUE_SIZE_DEFAULT_EWMA_ALPHA = 0.2;
     public static final Setting<Double> QUEUE_SIZE_SAMPLER_EWMA_ALPHA_SETTING = Setting.doubleSetting(
         "serverless.autoscaling.indexing.queue_size_ewma_alpha",
-        DEFAULT_EWMA_ALPHA,
+        QUEUE_SIZE_DEFAULT_EWMA_ALPHA,
         0.0,
         1.0,
         Setting.Property.NodeScope,

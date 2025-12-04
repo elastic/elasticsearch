@@ -699,14 +699,13 @@ public class IndexResolver {
         IndicesOptions indicesOptions,
         Map<String, Object> runtimeMappings
     ) {
-        FieldCapabilitiesRequest result = new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index))
+        return new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index))
             .fields(fieldNames.toArray(String[]::new))
             .includeUnmapped(true)
             .runtimeFields(runtimeMappings)
             // lenient because we throw our own errors looking at the response e.g. if something was not resolved
             // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
             .indicesOptions(indicesOptions);
-        return result;
     }
 
     private static FieldCapabilitiesRequest createFieldCapsRequest(

@@ -178,10 +178,11 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "streaming_completion_test_service",
                     "completion_test_service",
                     "hugging_face",
+                    "elastic",
                     "amazon_sagemaker",
                     "mistral",
-                    "nvidia",
-                    "watsonxai"
+                    "watsonxai",
+                    "nvidia"
                 ).toArray()
             )
         );

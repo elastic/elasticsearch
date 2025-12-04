@@ -70,6 +70,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "jinaai",
                     "llama",
                     "mistral",
+                    "nvidia",
                     "openai",
                     "openshift_ai",
                     "streaming_completion_test_service",
@@ -117,6 +118,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "jinaai",
                     "llama",
                     "mistral",
+                    "nvidia",
                     "openai",
                     "openshift_ai",
                     "text_embedding_test_service",
@@ -143,6 +145,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "elasticsearch",
                     "googlevertexai",
                     "jinaai",
+                    "nvidia",
                     "openshift_ai",
                     "test_reranking_service",
                     "voyageai",
@@ -175,10 +178,11 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "streaming_completion_test_service",
                     "completion_test_service",
                     "hugging_face",
+                    "elastic",
                     "amazon_sagemaker",
                     "mistral",
                     "watsonxai",
-                    "elastic"
+                    "nvidia"
                 ).toArray()
             )
         );
@@ -201,6 +205,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "amazon_sagemaker",
                     "googlevertexai",
                     "mistral",
+                    "nvidia",
                     "watsonxai"
                 ).toArray()
             )
@@ -223,6 +228,10 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 ).toArray()
             )
         );
+    }
+
+    public void testGetServicesWithEmbeddingTaskType() throws IOException {
+        assertThat(providersFor(TaskType.EMBEDDING), containsInAnyOrder(List.of("text_embedding_test_service").toArray()));
     }
 
     private List<Object> getAllServices() throws IOException {

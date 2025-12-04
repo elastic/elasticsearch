@@ -344,7 +344,7 @@ class S3Service extends AbstractLifecycleComponent {
         }
         clientOverrideConfiguration.retryStrategy(retryStrategyBuilder.build());
         final long apiCallTimeoutMillis = clientSettings.apiCallTimeout.millis();
-        if (apiCallTimeoutMillis > 0) {
+        if (apiCallTimeoutMillis >= 0) {
             clientOverrideConfiguration.apiCallTimeout(Duration.ofMillis(apiCallTimeoutMillis));
         }
         return clientOverrideConfiguration.build();

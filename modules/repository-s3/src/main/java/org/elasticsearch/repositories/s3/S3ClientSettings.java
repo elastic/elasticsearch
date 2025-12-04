@@ -353,6 +353,7 @@ final class S3ClientSettings {
             && Objects.equals(connectionMaxIdleTimeMillis, newConnectionMaxIdleTimeMillis)
             && maxConnections == newMaxConnections
             && maxRetries == newMaxRetries
+            && apiCallTimeout.equals(newApiCallTimeout)
             && Objects.equals(credentials, newCredentials)
             && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding

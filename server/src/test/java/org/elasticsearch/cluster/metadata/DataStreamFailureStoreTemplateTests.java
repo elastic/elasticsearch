@@ -83,14 +83,14 @@ public class DataStreamFailureStoreTemplateTests extends AbstractXContentSeriali
             randomBoolean() ? null : DataStreamLifecycleTemplateTests.randomFailuresLifecycleTemplate()
         );
         DataStreamFailureStore.Template result = DataStreamFailureStore.builder(template).composeTemplate(template).buildTemplate();
-        assertThat(result, equalTo(normalise(template)));
+        assertThat(result, equalTo(template));
 
         // Override only enabled and keep lifecycle undefined
         DataStreamFailureStore.Template negatedEnabledTemplate = DataStreamFailureStore.builder(template)
             .enabled(enabled == false)
             .buildTemplate();
         result = DataStreamFailureStore.builder(template).composeTemplate(negatedEnabledTemplate).buildTemplate();
-        assertThat(result, equalTo(normalise(new DataStreamFailureStore.Template(enabled == false, template.lifecycle().get()))));
+        assertThat(result, equalTo(new DataStreamFailureStore.Template(enabled == false, template.lifecycle().get())));
 
         // Override only lifecycle and ensure it is merged
         enabled = false; // Ensure it's not the default to ensure that it will not be overwritten
@@ -135,21 +135,5 @@ public class DataStreamFailureStoreTemplateTests extends AbstractXContentSeriali
 
     private static <T> ResettableValue<T> randomEmptyResettableValue() {
         return randomBoolean() ? ResettableValue.undefined() : ResettableValue.reset();
-    }
-
-    private static DataStreamFailureStore.Template normalise(DataStreamFailureStore.Template failureStoreTemplate) {
-        return new DataStreamFailureStore.Template(
-            failureStoreTemplate.enabled(),
-            failureStoreTemplate.lifecycle()
-                .map(
-                    template -> new DataStreamLifecycle.Template(
-                        template.lifecycleType(),
-                        template.enabled(),
-                        template.dataRetention().get(),
-                        template.downsamplingRounds().get(),
-                        template.downsamplingMethod().get()
-                    )
-                )
-        );
     }
 }

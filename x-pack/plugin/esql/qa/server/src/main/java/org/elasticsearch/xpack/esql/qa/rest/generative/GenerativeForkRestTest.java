@@ -62,7 +62,7 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
 
         assumeFalse(
             "Tests using PROMQL are not supported for now",
-            testCase.requiredCapabilities.contains(PROMQL_PRE_TECH_PREVIEW_V2.capabilityName())
+            testCase.requiredCapabilities.contains(PROMQL_PRE_TECH_PREVIEW_V5.capabilityName())
         );
 
         assumeFalse(

@@ -9,6 +9,9 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.datageneration.DataGeneratorSpecification;
+import org.elasticsearch.datageneration.MappingGenerator;
+import org.elasticsearch.datageneration.TemplateGenerator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -18,7 +21,11 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class MappingVisitorTests extends ESTestCase {
+
+    public static final int MAPPING_GENERATION_ROUNDS = 500;
 
     private static void collectTypes(Map<String, ?> mapping, Set<String> types) {
         MappingVisitor.visitMapping(mapping, (f, m) -> {
@@ -136,6 +143,20 @@ public class MappingVisitorTests extends ESTestCase {
         fields = new HashSet<>();
         collectTypes(mapping, fields);
         assertEquals(new HashSet<>(Arrays.asList("keyword", "object")), fields);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testVisitAndCopy() {
+        DataGeneratorSpecification specification = DataGeneratorSpecification.buildDefault();
+        var template = new TemplateGenerator(specification).generate();
+        MappingGenerator mappingGenerator = new MappingGenerator(specification);
+        for (int i = 0; i < MAPPING_GENERATION_ROUNDS; i++) {
+            var mapping = mappingGenerator.generate(template).raw();
+            var properties = (Map<String, Object>) mapping.get("_doc");
+            var updatedMapping = new HashMap<String, Object>();
+            MappingVisitor.visitPropertiesAndCopyMapping(properties, updatedMapping, (f, source, dest) -> dest.put(f, source));
+            assertThat(updatedMapping, equalTo(updatedMapping));
+        }
     }
 
     public void testCountRuntimeFields() {

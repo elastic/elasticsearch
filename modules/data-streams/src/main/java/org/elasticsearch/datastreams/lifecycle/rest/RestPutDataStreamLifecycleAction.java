@@ -32,7 +32,11 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
 
     private static final String SUPPORTS_DOWNSAMPLING_METHOD = "dlm.downsampling_method";
-    private static final Set<String> CAPABILITIES = Set.of(SUPPORTS_DOWNSAMPLING_METHOD);
+    private static final String SUPPORTS_FROZEN_AFTER = "dlm.frozen_after";
+    private static final Set<String> CAPABILITIES = Set.of(
+        SUPPORTS_DOWNSAMPLING_METHOD,
+        DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() ? SUPPORTS_FROZEN_AFTER : ""
+    );
 
     @Override
     public String getName() {

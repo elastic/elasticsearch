@@ -66,7 +66,8 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
         var retention = instance.dataRetention();
         var downsamplingRounds = instance.downsamplingRounds();
         var downsamplingMethod = instance.downsamplingMethod();
-        switch (randomInt(4)) {
+        var frozenAfter = instance.frozenAfter();
+        switch (randomInt(5)) {
             case 0 -> {
                 if (instance.targetsFailureStore()) {
                     lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
@@ -76,14 +77,15 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                     downsamplingMethod = null;
                 }
             }
-            case 1 -> {
+            case 1 -> enabled = enabled == false;
+            case 2 -> {
                 if (retention == null) {
                     retention = randomPositiveTimeValue();
                 } else {
                     retention = randomBoolean() ? null : randomValueOtherThan(retention, ESTestCase::randomPositiveTimeValue);
                 }
             }
-            case 2 -> {
+            case 3 -> {
                 if (downsamplingRounds == null) {
                     downsamplingRounds = randomDownsamplingRounds();
                     if (lifecycleTarget == DataStreamLifecycle.LifecycleType.FAILURES) {
@@ -98,7 +100,7 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                     }
                 }
             }
-            case 3 -> {
+            case 4 -> {
                 // We need to enable downsampling in order to add a non-value downsampling method
                 downsamplingMethod = randomValueOtherThan(downsamplingMethod, DownsampleConfigTests::randomSamplingMethod);
                 if (downsamplingMethod != null && downsamplingRounds == null) {
@@ -106,9 +108,10 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                     lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
                 }
             }
-            default -> enabled = enabled == false;
+            case 5 -> frozenAfter = randomValueOtherThan(frozenAfter, () -> randomBoolean() ? null : randomPositiveTimeValue());
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new DataStreamLifecycle(lifecycleTarget, enabled, retention, downsamplingRounds, downsamplingMethod);
+        return new DataStreamLifecycle(lifecycleTarget, enabled, retention, downsamplingRounds, downsamplingMethod, frozenAfter);
     }
 
     public void testDataLifecycleXContentSerialization() throws IOException {
@@ -502,10 +505,11 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
     public static DataStreamLifecycle randomDataLifecycle() {
         List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds = randomBoolean() ? null : randomDownsamplingRounds();
         return DataStreamLifecycle.dataLifecycleBuilder()
+            .enabled(randomBoolean())
             .dataRetention(randomBoolean() ? null : randomTimeValue(1, 365, TimeUnit.DAYS))
             .downsamplingRounds(downsamplingRounds)
             .downsamplingMethod(downsamplingRounds == null ? null : DownsampleConfigTests.randomSamplingMethod())
-            .enabled(randomBoolean())
+            .frozenAfter(randomBoolean() ? null : randomPositiveTimeValue())
             .build();
     }
 
@@ -515,8 +519,9 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
      */
     public static DataStreamLifecycle randomFailuresLifecycle() {
         return DataStreamLifecycle.failuresLifecycleBuilder()
-            .dataRetention(randomBoolean() ? null : randomTimeValue(1, 365, TimeUnit.DAYS))
             .enabled(randomBoolean())
+            .dataRetention(randomBoolean() ? null : randomTimeValue(1, 365, TimeUnit.DAYS))
+            .frozenAfter(randomBoolean() ? null : randomPositiveTimeValue())
             .build();
     }
 

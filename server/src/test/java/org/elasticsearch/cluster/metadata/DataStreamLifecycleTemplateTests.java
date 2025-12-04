@@ -47,7 +47,8 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
         var retention = instance.dataRetention();
         var downsamplingRounds = instance.downsamplingRounds();
         var downsamplingMethod = instance.downsamplingMethod();
-        switch (randomInt(4)) {
+        var frozenAfter = instance.frozenAfter();
+        switch (randomInt(5)) {
             case 0 -> {
                 lifecycleTarget = lifecycleTarget == DataStreamLifecycle.LifecycleType.DATA
                     ? DataStreamLifecycle.LifecycleType.FAILURES
@@ -74,9 +75,10 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
                     lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
                 }
             }
+            case 5 -> frozenAfter = randomValueOtherThan(frozenAfter, DataStreamLifecycleTemplateTests::randomFrozenAfter);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new DataStreamLifecycle.Template(lifecycleTarget, enabled, retention, downsamplingRounds, downsamplingMethod);
+        return new DataStreamLifecycle.Template(lifecycleTarget, enabled, retention, downsamplingRounds, downsamplingMethod, frozenAfter);
     }
 
     public void testDataLifecycleXContentSerialization() throws IOException {
@@ -285,6 +287,15 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
         return switch (randomIntBetween(0, 1)) {
             case 0 -> ResettableValue.reset();
             case 1 -> ResettableValue.create(DownsampleConfigTests.randomSamplingMethod());
+            default -> throw new IllegalStateException("Unknown randomisation path");
+        };
+    }
+
+    private static ResettableValue<TimeValue> randomFrozenAfter() {
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> ResettableValue.undefined();
+            case 1 -> ResettableValue.reset();
+            case 2 -> ResettableValue.create(TimeValue.timeValueDays(randomIntBetween(1, 100)));
             default -> throw new IllegalStateException("Unknown randomisation path");
         };
     }

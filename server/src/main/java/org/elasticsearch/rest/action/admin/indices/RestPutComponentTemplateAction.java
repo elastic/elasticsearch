@@ -12,6 +12,7 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -33,11 +34,13 @@ public class RestPutComponentTemplateAction extends BaseRestHandler {
     public static final String SUPPORTS_FAILURE_STORE = "data_stream_options.failure_store";
     private static final String COMPONENT_TEMPLATE_TRACKING_INFO = "component_template_tracking_info";
     static final String SUPPORTS_DOWNSAMPLING_METHOD = "dlm.downsampling_method";
+    static final String SUPPORTS_FROZEN_AFTER = "dlm.frozen_after";
     private static final Set<String> CAPABILITIES = Set.of(
         SUPPORTS_FAILURE_STORE,
         SUPPORTS_FAILURE_STORE_LIFECYCLE,
         COMPONENT_TEMPLATE_TRACKING_INFO,
-        SUPPORTS_DOWNSAMPLING_METHOD
+        SUPPORTS_DOWNSAMPLING_METHOD,
+        DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() ? SUPPORTS_FROZEN_AFTER : ""
     );
 
     @Override

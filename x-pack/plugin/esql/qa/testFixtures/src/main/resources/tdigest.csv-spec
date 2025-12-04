@@ -1,0 +1,9 @@
+Make sure we can even load tdigest data
+required_capability: tdigest_field_type_basic_functionality
+
+FROM tdigest_standard_index | KEEP @timestamp,instance;
+
+@timestamp:date      | instance:keyword 
+2025-01-01T00:00:00Z | hand-rolled      
+
+;

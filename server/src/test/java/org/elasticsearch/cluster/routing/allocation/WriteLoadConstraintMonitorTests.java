@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
@@ -332,7 +331,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     }
 
     public void testEmptyHotspotCount() {
-        // test that there is no count issued when the master is off
+        // test that there is no count or histogram issued when there have been no onNewInfo calls
         TestState testState = createTestStateWithNumberOfNodesAndHotSpots(10, 1, 1, 0);
         final ClusterState clusterState = testState.clusterState();
 
@@ -350,7 +349,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     }
 
     public void testZeroHotspotCount() {
-        // test a zero count is issued when the master is turned on
+        // test a zero count is issued when there has been an onNewInfo call
         TestState testState = createTestStateWithNumberOfNodesAndHotSpots(10, 1, 1, 0);
         final ClusterState clusterState = testState.clusterState();
 
@@ -363,10 +362,48 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             recordingMeterRegistry
         );
 
-        setLocalNodeMaster(writeLoadConstraintMonitor, testState);
+        writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
 
         recordingMeterRegistry.getRecorder().collect();
         assertMetricsCollected(recordingMeterRegistry, List.of(0L), List.of());
+    }
+
+    public void testHotspotCountTurnsOff() {
+        // test that collecting metrics without calling WriteLoadConstraintMonitor::onNewInfo returns no new data
+        TestState testState = createTestStateWithNumberOfNodesAndHotSpots(10, 1, 1, 2, true);
+
+        final long nowMillis = System.currentTimeMillis();
+        final AtomicLong currentTimeMillis = new AtomicLong(nowMillis);
+        final ClusterState clusterState = testState.clusterState();
+
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
+            testState.clusterSettings,
+            currentTimeMillis::get,
+            () -> clusterState,
+            testState.mockRerouteService,
+            recordingMeterRegistry
+        );
+
+        writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
+
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(recordingMeterRegistry, List.of(2L), List.of());
+
+        // remove one of two nodes from the hotspot, to create one finished duration and one in-progress
+        String removeId = randomFrom(testState.hotspotNodeIds());
+        testState = testState.removeFromClusterInfoHotspot(List.of(removeId));
+        long duration = randomLongBetween(500, 2000);
+        currentTimeMillis.addAndGet(duration);
+
+        writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
+
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(recordingMeterRegistry, List.of(2L, 1L), List.of(duration / 1000.0));
+
+        // no count is issued for this collection round, as onNewInfo hasn't been called
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(recordingMeterRegistry, List.of(2L, 1L), List.of(duration / 1000.0));
     }
 
     public void testHotspotDurationsAreRecorded() {
@@ -384,8 +421,6 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             testState.mockRerouteService,
             recordingMeterRegistry
         );
-
-        setLocalNodeMaster(writeLoadConstraintMonitor, testState);
 
         final Set<String> firstWaveHotspotNodes = testState.hotspotNodeIds();
         final String removeHotspotId = randomFrom(testState.hotspotNodeIds());
@@ -482,6 +517,22 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         int numberOfMLNodes,
         int numberOfHotSpottingNodes
     ) {
+        return createTestStateWithNumberOfNodesAndHotSpots(
+            numberOfIndexNodes,
+            numberOfSearchNodes,
+            numberOfMLNodes,
+            numberOfHotSpottingNodes,
+            false
+        );
+    }
+
+    private TestState createTestStateWithNumberOfNodesAndHotSpots(
+        int numberOfIndexNodes,
+        int numberOfSearchNodes,
+        int numberOfMLNodes,
+        int numberOfHotSpottingNodes,
+        boolean exactHotspotCount
+    ) {
         assert numberOfHotSpottingNodes <= numberOfIndexNodes;
         final long queueLatencyThresholdMillis = randomLongBetween(1000, 5000);
         final int highUtilizationThresholdPercent = randomIntBetween(70, 100);
@@ -502,7 +553,10 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
         final Set<String> hotspotNodes;
         if (numberOfHotSpottingNodes > 0) {
-            hotspotNodes = new HashSet<>(randomSubsetOf(randomIntBetween(1, numberOfHotSpottingNodes), indexNodeIds(state)));
+            if (exactHotspotCount == false) {
+                numberOfHotSpottingNodes = randomIntBetween(1, numberOfHotSpottingNodes);
+            }
+            hotspotNodes = new HashSet<>(randomSubsetOf(numberOfHotSpottingNodes, indexNodeIds(state)));
         } else {
             hotspotNodes = Collections.emptySet();
         }
@@ -680,15 +734,6 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                 createClusterInfoWithHotSpots(clusterState, newHotspotNodeIds, latencyThresholdMillis, highUtilizationThresholdPercent)
             );
         }
-    }
-
-    private void setLocalNodeMaster(WriteLoadConstraintMonitor writeLoadConstraintMonitor, TestState testState) {
-        writeLoadConstraintMonitor.clusterChanged(new ClusterChangedEvent("", testState.clusterState, testState.clusterState) {
-            @Override
-            public boolean localNodeMaster() {
-                return true;
-            }
-        });
     }
 
     public static final Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> ZERO_USAGE_THREAD_POOL_USAGE_MAP = Map.of(

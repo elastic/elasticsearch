@@ -12,11 +12,9 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -42,7 +40,7 @@ import java.util.function.Supplier;
  * Monitors the node-level write thread pool usage across the cluster and initiates a rebalancing round (via
  * {@link RerouteService#reroute}) whenever a node crosses the node-level write load thresholds.
  */
-public class WriteLoadConstraintMonitor implements ClusterStateListener {
+public class WriteLoadConstraintMonitor {
     private static final Logger logger = LogManager.getLogger(WriteLoadConstraintMonitor.class);
     private static final int MAX_NODE_IDS_IN_MESSAGE = 3;
     private final WriteLoadConstraintSettings writeLoadConstraintSettings;
@@ -55,8 +53,8 @@ public class WriteLoadConstraintMonitor implements ClusterStateListener {
     public static final String HOTSPOT_NODES_COUNT_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot.current";
     public static final String HOTSPOT_DURATION_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot.duration.histogram";
 
-    private volatile boolean sendMetricsEnabled = false;
     private volatile long hotspotNodesCount = 0; // metrics source of hotspotting node count
+    private volatile boolean hotspotNodesCountUpdatedSinceLastRead = false; // turns off metrics when not master/onNewInfo isn't called
     private final DoubleHistogram hotspotDurationHistogram;
 
     protected WriteLoadConstraintMonitor(
@@ -145,6 +143,7 @@ public class WriteLoadConstraintMonitor implements ClusterStateListener {
             hotspotDurationHistogram.record(hotspotDuration / 1000.0);
         }
         hotspotNodesCount = hotspotNodeStartTimes.size();
+        hotspotNodesCountUpdatedSinceLastRead = true;
 
         if (writeNodeIdsExceedingQueueLatencyThreshold.isEmpty()) {
             logger.trace("No hot-spotting write nodes detected");
@@ -195,6 +194,7 @@ public class WriteLoadConstraintMonitor implements ClusterStateListener {
                 hotspotNodeStartTimes.put(nodeId, currentTimeMillis);
             }
             hotspotNodesCount = hotspotNodeStartTimes.size();
+            hotspotNodesCountUpdatedSinceLastRead = true;
         } else {
             logger.debug(
                 "Not calling reroute because we called reroute [{}] ago and there are no new hot spots",
@@ -203,12 +203,9 @@ public class WriteLoadConstraintMonitor implements ClusterStateListener {
         }
     }
 
-    public void clusterChanged(ClusterChangedEvent event) {
-        sendMetricsEnabled = event.localNodeMaster();
-    }
-
     private List<LongWithAttributes> getHotspotNodesCount() {
-        if (sendMetricsEnabled) {
+        if (hotspotNodesCountUpdatedSinceLastRead) {
+            hotspotNodesCountUpdatedSinceLastRead = false;
             return List.of(new LongWithAttributes(hotspotNodesCount));
         } else {
             return List.of();

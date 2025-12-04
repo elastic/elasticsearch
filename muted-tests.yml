@@ -470,8 +470,6 @@ tests:
   method: test {p0=search.vectors/60_dense_vector_dynamic_mapping/Sub-objects mapped as dense_vector without dims dynamically map the dim size to the first
     indexed document}
   issue: https://github.com/elastic/elasticsearch/issues/138945
-- class: org.elasticsearch.xpack.gpu.GPUClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/138946
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/139024
@@ -490,6 +488,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.highlight/50_synthetic_source/text multi unified from vectors}
   issue: https://github.com/elastic/elasticsearch/issues/139066
+- class: org.elasticsearch.simdvec.Int7SQVectorScorerFactoryTests
+  method: testBulk
+  issue: https://github.com/elastic/elasticsearch/issues/139079
 
 # Examples:
 #

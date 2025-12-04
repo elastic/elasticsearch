@@ -59,9 +59,7 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -1018,16 +1016,14 @@ public abstract class Engine implements Closeable {
         SearcherScope scope,
         SplitShardCountSummary splitShardCountSummary
     ) throws EngineException {
-        ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
-        return acquireSearcherSupplier(wrapper, scope, splitShardCountSummary, referenceManager::acquire, referenceManager::release);
+        return acquireSearcherSupplier(wrapper, scope, splitShardCountSummary, getReferenceManager(scope));
     }
 
-    public SearcherSupplier acquireSearcherSupplier(
+    protected SearcherSupplier acquireSearcherSupplier(
         Function<Searcher, Searcher> wrapper,
         SearcherScope scope,
         SplitShardCountSummary splitShardCountSummary,
-        CheckedSupplier<ElasticsearchDirectoryReader, IOException> directorySupplier,
-        CheckedConsumer<ElasticsearchDirectoryReader, IOException> releaseAction
+        ReferenceManager<ElasticsearchDirectoryReader> referenceManager
     ) throws EngineException {
         /* Acquire order here is store -> manager since we need
          * to make sure that the store is not closed before
@@ -1037,7 +1033,7 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
-            ElasticsearchDirectoryReader acquire = directorySupplier.get();
+            ElasticsearchDirectoryReader acquire = referenceManager.acquire();
             final DirectoryReader maybeWrappedDirectoryReader;
             if (scope == SearcherScope.EXTERNAL) {
                 maybeWrappedDirectoryReader = wrapExternalDirectoryReader(acquire, splitShardCountSummary);
@@ -1062,7 +1058,7 @@ public abstract class Engine implements Closeable {
                 @Override
                 protected void doClose() {
                     try {
-                        releaseAction.accept(acquire);
+                        referenceManager.release(acquire);
                     } catch (IOException e) {
                         throw new UncheckedIOException("failed to close", e);
                     } catch (AlreadyClosedException e) {

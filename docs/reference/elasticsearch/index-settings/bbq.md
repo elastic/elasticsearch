@@ -137,7 +137,7 @@ PUT bbq_flat-index
 stack: ga 9.2
 ```
 :::{note}
-This feature requires a [subscription](https://www.elastic.co/subscriptions).
+This feature requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 :::
 
 When you set a dense vector field’s `index_options` parameter to `type: bbq_disk`, {{es}} uses the DiskBBQ algorithm, a disk-based alternative to HNSW for [kNN search](https://www.elastic.co/docs//solutions/search/vector/knn) on compressed vectors. DiskBBQ stores the vector data on disk instead of in memory, lowering RAM requirements and reducing the overall cost of vector storage and search.

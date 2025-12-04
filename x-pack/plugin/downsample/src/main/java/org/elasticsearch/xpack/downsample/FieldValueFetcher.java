@@ -37,7 +37,7 @@ class FieldValueFetcher {
     protected final String name;
     protected final MappedFieldType fieldType;
     protected final IndexFieldData<?> fieldData;
-    protected final AbstractDownsampleFieldProducer fieldProducer;
+    protected final AbstractDownsampleFieldProducer<?> fieldProducer;
 
     protected FieldValueFetcher(
         String name,
@@ -70,11 +70,11 @@ class FieldValueFetcher {
         return exponentialHistogramFieldData.getHistogramValues();
     }
 
-    public AbstractDownsampleFieldProducer fieldProducer() {
+    AbstractDownsampleFieldProducer<?> fieldProducer() {
         return fieldProducer;
     }
 
-    private AbstractDownsampleFieldProducer createFieldProducer(DownsampleConfig.SamplingMethod samplingMethod) {
+    private AbstractDownsampleFieldProducer<?> createFieldProducer(DownsampleConfig.SamplingMethod samplingMethod) {
         assert "aggregate_metric_double".equals(fieldType.typeName()) == false
             : "Aggregate metric double should be handled by a dedicated FieldValueFetcher";
         if (fieldType.getMetricType() != null) {

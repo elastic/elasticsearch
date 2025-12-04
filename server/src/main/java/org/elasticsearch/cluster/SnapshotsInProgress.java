@@ -342,13 +342,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return TransportVersion.minimumCompatible();
     }
 
-    private static final TransportVersion DIFFABLE_VERSION = TransportVersions.V_8_5_0;
-
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(DIFFABLE_VERSION)) {
-            return new SnapshotInProgressDiff(in);
-        }
-        return readDiffFrom(Custom.class, TYPE, in);
+        return new SnapshotInProgressDiff(in);
     }
 
     @Override
@@ -1876,24 +1871,20 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             assert after != null : "should only write instances that were diffed from this node's state";
-            if (out.getTransportVersion().onOrAfter(DIFFABLE_VERSION)) {
-                if (out.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOT) == false) {
-                    DiffableUtils.jdkMapDiffWithUpdatedKeys(mapDiff, projectRepo -> {
-                        if (ProjectId.DEFAULT.equals(projectRepo.projectId()) == false) {
-                            final var message = "Cannot write instance with non-default project id "
-                                + projectRepo.projectId()
-                                + " to version before "
-                                + PROJECT_ID_IN_SNAPSHOT;
-                            assert false : message;
-                            throw new IllegalArgumentException(message);
-                        }
-                        return projectRepo.name();
-                    }, DiffableUtils.getStringKeySerializer()).writeTo(out);
-                } else {
-                    mapDiff.writeTo(out);
-                }
+            if (out.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOT) == false) {
+                DiffableUtils.jdkMapDiffWithUpdatedKeys(mapDiff, projectRepo -> {
+                    if (ProjectId.DEFAULT.equals(projectRepo.projectId()) == false) {
+                        final var message = "Cannot write instance with non-default project id "
+                            + projectRepo.projectId()
+                            + " to version before "
+                            + PROJECT_ID_IN_SNAPSHOT;
+                        assert false : message;
+                        throw new IllegalArgumentException(message);
+                    }
+                    return projectRepo.name();
+                }, DiffableUtils.getStringKeySerializer()).writeTo(out);
             } else {
-                new SimpleDiffable.CompleteDiff<>(after).writeTo(out);
+                mapDiff.writeTo(out);
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeStringCollection(nodeIdsForRemoval);

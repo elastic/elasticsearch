@@ -301,7 +301,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "can't load metrics in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V3.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V5.capabilityName())
             );
             assumeFalse(
                 "can't use QSTR function in csv tests",
@@ -365,7 +365,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "can't use PromQL in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V3.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V5.capabilityName())
             );
             assumeFalse(
                 "CSV tests cannot currently handle TOP_SNIPPETS function",

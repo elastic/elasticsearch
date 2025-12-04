@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -167,11 +166,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         this.minimumSetSize = in.readVInt();
         this.size = in.readVInt();
         this.filter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            this.executionHint = in.readOptionalString();
-        } else {
-            this.executionHint = null;
-        }
+        this.executionHint = in.readOptionalString();
     }
 
     @Override
@@ -196,9 +191,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         out.writeVInt(minimumSetSize);
         out.writeVInt(size);
         out.writeOptionalNamedWriteable(filter);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            out.writeOptionalString(executionHint);
-        }
+        out.writeOptionalString(executionHint);
     }
 
     @Override

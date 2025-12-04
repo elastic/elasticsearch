@@ -24,13 +24,10 @@ import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterLeafReader;
-import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
@@ -41,7 +38,6 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
-import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
@@ -51,7 +47,6 @@ import org.elasticsearch.core.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -437,7 +432,7 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
                 private TermsEnum delegate;
 
                 @Override
-                TermsEnum getDelegate() throws IOException {
+                protected TermsEnum getDelegate() throws IOException {
                     if (delegate == null) {
                         delegate = in.iterator();
                     }
@@ -464,64 +459,6 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
                     return getDelegate().termState();
                 }
             };
-        }
-    }
-
-    private abstract static class LazyFilterTermsEnum extends BaseTermsEnum {
-        abstract TermsEnum getDelegate() throws IOException;
-
-        @Override
-        public SeekStatus seekCeil(BytesRef text) throws IOException {
-            return getDelegate().seekCeil(text);
-        }
-
-        @Override
-        public void seekExact(long ord) throws IOException {
-            getDelegate().seekExact(ord);
-        }
-
-        @Override
-        public BytesRef term() throws IOException {
-            return getDelegate().term();
-        }
-
-        @Override
-        public long ord() throws IOException {
-            return getDelegate().ord();
-        }
-
-        @Override
-        public int docFreq() throws IOException {
-            return getDelegate().docFreq();
-        }
-
-        @Override
-        public long totalTermFreq() throws IOException {
-            return getDelegate().totalTermFreq();
-        }
-
-        @Override
-        public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
-            return getDelegate().postings(reuse, flags);
-        }
-
-        @Override
-        public ImpactsEnum impacts(int flags) throws IOException {
-            return getDelegate().impacts(flags);
-        }
-
-        @Override
-        public BytesRef next() throws IOException {
-            return getDelegate().next();
-        }
-
-        @Override
-        public AttributeSource attributes() {
-            try {
-                return getDelegate().attributes();
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
         }
     }
 

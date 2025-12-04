@@ -19,18 +19,25 @@ import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDis
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -38,6 +45,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -53,7 +61,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Test suite for time series indices that use synthetic ids for documents.
@@ -101,6 +113,40 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         );
     }
 
+    public void testInvalidCodec() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        final var indexName = randomIdentifier();
+        internalCluster().startDataOnlyNode();
+        var randomNonDefaultCodec = randomFrom(
+            CodecService.BEST_COMPRESSION_CODEC,
+            CodecService.LEGACY_DEFAULT_CODEC,
+            CodecService.BEST_COMPRESSION_CODEC,
+            CodecService.LUCENE_DEFAULT_CODEC
+        );
+
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> createIndex(
+                indexName,
+                indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                    .put("index.routing_path", "hostname")
+                    .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
+                    .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomNonDefaultCodec)
+                    .build()
+            )
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "The setting ["
+                    + IndexSettings.USE_SYNTHETIC_ID.getKey()
+                    + "] is only permitted when [index.codec] is set to [default]. Current mode: ["
+                    + randomNonDefaultCodec
+                    + "]."
+            )
+        );
+    }
+
     public void testSyntheticId() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var dataStreamName = randomIdentifier();
@@ -140,6 +186,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(result.getVersion(), equalTo(1L));
             docs.put(result.getId(), result.getIndex());
         }
+        final int initialNumberOfDocs = results.length;
 
         enum Operation {
             FLUSH,
@@ -260,12 +307,75 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         flush(dataStreamName);
 
+        forceMerge();
+
+        if (randomBoolean()) {
+            logger.info("--> restarting the cluster");
+            internalCluster().rollingRestart(new InternalTestCluster.RestartCallback());
+        } else {
+            // Move all the shards to a new node to force relocations
+            var newNodeName = internalCluster().startDataOnlyNode();
+            logger.info("--> relocating all shards to {}", newNodeName);
+
+            var dataStream = client().admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .getMetadata()
+                .getProject(ProjectId.DEFAULT)
+                .dataStreams()
+                .get(dataStreamName);
+            assertThat(dataStream, notNullValue());
+            for (Index index : dataStream.getIndices()) {
+                updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", newNodeName), index.getName());
+                ensureGreen(index.getName());
+            }
+        }
+
+        // After the restart/relocation we'll try to index the same set of initial metrics
+        // to ensure that the version lookup works as expected. Additionally, some of the
+        // docs might have been deleted, so those should go through without issues.
+        var bulkResponses = createDocumentsWithoutValidatingTheResponse(
+            dataStreamName,
+            // t + 0s
+            document(timestamp, "vm-dev01", "cpu-load", 0),
+            document(timestamp, "vm-dev02", "cpu-load", 1),
+            // t + 1s
+            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2),
+            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3),
+            // t + 0s out-of-order doc
+            document(timestamp, "vm-dev03", "cpu-load", 4),
+            // t + 2s
+            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", 5),
+            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", 6),
+            // t - 1s out-of-order doc
+            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", 7),
+            // t + 3s
+            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", 8),
+            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", 9)
+        );
+
+        var successfulRequests = Arrays.stream(bulkResponses).filter(response -> response.isFailed() == false).toList();
+        assertThat(successfulRequests, hasSize(deletedDocs.size()));
+
+        var failedRequests = Arrays.stream(bulkResponses).filter(BulkItemResponse::isFailed).toList();
+        assertThat(failedRequests, hasSize(initialNumberOfDocs - deletedDocs.size()));
+        for (BulkItemResponse failedRequest : failedRequests) {
+            assertThat(failedRequest.getFailure().getCause(), is(instanceOf(VersionConflictEngineException.class)));
+        }
+
         // Check that synthetic _id field have no postings on disk
         var indices = new HashSet<>(docs.values());
         for (var index : indices) {
             var diskUsage = diskUsage(index);
             var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
-            assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+            // When _id's are only used to populate the bloom filter,
+            // IndexDiskUsageStats won't account for anything since
+            // the bloom filter it's not exposed through the Reader API and
+            // the analyzer expects to get documents with fields to do the
+            // disk usage accounting.
+            assertThat(diskUsageIdField, nullValue());
         }
     }
 
@@ -376,7 +486,12 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         for (var index : indices) {
             var diskUsage = diskUsage(index);
             var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
-            assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+            // When _id's are only used to populate the bloom filter,
+            // IndexDiskUsageStats won't account for anything since
+            // the bloom filter it's not exposed through the Reader API and
+            // the analyzer expects to get documents with fields to do the
+            // disk usage accounting.
+            assertThat(diskUsageIdField, nullValue());
         }
 
         assertHitCount(client().prepareSearch(dataStreamName).setSize(0), 10L);
@@ -402,6 +517,14 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     private static BulkItemResponse[] createDocuments(String indexName, XContentBuilder... docs) {
+        return createDocuments(indexName, true, docs);
+    }
+
+    private static BulkItemResponse[] createDocumentsWithoutValidatingTheResponse(String indexName, XContentBuilder... docs) {
+        return createDocuments(indexName, false, docs);
+    }
+
+    private static BulkItemResponse[] createDocuments(String indexName, boolean validateResponse, XContentBuilder... docs) {
         assertThat(docs, notNullValue());
         final var client = client();
         var bulkRequest = client.prepareBulk();
@@ -409,7 +532,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             bulkRequest.add(client.prepareIndex(indexName).setOpType(DocWriteRequest.OpType.CREATE).setSource(doc));
         }
         var bulkResponse = bulkRequest.get();
-        assertNoFailures(bulkResponse);
+        if (validateResponse) {
+            assertNoFailures(bulkResponse);
+        }
         return bulkResponse.getItems();
     }
 

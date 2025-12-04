@@ -124,7 +124,7 @@ public class StandardToLogsDbIndexModeRollingUpgradeIT extends AbstractRollingUp
             bulkIndex(this::bulkIndexRequestBody);
 
             // then continued - verify that the created data stream uses the created template
-            LogsdbIndexingRollingUpgradeIT.assertDataStream(DATA_STREAM, LOGS_TEMPLATE);
+            AbstractStringTypeRollingUpgradeIT.assertDataStream(DATA_STREAM, LOGS_TEMPLATE);
 
         } else if (isMixedCluster()) {
             // when/then - index more documents

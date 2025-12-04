@@ -1,0 +1,5 @@
+pr: 139028
+summary: More reliable trigger for security index migration
+area: Security
+type: bug
+issues: []

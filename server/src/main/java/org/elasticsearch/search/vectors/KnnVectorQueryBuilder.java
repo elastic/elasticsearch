@@ -284,9 +284,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 in.readBoolean(); // used for byteQueryVector, which was always null
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            this.filterQueries.addAll(readQueries(in));
-        }
+        this.filterQueries.addAll(readQueries(in));
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             this.vectorSimilarity = in.readOptionalFloat();
         } else {
@@ -297,12 +295,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             this.queryVectorBuilder = null;
         }
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
-        } else {
-            this.rescoreVectorBuilder = null;
-        }
-
+        this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
         this.queryVectorSupplier = null;
     }
 
@@ -403,9 +396,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 out.writeBoolean(false); // used for byteQueryVector, which was always null
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            writeQueries(out, filterQueries);
-        }
+        writeQueries(out, filterQueries);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalFloat(vectorSimilarity);
         }
@@ -421,9 +412,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalNamedWriteable(queryVectorBuilder);
         }
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeOptionalWriteable(rescoreVectorBuilder);
-        }
+        out.writeOptionalWriteable(rescoreVectorBuilder);
     }
 
     @Override

@@ -173,6 +173,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.jar.JarInputStream;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -1291,15 +1292,21 @@ public final class EsqlTestUtils {
         });
     }
 
+    private static final Pattern SET_SPLIT_PATTERN = Pattern.compile("^\\s*SET\\b[^;]+?;\\s*\\b");
+
     public static String addRemoteIndices(String query, Set<String> lookupIndices, boolean onlyRemotes) {
         String[] commands = query.split("\\|");
         // remove subqueries
         String first = commands[0].split(",\\s+\\(")[0].trim();
 
-        // Split "SET a=b; FROM x" into "SET a=b" and "FROM x"
-        int lastSetDelimiterPosition = first.lastIndexOf(';');
-        String setStatements = lastSetDelimiterPosition == -1 ? "" : first.substring(0, lastSetDelimiterPosition + 1);
-        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition + 1);
+        // Split "SET a=b; FROM x" into "SET a=b; " and "FROM x"
+        var setMatcher = SET_SPLIT_PATTERN.matcher(first);
+        int lastSetDelimiterPosition = -1;
+        if (setMatcher.find()) {
+            lastSetDelimiterPosition = setMatcher.end();
+        }
+        String setStatements = lastSetDelimiterPosition == -1 ? "" : first.substring(0, lastSetDelimiterPosition);
+        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition);
 
         // Split "FROM a, b, c" into "FROM" and "a, b, c"
         String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
@@ -1326,7 +1333,10 @@ public final class EsqlTestUtils {
                     .map(index -> unquoteAndRequoteAsRemote(index.trim(), onlyRemotesFinal))
                     .collect(Collectors.joining(","));
                 String newFirstCommand = command + " " + remoteIndices + " " + stuffAfterIndices;
-                return (setStatements + " " + newFirstCommand.trim() + query.substring(first.length())).trim();
+                String finalQuery = (setStatements + newFirstCommand.trim() + query.substring(first.length())).trim();
+                assert query.split("\n").length == finalQuery.split("\n").length
+                    : "the final query should have the same lines for warnings to work";
+                return finalQuery;
             }
         }
         return query;

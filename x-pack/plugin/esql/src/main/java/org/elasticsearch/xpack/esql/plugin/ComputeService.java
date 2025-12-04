@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -71,6 +72,7 @@ import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -217,6 +219,13 @@ public class ComputeService {
             planTimeProfile = new PlanTimeProfile();
         }
 
+        // take a snapshot of the initial cluster statuses, this is the status after index resolutions,
+        // and it will be checked before executing data node plan on remote clusters
+        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses = new HashMap<>(execInfo.clusterInfo.size());
+        for (Map.Entry<String, EsqlExecutionInfo.Cluster> entry : execInfo.clusterInfo.entrySet()) {
+            initialClusterStatuses.put(entry.getKey(), entry.getValue().getStatus());
+        }
+
         // we have no sub plans, so we can just execute the given plan
         if (subplans == null || subplans.isEmpty()) {
             executePlan(
@@ -230,7 +239,8 @@ public class ComputeService {
                 null,
                 listener,
                 null,
-                planTimeProfile
+                initialClusterStatuses,
+                null
             );
             return;
         }
@@ -307,6 +317,7 @@ public class ComputeService {
                             subPlanListener.onFailure(e);
                         }),
                         () -> exchangeSink.createExchangeSink(() -> {}),
+                        initialClusterStatuses,
                         configuration.profile() ? new PlanTimeProfile() : null
                     );
                 }
@@ -325,6 +336,7 @@ public class ComputeService {
         String profileQualifier,
         ActionListener<Result> listener,
         Supplier<ExchangeSink> exchangeSinkSupplier,
+        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile
     ) {
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
@@ -508,8 +520,20 @@ public class ComputeService {
                 // starts computes on remote clusters
                 final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
-                    if (execInfo.getCluster(cluster.clusterAlias()).getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                    String clusterAlias = cluster.clusterAlias();
+                    // Check the initial cluster status set by planning phase before executing the data node plan on remote clusters,
+                    // only if it is behind a snapshot build and this is a fork or subquery branch (exchangeSinkSupplier is not null).
+                    EsqlExecutionInfo.Cluster.Status clusterStatus = Build.current().isSnapshot() && exchangeSinkSupplier != null
+                        ? initialClusterStatuses.get(clusterAlias)
+                        : execInfo.getCluster(clusterAlias).getStatus();
+                    if (clusterStatus != EsqlExecutionInfo.Cluster.Status.RUNNING) {
                         // if the cluster is already in the terminal state from the planning stage, no need to call it
+                        // the initial cluster status is collected before the query is executed
+                        LOGGER.trace(
+                            "skipping execution on remote cluster [{}] since its initial status is [{}]",
+                            clusterAlias,
+                            clusterStatus
+                        );
                         continue;
                     }
                     clusterComputeHandler.startComputeOnRemoteCluster(

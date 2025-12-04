@@ -13,6 +13,7 @@ import com.nvidia.cuvs.GPUInfoProvider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.indices.IndicesService;
@@ -76,7 +77,7 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         GPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
 
-        var format = vectorsFormatProvider.getKnnVectorsFormat(null, null, null);
+        var format = vectorsFormatProvider.getKnnVectorsFormat(null, null, null, null);
         assertNull(format);
     }
 
@@ -95,7 +96,8 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            randomGPUSupportedSimilarity(indexOptions.getType())
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNotNull(format);
     }
@@ -114,7 +116,33 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            randomGPUSupportedSimilarity(indexOptions.getType())
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
+        assertNull(format);
+    }
+
+    public void testAutoModeUnsupportedElementType() {
+        gpuMode = GPUPlugin.GpuMode.AUTO;
+        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
+
+        GPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
+        VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
+
+        createIndex("index1");
+        IndexSettings settings = getIndexSettings();
+        final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
+        final var unsupportedElementType = randomFrom(
+            DenseVectorFieldMapper.ElementType.BYTE,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            DenseVectorFieldMapper.ElementType.BIT
+        );
+
+        var format = vectorsFormatProvider.getKnnVectorsFormat(
+            settings,
+            indexOptions,
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            unsupportedElementType
         );
         assertNull(format);
     }
@@ -134,7 +162,8 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            randomGPUSupportedSimilarity(indexOptions.getType())
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNull(format);
     }
@@ -154,7 +183,8 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            randomGPUSupportedSimilarity(indexOptions.getType())
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNotNull(format);
     }
@@ -173,7 +203,33 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            randomGPUSupportedSimilarity(indexOptions.getType())
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
+        assertNull(format);
+    }
+
+    public void testTrueModeUnsupportedElementType() {
+        gpuMode = GPUPlugin.GpuMode.TRUE;
+        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
+
+        GPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
+        VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
+
+        createIndex("index1");
+        IndexSettings settings = getIndexSettings();
+        final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
+        final var unsupportedElementType = randomFrom(
+            DenseVectorFieldMapper.ElementType.BYTE,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            DenseVectorFieldMapper.ElementType.BIT
+        );
+
+        var format = vectorsFormatProvider.getKnnVectorsFormat(
+            settings,
+            indexOptions,
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            unsupportedElementType
         );
         assertNull(format);
     }
@@ -193,7 +249,8 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            randomGPUSupportedSimilarity(indexOptions.getType())
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNull(format);
     }
@@ -213,7 +270,8 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            randomGPUSupportedSimilarity(indexOptions.getType())
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNull(format);
     }

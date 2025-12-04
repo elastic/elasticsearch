@@ -9,14 +9,12 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -25,7 +23,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -46,17 +43,9 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     }
 
     GetFieldMappingsResponse(StreamInput in) throws IOException {
-        mappings = in.readImmutableMap(mapIn -> {
-            if (mapIn.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                int typesSize = mapIn.readVInt();
-                assert typesSize == 1 || typesSize == 0 : "Expected 0 or 1 types but got " + typesSize;
-                if (typesSize == 0) {
-                    return Collections.emptyMap();
-                }
-                mapIn.readString(); // type
-            }
-            return mapIn.readImmutableMap(inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference()));
-        });
+        mappings = in.readImmutableMap(
+            mapIn -> mapIn.readImmutableMap(inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference()))
+        );
     }
 
     /** returns the retrieved field mapping. The return map keys are index, field (as specified in the request). */
@@ -134,10 +123,6 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(mappings, (outpt, map) -> {
-            if (outpt.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                outpt.writeVInt(1);
-                outpt.writeString(MapperService.SINGLE_MAPPING_NAME);
-            }
             outpt.writeMap(map, (o, v) -> {
                 o.writeString(v.fullName());
                 o.writeBytesReference(v.source);

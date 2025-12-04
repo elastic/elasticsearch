@@ -1,0 +1,200 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.upgrades;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.datageneration.DataGeneratorSpecification;
+import org.elasticsearch.datageneration.DocumentGenerator;
+import org.elasticsearch.datageneration.FieldType;
+import org.elasticsearch.datageneration.Mapping;
+import org.elasticsearch.datageneration.MappingGenerator;
+import org.elasticsearch.datageneration.Template;
+import org.elasticsearch.datageneration.TemplateGenerator;
+import org.elasticsearch.datageneration.datasource.DataSourceHandler;
+import org.elasticsearch.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
+import org.elasticsearch.datageneration.matchers.MatchResult;
+import org.elasticsearch.datageneration.matchers.Matcher;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+import org.junit.BeforeClass;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+
+public class RandomizedRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
+    public RandomizedRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
+    private record TestIndexConfig(
+        String indexName,
+        Template template,
+        Settings.Builder settings,
+        Mapping mapping,
+        List<String> documents
+    ) {
+        TestIndexConfig(String indexName, Template template, Settings.Builder settings, Mapping mapping) {
+            this(indexName, template, settings, mapping, new ArrayList<>());
+        }
+    }
+
+    private static final Map<String, TestIndexConfig> indexConfigs = new TreeMap<>();
+
+    private static final int NUM_INDICES = 8;
+    private static final int NUM_DOCS = 16;
+    private static DocumentGenerator documentGenerator;
+    private static TemplateGenerator templateGenerator;
+    private static MappingGenerator mappingGenerator;
+
+    @BeforeClass
+    public static void setupGenerators() {
+        var specification = DataGeneratorSpecification.builder()
+            .withMaxObjectDepth(2)
+            .withMaxFieldCountPerLevel(6)
+            .withDataSourceHandlers(List.of(new DataSourceHandler() {
+                @Override
+                public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
+                    return new DataSourceResponse.FieldTypeGenerator(() -> {
+                        var options = Arrays.stream(FieldType.values())
+                            .filter(ft -> ft != FieldType.PASSTHROUGH)
+                            .map(FieldType::toString)
+                            .collect(Collectors.toSet());
+                        return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(options));
+                    });
+                }
+            }))
+            .withDataSourceHandlers(List.of(MultifieldAddonHandler.STRING_TYPE_HANDLER))
+            // .withDataSourceHandlers(List.of(new ASCIIStringsHandler()))
+            .build();
+
+        documentGenerator = new DocumentGenerator(specification);
+        templateGenerator = new TemplateGenerator(specification);
+        mappingGenerator = new MappingGenerator(specification);
+    }
+
+    private void testIndexing(String indexName, Settings.Builder settings) throws IOException {
+        if (isOldCluster()) {
+            assert indexConfigs.containsKey(indexName) == false;
+            var template = templateGenerator.generate();
+            TestIndexConfig indexConfig = new TestIndexConfig(indexName, template, settings, mappingGenerator.generate(template));
+            indexConfigs.put(indexName, indexConfig);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> mappingRaw = (Map<String, Object>) indexConfig.mapping.raw().get("_doc");
+            String mappingStr = Strings.toString(XContentFactory.jsonBuilder().map(mappingRaw));
+            logger.info(indexName + " mappings: " + mappingStr);
+            createIndex(indexName, settings.build(), mappingStr);
+        }
+        var indexConfig = indexConfigs.get(indexName);
+        indexDocuments(indexConfig);
+        testQueryAll(indexConfig);
+    }
+
+    public void testIndexingStandardSource() throws IOException {
+        Settings.Builder builder = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "stored");
+        String indexNameBase = "test-index-standard-";
+        for (int i = 0; i < NUM_INDICES; i++) {
+            testIndexing(indexNameBase + i, builder);
+        }
+    }
+
+    public void testIndexingSyntheticSource() throws IOException {
+        Settings.Builder builder = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
+        String indexNameBase = "test-index-synthetic-";
+        for (int i = 0; i < NUM_INDICES; i++) {
+            testIndexing(indexNameBase + i, builder);
+        }
+    }
+
+    private void indexDocuments(TestIndexConfig indexConfig) throws IOException {
+        StringBuilder bulkBuilder = new StringBuilder();
+        for (int i = 0; i < NUM_DOCS; ++i) {
+            int docId = indexConfig.documents.size();
+            Map<String, Object> doc = documentGenerator.generate(indexConfig.template, indexConfig.mapping);
+            String docStr = Strings.toString(XContentFactory.jsonBuilder().map(doc));
+            indexConfig.documents.add(docStr);
+            bulkBuilder.append(Strings.format("{\"create\":{ \"_id\": %d }}\n", docId));
+            bulkBuilder.append(docStr).append('\n');
+        }
+
+        String jsonBody = bulkBuilder.toString();
+        var request = new Request("POST", "/" + indexConfig.indexName + "/_bulk");
+        request.setJsonEntity(jsonBody);
+        request.addParameter("refresh", "true");
+        var response = client().performRequest(request);
+        assertOK(response);
+        var responseBody = entityAsMap(response);
+        assertThat("errors in bulk response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
+    }
+
+    private void testQueryAll(TestIndexConfig indexConfig) throws IOException {
+        var xcontentMappings = XContentFactory.jsonBuilder().map(indexConfig.mapping().raw());
+
+        var actualSettings = getIndexSettingsAsMap(indexConfig.indexName);
+        var actualSettingsBuilder = Settings.builder().loadFromMap(actualSettings);
+
+        var query = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(indexConfig.documents.size());
+
+        var expectedDocs = indexConfig.documents.stream()
+            .map(d -> XContentHelper.convertToMap(XContentType.JSON.xContent(), d, true))
+            .toList();
+
+        var queryHits = getQueryHits(queryIndex(indexConfig.indexName, query));
+
+        final MatchResult matchResult = Matcher.matchSource()
+            .mappings(indexConfig.mapping().lookup(), xcontentMappings, xcontentMappings)
+            .settings(actualSettingsBuilder, indexConfig.settings)
+            .expected(expectedDocs)
+            .ignoringSort(true)
+            .isEqualTo(queryHits);
+        assertTrue(matchResult.getMessage(), matchResult.isMatch());
+    }
+
+    private Response queryIndex(final String indexName, final SearchSourceBuilder search) throws IOException {
+        final Request request = new Request("GET", "/" + indexName + "/_search");
+        request.setJsonEntity(Strings.toString(search));
+        return client().performRequest(request);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> getQueryHits(final Response response) throws IOException {
+        final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
+
+        final List<Map<String, Object>> hitsList = (List<Map<String, Object>>) ((Map<String, Object>) map.get("hits")).get("hits");
+
+        assertThat(hitsList.size(), greaterThan(0));
+
+        return hitsList.stream()
+            .sorted(Comparator.comparing((Map<String, Object> hit) -> Integer.valueOf((String) hit.get("_id"))))
+            .map(hit -> (Map<String, Object>) hit.get("_source"))
+            .toList();
+    }
+}

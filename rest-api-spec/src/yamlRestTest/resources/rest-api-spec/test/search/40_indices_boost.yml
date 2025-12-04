@@ -161,4 +161,4 @@ setup:
         ignore_unavailable: true
         index: _all
         body:
-          indices_boost: [{nonexistent: 2.0}, {test_1: 1.0}, {test_2: 2.0}]
+          indices_boost: [{nonexistent: 2.0}, {remote1:test_1: 1.0}, {test_2: 2.0}]

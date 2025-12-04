@@ -62,6 +62,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -180,9 +181,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     static final String INDEX_OPTIONS_FIELD = "index_options";
 
-    public static final TypeParser parser(Supplier<ModelRegistry> modelRegistry) {
+    public static TypeParser parser(Supplier<ModelRegistry> modelRegistry) {
         return new TypeParser(
-            (n, c) -> new Builder(n, c::bitSetProducer, c.getIndexSettings(), modelRegistry.get()),
+            (n, c) -> new Builder(n, c::bitSetProducer, c.getIndexSettings(), modelRegistry.get(), c.getVectorsFormatProviders()),
             List.of(validateParserContext(CONTENT_TYPE))
         );
     }
@@ -220,7 +221,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         private final Parameter<SemanticTextIndexOptions> indexOptions;
 
-        @SuppressWarnings("unchecked")
         private final Parameter<ChunkingSettings> chunkingSettings = new Parameter<>(
             CHUNKING_SETTINGS_FIELD,
             true,
@@ -234,13 +234,15 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private Function<MapperBuilderContext, ObjectMapper> inferenceFieldBuilder;
+        private final List<VectorsFormatProvider> vectorsFormatProviders;
 
         public static Builder from(SemanticTextFieldMapper mapper) {
             Builder builder = new Builder(
                 mapper.leafName(),
                 mapper.fieldType().getChunksField().bitsetProducer(),
                 mapper.fieldType().getChunksField().indexSettings(),
-                mapper.modelRegistry
+                mapper.modelRegistry,
+                mapper.vectorsFormatProviders
             );
             builder.init(mapper);
             return builder;
@@ -250,12 +252,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             String name,
             Function<Query, BitSetProducer> bitSetProducer,
             IndexSettings indexSettings,
-            ModelRegistry modelRegistry
+            ModelRegistry modelRegistry,
+            List<VectorsFormatProvider> vectorsFormatProviders
         ) {
             super(name);
             this.modelRegistry = modelRegistry;
             this.useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(indexSettings.getSettings()) == false;
             this.indexVersionCreated = indexSettings.getIndexVersionCreated();
+            this.vectorsFormatProviders = vectorsFormatProviders;
 
             this.inferenceId = Parameter.stringParam(
                 INFERENCE_ID_FIELD,
@@ -302,7 +306,15 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             this.inferenceFieldBuilder = c -> {
                 // Resolve the model setting from the registry if it has not been set yet.
                 var resolvedModelSettings = modelSettings.get() != null ? modelSettings.get() : getResolvedModelSettings(c, false);
-                return createInferenceField(c, useLegacyFormat, resolvedModelSettings, indexOptions.get(), bitSetProducer, indexSettings);
+                return createInferenceField(
+                    c,
+                    useLegacyFormat,
+                    resolvedModelSettings,
+                    indexOptions.get(),
+                    bitSetProducer,
+                    indexSettings,
+                    vectorsFormatProviders
+                );
             };
         }
 
@@ -485,7 +497,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     meta.getValue()
                 ),
                 builderParams(this, context),
-                modelRegistry
+                modelRegistry,
+                vectorsFormatProviders
             );
         }
 
@@ -580,16 +593,19 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     }
 
     private final ModelRegistry modelRegistry;
+    private final List<VectorsFormatProvider> vectorsFormatProviders;
 
     private SemanticTextFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
-        ModelRegistry modelRegistry
+        ModelRegistry modelRegistry,
+        List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         super(simpleName, mappedFieldType, builderParams);
         ensureMultiFields(builderParams.multiFields().iterator());
         this.modelRegistry = modelRegistry;
+        this.vectorsFormatProviders = vectorsFormatProviders;
     }
 
     private void ensureMultiFields(Iterator<FieldMapper> mappers) {
@@ -959,7 +975,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
             if (useLegacyFormat) {
                 // Redirect the fetcher to load the original values of the field
-                return SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, format);
+                return SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, null);
             }
             return SourceValueFetcher.toString(name(), context, null);
         }
@@ -1036,6 +1052,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         int dimensions = modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BIT
                             ? inference.length * Byte.SIZE // Bit vectors encode 8 dimensions into each byte value
                             : inference.length;
+                        assert modelSettings.dimensions() != null
+                            : "Model settings should have dimensions set by now for text embedding models";
                         if (dimensions != modelSettings.dimensions()) {
                             throw new IllegalArgumentException(
                                 generateDimensionCountMismatchMessage(dimensions, modelSettings.dimensions())
@@ -1095,15 +1113,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         private String generateInvalidQueryInferenceResultsMessage(StringBuilder baseMessageBuilder) {
             if (searchInferenceId != null && searchInferenceId.equals(inferenceId) == false) {
-                baseMessageBuilder.append(
-                    " Is the search inference endpoint ["
-                        + searchInferenceId
-                        + "] compatible with the inference endpoint ["
-                        + inferenceId
-                        + "]?"
-                );
+                baseMessageBuilder.append(" Is the search inference endpoint [")
+                    .append(searchInferenceId)
+                    .append("] compatible with the inference endpoint [")
+                    .append(inferenceId)
+                    .append("]?");
             } else {
-                baseMessageBuilder.append(" Has the configuration for inference endpoint [" + inferenceId + "] changed?");
+                baseMessageBuilder.append(" Has the configuration for inference endpoint [").append(inferenceId).append("] changed?");
             }
 
             return baseMessageBuilder.toString();
@@ -1287,10 +1303,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Nullable MinimalServiceSettings modelSettings,
         @Nullable SemanticTextIndexOptions indexOptions,
         Function<Query, BitSetProducer> bitSetProducer,
-        IndexSettings indexSettings
+        IndexSettings indexSettings,
+        List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         return new ObjectMapper.Builder(INFERENCE_FIELD, Explicit.of(ObjectMapper.Subobjects.ENABLED)).dynamic(ObjectMapper.Dynamic.FALSE)
-            .add(createChunksField(useLegacyFormat, modelSettings, indexOptions, bitSetProducer, indexSettings))
+            .add(createChunksField(useLegacyFormat, modelSettings, indexOptions, bitSetProducer, indexSettings, vectorsFormatProviders))
             .build(context);
     }
 
@@ -1299,7 +1316,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Nullable MinimalServiceSettings modelSettings,
         @Nullable SemanticTextIndexOptions indexOptions,
         Function<Query, BitSetProducer> bitSetProducer,
-        IndexSettings indexSettings
+        IndexSettings indexSettings,
+        List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         NestedObjectMapper.Builder chunksField = new NestedObjectMapper.Builder(
             SemanticTextField.CHUNKS_FIELD,
@@ -1309,7 +1327,15 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         );
         chunksField.dynamic(ObjectMapper.Dynamic.FALSE);
         if (modelSettings != null) {
-            chunksField.add(createEmbeddingsField(indexSettings.getIndexVersionCreated(), modelSettings, indexOptions, useLegacyFormat));
+            chunksField.add(
+                createEmbeddingsField(
+                    indexSettings.getIndexVersionCreated(),
+                    modelSettings,
+                    indexOptions,
+                    useLegacyFormat,
+                    vectorsFormatProviders
+                )
+            );
         }
         if (useLegacyFormat) {
             var chunkTextField = new KeywordFieldMapper.Builder(TEXT_FIELD, indexSettings).indexed(false).docValues(false);
@@ -1324,7 +1350,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         IndexVersion indexVersionCreated,
         MinimalServiceSettings modelSettings,
         SemanticTextIndexOptions indexOptions,
-        boolean useLegacyFormat
+        boolean useLegacyFormat,
+        List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         return switch (modelSettings.taskType()) {
             case SPARSE_EMBEDDING -> {
@@ -1343,7 +1370,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     CHUNKED_EMBEDDINGS_FIELD,
                     indexVersionCreated,
                     false,
-                    List.of()
+                    vectorsFormatProviders
                 );
 
                 configureDenseVectorMapperBuilder(indexVersionCreated, denseVectorMapperBuilder, modelSettings, indexOptions);
@@ -1396,6 +1423,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
         }
 
+        assert modelSettings.dimensions() != null : "Model settings should have dimensions set by now for text embedding models";
         denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
         denseVectorMapperBuilder.elementType(modelSettings.elementType());
         // Here is where we persist index_options. If they are specified by the user, we will use those index_options,

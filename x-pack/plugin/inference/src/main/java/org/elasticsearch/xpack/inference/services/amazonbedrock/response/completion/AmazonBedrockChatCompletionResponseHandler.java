@@ -24,7 +24,7 @@ public class AmazonBedrockChatCompletionResponseHandler extends AmazonBedrockRes
 
     @Override
     public InferenceServiceResults parseResult(Request request, HttpResult result) throws RetryException {
-        var response = new AmazonBedrockChatCompletionResponse(responseResult);
+        var response = new AmazonBedrockCompletionResponse(responseResult);
         return response.accept((AmazonBedrockRequest) request);
     }
 
@@ -35,5 +35,10 @@ public class AmazonBedrockChatCompletionResponseHandler extends AmazonBedrockRes
 
     public void acceptChatCompletionResponseObject(ConverseResponse response) {
         this.responseResult = response;
+    }
+
+    @Override
+    public boolean canHandleStreamingResponses() {
+        return true;
     }
 }

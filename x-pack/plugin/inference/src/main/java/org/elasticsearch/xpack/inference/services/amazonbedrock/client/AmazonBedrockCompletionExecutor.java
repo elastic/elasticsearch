@@ -10,18 +10,18 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest;
+import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.AmazonBedrockResponseHandler;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockCompletionResponseListener;
 
 import java.util.function.Supplier;
 
-public class AmazonBedrockChatCompletionExecutor extends AmazonBedrockExecutor {
-    private final AmazonBedrockChatCompletionRequest chatCompletionRequest;
+public class AmazonBedrockCompletionExecutor extends AmazonBedrockExecutor {
+    private final AmazonBedrockCompletionRequest completionRequest;
 
-    protected AmazonBedrockChatCompletionExecutor(
-        AmazonBedrockChatCompletionRequest request,
+    protected AmazonBedrockCompletionExecutor(
+        AmazonBedrockCompletionRequest request,
         AmazonBedrockResponseHandler responseHandler,
         Logger logger,
         Supplier<Boolean> hasRequestCompletedFunction,
@@ -29,21 +29,21 @@ public class AmazonBedrockChatCompletionExecutor extends AmazonBedrockExecutor {
         AmazonBedrockClientCache clientCache
     ) {
         super(request, responseHandler, logger, hasRequestCompletedFunction, inferenceResultsListener, clientCache);
-        this.chatCompletionRequest = request;
+        this.completionRequest = request;
     }
 
     @Override
     protected void executeClientRequest(AmazonBedrockBaseClient awsBedrockClient) {
-        if (chatCompletionRequest.isStreaming()) {
-            var publisher = chatCompletionRequest.executeStreamChatCompletionRequest(awsBedrockClient);
-            inferenceResultsListener.onResponse(new StreamingUnifiedChatCompletionResults(publisher));
+        if (completionRequest.isStreaming()) {
+            var publisher = completionRequest.executeStreamCompletionRequest(awsBedrockClient);
+            inferenceResultsListener.onResponse(new StreamingChatCompletionResults(publisher));
         } else {
             var completionResponseListener = new AmazonBedrockCompletionResponseListener(
-                chatCompletionRequest,
+                completionRequest,
                 responseHandler,
                 inferenceResultsListener
             );
-            chatCompletionRequest.executeChatCompletionRequest(awsBedrockClient, completionResponseListener);
+            completionRequest.executeCompletionRequest(awsBedrockClient, completionResponseListener);
         }
     }
 }

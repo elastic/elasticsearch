@@ -401,6 +401,7 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.apifiltering,
             org.elasticsearch.serverless.stateless,
             org.elasticsearch.internal.security,
+            org.elasticsearch.xpack.core,
             org.elasticsearch.xpack.gpu,
             org.elasticsearch.xpack.diskbbq;
 

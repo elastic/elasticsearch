@@ -7,19 +7,25 @@
 
 package org.elasticsearch.license;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
 import org.junit.Before;
 
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
+@LuceneTestCase.SuppressCodecs("*")
 public class DiskBBQLicensingIT extends ESIntegTestCase {
 
     @Before
@@ -39,7 +45,8 @@ public class DiskBBQLicensingIT extends ESIntegTestCase {
 
     public void testCreateDiskBBQIndexRestricted() {
         disableLicensing(randomInvalidLicenseType());
-        Exception e = expectThrows(Exception.class, () -> client().admin().indices().prepareCreate("diskbbq-index").setMapping("""
+        // doesn't throw
+        client().admin().indices().prepareCreate("diskbbq-index").setMapping("""
               {
               "properties": {
                 "vector": {
@@ -49,8 +56,66 @@ public class DiskBBQLicensingIT extends ESIntegTestCase {
                   }
                 }
               }
-            }""").get());
-        assertTrue(e.getMessage().contains("current license is non-compliant for [bbq_disk] usage"));
+            }""").get();
+        // throws on write
+        var e = expectThrows(ElasticsearchException.class, () -> client().prepareIndex("diskbbq-index").setSource("""
+              {
+                "vector": [0.1, 0.2, 0.3, 0.4]
+              }
+            """, XContentType.JSON).get());
+        assertTrue(e.getMessage().contains("current license is non-compliant"));
+    }
+
+    public void testCreateDiskBBQIndexUnrestricted() {
+        enableLicensing(randomValidLicenseType());
+        // doesn't throw
+        client().admin().indices().prepareCreate("diskbbq-index").setMapping("""
+              {
+              "properties": {
+                "vector": {
+                  "type": "dense_vector",
+                  "index_options": {
+                    "type": "bbq_disk"
+                  }
+                }
+              }
+            }""").get();
+        // doesn't throw on write
+        client().prepareIndex("diskbbq-index").setSource("""
+              {
+                "vector": [0.1, 0.2, 0.3, 0.4]
+              }
+            """, XContentType.JSON).get();
+    }
+
+    public void testReadDiskBBQIndexWithLicenseChange() {
+        enableLicensing(randomValidLicenseType());
+        // create index and write doc
+        client().admin().indices().prepareCreate("diskbbq-index").setMapping("""
+              {
+              "properties": {
+                "vector": {
+                  "type": "dense_vector",
+                  "index_options": {
+                    "type": "bbq_disk"
+                  }
+                }
+              }
+            }""").get();
+        client().prepareIndex("diskbbq-index").setSource("""
+              {
+                "vector": [0.1, 0.2, 0.3, 0.4]
+              }
+            """, XContentType.JSON).get();
+
+        // valid license, should not throw
+        client().prepareSearch("diskbbq-index")
+            .setKnnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f, 0.4f }, 10, 10, null, null, null)))
+            .get();
+        // disable license and read, it should not throw on read
+        client().prepareSearch("diskbbq-index")
+            .setKnnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f, 0.4f }, 10, 10, null, null, null)))
+            .get();
     }
 
     private static License.OperationMode randomInvalidLicenseType() {
@@ -100,10 +165,15 @@ public class DiskBBQLicensingIT extends ESIntegTestCase {
             };
             plugins.add(plugin);
         }
+
+        @Override
+        public VectorsFormatProvider getVectorsFormatProvider() {
+            return plugin.getVectorsFormatProvider();
+        }
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateDiskBBQ.class);
+        return List.of(LocalStateDiskBBQ.class);
     }
 }

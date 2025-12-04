@@ -114,6 +114,8 @@ public class EsqlSession {
      */
     public interface PlanRunner {
         void run(PhysicalPlan plan, Configuration configuration, FoldContext foldContext, ActionListener<Result> listener);
+
+        default void reset() {}
     }
 
     private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");

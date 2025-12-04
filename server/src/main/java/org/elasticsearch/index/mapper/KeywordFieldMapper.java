@@ -1178,7 +1178,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
                 final String fieldName = fieldType().syntheticSourceFallbackFieldName();
 
-                if (indexCreatedVersion.onOrAfter(IndexVersions.STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES)) {
+                if (storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck()) {
                     // store the value in a binary doc values field, create one if it doesn't exist
                     MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
                     if (field == null) {
@@ -1187,7 +1187,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                     field.add(bytesRef);
                 } else {
-                    // for bwc - otherwise, store the value in a stored field
+                    // otherwise for bwc, store the value in a stored fields like we used to
                     context.doc().add(new StoredField(fieldName, bytesRef));
                 }
             }
@@ -1234,6 +1234,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         return true;
+    }
+
+    private boolean storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck() {
+        return indexCreatedVersion.onOrAfter(IndexVersions.STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES);
     }
 
     private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) {
@@ -1353,10 +1357,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (fieldType().ignoreAbove.valuesPotentiallyIgnored()) {
             final String fieldName = fieldType().syntheticSourceFallbackFieldName();
 
-            if (indexCreatedVersion.onOrAfter(IndexVersions.STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES)) {
+            if (storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck()) {
                 layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldName));
             } else {
-                // for bwc we still need to check the old stored field layer
+                // old indices, stored ignored values in stored fields
                 layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
                     @Override
                     protected void writeValue(Object value, XContentBuilder b) throws IOException {

@@ -956,7 +956,7 @@ public class AuthenticationTests extends ESTestCase {
     public void testMaybeRewriteForOlderVersionDoesNotEraseDomainForVersionsAfterDomains() {
         final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            VERSION_REALM_DOMAINS,
+            TransportVersion.minimumCompatible(),
             // Don't include CURRENT, so we always have at least one newer version available below
             TransportVersionUtils.getPreviousVersion()
         );
@@ -1000,27 +1000,6 @@ public class AuthenticationTests extends ESTestCase {
                 AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY,
                 crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList()
             )
-        );
-    }
-
-    public void testMaybeRewriteRealmRef() {
-        final RealmRef realmRefWithDomain = AuthenticationTests.randomRealmRef(true);
-        assertThat(realmRefWithDomain.getDomain(), notNullValue());
-
-        assertThat(
-            Authentication.maybeRewriteRealmRef(
-                TransportVersionUtils.randomVersionBetween(random(), null, TransportVersionUtils.getPreviousVersion(VERSION_REALM_DOMAINS)),
-                realmRefWithDomain
-            ).getDomain(),
-            nullValue()
-        );
-
-        assertThat(
-            Authentication.maybeRewriteRealmRef(
-                TransportVersionUtils.randomVersionBetween(random(), VERSION_REALM_DOMAINS, null),
-                realmRefWithDomain
-            ),
-            equalTo(realmRefWithDomain)
         );
     }
 

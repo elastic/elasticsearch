@@ -132,6 +132,13 @@ public class RoleDescriptorRequestValidatorTests extends ESTestCase {
         }
     }
 
+    public void testEmptyIndexExpressionAllowed() {
+        validateAndAssertNoException(roleWithIndexPrivileges(""), "empty string");
+        validateAndAssertNoException(roleWithRemoteIndexPrivileges(""), "empty string");
+        validateAndAssertNoException(roleWithIndexPrivileges(""), "empty string");
+        validateAndAssertNoException(roleWithRemoteIndexPrivileges(""), "empty string");
+    }
+
     public void testEscapeCharacterHandling() {
         // Escaped backslash becomes literal backslash - which is invalid in index names
         // So \\-data stripped becomes \-data which contains invalid backslash

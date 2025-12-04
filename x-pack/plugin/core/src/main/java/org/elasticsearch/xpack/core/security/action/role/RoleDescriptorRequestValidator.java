@@ -134,6 +134,9 @@ public class RoleDescriptorRequestValidator {
         String indexNameExpression,
         ActionRequestValidationException validationException
     ) {
+        if (indexNameExpression == null || indexNameExpression.isEmpty()) {
+            return validationException;
+        }
         if (IndexNameExpressionResolver.hasSelectorSuffix(indexNameExpression)) {
             return addValidationError(
                 "selectors ["

@@ -292,10 +292,11 @@ by the last `test*` pattern.
 {applies_to}`stack: ga 9.3` A dash-prefixed (`-`) expression is always treated as an exclusion.
 
 ::::{note}
-In previous versions, such expression is sometimes _not_ treated as an exclusion due to a bug.
-For example, neither `test,-test` nor `test3,-test*` is treated as exclusion.
-Instead, `IndexNotFoundException` is thrown for the first expression while the second resolves to `test3`.
-This bug has since been fixed in 9.3.
+In previous versions, dash-prefixed expressions were sometimes not treated as exclusions due to a bug. For example:
+- `test,-test` threw an `IndexNotFoundException` instead of excluding `test`
+- `test3,-test*` incorrectly resolved to `test3` instead of excluding matches to the wildcard pattern
+
+This bug is fixed in 9.3.
 ::::
 
 ::::{important}

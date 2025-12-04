@@ -1,7 +1,6 @@
 pr: 138467
 summary: >
-  Fixed a bug where dash-prefixed expressions, for both specific index names and wildcard patterns
-  (for example: -index, -logs-*), were not consistently excluded during index resolution.
+  Fixed a bug where dash-prefixed expressions were not consistently excluded during index resolution. This impacted both specific index names and wildcard patterns (example: `-index, -logs-*`).
 area: Security
 type: bug
 issues:

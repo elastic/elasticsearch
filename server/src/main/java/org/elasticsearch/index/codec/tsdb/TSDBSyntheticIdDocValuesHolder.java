@@ -146,7 +146,7 @@ class TSDBSyntheticIdDocValuesHolder {
      * @return the _tsid value
      * @throws IOException if any I/O exception occurs
      */
-     BytesRef lookupTsIdOrd(int tsIdOrdinal) throws IOException {
+    BytesRef lookupTsIdOrd(int tsIdOrdinal) throws IOException {
         if (cachedTsIdOrd != -1 && cachedTsIdOrd == tsIdOrdinal) {
             return cachedTsId;
         }
@@ -173,7 +173,7 @@ class TSDBSyntheticIdDocValuesHolder {
      * @return a docID to start scanning documents from in order to find the first document ID matching the provided _tsid
      * @throws IOException if any I/O exception occurs
      */
-     private int findStartDocIDForTsIdOrd(int tsIdOrd) throws IOException {
+    private int findStartDocIDForTsIdOrd(int tsIdOrd) throws IOException {
         var skipper = docValuesProducer.getSkipper(tsIdFieldInfo);
         assert skipper != null;
         if (skipper.minValue() > tsIdOrd || tsIdOrd > skipper.maxValue()) {

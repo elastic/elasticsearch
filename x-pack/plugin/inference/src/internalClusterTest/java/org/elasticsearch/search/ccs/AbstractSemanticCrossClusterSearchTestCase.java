@@ -192,22 +192,22 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
             }
 
             SearchResponse.Clusters clusters = response.getClusters();
-            assertThat(clusters.getCluster(LOCAL_CLUSTER).getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
-            assertThat(clusters.getCluster(LOCAL_CLUSTER).getFailures().isEmpty(), is(true));
+            Set<String> clusterAliases = clusters.getClusterAliases();
+            for (String clusterAlias : clusterAliases) {
+                SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
+                if (REMOTE_CLUSTER.equals(clusterAlias) && expectedRemoteFailure != null) {
+                    assertThat(cluster.getStatus(), equalTo(expectedRemoteFailure.status()));
 
-            SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
-            if (expectedRemoteFailure != null) {
-                assertThat(remoteCluster.getStatus(), equalTo(expectedRemoteFailure.status()));
-
-                Set<FailureCause> expectedFailures = expectedRemoteFailure.failures();
-                Set<FailureCause> actualFailures = remoteCluster.getFailures()
-                    .stream()
-                    .map(f -> new FailureCause(f.getCause().getClass(), f.getCause().getMessage()))
-                    .collect(Collectors.toSet());
-                assertThat(actualFailures, equalTo(expectedFailures));
-            } else {
-                assertThat(remoteCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
-                assertThat(remoteCluster.getFailures().isEmpty(), is(true));
+                    Set<FailureCause> expectedFailures = expectedRemoteFailure.failures();
+                    Set<FailureCause> actualFailures = cluster.getFailures()
+                        .stream()
+                        .map(f -> new FailureCause(f.getCause().getClass(), f.getCause().getMessage()))
+                        .collect(Collectors.toSet());
+                    assertThat(actualFailures, equalTo(expectedFailures));
+                } else {
+                    assertThat(cluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+                    assertThat(cluster.getFailures().isEmpty(), is(true));
+                }
             }
         });
     }

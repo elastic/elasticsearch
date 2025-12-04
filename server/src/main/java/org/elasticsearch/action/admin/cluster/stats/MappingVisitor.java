@@ -93,9 +93,9 @@ public final class MappingVisitor {
 
     /**
      * This visitor traverses the source mapping and copies the structure to the destination mapping after applying
-     * the fieldMappingConsumer to the individual field mappings.
+     * the fieldMappingConsumer to the individual properties.
      */
-    public static void visitAndCopyMapping(
+    public static void visitPropertiesAndCopyMapping(
         final Map<String, ?> sourceMapping,
         final Map<String, Object> destMapping,
         final TriConsumer<String, Map<String, ?>, Map<String, Object>> fieldMappingConsumer
@@ -113,23 +113,7 @@ public final class MappingVisitor {
                 return;
             }
             var destFieldMapping = processAndCopy(entry.getKey(), sourceFieldMapping, destProperties, fieldMappingConsumer);
-            visitAndCopyMapping(sourceFieldMapping, destFieldMapping, fieldMappingConsumer);
-
-            // Multi fields
-            Map<String, ?> sourceMultiFields = getMapOrNull(sourceFieldMapping.get(MULTI_FIELDS));
-            if (sourceMultiFields == null) {
-                continue;
-            }
-            Map<String, Object> destFields = new HashMap<>(sourceMultiFields.size());
-            destFieldMapping.put(MULTI_FIELDS, destFields);
-            for (Map.Entry<String, ?> multiFieldEntry : sourceMultiFields.entrySet()) {
-                String multiFieldName = multiFieldEntry.getKey();
-                Map<String, ?> sourceMultiFieldMapping = getMapOrNull(multiFieldEntry.getValue());
-                if (sourceMultiFieldMapping == null) {
-                    continue;
-                }
-                processAndCopy(multiFieldName, sourceMultiFieldMapping, destFields, fieldMappingConsumer);
-            }
+            visitPropertiesAndCopyMapping(sourceFieldMapping, destFieldMapping, fieldMappingConsumer);
         }
     }
 

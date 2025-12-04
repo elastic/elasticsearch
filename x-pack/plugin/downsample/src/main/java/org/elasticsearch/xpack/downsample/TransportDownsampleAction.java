@@ -95,9 +95,8 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.admin.cluster.stats.MappingVisitor.FIELD_TYPE;
-import static org.elasticsearch.action.admin.cluster.stats.MappingVisitor.MULTI_FIELDS;
 import static org.elasticsearch.action.admin.cluster.stats.MappingVisitor.PROPERTIES;
-import static org.elasticsearch.action.admin.cluster.stats.MappingVisitor.visitAndCopyMapping;
+import static org.elasticsearch.action.admin.cluster.stats.MappingVisitor.visitPropertiesAndCopyMapping;
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
 
@@ -717,7 +716,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 downsampledMapping.put(entry.getKey(), entry.getValue());
             }
         }
-        visitAndCopyMapping(sourceIndexMappings, downsampledMapping, (fieldName, sourceMapping, updatedMapping) -> {
+        visitPropertiesAndCopyMapping(sourceIndexMappings, downsampledMapping, (fieldName, sourceMapping, updatedMapping) -> {
             if (timestampField.equals(fieldName)) {
                 updateTimestampField(sourceMapping, updatedMapping, dateIntervalType, dateInterval, timezone);
             } else if (TimeSeriesFields.isTimeSeriesMetric(sourceMapping)) {
@@ -757,7 +756,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
     private static void copyMapping(Map<String, ?> sourceMapping, Map<String, Object> updatedMapping) {
         for (String f : sourceMapping.keySet()) {
-            if (f.equals(PROPERTIES) == false && f.equals(MULTI_FIELDS) == false) {
+            if (f.equals(PROPERTIES) == false) {
                 updatedMapping.put(f, sourceMapping.get(f));
             }
         }
@@ -812,30 +811,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }
 
         return new AggregateMetricDoubleFieldSupportedMetrics(defaultMetric, supportedAggs);
-    }
-
-    private static void addMetricFieldMapping(final XContentBuilder builder, final String field, final Map<String, ?> fieldProperties)
-        throws IOException {
-        final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.fromString(
-            fieldProperties.get(TIME_SERIES_METRIC_PARAM).toString()
-        );
-        builder.startObject(field);
-        if (metricType == TimeSeriesParams.MetricType.GAUGE) {
-            var supported = getSupportedMetrics(metricType, fieldProperties);
-
-            builder.field("type", AggregateMetricDoubleFieldMapper.CONTENT_TYPE)
-                .stringListField(AggregateMetricDoubleFieldMapper.Names.METRICS, supported.supportedMetrics)
-                .field(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC, supported.defaultMetric)
-                .field(TIME_SERIES_METRIC_PARAM, metricType);
-        } else {
-            // For counters and histograms, we keep the same field type.
-            // Counters because they store the last value (for now)
-            // Histograms because they are merged to a histogram
-            for (String fieldProperty : fieldProperties.keySet()) {
-                builder.field(fieldProperty, fieldProperties.get(fieldProperty));
-            }
-        }
-        builder.endObject();
     }
 
     private static void validateDownsamplingConfiguration(

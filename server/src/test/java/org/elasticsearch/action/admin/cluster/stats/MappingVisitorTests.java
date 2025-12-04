@@ -183,7 +183,7 @@ public class MappingVisitorTests extends ESTestCase {
         );
 
         HashMap<String, Object> result = new HashMap<>();
-        MappingVisitor.visitAndCopyMapping(expectedProperties, result, (ignored, source, dest) -> {
+        MappingVisitor.visitPropertiesAndCopyMapping(expectedProperties, result, (ignored, source, dest) -> {
             for (String key : source.keySet()) {
                 if (key.equals("type") && source.get(key).equals("long")) {
                     dest.put(key, "keyword");

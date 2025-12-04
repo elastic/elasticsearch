@@ -2296,7 +2296,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             Map<String, Expression> typeConverter = new HashMap<>();
             for (DataType type : mtf.types()) {
-                final ConvertFunction convert = new ToAggregateMetricDouble(fa.source(), fa);
+                final ConvertFunction convert;
+                // Counting on aggregate metric double has unique behavior in that we cannot just provide the number of
+                // documents, instead we have to look inside the aggregate metric double's count field and sum those together.
+                // Grabbing the count value with FromAggregateMetricDouble the same way we do with min/max/sum would result in
+                // a single Int field, and incorrectly be treated as 1 document (instead of however many originally went into
+                // the aggregate metric double).
+                if (metric == AggregateMetricDoubleBlockBuilder.Metric.COUNT
+                    || metric == AggregateMetricDoubleBlockBuilder.Metric.DEFAULT) {
+                    convert = new ToAggregateMetricDouble(fa.source(), fa);
+                } else if (type == AGGREGATE_METRIC_DOUBLE) {
+                    convert = FromAggregateMetricDouble.withMetric(aggFunc.source(), fa, metric);
+                } else if (type.isNumeric()) {
+                    convert = new ToDouble(fa.source(), fa);
+                } else {
+                    return null;
+                }
                 Expression expression = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), type, mtf);
                 typeConverter.put(type.typeName(), expression);
             }

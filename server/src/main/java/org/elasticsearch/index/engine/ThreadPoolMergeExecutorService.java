@@ -866,7 +866,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 MIN_IO_RATE.getBytes(),
                 currentTargetIORateBytesPerSec - currentTargetIORateBytesPerSec / 10L
             );
-            logger.info("Decreasing target IO rate for merges to {}", newTargetIORateBytesPerSec);
+            logger.debug("Decreasing target IO rate for merges to {}", newTargetIORateBytesPerSec);
         } else if (currentlySubmittedIOThrottledMergeTasks > concurrentMergesCeilLimitForThrottling
             && currentTargetIORateBytesPerSec < MAX_IO_RATE.getBytes()) {
                 // increase target IO rate by 20% (capped)
@@ -874,7 +874,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                     MAX_IO_RATE.getBytes(),
                     currentTargetIORateBytesPerSec + currentTargetIORateBytesPerSec / 5L
                 );
-                logger.info("Increasing target IO rate for merges to {}", newTargetIORateBytesPerSec);
+                logger.debug("Increasing target IO rate for merges to {}", newTargetIORateBytesPerSec);
             } else {
                 newTargetIORateBytesPerSec = currentTargetIORateBytesPerSec;
             }

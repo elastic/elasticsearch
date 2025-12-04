@@ -58,10 +58,23 @@ public class WriteLoadConstraintSettings {
         }
     }
 
+    public enum WriteLoadDeciderShardWriteLoadType {
+        PEAK,
+        RECENT
+    }
+
     public static final Setting<WriteLoadDeciderStatus> WRITE_LOAD_DECIDER_ENABLED_SETTING = Setting.enumSetting(
         WriteLoadDeciderStatus.class,
         SETTING_PREFIX + "enabled",
         WRITE_LOAD_DECIDER_FEATURE_FLAG.isEnabled() ? WriteLoadDeciderStatus.ENABLED : WriteLoadDeciderStatus.DISABLED,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<WriteLoadDeciderShardWriteLoadType> WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING = Setting.enumSetting(
+        WriteLoadDeciderShardWriteLoadType.class,
+        SETTING_PREFIX + "shard_write_load_type",
+        WriteLoadDeciderShardWriteLoadType.PEAK,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

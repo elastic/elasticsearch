@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
@@ -36,9 +37,9 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
     }
 
     @Override
-    public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
+    public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId, SearchContext searchContext) {
         try {
-            return doBuildRankFeatureShardResult(hits, shardId);
+            return doBuildRankFeatureShardResult(hits, shardId, searchContext);
         } catch (Exception ex) {
             logger.warn(
                 "Error while fetching feature data for {field: ["
@@ -52,7 +53,7 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
         }
     }
 
-    protected RankShardResult doBuildRankFeatureShardResult(SearchHits hits, int shardId) {
+    protected RankShardResult doBuildRankFeatureShardResult(SearchHits hits, int shardId, SearchContext searchContext) {
         RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
         for (int i = 0; i < hits.getHits().length; i++) {
             rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);

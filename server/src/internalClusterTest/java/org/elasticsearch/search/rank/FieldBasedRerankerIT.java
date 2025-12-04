@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
@@ -188,7 +189,7 @@ public class FieldBasedRerankerIT extends AbstractRerankerIT {
         public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
             return new RankFeaturePhaseRankShardContext(field) {
                 @Override
-                public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
+                public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId, SearchContext searchContext) {
                     try {
                         RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
                         for (int i = 0; i < hits.getHits().length; i++) {
@@ -334,7 +335,7 @@ public class FieldBasedRerankerIT extends AbstractRerankerIT {
             if (this.throwingRankBuilderType == ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT)
                 return new RankFeaturePhaseRankShardContext(field) {
                     @Override
-                    public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
+                    public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId, SearchContext searchContext) {
                         throw new UnsupportedOperationException("rfs - simulated failure");
                     }
                 };

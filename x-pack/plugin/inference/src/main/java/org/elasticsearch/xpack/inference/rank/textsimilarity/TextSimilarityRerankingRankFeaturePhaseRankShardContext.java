@@ -8,38 +8,44 @@
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
+import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
 import org.elasticsearch.xpack.core.inference.chunking.Chunker;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkerBuilder;
+import org.elasticsearch.xpack.inference.common.chunks.SemanticChunkScorer;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.ChunkScorerConfig.DEFAULT_SIZE;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.ChunkScorerConfig.defaultChunkingSettings;
 
 public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends RerankingRankFeaturePhaseRankShardContext {
 
     private final ChunkScorerConfig chunkScorerConfig;
     private final ChunkingSettings chunkingSettings;
-    private final Chunker chunker;
 
     public TextSimilarityRerankingRankFeaturePhaseRankShardContext(String field, @Nullable ChunkScorerConfig chunkScorerConfig) {
         super(field);
         this.chunkScorerConfig = chunkScorerConfig;
         chunkingSettings = chunkScorerConfig != null ? chunkScorerConfig.chunkingSettings() : null;
-        chunker = chunkingSettings != null ? ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy()) : null;
     }
 
     @Override
-    public RankShardResult doBuildRankFeatureShardResult(SearchHits hits, int shardId) {
+    public RankShardResult doBuildRankFeatureShardResult(SearchHits hits, int shardId, SearchContext searchContext) {
         RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
         for (int i = 0; i < hits.getHits().length; i++) {
             rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
@@ -48,23 +54,34 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
             if (docField != null) {
                 if (chunkScorerConfig != null) {
                     int size = chunkScorerConfig.size() != null ? chunkScorerConfig.size() : DEFAULT_SIZE;
-                    List<Chunker.ChunkOffset> chunkOffsets = chunker.chunk(docField.getValue().toString(), chunkingSettings);
-                    List<String> chunks = chunkOffsets.stream()
-                        .map(offset -> { return docField.getValue().toString().substring(offset.start(), offset.end()); })
-                        .toList();
 
-                    List<String> bestChunks;
-                    try {
-                        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
-                        List<MemoryIndexChunkScorer.ScoredChunk> scoredChunks = scorer.scoreChunks(
-                            chunks,
-                            chunkScorerConfig.inferenceText(),
-                            size
-                        );
-                        bestChunks = scoredChunks.stream().map(MemoryIndexChunkScorer.ScoredChunk::content).limit(size).toList();
-                    } catch (IOException e) {
-                        throw new IllegalStateException("Could not generate chunks for input to reranker", e);
+                    SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
+                    Mapper mapper = searchExecutionContext.getMappingLookup().getMapper(field);
+                    boolean isSemanticTextField = mapper instanceof SemanticTextFieldMapper;
+
+                    List<ScoredChunk> scoredChunks;
+
+                    if (isSemanticTextField) {
+                        SemanticTextFieldMapper semanticTextFieldMapper = (SemanticTextFieldMapper) mapper;
+                        SemanticTextFieldMapper.SemanticTextFieldType fieldType = semanticTextFieldMapper.fieldType();
+
+                        // We can't guarantee that all semantic_text embeddings will be compatible with indexed chunking settings,
+                        // so we take a hard line, warning and scoring using BM25 if reranking on a semantic_text field with specified
+                        // chunking_settings.
+                        if (chunkScorerConfig.chunkingSettings() != null) {
+                            HeaderWarning.addWarning(
+                                "chunking_settings specified for semantic_text field will use BM25 for "
+                                    + "scoring instead of indexed embeddings"
+                            );
+                            scoredChunks = chunkAndScoreBm25(docField.getValue().toString(), size);
+                        } else {
+                            scoredChunks = scoreSemanticTextChunks(searchContext, fieldType, hit, size);
+                        }
+                    } else {
+                        scoredChunks = chunkAndScoreBm25(docField.getValue().toString(), size);
                     }
+
+                    List<String> bestChunks = scoredChunks.stream().map(ScoredChunk::content).toList();
                     rankFeatureDocs[i].featureData(bestChunks);
 
                 } else {
@@ -75,4 +92,35 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
         return new RankFeatureShardResult(rankFeatureDocs);
     }
 
+    private List<ScoredChunk> chunkAndScoreBm25(String value, int size) {
+        ChunkingSettings chunkingSettingsOrDefault = chunkingSettings != null ? chunkingSettings : defaultChunkingSettings();
+        Chunker chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettingsOrDefault.getChunkingStrategy());
+        List<Chunker.ChunkOffset> chunkOffsets = chunker.chunk(value, chunkingSettingsOrDefault);
+        List<String> chunks = chunkOffsets.stream().map(offset -> { return value.substring(offset.start(), offset.end()); }).toList();
+
+        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
+        try {
+            return scorer.scoreChunks(chunks, chunkScorerConfig.inferenceText(), size);
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not generate chunks for input to reranker", e);
+        }
+    }
+
+    private List<ScoredChunk> scoreSemanticTextChunks(
+        SearchContext searchContext,
+        SemanticTextFieldMapper.SemanticTextFieldType fieldType,
+        SearchHit hit,
+        int size
+    ) {
+        SemanticChunkScorer scorer = new SemanticChunkScorer(searchContext);
+        try {
+            List<ScoredChunk> scoredChunks = scorer.scoreChunks(fieldType, hit, chunkScorerConfig.inferenceText(), size);
+            if (scoredChunks.isEmpty()) {
+                scoredChunks = chunkAndScoreBm25(hit.field(field).getValue().toString(), size);
+            }
+            return scoredChunks;
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not score semantic text chunks", e);
+        }
+    }
 }

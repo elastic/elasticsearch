@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 
@@ -94,6 +95,7 @@ public class MonitoringBulkRequest extends LegacyActionRequest {
             null,
             true,
             xContentType,
+            RestBulkAction.BulkFormat.MARKER_SUFFIX,
             (indexRequest, type) -> {
                 // we no longer accept non-timestamped indexes from Kibana, LS, or Beats because we do not use the data
                 // and it was duplicated anyway; by simply dropping it, we allow BWC for older clients that still send it

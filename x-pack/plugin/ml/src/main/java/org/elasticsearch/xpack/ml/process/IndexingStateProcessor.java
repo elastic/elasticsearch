@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -142,7 +143,7 @@ public class IndexingStateProcessor implements StateProcessor {
     void persist(String indexOrAlias, BytesReference bytes) throws IOException {
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .requireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias));
-        bulkRequest.add(bytes, indexOrAlias, XContentType.JSON);
+        bulkRequest.add(bytes, indexOrAlias, XContentType.JSON, RestBulkAction.BulkFormat.MARKER_SUFFIX);
         if (bulkRequest.numberOfActions() > 0) {
             LOGGER.trace("[{}] Persisting job state document: index [{}], length [{}]", jobId, indexOrAlias, bytes.length());
             try {

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.xpack.core.monitoring.MonitoredSystem.KIBANA;
 import static org.hamcrest.Matchers.equalTo;
@@ -62,7 +63,7 @@ public class BytesReferenceMonitoringDocTests extends BaseMonitoringDocTestCase<
         assertThat(document.getId(), equalTo(id));
 
         assertThat(document.getXContentType(), equalTo(xContentType));
-        assertThat(document.getSource(), equalTo(source));
+        assertThat(document.getSource(), equalBytes(source));
     }
 
     public void testConstructorMonitoredSystemMustNotBeNull() {

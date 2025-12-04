@@ -505,6 +505,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterStringOrParameter(EsqlBaseParser.StringOrParameterContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitStringOrParameter(EsqlBaseParser.StringOrParameterContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterLimitCommand(EsqlBaseParser.LimitCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1496,6 +1508,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterValueName(EsqlBaseParser.ValueNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitValueName(EsqlBaseParser.ValueNameContext ctx) { }
   /**
    * {@inheritDoc}
    *

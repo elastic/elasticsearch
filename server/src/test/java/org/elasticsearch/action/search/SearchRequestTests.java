@@ -15,8 +15,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -64,6 +62,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             new TaskId("node", 1),
             request,
             request.indices(),
+            request.indicesOptions(),
             randomAlphaOfLengthBetween(5, 10),
             randomNonNegativeLong(),
             randomBoolean()
@@ -74,23 +73,42 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         final TaskId taskId = new TaskId("n", 1);
         expectThrows(
             NullPointerException.class,
-            () -> SearchRequest.subSearchRequest(taskId, null, Strings.EMPTY_ARRAY, "", 0, randomBoolean())
+            () -> SearchRequest.subSearchRequest(
+                taskId,
+                null,
+                Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
+                "",
+                0,
+                randomBoolean()
+            )
         );
         SearchRequest request = new SearchRequest();
-        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(taskId, request, null, "", 0, randomBoolean()));
         expectThrows(
             NullPointerException.class,
-            () -> SearchRequest.subSearchRequest(taskId, request, new String[] { null }, "", 0, randomBoolean())
+            () -> SearchRequest.subSearchRequest(taskId, request, null, request.indicesOptions(), "", 0, randomBoolean())
         );
         expectThrows(
             NullPointerException.class,
-            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, null, 0, randomBoolean())
+            () -> SearchRequest.subSearchRequest(taskId, request, new String[] { null }, request.indicesOptions(), "", 0, randomBoolean())
+        );
+        expectThrows(
+            NullPointerException.class,
+            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, request.indicesOptions(), null, 0, randomBoolean())
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, "", -1, randomBoolean())
+            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, request.indicesOptions(), "", -1, randomBoolean())
         );
-        SearchRequest searchRequest = SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, "", 0, randomBoolean());
+        SearchRequest searchRequest = SearchRequest.subSearchRequest(
+            taskId,
+            request,
+            Strings.EMPTY_ARRAY,
+            request.indicesOptions(),
+            "",
+            0,
+            randomBoolean()
+        );
         assertNull(searchRequest.validate());
     }
 
@@ -102,72 +120,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertNotSame(deserializedRequest, searchRequest);
     }
 
-    public void testSerializationMultiKNN() throws Exception {
-        SearchRequest searchRequest = createSearchRequest();
-        if (searchRequest.source() == null) {
-            searchRequest.source(new SearchSourceBuilder());
-        } else {
-            // tests version prior to 8.8 so remove possible rank builder
-            searchRequest.source().rankBuilder(null);
-            // tests version prior to 8_500_999 so remove possible multiple queries
-            searchRequest.source().subSearches(new ArrayList<>());
-        }
-        searchRequest.source()
-            .knnSearch(
-                List.of(
-                    new KnnSearchBuilder(
-                        randomAlphaOfLength(10),
-                        new float[] { 1, 2 },
-                        5,
-                        10,
-                        10f,
-                        randomRescoreVectorBuilder(),
-                        randomBoolean() ? null : randomFloat()
-                    ),
-                    new KnnSearchBuilder(
-                        randomAlphaOfLength(10),
-                        new float[] { 4, 12, 41 },
-                        3,
-                        5,
-                        10f,
-                        randomRescoreVectorBuilder(),
-                        randomBoolean() ? null : randomFloat()
-                    )
-                )
-            );
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> copyWriteable(
-                searchRequest,
-                namedWriteableRegistry,
-                SearchRequest::new,
-                TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_4_0, TransportVersions.V_8_6_0)
-            )
-        );
-
-        searchRequest.source()
-            .knnSearch(
-                List.of(
-                    new KnnSearchBuilder(
-                        randomAlphaOfLength(10),
-                        new float[] { 1, 2 },
-                        5,
-                        10,
-                        10f,
-                        randomRescoreVectorBuilder(),
-                        randomBoolean() ? null : randomFloat()
-                    )
-                )
-            );
-        // Shouldn't throw because its just one KNN request
-        copyWriteable(
-            searchRequest,
-            namedWriteableRegistry,
-            SearchRequest::new,
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_4_0, TransportVersions.V_8_6_0)
-        );
-    }
-
     private static RescoreVectorBuilder randomRescoreVectorBuilder() {
         return randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false));
     }
@@ -175,10 +127,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         TransportVersion version = TransportVersionUtils.randomVersion(random());
-        if (version.before(TransportVersions.V_8_4_0)) {
-            // Versions before 8.4.0 don't support force_synthetic_source
-            searchRequest.setForceSyntheticSource(false);
-        }
         if (version.before(TransportVersions.V_8_7_0) && searchRequest.hasKnnSearch() && searchRequest.source().knnSearch().size() > 1) {
             // Versions before 8.7.0 don't support more than one KNN clause
             searchRequest.source().knnSearch(List.of(searchRequest.source().knnSearch().get(0)));
@@ -678,14 +626,5 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     private String toDescription(SearchRequest request) {
         return request.createTask(0, "test", TransportSearchAction.TYPE.name(), TaskId.EMPTY_TASK_ID, emptyMap()).getDescription();
-    }
-
-    public void testForceSyntheticUnsupported() {
-        SearchRequest request = new SearchRequest();
-        request.setForceSyntheticSource(true);
-        StreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(TransportVersions.V_8_3_0);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
-        assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }
 }

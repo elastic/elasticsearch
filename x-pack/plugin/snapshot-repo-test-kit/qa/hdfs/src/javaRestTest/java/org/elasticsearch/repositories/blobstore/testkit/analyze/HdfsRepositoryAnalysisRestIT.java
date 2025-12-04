@@ -24,6 +24,7 @@ public class HdfsRepositoryAnalysisRestIT extends AbstractHdfsRepositoryAnalysis
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .plugin("repository-hdfs")
+        .setting("thread_pool.snapshot.max", "10")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
         .build();

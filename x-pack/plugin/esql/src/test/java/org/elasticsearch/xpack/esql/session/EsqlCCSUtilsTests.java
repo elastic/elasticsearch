@@ -223,7 +223,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 )
             );
 
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteQualifiedIndices(), Map.of());
 
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
@@ -266,7 +266,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                     IndexMode.STANDARD
                 )
             );
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteQualifiedIndices(), Map.of());
 
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
@@ -308,7 +308,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             // remote1 is unavailable
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), failures);
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteQualifiedIndices(), failures);
 
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
@@ -350,7 +350,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), failures);
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteQualifiedIndices(), failures);
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
@@ -398,7 +398,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             // remote1 is unavailable
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), failures);
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteQualifiedIndices(), failures);
 
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 

@@ -119,7 +119,6 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.security.authc.TokenService.RAW_TOKEN_BYTES_LENGTH;
 import static org.elasticsearch.xpack.security.authc.TokenService.RAW_TOKEN_BYTES_TOTAL_LENGTH;
 import static org.elasticsearch.xpack.security.authc.TokenService.RAW_TOKEN_DOC_ID_BYTES_LENGTH;
-import static org.elasticsearch.xpack.security.authc.TokenService.VERSION_CLIENT_AUTH_FOR_REFRESH;
 import static org.elasticsearch.xpack.security.authc.TokenService.VERSION_GET_TOKEN_DOC_FOR_REFRESH;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
@@ -247,10 +246,10 @@ public class TokenServiceTests extends ESTestCase {
         TransportVersion transportVersion;
         if (randomBoolean()) {
             version = Version.V_7_0_0;
-            transportVersion = TransportVersions.V_7_0_0;
+            transportVersion = TransportVersion.fromId(7_00_00_99);
         } else {
             version = Version.V_7_1_0;
-            transportVersion = TransportVersions.V_7_1_0;
+            transportVersion = TransportVersion.fromId(7_01_00_99);
         }
         return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
     }
@@ -557,20 +556,7 @@ public class TokenServiceTests extends ESTestCase {
         String iv,
         String salt
     ) {
-        if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
-            return new RefreshTokenStatus(invalidated, authentication, refreshed, refreshInstant, supersedingTokens, iv, salt);
-        } else {
-            return new RefreshTokenStatus(
-                invalidated,
-                authentication.getEffectiveSubject().getUser().principal(),
-                authentication.getAuthenticatingSubject().getRealm().getName(),
-                refreshed,
-                refreshInstant,
-                supersedingTokens,
-                iv,
-                salt
-            );
-        }
+        return new RefreshTokenStatus(invalidated, authentication, refreshed, refreshInstant, supersedingTokens, iv, salt);
     }
 
     private void storeTokenHeader(ThreadContext requestContext, String tokenString) {
@@ -838,8 +824,8 @@ public class TokenServiceTests extends ESTestCase {
         storeTokenHeader(
             requestContext,
             tokenService.prependVersionAndEncodeAccessToken(
-                TransportVersions.V_7_1_0,
-                tokenService.getRandomTokenBytes(TransportVersions.V_7_1_0, randomBoolean()).v1()
+                TransportVersion.fromId(7_01_00_99),
+                tokenService.getRandomTokenBytes(TransportVersion.fromId(7_01_00_99), randomBoolean()).v1()
             )
         );
 
@@ -860,7 +846,7 @@ public class TokenServiceTests extends ESTestCase {
             .build(false);
         mockGetTokenFromAccessTokenBytes(tokenService, tokenService.getRandomTokenBytes(randomBoolean()).v1(), authentication, false, null);
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        TransportVersion uuidTokenVersion = randomFrom(TransportVersions.V_7_2_0, TransportVersions.V_7_3_2);
+        TransportVersion uuidTokenVersion = randomFrom(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS, TransportVersion.fromId(7_03_02_99));
         storeTokenHeader(
             requestContext,
             tokenService.prependVersionAndEncodeAccessToken(

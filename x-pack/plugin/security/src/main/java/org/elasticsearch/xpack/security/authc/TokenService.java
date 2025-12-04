@@ -207,11 +207,11 @@ public class TokenService {
     static final int MINIMUM_BYTES = VERSION_BYTES + TOKEN_LENGTH + 1;
     static final int LEGACY_MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * LEGACY_MINIMUM_BYTES) / 3)).intValue();
     public static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
-    static final TransportVersion VERSION_HASHED_TOKENS = TransportVersions.V_7_2_0;
-    static final TransportVersion VERSION_TOKENS_INDEX_INTRODUCED = TransportVersions.V_7_2_0;
-    static final TransportVersion VERSION_ACCESS_TOKENS_AS_UUIDS = TransportVersions.V_7_2_0;
-    static final TransportVersion VERSION_MULTIPLE_CONCURRENT_REFRESHES = TransportVersions.V_7_2_0;
-    static final TransportVersion VERSION_CLIENT_AUTH_FOR_REFRESH = TransportVersions.V_8_2_0;
+    static final TransportVersion VERSION_HASHED_TOKENS = TransportVersion.fromId(7_02_00_99);
+    static final TransportVersion VERSION_TOKENS_INDEX_INTRODUCED = TransportVersion.fromId(7_02_00_99);
+    static final TransportVersion VERSION_ACCESS_TOKENS_AS_UUIDS = TransportVersion.fromId(7_02_00_99);
+    static final TransportVersion VERSION_MULTIPLE_CONCURRENT_REFRESHES = TransportVersion.fromId(7_02_00_99);
+    static final TransportVersion VERSION_CLIENT_AUTH_FOR_REFRESH = TransportVersion.fromId(8_02_00_99);
     static final TransportVersion VERSION_GET_TOKEN_DOC_FOR_REFRESH = TransportVersions.V_8_10_X;
 
     private static final Logger logger = LogManager.getLogger(TokenService.class);

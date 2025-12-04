@@ -42,6 +42,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.CENTROID_EXTENSION;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO;
 
@@ -87,20 +89,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             } finally {
                 CodecUtil.checkFooter(ivfMeta, priorE);
             }
-            ivfCentroids = openDataInput(
-                state,
-                versionMeta,
-                ES920DiskBBQVectorsFormat.CENTROID_EXTENSION,
-                ES920DiskBBQVectorsFormat.NAME,
-                state.context
-            );
-            ivfClusters = openDataInput(
-                state,
-                versionMeta,
-                ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,
-                ES920DiskBBQVectorsFormat.NAME,
-                state.context
-            );
+            ivfCentroids = openDataInput(state, versionMeta, CENTROID_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
+            ivfClusters = openDataInput(state, versionMeta, CLUSTER_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
             success = true;
         } finally {
             if (success == false) {
@@ -388,12 +378,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             assert fieldInfo.getVectorEncoding() == VectorEncoding.BYTE;
             return raw;
         }
-        return raw;  // for now just return the size of raw
 
-        // TODO: determine desired off off-heap requirements
-        // var centroids = Map.of(EXTENSION, fe.xxxLength());
-        // var clusters = Map.of(EXTENSION, fe.yyyLength());
-        // return KnnVectorsReader.mergeOffHeapByteSizeMaps(raw, centroids, clusters);
+        var centroidsClusters = Map.of(CENTROID_EXTENSION, fe.centroidLength, CLUSTER_EXTENSION, fe.postingListLength);
+        return KnnVectorsReader.mergeOffHeapByteSizeMaps(raw, centroidsClusters);
     }
 
     @Override

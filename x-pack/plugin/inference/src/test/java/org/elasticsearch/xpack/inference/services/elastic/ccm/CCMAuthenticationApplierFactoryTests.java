@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bearerToken;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -61,7 +61,7 @@ public class CCMAuthenticationApplierFactoryTests extends ESTestCase {
         var applier = new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(secret);
         var request = new HttpGet("http://localhost");
         applier.apply(request);
-        assertThat(request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(bearerToken(secret)));
+        assertThat(request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(apiKey(secret)));
     }
 
     public void testGetAuthenticationApplier_ReturnsNoopWhenConfiguringCCMIsDisabled() {

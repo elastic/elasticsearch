@@ -168,7 +168,7 @@ PUT my-index-000003
 ### Using ELSER on EIS
 
 ```{applies_to}
-stack: preview 9.1 ga 9.2
+stack: preview 9.1, ga 9.2
 deployment:
   self: unavailable
 serverless: ga

@@ -51,7 +51,7 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
                       "task_types": ["embed/text/dense"]
                     },
                   {
-                      "model_name": "elastic-rerank-v1",
+                      "model_name": "jina-reranker-v2",
                       "task_types": ["rerank/text/text-similarity"]
                     }
                 ]

@@ -51,7 +51,6 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
@@ -66,9 +65,9 @@ import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramParser;
 import org.elasticsearch.xpack.analytics.mapper.HistogramParser;
 import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
 import org.elasticsearch.xpack.analytics.mapper.ParsedHistogramConverter;
-import org.elasticsearch.xpack.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 import org.elasticsearch.xpack.exponentialhistogram.fielddata.IndexExponentialHistogramFieldData;
-import org.elasticsearch.xpack.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -289,7 +288,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
                         @Override
                         public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
-                            throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not " + "support scripts");
+                            throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not support scripts");
                         }
 
                         @Override
@@ -355,7 +354,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             DoublesBlockLoader minimaLoader = new DoublesBlockLoader(valuesMinSubFieldName(name()), NumericUtils::sortableLongToDouble);
             DoublesBlockLoader maximaLoader = new DoublesBlockLoader(valuesMaxSubFieldName(name()), NumericUtils::sortableLongToDouble);
             DoublesBlockLoader sumsLoader = new DoublesBlockLoader(valuesSumSubFieldName(name()), NumericUtils::sortableLongToDouble);
-            LongsBlockLoader valueCountsLoader = new LongsBlockLoader(valuesCountSubFieldName(name()));
+            // we store the counts as integers for better compression, but the block requires doubles. So we simply cast the value
+            DoublesBlockLoader valueCountsLoader = new DoublesBlockLoader(valuesCountSubFieldName(name()), longVal -> (double) longVal);
             DoublesBlockLoader zeroThresholdsLoader = new DoublesBlockLoader(
                 zeroThresholdSubFieldName(name()),
                 NumericUtils::sortableLongToDouble
@@ -608,10 +608,14 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         long thresholdAsLong = NumericUtils.doubleToSortableLong(zeroThreshold);
         NumericDocValuesField zeroThresholdField = new NumericDocValuesField(zeroThresholdSubFieldName(fieldName), thresholdAsLong);
         NumericDocValuesField valuesCountField = new NumericDocValuesField(valuesCountSubFieldName(fieldName), totalValueCount);
-        NumericDocValuesField sumField = new NumericDocValuesField(
-            valuesSumSubFieldName(fieldName),
-            NumericUtils.doubleToSortableLong(sum)
-        );
+        // for empty histograms, we store null as sum so that SUM() / COUNT() in ESQL yields NULL without warnings
+        NumericDocValuesField sumField = null;
+        if (totalValueCount > 0) {
+            sumField = new NumericDocValuesField(valuesSumSubFieldName(fieldName), NumericUtils.doubleToSortableLong(sum));
+        } else {
+            // empty histogram must have a sum of 0.0
+            assert sum == 0.0;
+        }
         NumericDocValuesField minField = null;
         if (Double.isNaN(min) == false) {
             minField = new NumericDocValuesField(valuesMinSubFieldName(fieldName), NumericUtils.doubleToSortableLong(min));
@@ -636,7 +640,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         BinaryDocValuesField histo,
         NumericDocValuesField zeroThreshold,
         NumericDocValuesField valuesCount,
-        NumericDocValuesField sumField,
+        @Nullable NumericDocValuesField sumField,
         @Nullable NumericDocValuesField minField,
         @Nullable NumericDocValuesField maxField
     ) {
@@ -645,7 +649,9 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             doc.addWithKey(histo.name(), histo);
             doc.add(zeroThreshold);
             doc.add(valuesCount);
-            doc.add(sumField);
+            if (sumField != null) {
+                doc.add(sumField);
+            }
             if (minField != null) {
                 doc.add(minField);
             }
@@ -659,7 +665,9 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             fields.add(histo);
             fields.add(zeroThreshold);
             fields.add(valuesCount);
-            fields.add(sumField);
+            if (sumField != null) {
+                fields.add(sumField);
+            }
             if (minField != null) {
                 fields.add(minField);
             }
@@ -788,13 +796,19 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             }
             boolean histoPresent = histoDocValues.advanceExact(currentDocId);
             boolean zeroThresholdPresent = zeroThresholds.advanceExact(currentDocId);
-            boolean valueSumsPresent = valueSums.advanceExact(currentDocId);
-            assert zeroThresholdPresent && histoPresent && valueSumsPresent;
+            assert zeroThresholdPresent && histoPresent;
 
             BytesRef encodedHistogram = histoDocValues.binaryValue();
             double zeroThreshold = NumericUtils.sortableLongToDouble(zeroThresholds.longValue());
             long valueCount = valueCounts.longValue();
-            double valueSum = NumericUtils.sortableLongToDouble(valueSums.longValue());
+            double valueSum;
+            if (valueCount > 0) {
+                boolean valueSumsPresent = valueSums.advanceExact(currentDocId);
+                assert valueSumsPresent;
+                valueSum = NumericUtils.sortableLongToDouble(valueSums.longValue());
+            } else {
+                valueSum = 0.0; // empty histogram has sum of 0.0, but we store null in the doc values
+            }
             double valueMin;
             if (valueMinima != null && valueMinima.advanceExact(currentDocId)) {
                 valueMin = NumericUtils.sortableLongToDouble(valueMinima.longValue());
@@ -821,8 +835,10 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             if (currentDocId == -1) {
                 throw new IllegalStateException("No histogram present for current document");
             }
-            boolean valueSumsPresent = valueSums.advanceExact(currentDocId);
-            assert valueSumsPresent;
+            if (valueSums == null || valueSums.advanceExact(currentDocId) == false) {
+                // empty histogram, must have sum of 0.0
+                return 0.0;
+            }
             return NumericUtils.sortableLongToDouble(valueSums.longValue());
         }
     }

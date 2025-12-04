@@ -21,6 +21,6 @@ public final class PromqlFeatures {
      * Exists to provide a single point of change and minimize noise when upgrading capability versions.
      */
     public static boolean isEnabled() {
-        return EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled() && EsqlCapabilities.Cap.PROMQL_V0.isEnabled();
+        return EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled() && EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V4.isEnabled();
     }
 }

@@ -3250,6 +3250,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             Source.EMPTY,
             index.name(),
             IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
             index.indexNameWithModes(),
             esField.stream().map(field -> (Attribute) new FieldAttribute(Source.EMPTY, null, null, field.getName(), field)).toList()
         );

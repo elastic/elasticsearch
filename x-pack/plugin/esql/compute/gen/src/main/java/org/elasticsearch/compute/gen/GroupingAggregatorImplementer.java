@@ -335,7 +335,7 @@ public class GroupingAggregatorImplementer {
             + aggParams.stream().map(arg -> arg.blockName()).collect(joining(", "))
             + ")";
 
-        if (allArgumentsSupportVectors) {
+        if (allArgumentsSupportVectors && hasOnlyBlockArguments == false) {
 
             for (Argument a : aggParams) {
                 builder.addStatement(

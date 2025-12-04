@@ -31,6 +31,7 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -237,19 +238,13 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         } else {
             logger.warn(msgSupplier, e);
             if (connectionAttemptFailures != null) {
-                connectionAttemptFailures.incrementBy(
-                    1,
-                    Map.of(
-                        "linked_project_id",
-                        linkedProjectId.toString(),
-                        "linked_project_alias",
-                        clusterAlias,
-                        "attempt",
-                        (isInitialAttempt ? ConnectionAttempt.initial : ConnectionAttempt.reconnect).toString(),
-                        "strategy",
-                        strategyType().toString()
-                    )
-                );
+                final var attributesMap = new HashMap<String, Object>();
+                attributesMap.put("linked_project_id", linkedProjectId.toString());
+                attributesMap.put("linked_project_alias", clusterAlias);
+                attributesMap.put("attempt", (isInitialAttempt ? ConnectionAttempt.initial : ConnectionAttempt.reconnect).toString());
+                attributesMap.put("strategy", strategyType().toString());
+                addStrategySpecificConnectionErrorMetricAttributes(attributesMap);
+                connectionAttemptFailures.incrementBy(1, attributesMap);
             }
         }
     }
@@ -263,6 +258,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected abstract boolean strategyMustBeRebuilt(LinkedProjectConfig config);
 
     protected abstract ConnectionStrategy strategyType();
+
+    /**
+     * Add strategy-specific attributes for a new connection error metric record.  The default implementation is a no-op.
+     */
+    protected void addStrategySpecificConnectionErrorMetricAttributes(Map<String, Object> attributesMap) {}
 
     @Override
     public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {

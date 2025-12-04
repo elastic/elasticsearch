@@ -192,6 +192,9 @@ public class Driver implements Releasable, Describable {
             } catch (DriverEarlyTerminationException unused) {
                 closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()));
                 assert isFinished() : "not finished after early termination";
+            } catch (TaskCancelledException e) {
+                LOGGER.debug("Cancelling running driver [{}]", shortDescription, e);
+                throw e;
             } catch (RuntimeException e) {
                 LOGGER.error(Strings.format("Error running driver [%s]", shortDescription), e);
                 throw e;

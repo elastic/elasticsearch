@@ -1,0 +1,6 @@
+pr: 138948
+summary: Improving performance of get data streams API by avoiding getting effective
+  mappings
+area: Data streams
+type: bug
+issues: []

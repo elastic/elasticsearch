@@ -203,7 +203,9 @@ public final class AnalyzerTestUtils {
     }
 
     public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
-        return IndexResolution.valid(new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Set.of()));
+        return IndexResolution.valid(
+            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of(), Set.of())
+        );
     }
 
     public static IndexResolution loadMapping(String resource, String indexName) {
@@ -408,6 +410,8 @@ public final class AnalyzerTestUtils {
             "index*",
             Map.of(dateDateNanos, dateDateNanosField, dateDateNanosLong, dateDateNanosLongField),
             Map.of("index1", IndexMode.STANDARD, "index2", IndexMode.STANDARD, "index3", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
             Set.of()
         );
         return IndexResolution.valid(index);

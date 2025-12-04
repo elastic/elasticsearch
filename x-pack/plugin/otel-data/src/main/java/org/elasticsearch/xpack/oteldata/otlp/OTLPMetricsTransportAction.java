@@ -130,8 +130,14 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
         DataPointGroupingContext.DataPointGroup dataPointGroup
     ) throws IOException {
         try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
-            Map<String, String> dynamicTemplates = Maps.newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
-            BytesRef tsid = metricDocumentBuilder.buildMetricDocument(xContentBuilder, dynamicTemplates, dataPointGroup);
+            var dynamicTemplates = Maps.<String, String>newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
+            var dynamicTemplateParams = Maps.<String, Map<String, String>>newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
+            BytesRef tsid = metricDocumentBuilder.buildMetricDocument(
+                xContentBuilder,
+                dataPointGroup,
+                dynamicTemplates,
+                dynamicTemplateParams
+            );
             bulkRequestBuilder.add(
                 new IndexRequest(dataPointGroup.targetIndex().index()).opType(DocWriteRequest.OpType.CREATE)
                     .setRequireDataStream(true)
@@ -139,6 +145,7 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
                     .tsid(tsid)
                     .setIncludeSourceOnError(false)
                     .setDynamicTemplates(dynamicTemplates)
+                    .setDynamicTemplateParams(dynamicTemplateParams)
             );
         }
     }

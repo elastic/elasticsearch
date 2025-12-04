@@ -32,6 +32,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
+import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
 import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
@@ -45,8 +47,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswSQVectorsFormat;
-import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat;
 
 import java.io.IOException;
 import java.io.InputStream;

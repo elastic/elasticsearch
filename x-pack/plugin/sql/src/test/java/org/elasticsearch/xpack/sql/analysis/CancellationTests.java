@@ -52,6 +52,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -192,7 +193,7 @@ public class CancellationTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             SearchRequest request = (SearchRequest) invocation.getArguments()[1];
-            assertEquals(pitId, request.pointInTimeBuilder().getEncodedId());
+            assertThat(request.pointInTimeBuilder().getEncodedId(), equalBytes(pitId));
             TaskId parentTask = request.getParentTask();
             assertNotNull(parentTask);
             assertEquals(task.getId(), parentTask.getId());
@@ -206,7 +207,7 @@ public class CancellationTests extends ESTestCase {
         // Emulation of close pit
         doAnswer(invocation -> {
             ClosePointInTimeRequest request = (ClosePointInTimeRequest) invocation.getArguments()[1];
-            assertEquals(pitId, request.getId());
+            assertThat(request.getId(), equalBytes(pitId));
 
             @SuppressWarnings("unchecked")
             ActionListener<ClosePointInTimeResponse> listener = (ActionListener<ClosePointInTimeResponse>) invocation.getArguments()[2];

@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.exponentialhistogram;
 
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -59,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
@@ -569,21 +572,30 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
 
                 Map<String, Object> zeroBucket = convertZeroBucketToCanonicalForm(Types.forciblyCast(histogram.get("zero")));
 
-                Object sum = histogram.get("sum");
-                if (sum == null) {
-                    sum = ExponentialHistogramUtils.estimateSum(
-                        IndexWithCount.asBuckets(scale, negative).iterator(),
-                        IndexWithCount.asBuckets(scale, positive).iterator()
-                    );
+                Number sum = (Number) histogram.get("sum");
+                ExponentialHistogram.Buckets negativeBuckets = IndexWithCount.asBuckets(scale, negative);
+                ExponentialHistogram.Buckets positiveBuckets = IndexWithCount.asBuckets(scale, positive);
+
+                boolean isEmpty = negativeBuckets.iterator().hasNext() == false
+                    && positiveBuckets.iterator().hasNext() == false
+                    && (zeroBucket == null || Types.<Number>forciblyCast(zeroBucket.getOrDefault("count", 0L)).longValue() == 0L);
+
+                // we allow 0.0 as sum for input histograms, but output null in canonical form in that case
+                if (isEmpty && (sum == null || sum.doubleValue() == 0.0)) {
+                    sum = null;
+                } else if (sum == null) {
+                    sum = ExponentialHistogramUtils.estimateSum(negativeBuckets.iterator(), positiveBuckets.iterator());
                 }
-                result.put("sum", sum);
+                if (sum != null) {
+                    result.put("sum", sum);
+                }
 
                 Object min = histogram.get("min");
                 if (min == null) {
                     OptionalDouble estimatedMin = ExponentialHistogramUtils.estimateMin(
                         mapToZeroBucket(zeroBucket),
-                        IndexWithCount.asBuckets(scale, negative),
-                        IndexWithCount.asBuckets(scale, positive)
+                        negativeBuckets,
+                        positiveBuckets
                     );
                     if (estimatedMin.isPresent()) {
                         min = estimatedMin.getAsDouble();
@@ -597,8 +609,8 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
                 if (max == null) {
                     OptionalDouble estimatedMax = ExponentialHistogramUtils.estimateMax(
                         mapToZeroBucket(zeroBucket),
-                        IndexWithCount.asBuckets(scale, negative),
-                        IndexWithCount.asBuckets(scale, positive)
+                        negativeBuckets,
+                        positiveBuckets
                     );
                     if (estimatedMax.isPresent()) {
                         max = estimatedMax.getAsDouble();
@@ -716,18 +728,33 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
 
             IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config);
-            inputHistograms.forEach(histo -> ExponentialHistogramAggregatorTestCase.addHistogramDoc(indexWriter, "field", histo));
+
+            // give each document a ID field because we are not guaranteed to read them in-order later
+            AtomicInteger currentId = new AtomicInteger(0);
+            inputHistograms.forEach(
+                histo -> ExponentialHistogramAggregatorTestCase.addHistogramDoc(
+                    indexWriter,
+                    "field",
+                    histo,
+                    new NumericDocValuesField("histo_index", currentId.getAndIncrement())
+                )
+            );
             indexWriter.close();
 
+            int seenCount = 0;
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 for (int i = 0; i < reader.leaves().size(); i++) {
                     LeafReaderContext leaf = reader.leaves().get(i);
-                    int docBase = leaf.docBase;
                     LeafReader leafReader = leaf.reader();
                     int maxDoc = leafReader.maxDoc();
                     FormattedDocValues docValues = ExponentialHistogramFieldMapper.createFormattedDocValues(leafReader, "field");
+                    NumericDocValues histoIndex = leafReader.getNumericDocValues("histo_index");
                     for (int j = 0; j < maxDoc; j++) {
-                        var expectedHistogram = inputHistograms.get(docBase + j);
+                        assertThat(histoIndex.advanceExact(j), equalTo(true));
+                        int index = (int) histoIndex.longValue();
+                        var expectedHistogram = inputHistograms.get(index);
+                        seenCount++;
+
                         if (expectedHistogram == null) {
                             assertThat(docValues.advanceExact(j), equalTo(false));
                             expectThrows(IllegalStateException.class, docValues::nextValue);
@@ -741,6 +768,7 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
                     }
                 }
             }
+            assertThat(seenCount, equalTo(inputHistograms.size()));
         }
     }
 
@@ -793,5 +821,10 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

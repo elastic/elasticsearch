@@ -2244,8 +2244,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static class ImplicitCastAggregateMetricDoubles extends Rule<LogicalPlan, LogicalPlan> {
 
+        private boolean isTimeSeries = false;
+
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
+            Holder<IndexMode> indexMode = new Holder<>(IndexMode.STANDARD);
+            plan.forEachUp(EsRelation.class, esRelation -> { indexMode.set(esRelation.indexMode()); });
+            isTimeSeries = indexMode.get() == IndexMode.TIME_SERIES;
             return plan.transformUp(Aggregate.class, p -> p.childrenResolved() == false ? p : doRule(p));
         }
 
@@ -2290,7 +2295,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private Map<String, Expression> typeConverters(AggregateFunction aggFunc, FieldAttribute fa, InvalidMappedField mtf) {
-            var metric = getMetric(aggFunc);
+            var metric = getMetric(aggFunc, isTimeSeries);
             if (metric == null) {
                 return null;
             }
@@ -2318,7 +2323,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return typeConverter;
         }
 
-        private static AggregateMetricDoubleBlockBuilder.Metric getMetric(AggregateFunction aggFunc) {
+        private static boolean hasNativeSupport(AggregateFunction aggFunc, boolean isTimeSeries) {
+            return aggFunc instanceof AggregateMetricDoubleNativeSupport
+                && (isTimeSeries == false || aggFunc instanceof TimeSeriesAggregateFunction);
+        }
+
+        private static AggregateMetricDoubleBlockBuilder.Metric getMetric(AggregateFunction aggFunc, boolean isTimeSeries) {
+            if (hasNativeSupport(aggFunc, isTimeSeries) == false) {
+                return AggregateMetricDoubleBlockBuilder.Metric.DEFAULT;
+            }
             if (aggFunc instanceof Max || aggFunc instanceof MaxOverTime) {
                 return AggregateMetricDoubleBlockBuilder.Metric.MAX;
             }
@@ -2355,8 +2368,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Holder<IndexMode> indexMode = new Holder<>(IndexMode.STANDARD);
             plan.forEachUp(EsRelation.class, esRelation -> { indexMode.set(esRelation.indexMode()); });
             var newPlan = plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
-                if (aggFunc instanceof AggregateMetricDoubleNativeSupport
-                    && (indexMode.get() != IndexMode.TIME_SERIES || aggFunc instanceof TimeSeriesAggregateFunction)) {
+                if (ImplicitCastAggregateMetricDoubles.hasNativeSupport(aggFunc, indexMode.get() == IndexMode.TIME_SERIES)) {
                     return aggFunc;
                 }
                 if (aggFunc.field() instanceof FieldAttribute fa && fa.field().getDataType() == AGGREGATE_METRIC_DOUBLE) {

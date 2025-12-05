@@ -7,28 +7,23 @@
 
 package org.elasticsearch.search.ccs;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.inference.WeightedToken;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
     private static final String LOCAL_INDEX_NAME = "local-index";
     private static final String REMOTE_INDEX_NAME = "remote-index";
+    private static final String FULLY_QUALIFIED_REMOTE_INDEX_NAME = fullyQualifiedIndexName(REMOTE_CLUSTER, REMOTE_INDEX_NAME);
+
     private static final List<IndexWithBoost> QUERY_INDICES = List.of(
         new IndexWithBoost(LOCAL_INDEX_NAME),
-        new IndexWithBoost(fullyQualifiedIndexName(REMOTE_CLUSTER, REMOTE_INDEX_NAME))
+        new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)
     );
 
     private static final String COMMON_INFERENCE_ID_FIELD = "common-inference-id-field";
@@ -55,7 +50,7 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
         }
     }
 
-    public void testSparseVectorQuery() throws Exception {
+    public void testSparseVectorQueryWithCcsMinimizeRoundTripsTrue() throws Exception {
         // Query a field has the same inference ID value across clusters, but with different backing inference services
         assertSearchResponse(
             new SparseVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, null, "a"),
@@ -117,51 +112,106 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
             ),
             null
         );
+
+        // Validate that a CCS sparse vector query functions when only sparse vector fields are queried
+        assertSearchResponse(
+            new SparseVectorQueryBuilder(SPARSE_VECTOR_FIELD, COMMON_INFERENCE_ID, "foo"),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(SPARSE_VECTOR_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(SPARSE_VECTOR_FIELD))
+            )
+        );
+        assertSearchResponse(
+            new SparseVectorQueryBuilder(SPARSE_VECTOR_FIELD, COMMON_INFERENCE_ID, "foo"),
+            List.of(new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)),
+            List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(SPARSE_VECTOR_FIELD)))
+        );
     }
 
-    // TODO: Adjust test
-    @AwaitsFix(bugUrl = "http://fake.url")
     public void testSparseVectorQueryWithCcsMinimizeRoundTripsFalse() throws Exception {
-        final Consumer<QueryBuilder> assertCcsMinimizeRoundTripsFalseFailure = q -> {
-            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(q);
-            SearchRequest searchRequest = new SearchRequest(convertToArray(QUERY_INDICES), searchSourceBuilder);
-            searchRequest.setCcsMinimizeRoundtrips(false);
-
-            IllegalArgumentException e = assertThrows(
-                IllegalArgumentException.class,
-                () -> client().search(searchRequest).actionGet(TEST_REQUEST_TIMEOUT)
-            );
-            assertThat(
-                e.getMessage(),
-                equalTo(
-                    "sparse_vector query does not support cross-cluster search when querying a [semantic_text] field when "
-                        + "[ccs_minimize_roundtrips] is false"
-                )
-            );
-        };
-
-        // Validate that expected cases fail
-        assertCcsMinimizeRoundTripsFalseFailure.accept(
-            new SparseVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, null, randomAlphaOfLength(5))
-        );
-        assertCcsMinimizeRoundTripsFalseFailure.accept(
-            new SparseVectorQueryBuilder(MIXED_TYPE_FIELD_1, COMMON_INFERENCE_ID, randomAlphaOfLength(5))
-        );
-
-        // Validate the expected ccs_minimize_roundtrips=false detection gap and failure mode when querying non-inference fields locally
+        // Query a field has the same inference ID value across clusters, but with different backing inference services
         assertSearchResponse(
-            new SparseVectorQueryBuilder(MIXED_TYPE_FIELD_2, COMMON_INFERENCE_ID, "foo"),
+            new SparseVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, null, "a"),
             QUERY_INDICES,
-            List.of(new SearchResult(null, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))),
-            new ClusterFailure(
-                SearchResponse.Cluster.Status.SKIPPED,
-                Set.of(
-                    new FailureCause(
-                        QueryShardException.class,
-                        "failed to create query: field [mixed-type-field-2] must be type [sparse_vector] but is type [semantic_text]"
-                    )
-                )
+            List.of(
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
+                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
             ),
+            null,
+            s -> s.setCcsMinimizeRoundtrips(false)
+        );
+
+        // Query a field that has mixed types across clusters
+        assertSearchResponse(
+            new SparseVectorQueryBuilder(MIXED_TYPE_FIELD_1, COMMON_INFERENCE_ID, "b"),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1)),
+                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1))
+            ),
+            null,
+            s -> s.setCcsMinimizeRoundtrips(false)
+        );
+        assertSearchResponse(
+            new SparseVectorQueryBuilder(MIXED_TYPE_FIELD_2, COMMON_INFERENCE_ID, "c"),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
+            ),
+            null,
+            s -> s.setCcsMinimizeRoundtrips(false)
+        );
+
+        // Query a field that has mixed types across clusters using a query vector
+        final List<WeightedToken> queryVector = generateSparseVectorFieldValue(1.0f).entrySet()
+            .stream()
+            .map(e -> new WeightedToken(e.getKey(), e.getValue()))
+            .toList();
+        assertSearchResponse(
+            new SparseVectorQueryBuilder(MIXED_TYPE_FIELD_1, queryVector, null, null, null, null),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1)),
+                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1))
+            ),
+            null,
+            s -> s.setCcsMinimizeRoundtrips(false)
+        );
+        assertSearchResponse(
+            new SparseVectorQueryBuilder(MIXED_TYPE_FIELD_2, queryVector, null, null, null, null),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
+            ),
+            null,
+            s -> s.setCcsMinimizeRoundtrips(false)
+        );
+
+        // Query an inference field on a remote cluster
+        assertSearchResponse(
+            new SparseVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, null, "a"),
+            List.of(new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)),
+            List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))),
+            null,
+            s -> s.setCcsMinimizeRoundtrips(false)
+        );
+
+        // Check that omitting the inference ID when querying a remote sparse vector field leads to the expected failure
+        assertSearchFailure(
+            new SparseVectorQueryBuilder(MIXED_TYPE_FIELD_2, null, "c"),
+            QUERY_INDICES,
+            IllegalArgumentException.class,
+            "inference_id required to perform vector search on query string",
+            s -> s.setCcsMinimizeRoundtrips(false)
+        );
+        assertSearchFailure(
+            new SparseVectorQueryBuilder(MIXED_TYPE_FIELD_2, null, "c"),
+            List.of(new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)),
+            IllegalArgumentException.class,
+            "inference_id required to perform vector search on query string",
             s -> s.setCcsMinimizeRoundtrips(false)
         );
 
@@ -173,6 +223,13 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
                 new SearchResult(null, LOCAL_INDEX_NAME, getDocId(SPARSE_VECTOR_FIELD)),
                 new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(SPARSE_VECTOR_FIELD))
             ),
+            null,
+            s -> s.setCcsMinimizeRoundtrips(false)
+        );
+        assertSearchResponse(
+            new SparseVectorQueryBuilder(SPARSE_VECTOR_FIELD, COMMON_INFERENCE_ID, "foo"),
+            List.of(new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)),
+            List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(SPARSE_VECTOR_FIELD))),
             null,
             s -> s.setCcsMinimizeRoundtrips(false)
         );

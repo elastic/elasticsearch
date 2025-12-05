@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT;
+
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
  * and {@link RestEsqlAsyncQueryAction} APIs. These are exposed over the
@@ -1517,6 +1519,7 @@ public class EsqlCapabilities {
         VARIANCE_STDDEV_OVER_TIME,
         TS_LINREG_DERIVATIVE,
         TS_RATE_DATENANOS,
+        TS_DERIV_DATENANOS,
         /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011
@@ -1576,6 +1579,7 @@ public class EsqlCapabilities {
          */
         EXPONENTIAL_HISTOGRAM_TECH_PREVIEW,
 
+        TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY(T_DIGEST_ESQL_SUPPORT),
         /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
@@ -1702,7 +1706,7 @@ public class EsqlCapabilities {
          * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          * At this point, we need to add new capabilities for any further changes.
          */
-        PROMQL_PRE_TECH_PREVIEW_V3(Build.current().isSnapshot()),
+        PROMQL_PRE_TECH_PREVIEW_V5(Build.current().isSnapshot()),
 
         /**
          * KNN function adds support for k and visit_percentage options

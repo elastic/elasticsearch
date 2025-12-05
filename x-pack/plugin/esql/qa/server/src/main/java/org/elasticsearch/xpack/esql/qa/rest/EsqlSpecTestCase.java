@@ -184,7 +184,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 supportsSourceFieldMapping(),
                 supportsInferenceTestService(),
                 false,
-                supportsExponentialHistograms()
+                supportsExponentialHistograms(),
+                supportsTDigestField()
             );
             return null;
         });
@@ -290,6 +291,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return RestEsqlTestCase.hasCapabilities(
             client(),
             List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW.capabilityName())
+        );
+    }
+
+    protected boolean supportsTDigestField() {
+        return RestEsqlTestCase.hasCapabilities(
+            client(),
+            List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.capabilityName())
         );
     }
 

@@ -372,4 +372,20 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             throw new RuntimeException(e);
         }
     }
+
+    @Override
+    protected boolean supportsTDigestField() {
+        try {
+            return RestEsqlTestCase.hasCapabilities(
+                client(),
+                List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.capabilityName())
+            )
+                && RestEsqlTestCase.hasCapabilities(
+                    remoteClusterClient(),
+                    List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.capabilityName())
+                );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

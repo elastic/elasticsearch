@@ -62,6 +62,14 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
         );
     }
 
+    @Override
+    protected boolean supportsTDigestField() {
+        return RestEsqlTestCase.hasCapabilities(
+            client(),
+            List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.capabilityName())
+        );
+    }
+
     @Before
     public void configureChunks() throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);

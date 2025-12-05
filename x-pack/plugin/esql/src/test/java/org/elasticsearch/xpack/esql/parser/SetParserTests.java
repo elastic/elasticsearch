@@ -25,37 +25,37 @@ public class SetParserTests extends AbstractStatementParserTests {
 
     public void testSet() {
         assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
-        EsqlStatement query = query("SET foo = \"bar\"; row a = 1", new QueryParams());
+        EsqlStatement query = statement("SET foo = \"bar\"; row a = 1", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Row.class)));
         assertThat(query.settings().size(), is(1));
         checkSetting(query, 0, "foo", BytesRefs.toBytesRef("bar"));
 
-        query = query("SET bar = 2; row a = 1 | eval x = 12", new QueryParams());
+        query = statement("SET bar = 2; row a = 1 | eval x = 12", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Eval.class)));
         assertThat(query.settings().size(), is(1));
         checkSetting(query, 0, "bar", 2);
 
-        query = query("SET bar = true; row a = 1 | eval x = 12", new QueryParams());
+        query = statement("SET bar = true; row a = 1 | eval x = 12", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Eval.class)));
         assertThat(query.settings().size(), is(1));
         checkSetting(query, 0, "bar", true);
 
-        expectThrows(ParsingException.class, () -> query("SET foo = 1, bar = 2; row a = 1", new QueryParams()));
+        expectThrows(ParsingException.class, () -> statement("SET foo = 1, bar = 2; row a = 1", new QueryParams()));
     }
 
     public void testSetWithTripleQuotes() {
         assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
-        EsqlStatement query = query("SET foo = \"\"\"bar\"baz\"\"\"; row a = 1", new QueryParams());
+        EsqlStatement query = statement("SET foo = \"\"\"bar\"baz\"\"\"; row a = 1", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Row.class)));
         assertThat(query.settings().size(), is(1));
         checkSetting(query, 0, "foo", BytesRefs.toBytesRef("bar\"baz"));
 
-        query = query("SET foo = \"\"\"bar\"\"\"\"; row a = 1", new QueryParams());
+        query = statement("SET foo = \"\"\"bar\"\"\"\"; row a = 1", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Row.class)));
         assertThat(query.settings().size(), is(1));
         checkSetting(query, 0, "foo", BytesRefs.toBytesRef("bar\""));
 
-        query = query("SET foo = \"\"\"\"bar\"\"\"; row a = 1 | LIMIT 3", new QueryParams());
+        query = statement("SET foo = \"\"\"\"bar\"\"\"; row a = 1 | LIMIT 3", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Limit.class)));
         assertThat(query.settings().size(), is(1));
         checkSetting(query, 0, "foo", BytesRefs.toBytesRef("\"bar"));
@@ -63,7 +63,7 @@ public class SetParserTests extends AbstractStatementParserTests {
 
     public void testMultipleSet() {
         assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
-        EsqlStatement query = query(
+        EsqlStatement query = statement(
             "SET foo = \"bar\"; SET bar = 2; SET foo = \"baz\"; SET x = 3.5; SET y = false; SET z = null; row a = 1",
             new QueryParams()
         );
@@ -80,7 +80,7 @@ public class SetParserTests extends AbstractStatementParserTests {
 
     public void testSetArrays() {
         assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
-        EsqlStatement query = query("SET foo = [\"bar\", \"baz\"]; SET bar = [1, 2, 3]; row a = 1", new QueryParams());
+        EsqlStatement query = statement("SET foo = [\"bar\", \"baz\"]; SET bar = [1, 2, 3]; row a = 1", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Row.class)));
         assertThat(query.settings().size(), is(2));
 
@@ -90,7 +90,7 @@ public class SetParserTests extends AbstractStatementParserTests {
 
     public void testSetWithNamedParams() {
         assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
-        EsqlStatement query = query(
+        EsqlStatement query = statement(
             "SET foo = \"bar\"; SET bar = ?a; SET foo = \"baz\"; SET x = ?x; row a = 1",
             new QueryParams(
                 List.of(
@@ -110,7 +110,7 @@ public class SetParserTests extends AbstractStatementParserTests {
 
     public void testSetWithPositionalParams() {
         assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
-        EsqlStatement query = query(
+        EsqlStatement query = statement(
             "SET foo = \"bar\"; SET bar = ?; SET foo = \"baz\"; SET x = ?; row a = ?",
             new QueryParams(
                 List.of(

@@ -17,7 +17,7 @@ import java.util.Collection;
  * aggregate metric double or a sub metric of one, any other producers will trigger an error.
  */
 final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer {
-    private final Collection<AbstractDownsampleFieldProducer> producers;
+    private final Collection<AbstractDownsampleFieldProducer<?>> producers;
     private final String name;
 
     /**
@@ -26,7 +26,7 @@ final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer 
      * @param producers a collection of {@link AbstractDownsampleFieldProducer} instances with the subfields
      *                  of the aggregate_metric_double field.
      */
-    AggregateMetricFieldSerializer(String name, Collection<AbstractDownsampleFieldProducer> producers) {
+    AggregateMetricFieldSerializer(String name, Collection<AbstractDownsampleFieldProducer<?>> producers) {
         this.name = name;
         this.producers = producers;
     }
@@ -38,7 +38,7 @@ final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer 
         }
 
         builder.startObject(name);
-        for (AbstractDownsampleFieldProducer fieldProducer : producers) {
+        for (AbstractDownsampleFieldProducer<?> fieldProducer : producers) {
             assert name.equals(fieldProducer.name()) : "producer has a different name";
             if (fieldProducer.isEmpty()) {
                 continue;
@@ -73,7 +73,7 @@ final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer 
     }
 
     private boolean isEmpty() {
-        for (AbstractDownsampleFieldProducer p : producers) {
+        for (AbstractDownsampleFieldProducer<?> p : producers) {
             if (p.isEmpty() == false) {
                 return false;
             }

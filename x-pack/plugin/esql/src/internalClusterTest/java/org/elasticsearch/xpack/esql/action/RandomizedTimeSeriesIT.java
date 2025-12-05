@@ -447,8 +447,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      * the same values from the documents in the group.
      */
     public void testRateGroupBySubset() {
-        // var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
-        var deltaAgg = Tuple.tuple("delta", DeltaAgg.DELTA); // TODO: Enable random selection after fixing
+        var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
         var metricName = DELTA_AGG_METRIC_MAP.get(deltaAgg.v2());
         var window = ESTestCase.randomFrom(WINDOW_OPTIONS);
         var windowSize = window.v2();

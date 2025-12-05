@@ -40,13 +40,14 @@ import java.security.cert.CertificateException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class SamlRestTestCase extends ESRestTestCase {
     protected static final String SAML_SIGNING_CRT = "/saml/signing.crt";
     protected static final String SAML_SIGNING_KEY = "/saml/signing.key";
 
     private static HttpsServer httpsServer;
-    private static final Map<Integer, Boolean> metadataAvailable = new HashMap<>();
+    private static final Map<Integer, Boolean> metadataAvailable = new ConcurrentHashMap<>();
     public static final ElasticsearchCluster cluster = initTestCluster();
     private static Path caPath;
 

@@ -36,7 +36,6 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResol
  */
 public class AnalyzerParsingTests extends ESTestCase {
     private static final String INDEX_NAME = "test";
-    private static final EsqlParser parser = new EsqlParser();
 
     private final IndexResolution defaultIndex = loadIndexResolution("mapping-basic.json");
     private final Analyzer defaultAnalyzer = new Analyzer(
@@ -82,7 +81,7 @@ public class AnalyzerParsingTests extends ESTestCase {
     }
 
     private EsqlStatement parse(String query, QueryParams params) {
-        return parser.createQuery(query, params);
+        return EsqlParser.INSTANCE.createStatement(query, params);
     }
 
     private String error(String query) {

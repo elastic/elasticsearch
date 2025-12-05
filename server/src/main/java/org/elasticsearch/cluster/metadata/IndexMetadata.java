@@ -1727,7 +1727,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             inSyncAllocationIds = DiffableUtils.diff(
                 before.inSyncAllocationIds,
                 after.inSyncAllocationIds,
-                DiffableUtils.getVIntKeySerializer(),
+                DiffableUtils.getIntKeySerializer(),
                 DiffableUtils.StringSetValueSerializer.getInstance()
             );
             rolloverInfos = DiffableUtils.diff(before.rolloverInfos, after.rolloverInfos, DiffableUtils.getStringKeySerializer());
@@ -1780,7 +1780,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             customData = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_DIFF_VALUE_READER);
             inSyncAllocationIds = DiffableUtils.readJdkMapDiff(
                 in,
-                DiffableUtils.getVIntKeySerializer(),
+                DiffableUtils.getIntKeySerializer(),
                 DiffableUtils.StringSetValueSerializer.getInstance()
             );
             rolloverInfos = DiffableUtils.readImmutableOpenMapDiff(

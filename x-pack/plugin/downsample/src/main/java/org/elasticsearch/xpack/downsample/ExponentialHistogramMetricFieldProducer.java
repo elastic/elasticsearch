@@ -13,7 +13,6 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
-import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 
@@ -23,7 +22,7 @@ import java.io.IOException;
  * Class that collects all raw values for an exponential histogram metric field and computes its aggregate (downsampled)
  * values.
  */
-final class ExponentialHistogramMetricFieldProducer extends AbstractDownsampleFieldProducer {
+final class ExponentialHistogramMetricFieldProducer extends AbstractDownsampleFieldProducer<ExponentialHistogramValuesReader> {
 
     private ExponentialHistogramMerger merger = null;
 
@@ -34,7 +33,7 @@ final class ExponentialHistogramMetricFieldProducer extends AbstractDownsampleFi
     /**
      * @return the requested produces based on the sampling method for metric of type exponential histogram
      */
-    public static AbstractDownsampleFieldProducer createMetricProducerForExponentialHistogram(
+    static AbstractDownsampleFieldProducer<?> createMetricProducerForExponentialHistogram(
         String name,
         DownsampleConfig.SamplingMethod samplingMethod
     ) {
@@ -45,12 +44,6 @@ final class ExponentialHistogramMetricFieldProducer extends AbstractDownsampleFi
     }
 
     @Override
-    public void collect(FormattedDocValues docValues, IntArrayList buffer) throws IOException {
-        String errorMessage = "MetricFieldProducer does not support formatted doc values";
-        assert false : errorMessage;
-        throw new UnsupportedOperationException(errorMessage);
-    }
-
     public void collect(ExponentialHistogramValuesReader docValues, IntArrayList docIdBuffer) throws IOException {
         for (int i = 0; i < docIdBuffer.size(); i++) {
             int docId = docIdBuffer.get(i);

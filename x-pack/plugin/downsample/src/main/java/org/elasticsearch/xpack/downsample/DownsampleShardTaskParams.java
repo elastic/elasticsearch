@@ -66,7 +66,7 @@ public record DownsampleShardTaskParams(
         PARSER.declareStringArray(DownsampleShardTaskParams.Builder::metrics, METRICS);
         PARSER.declareStringArray(DownsampleShardTaskParams.Builder::labels, LABELS);
         PARSER.declareStringArray(DownsampleShardTaskParams.Builder::dimensions, DIMENSIONS);
-        PARSER.declareObject(DownsampleShardTaskParams.Builder::alternativeSources, (p, c) -> p.map(), MULTI_FIELD_SOURCES);
+        PARSER.declareObject(DownsampleShardTaskParams.Builder::multiFieldSources, (p, c) -> p.map(), MULTI_FIELD_SOURCES);
     }
 
     DownsampleShardTaskParams(final StreamInput in) throws IOException {
@@ -179,7 +179,7 @@ public record DownsampleShardTaskParams(
         String[] metrics;
         String[] labels;
         String[] dimensions = Strings.EMPTY_ARRAY;
-        Map<String, String> alternativeSources = Map.of();
+        Map<String, String> multiFieldSources = Map.of();
 
         public Builder downsampleConfig(final DownsampleConfig downsampleConfig) {
             this.downsampleConfig = downsampleConfig;
@@ -222,8 +222,8 @@ public record DownsampleShardTaskParams(
         }
 
         @SuppressWarnings("unchecked")
-        public Builder alternativeSources(final Map<String, ?> alternativeSources) {
-            this.alternativeSources = (Map<String, String>) alternativeSources;
+        public Builder multiFieldSources(final Map<String, ?> multiFieldSources) {
+            this.multiFieldSources = (Map<String, String>) multiFieldSources;
             return this;
         }
 
@@ -237,7 +237,7 @@ public record DownsampleShardTaskParams(
                 metrics,
                 labels,
                 dimensions,
-                alternativeSources
+                multiFieldSources
             );
         }
     }

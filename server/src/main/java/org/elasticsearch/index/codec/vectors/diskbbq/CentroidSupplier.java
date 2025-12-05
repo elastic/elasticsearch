@@ -9,32 +9,24 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.apache.lucene.index.FloatVectorValues;
+import org.elasticsearch.index.codec.vectors.cluster.KmeansFloatVectorValues;
+
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * An interface for that supply centroids.
  */
 public interface CentroidSupplier {
-    CentroidSupplier EMPTY = new CentroidSupplier() {
-        @Override
-        public int size() {
-            return 0;
-        }
-
-        @Override
-        public float[] centroid(int centroidOrdinal) {
-            throw new IllegalStateException("No centroids");
-        }
-    };
 
     int size();
 
     float[] centroid(int centroidOrdinal) throws IOException;
 
-    static CentroidSupplier fromArray(float[][] centroids) {
-        if (centroids.length == 0) {
-            return EMPTY;
-        }
+    FloatVectorValues asFloatVectorValues() throws IOException;
+
+    static CentroidSupplier fromArray(float[][] centroids, int dims) {
         return new CentroidSupplier() {
             @Override
             public int size() {
@@ -44,6 +36,11 @@ public interface CentroidSupplier {
             @Override
             public float[] centroid(int centroidOrdinal) {
                 return centroids[centroidOrdinal];
+            }
+
+            @Override
+            public FloatVectorValues asFloatVectorValues() {
+                return KmeansFloatVectorValues.build(Arrays.asList(centroids), null, dims);
             }
         };
     }

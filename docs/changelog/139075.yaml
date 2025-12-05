@@ -1,0 +1,5 @@
+pr: 139075
+summary: Bump jruby/joni to 2.2.6
+area: Ingest Node
+type: enhancement
+issues: []

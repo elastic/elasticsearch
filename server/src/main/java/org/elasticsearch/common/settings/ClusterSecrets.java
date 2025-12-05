@@ -10,10 +10,10 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContent;
@@ -27,7 +27,7 @@ import java.util.Objects;
  * Secrets that are stored in cluster state
  *
  * <p>Cluster state secrets are initially loaded on each node, from a file on disk,
- * in the format defined by {@link org.elasticsearch.common.settings.LocallyMountedSecrets}.
+ * in the format defined by {@link LocallyMountedSecrets}.
  * Once the cluster is running, the master node watches the file for changes. This class
  * propagates changes in the file-based secure settings from the master node out to other
  * nodes.
@@ -43,7 +43,7 @@ public class ClusterSecrets extends AbstractNamedDiffable<ClusterState.Custom> i
     /**
      * The name for this data class
      *
-     * <p>This name will be used to identify this {@link org.elasticsearch.common.io.stream.NamedWriteable} in cluster
+     * <p>This name will be used to identify this {@link NamedWriteable} in cluster
      * state. See {@link #getWriteableName()}.
      */
     public static final String TYPE = "cluster_state_secrets";
@@ -87,7 +87,7 @@ public class ClusterSecrets extends AbstractNamedDiffable<ClusterState.Custom> i
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_9_X;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

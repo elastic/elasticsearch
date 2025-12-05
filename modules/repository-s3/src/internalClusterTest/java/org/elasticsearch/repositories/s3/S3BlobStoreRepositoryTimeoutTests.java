@@ -16,6 +16,7 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -129,11 +130,13 @@ public class S3BlobStoreRepositoryTimeoutTests extends ESMockAPIBasedRepositoryI
         s3StallingHttpHandler.setStallLatchRef(latch);
         try {
             final var purpose = randomFrom(OperationPurpose.values());
+            final String blobName = "test-" + randomIdentifier();
+            assert BlobContainer.assertPurposeConsistency(purpose, blobName);
             final var e = expectThrows(
                 IOException.class,
                 () -> blobContainer.writeBlob(
                     purpose,
-                    "index-" + randomIdentifier(),
+                    blobName,
                     new BytesArray(randomBytes((int) ByteSizeValue.ofMb(10).getBytes())),
                     randomBoolean()
                 )

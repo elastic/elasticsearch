@@ -38,7 +38,7 @@ public class AggregateMetricFieldSerializerTests extends ESTestCase {
     }
 
     public void testInvalidCounterFieldSerialization() throws IOException {
-        AbstractDownsampleFieldProducer producer = LastValueFieldProducer.createForMetric("my-counter");
+        LastValueFieldProducer producer = LastValueFieldProducer.createForMetric("my-counter");
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var valuesInstance = createValuesInstance(docIdBuffer, new Integer[] { 55, 12, 5 });
         producer.collect(valuesInstance, docIdBuffer);
@@ -91,28 +91,19 @@ public class AggregateMetricFieldSerializerTests extends ESTestCase {
     }
 
     public void testLastValuePreAggregatedFieldSerialization() throws IOException {
-        AbstractDownsampleFieldProducer minProducer = randomAggregateSubMetricFieldProducer(
-            "my-gauge",
-            AggregateMetricDoubleFieldMapper.Metric.min
-        );
+        LastValueFieldProducer minProducer = randomAggregateSubMetricFieldProducer("my-gauge", AggregateMetricDoubleFieldMapper.Metric.min);
         var docIdBuffer = IntArrayList.from(0, 1);
         var valuesInstance = createValuesInstance(docIdBuffer, new Double[] { 10D, 5.5 });
         minProducer.collect(valuesInstance, docIdBuffer);
-        AbstractDownsampleFieldProducer maxProducer = randomAggregateSubMetricFieldProducer(
-            "my-gauge",
-            AggregateMetricDoubleFieldMapper.Metric.max
-        );
+        LastValueFieldProducer maxProducer = randomAggregateSubMetricFieldProducer("my-gauge", AggregateMetricDoubleFieldMapper.Metric.max);
         docIdBuffer = IntArrayList.from(0, 1);
         valuesInstance = createValuesInstance(docIdBuffer, new Double[] { 30D, 55.0 });
         maxProducer.collect(valuesInstance, docIdBuffer);
-        AbstractDownsampleFieldProducer sumProducer = randomAggregateSubMetricFieldProducer(
-            "my-gauge",
-            AggregateMetricDoubleFieldMapper.Metric.sum
-        );
+        LastValueFieldProducer sumProducer = randomAggregateSubMetricFieldProducer("my-gauge", AggregateMetricDoubleFieldMapper.Metric.sum);
         docIdBuffer = IntArrayList.from(0, 1);
         valuesInstance = createValuesInstance(docIdBuffer, new Double[] { 30D, 72.7 });
         sumProducer.collect(valuesInstance, docIdBuffer);
-        AbstractDownsampleFieldProducer countProducer = randomAggregateSubMetricFieldProducer(
+        LastValueFieldProducer countProducer = randomAggregateSubMetricFieldProducer(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.value_count
         );

@@ -140,6 +140,9 @@ interface FieldSpecificMatcher {
         }
 
         private static List<String> normalize(List<Object> values) {
+            if (values == null) {
+                return List.of();
+            }
             return values.stream().filter(Objects::nonNull).map(it -> (String) it).toList();
         }
     }

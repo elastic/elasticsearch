@@ -134,11 +134,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         this.skippedShards = in.readVInt();
         this.failedShards = in.readVInt();
         this.completionStatus = (this.isRunning == false) ? RestStatus.readFrom(in) : null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            this.clusters = in.readOptionalWriteable(SearchResponse.Clusters::new);
-        } else {
-            this.clusters = null;
-        }
+        this.clusters = in.readOptionalWriteable(SearchResponse.Clusters::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             this.completionTimeMillis = in.readOptionalVLong();
         } else {
@@ -160,10 +156,8 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         if (isRunning == false) {
             RestStatus.writeTo(out, completionStatus);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            // optional since only CCS uses is; it is null for local-only searches
-            out.writeOptionalWriteable(clusters);
-        }
+        // optional since only CCS uses is; it is null for local-only searches
+        out.writeOptionalWriteable(clusters);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             out.writeOptionalVLong(completionTimeMillis);
         }

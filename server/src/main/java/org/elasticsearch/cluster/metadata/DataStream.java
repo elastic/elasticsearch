@@ -301,9 +301,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         var system = in.readBoolean();
         var allowCustomRouting = in.readBoolean();
         var indexMode = in.readOptionalEnum(IndexMode.class);
-        var lifecycle = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
-            ? in.readOptionalWriteable(DataStreamLifecycle::new)
-            : null;
+        var lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
         // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071
         var failureStoreEnabled = in.getTransportVersion()
             .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.V_8_16_0) ? in.readBoolean() : false;
@@ -1483,9 +1481,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeBoolean(system);
         out.writeBoolean(allowCustomRouting);
         out.writeOptionalEnum(indexMode);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeOptionalWriteable(lifecycle);
-        }
+        out.writeOptionalWriteable(lifecycle);
         if (out.getTransportVersion()
             .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
             // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071

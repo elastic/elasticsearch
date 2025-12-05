@@ -72,7 +72,7 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
     }
 
     protected LogicalPlan planK8s(String query) {
-        LogicalPlan analyzed = k8sAnalyzer.analyze(parser.createStatement(query));
+        LogicalPlan analyzed = k8sAnalyzer.analyze(parser.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);
     }
 

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.template.post;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
@@ -50,9 +49,7 @@ public class SimulateIndexTemplateRequest extends LocalClusterStateRequest {
         super(in);
         indexName = in.readString();
         indexTemplateRequest = in.readOptionalWriteable(TransportPutComposableIndexTemplateAction.Request::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            includeDefaults = in.readBoolean();
-        }
+        includeDefaults = in.readBoolean();
     }
 
     @Override

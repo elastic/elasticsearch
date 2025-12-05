@@ -33,6 +33,8 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
+import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.FileDataHint;
@@ -49,6 +51,7 @@ import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
+import static org.elasticsearch.index.codec.vectors.VectorScoringUtils.scoreAndCollectAll;
 
 public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
 
@@ -178,6 +181,11 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
         // Update the read advice since vectors are guaranteed to be accessed sequentially for merge
         vectorData.updateIOContext(dataContext.withHints(DataAccessHint.SEQUENTIAL));
         return this;
+    }
+
+    @Override
+    public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+        scoreAndCollectAll(knnCollector, acceptDocs, getRandomVectorScorer(field, target));
     }
 
     private FieldEntry getFieldEntryOrThrow(String field) {

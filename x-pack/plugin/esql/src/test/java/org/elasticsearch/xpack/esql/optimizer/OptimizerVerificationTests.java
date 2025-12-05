@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.is;
 public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTests {
 
     private LogicalPlan plan(String query, Analyzer analyzer) {
-        var analyzed = analyzer.analyze(parser.createStatement(query));
+        var analyzed = analyzer.analyze(parser.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);
     }
 

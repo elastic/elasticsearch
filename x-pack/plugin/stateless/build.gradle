@@ -1,0 +1,27 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+esplugin {
+  name = 'stateless'
+  description = 'Elasticsearch Expanded Pack Plugin - Stateless self managed'
+  classname ='org.elasticsearch.xpack.stateless.StatelessPlugin'
+  extendedPlugins = ['x-pack-core', 'blob-cache']
+}
+base {
+  archivesName = 'stateless'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: xpackModule('blob-cache'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackModule('blob-cache'))))
+}
+

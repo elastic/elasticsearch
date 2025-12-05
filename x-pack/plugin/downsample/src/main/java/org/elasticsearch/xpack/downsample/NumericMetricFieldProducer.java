@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
-import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -22,22 +21,19 @@ import java.io.IOException;
  * values. Based on the supported metric types, the subclasses of this class compute values for
  * gauge and metric types.
  */
-abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleFieldProducer {
+abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleFieldProducer<SortedNumericDoubleValues> {
 
     NumericMetricFieldProducer(String name) {
         super(name);
     }
 
     @Override
-    public void collect(FormattedDocValues docValues, IntArrayList buffer) throws IOException {
-        String errorMessage = "MetricFieldProducer does not support formatted doc values";
-        assert false : errorMessage;
-        throw new UnsupportedOperationException(errorMessage);
-    }
-
     public abstract void collect(SortedNumericDoubleValues docValues, IntArrayList buffer) throws IOException;
 
-    public static AbstractDownsampleFieldProducer createFieldProducerForGauge(String name, DownsampleConfig.SamplingMethod samplingMethod) {
+    public static AbstractDownsampleFieldProducer<?> createFieldProducerForGauge(
+        String name,
+        DownsampleConfig.SamplingMethod samplingMethod
+    ) {
         return switch (samplingMethod) {
             case AGGREGATE -> new AggregateGaugeMetricFieldProducer(name);
             case LAST_VALUE -> LastValueFieldProducer.createForMetric(name);

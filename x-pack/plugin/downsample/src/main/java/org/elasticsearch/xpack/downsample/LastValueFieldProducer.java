@@ -25,7 +25,7 @@ import java.util.List;
  * Class that produces the last value of a field for downsampling.
  * Important note: This class assumes that field values are collected and sorted by descending order by time
  */
-class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
+class LastValueFieldProducer extends AbstractDownsampleFieldProducer<FormattedDocValues> {
     // When downsampling metrics, we only keep one value even if the field was a multi-value field.
     // For labels, we preserve all the values of the last occurrence.
     private final boolean supportsMultiValue;

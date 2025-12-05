@@ -66,7 +66,7 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     protected boolean supportsTDigestField() {
         return RestEsqlTestCase.hasCapabilities(
             client(),
-            List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.capabilityName())
+            List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_SUPPORT_V1.capabilityName())
         );
     }
 

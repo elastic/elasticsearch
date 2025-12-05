@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
-    private static String PARAGRAPH_INPUT = """
+    private static final String PARAGRAPH_INPUT = """
         The Adirondacks, a vast mountain region in northern New York, offer a breathtaking mix of rugged wilderness, serene lakes,
         and charming small towns. Spanning over six million acres, the Adirondack Park is larger than Yellowstone, Yosemite, and the
         Grand Canyon combined, yet it's dotted with communities where people live, work, and play amidst nature. Visitors come year-round
@@ -62,74 +62,45 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedDataWithDefaultChecks(
             true,
-            List.of(new TestCaseSupplier("TopSnippets with defaults", List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
-                String text = randomWordsBetween(25, 50);
-                String query = randomFrom("park", "nature", "trail");
-                ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(DEFAULT_WORD_SIZE, 0);
+            List.of(createTestCaseSupplier("TopSnippets with defaults", DataType.KEYWORD, DataType.KEYWORD),
+                createTestCaseSupplier("TopSnippets with defaults text input", DataType.TEXT, DataType.KEYWORD)
+        ));
+    }
 
-                List<String> chunks = chunkText(text, chunkingSettings);
-                MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
-                List<String> scoredChunks = scorer.scoreChunks(chunks, query, DEFAULT_NUM_SNIPPETS, false)
-                    .stream()
-                    .map(MemoryIndexChunkScorer.ScoredChunk::content)
-                    .limit(DEFAULT_NUM_SNIPPETS)
-                    .toList();
+    private static TestCaseSupplier createTestCaseSupplier(String description,DataType fieldDataType, DataType queryDataType) {
+        return new TestCaseSupplier(description, List.of(fieldDataType, queryDataType), () -> {
+            String text = randomWordsBetween(25, 50);
+            String query = randomFrom("park", "nature", "trail");
+            ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(DEFAULT_WORD_SIZE, 0);
 
-                Object expectedResult;
-                if (scoredChunks.isEmpty()) {
-                    expectedResult = null;
-                } else if (scoredChunks.size() == 1) {
-                    expectedResult = new BytesRef(scoredChunks.get(0).trim());
-                } else {
-                    expectedResult = scoredChunks.stream().map(s -> new BytesRef(s.trim())).toList();
-                }
+            List<String> chunks = chunkText(text, chunkingSettings);
+            MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
+            List<String> scoredChunks = scorer.scoreChunks(chunks, query, DEFAULT_NUM_SNIPPETS, false)
+                .stream()
+                .map(MemoryIndexChunkScorer.ScoredChunk::content)
+                .toList();
 
-                return new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "field"),
-                        new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query")
-                    ),
-                    "TopSnippetsBytesRefEvaluator[str=Attribute[channel=0], query=Attribute[channel=1], "
-                        + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}, "
-                        + "scorer=MemoryIndexChunkScorer, numSnippets=5]",
-                    DataType.KEYWORD,
-                    equalTo(expectedResult)
-                );
-            }), new TestCaseSupplier("TopSnippets with defaults text input", List.of(DataType.TEXT, DataType.KEYWORD), () -> {
-                String text = randomWordsBetween(25, 50);
-                String query = randomFrom("park", "nature", "trail");
-                ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(DEFAULT_WORD_SIZE, 0);
+            Object expectedResult;
+            if (scoredChunks.isEmpty()) {
+                expectedResult = null;
+            } else if (scoredChunks.size() == 1) {
+                expectedResult = new BytesRef(scoredChunks.get(0).trim());
+            } else {
+                expectedResult = scoredChunks.stream().map(s -> new BytesRef(s.trim())).toList();
+            }
 
-                List<String> chunks = chunkText(text, chunkingSettings);
-                MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
-                List<String> scoredChunks = scorer.scoreChunks(chunks, query, DEFAULT_NUM_SNIPPETS, false)
-                    .stream()
-                    .map(MemoryIndexChunkScorer.ScoredChunk::content)
-                    .limit(DEFAULT_NUM_SNIPPETS)
-                    .toList();
-
-                Object expectedResult;
-                if (scoredChunks.isEmpty()) {
-                    expectedResult = null;
-                } else if (scoredChunks.size() == 1) {
-                    expectedResult = new BytesRef(scoredChunks.get(0).trim());
-                } else {
-                    expectedResult = scoredChunks.stream().map(s -> new BytesRef(s.trim())).toList();
-                }
-
-                return new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef(text), DataType.TEXT, "field"),
-                        new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query")
-                    ),
-                    "TopSnippetsBytesRefEvaluator[str=Attribute[channel=0], query=Attribute[channel=1], "
-                        + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}, "
-                        + "scorer=MemoryIndexChunkScorer, numSnippets=5]",
-                    DataType.KEYWORD,
-                    equalTo(expectedResult)
-                );
-            }))
-        );
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(text), fieldDataType, "field"),
+                    new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query")
+                ),
+                "TopSnippetsBytesRefEvaluator[str=Attribute[channel=0], query=Attribute[channel=1], "
+                    + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}, "
+                    + "scorer=MemoryIndexChunkScorer, numSnippets=5]",
+                DataType.KEYWORD,
+                equalTo(expectedResult)
+            );
+        });
     }
 
     private static MapExpression createOptions(Integer numSnippets, Integer numWords) {

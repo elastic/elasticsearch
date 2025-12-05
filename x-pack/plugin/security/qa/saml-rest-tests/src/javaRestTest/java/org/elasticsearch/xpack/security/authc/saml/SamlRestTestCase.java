@@ -37,6 +37,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.cert.CertificateException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +47,7 @@ public class SamlRestTestCase extends ESRestTestCase {
     protected static final String SAML_SIGNING_KEY = "/saml/signing.key";
 
     private static HttpsServer httpsServer;
-    private static final Map<Integer, Boolean> metadataAvailable = new HashMap<>();
+    private static final Map<Integer, Boolean> metadataAvailable = Collections.synchronizedMap(new HashMap<>());
     public static final ElasticsearchCluster cluster = initTestCluster();
     private static Path caPath;
 

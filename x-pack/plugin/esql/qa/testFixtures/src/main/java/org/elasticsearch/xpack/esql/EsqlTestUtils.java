@@ -1306,7 +1306,7 @@ public final class EsqlTestUtils {
         String command = commandParts[0].trim();
         if (SourceCommand.isSourceCommand(command)) {
             String commandArgs = commandParts[1].trim();
-            String[] indices = new EsqlParser().createStatement(afterSetStatements)
+            String[] indices = EsqlParser.INSTANCE.parseQuery(afterSetStatements)
                 .collect(UnresolvedRelation.class)
                 .getFirst()
                 .indexPattern()

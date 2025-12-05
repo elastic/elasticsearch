@@ -62,12 +62,14 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedDataWithDefaultChecks(
             true,
-            List.of(createTestCaseSupplier("TopSnippets with defaults", DataType.KEYWORD, DataType.KEYWORD),
+            List.of(
+                createTestCaseSupplier("TopSnippets with defaults", DataType.KEYWORD, DataType.KEYWORD),
                 createTestCaseSupplier("TopSnippets with defaults text input", DataType.TEXT, DataType.KEYWORD)
-        ));
+            )
+        );
     }
 
-    private static TestCaseSupplier createTestCaseSupplier(String description,DataType fieldDataType, DataType queryDataType) {
+    private static TestCaseSupplier createTestCaseSupplier(String description, DataType fieldDataType, DataType queryDataType) {
         return new TestCaseSupplier(description, List.of(fieldDataType, queryDataType), () -> {
             String text = randomWordsBetween(25, 50);
             String query = randomFrom("park", "nature", "trail");

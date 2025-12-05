@@ -1,5 +1,5 @@
 pr: 139080
-summary: [ES|QL] Compare query builders using identity
-area: ES|QL
+summary: "[ES|QL] Compare query builders using identity"
+area: "ES|QL"
 type: bug
 issues: []

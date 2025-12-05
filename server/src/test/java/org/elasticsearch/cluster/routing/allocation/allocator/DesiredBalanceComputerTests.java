@@ -1453,7 +1453,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 "Should report long computation based on iteration count",
                 DesiredBalanceComputer.class.getCanonicalName(),
                 Level.INFO,
-                "Desired balance computation for [*] is still not converged after [10s] and [1000] iterations *"
+                """
+                    Desired balance computation for [*] is still not converged after [10s] and [1000] iterations this round, \
+                    last convergence was [1.1m] ago"""
             )
         );
 
@@ -1464,7 +1466,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 "Should report long computation based on time",
                 DesiredBalanceComputer.class.getCanonicalName(),
                 Level.INFO,
-                "Desired balance computation for [*] is still not converged after [1m] and [60] iterations *"
+                """
+                    Desired balance computation for [*] is still not converged after [1m] and [60] iterations this round, \
+                    last convergence was [2m] ago"""
             )
         );
     }
@@ -1505,6 +1509,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 throw new AssertionError("only used for allocation explain");
             }
         }, TEST_ONLY_EXPLAINER);
+
+        // simulate time lag between last convergence and computation start
+        currentTime.addAndGet(60 * 1000);
 
         assertLoggerExpectationsFor(() -> {
             var iteration = new AtomicInteger(0);

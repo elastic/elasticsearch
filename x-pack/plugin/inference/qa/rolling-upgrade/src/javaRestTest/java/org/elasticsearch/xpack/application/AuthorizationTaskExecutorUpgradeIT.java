@@ -16,12 +16,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.upgrades.ParameterizedRollingUpgradeTestCase;
+import org.elasticsearch.xpack.inference.MockElasticInferenceServiceAuthorizationServer;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.CCMRestBaseIT.ENABLE_CCM_REQUEST;
+import static org.elasticsearch.xpack.inference.CCMRestBaseIT.putCCMConfiguration;
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.assertStatusOkOrCreated;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.PERIODIC_AUTHORIZATION_ENABLED;
@@ -29,14 +34,23 @@ import static org.hamcrest.Matchers.is;
 
 public class AuthorizationTaskExecutorUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
+    private static final MockElasticInferenceServiceAuthorizationServer mockEISServer =
+        new MockElasticInferenceServiceAuthorizationServer();
+
+    static {
+        // Ensure that the mock EIS server has an authorized response for each node that will be upgraded prior to the cluster starting
+        for (int i = 0; i < NODE_NUM; i++) {
+            mockEISServer.enqueueAuthorizeAllModelsResponse();
+        }
+    }
+
     private static final Logger logger = LogManager.getLogger(AuthorizationTaskExecutorUpgradeIT.class);
     private static final String BEFORE_AUTHORIZATION_TASK_FEATURE = "gte_v9.1.0";
     // The bug where the authorization task is registered before the upgrade is complete was introduced in 9.3.0
     // This is the currently latest version before that
     private static final String MAX_CLUSTER_VERSION_BEFORE_BUG_INTRODUCED = "gte_v9.2.2";
 
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .version(getOldClusterVersion(), isOldClusterDetachedVersion())
         .nodes(NODE_NUM)
@@ -45,8 +59,14 @@ public class AuthorizationTaskExecutorUpgradeIT extends ParameterizedRollingUpgr
         .setting(PERIODIC_AUTHORIZATION_ENABLED.getKey(), "false")
         // We need a url set for the authorization task to be created, but we don't actually care if we get a valid response
         // just that the task will be created upon upgrade
-        .setting(ELASTIC_INFERENCE_SERVICE_URL.getKey(), "http://localhost:12345")
+        .setting(ELASTIC_INFERENCE_SERVICE_URL.getKey(), mockEISServer::getUrl)
         .build();
+
+    // The reason we're doing this is to make sure the mock server is initialized first so we can get the address before communicating
+    // it to the cluster as a setting.
+    // Note: @ClassRule is executed once for the entire test class
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(mockEISServer).around(cluster);
 
     private static final String GET_METHOD = "GET";
 
@@ -86,6 +106,10 @@ public class AuthorizationTaskExecutorUpgradeIT extends ParameterizedRollingUpgr
 
         if (isUpgradedCluster()) {
             logger.info("Cluster is fully upgraded scenario");
+            var response = putCCMConfiguration(ENABLE_CCM_REQUEST);
+
+            assertTrue(response.isEnabled());
+
             // once fully upgraded, the authorization polling task should be created
             assertBusy(() -> assertTrue(doesAuthPollingTaskExist()));
         }

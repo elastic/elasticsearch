@@ -20,7 +20,7 @@ import java.util.List;
 /**
  * Unified class that can represent on-heap and off-heap vector values.
  */
-public class KmeansFloatVectorValues extends FloatVectorValues {
+public final class KmeansFloatVectorValues extends FloatVectorValues {
 
     private final VectorSupplier vectors;
     private final DocSupplier docs;
@@ -55,7 +55,7 @@ public class KmeansFloatVectorValues extends FloatVectorValues {
             docSupplier = null;
         } else {
             RandomAccessInput randomDocs = docs.randomAccessSlice(0, docs.length());
-            docSupplier = new OffHeapDocSuppler(docs, randomDocs);
+            docSupplier = new OffHeapDocSupplier(docs, randomDocs);
         }
         return new KmeansFloatVectorValues(vectorSupplier, docSupplier, numVectors);
     }
@@ -135,7 +135,7 @@ public class KmeansFloatVectorValues extends FloatVectorValues {
         }
     }
 
-    private sealed interface DocSupplier permits OnHeapDocSupplier, OffHeapDocSuppler {
+    private sealed interface DocSupplier permits OnHeapDocSupplier, OffHeapDocSupplier {
         int ordToDoc(int ord);
 
         DocSupplier copy();
@@ -153,7 +153,7 @@ public class KmeansFloatVectorValues extends FloatVectorValues {
         }
     }
 
-    private record OffHeapDocSuppler(IndexInput docs, RandomAccessInput randomDocs) implements DocSupplier {
+    private record OffHeapDocSupplier(IndexInput docs, RandomAccessInput randomDocs) implements DocSupplier {
         @Override
         public int ordToDoc(int ord) {
             try {
@@ -168,7 +168,7 @@ public class KmeansFloatVectorValues extends FloatVectorValues {
             IndexInput docsCopy = docs.clone();
             try {
                 RandomAccessInput randomDocsCopy = docsCopy.randomAccessSlice(0, docsCopy.length());
-                return new OffHeapDocSuppler(docsCopy, randomDocsCopy);
+                return new OffHeapDocSupplier(docsCopy, randomDocsCopy);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

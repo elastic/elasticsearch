@@ -33,6 +33,5 @@ class TestSuiteApiCheck {
         return apiName.startsWith("search") || apiName.startsWith("msearch");
     }
 
-    private TestSuiteApiCheck() {
-    }
+    private TestSuiteApiCheck() {}
 }

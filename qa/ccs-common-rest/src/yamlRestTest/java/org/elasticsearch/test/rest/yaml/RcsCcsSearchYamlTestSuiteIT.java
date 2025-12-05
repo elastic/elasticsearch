@@ -11,7 +11,6 @@ package org.elasticsearch.test.rest.yaml;
 
 import java.io.IOException;
 
-
 public class RcsCcsSearchYamlTestSuiteIT extends RcsCcsCommonYamlTestSuiteIT {
     public RcsCcsSearchYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) throws IOException {
         super(testCandidate);

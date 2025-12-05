@@ -152,7 +152,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.SecurityFeatures.CERTIFICATE_IDENTITY_FIELD_FEATURE;
@@ -543,13 +542,6 @@ public class ApiKeyService implements Closeable {
         final long numberOfRoleDescriptorsWithRestriction = getNumberOfRoleDescriptorsWithRestriction(requestRoleDescriptors);
         if (numberOfRoleDescriptorsWithRestriction > 0L) {
             // creating/updating API keys with restrictions is not allowed in a mixed cluster.
-            if (transportVersion.before(WORKFLOWS_RESTRICTION_VERSION)) {
-                return new IllegalArgumentException(
-                    "all nodes must have version ["
-                        + WORKFLOWS_RESTRICTION_VERSION.toReleaseVersion()
-                        + "] or higher to support restrictions for API keys"
-                );
-            }
             // It's only allowed to create/update API keys with a single role descriptor that is restricted.
             if (numberOfRoleDescriptorsWithRestriction != 1L) {
                 return new IllegalArgumentException("more than one role descriptor with restriction is not supported");

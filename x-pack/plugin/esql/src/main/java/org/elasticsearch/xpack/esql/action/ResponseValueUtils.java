@@ -42,7 +42,6 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.geoGridToS
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.tDigestBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
 /**

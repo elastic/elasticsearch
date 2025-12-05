@@ -145,8 +145,8 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
                     if (isGpuIndexingFeatureAllowed() == false) {
                         log.warn(
                             String.format(
-                                "The current configuration supports GPU indexing, but it is not allowed by the current license. " +
-                                    "If this is intentional, it is possible to suppress this message by setting [%s] to FALSE",
+                                "The current configuration supports GPU indexing, but it is not allowed by the current license. "
+                                    + "If this is intentional, it is possible to suppress this message by setting [%s] to FALSE",
                                 VECTORS_INDEXING_USE_GPU_NODE_SETTING.getKey()
                             )
                         );

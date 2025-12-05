@@ -56,6 +56,8 @@ public class PutViewAction extends ActionType<AcknowledgedResponse> {
             ActionRequestValidationException validationException = null;
             if (view == null) {
                 validationException = addValidationError("view is missing", validationException);
+                // No futher validation can be done, as the view is null
+                return validationException;
             }
             final String name = view.name();
             if (Strings.hasText(name) == false) {
@@ -71,7 +73,7 @@ public class PutViewAction extends ActionType<AcknowledgedResponse> {
                 validationException = addValidationError(e.getMessage(), validationException);
             }
             if (name.toLowerCase(Locale.ROOT).equals(name) == false) {
-                validationException = addValidationError("Invalid view name [" + name + "], must be lowercase", validationException);
+                validationException = addValidationError("invalid view name [" + name + "], must be lowercase", validationException);
             }
             final String query = view.query();
             if (Strings.hasText(query) == false) {

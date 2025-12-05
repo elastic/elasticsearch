@@ -17,18 +17,35 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class InMemoryViewServiceTests extends AbstractStatementParserTests {
-    InMemoryViewService viewService = new InMemoryViewService();
+    static InMemoryViewService viewService;
+
+    @BeforeClass
+    public static void setup() {
+        viewService = new InMemoryViewService();
+    }
+
+    @AfterClass
+    public static void afterTearDown() {
+        viewService.close();
+    }
+
     PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
     ProjectId projectId = ProjectId.fromId("1");
 
-    public void testPutGet() throws Exception {
+    public void testPutGet() {
         addView("view1", "from emp");
         addView("view2", "from view1");
         addView("view3", "from view2");
@@ -37,7 +54,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(viewService.get(projectId, "view3").query(), equalTo("from view2"));
     }
 
-    public void testReplaceView() throws Exception {
+    public void testReplaceView() {
         addView("view1", "from emp");
         addView("view2", "from view1");
         addView("view3", "from view2");
@@ -46,7 +63,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(rewritten, equalTo(statement("from emp")));
     }
 
-    public void testViewDepthExceeded() throws Exception {
+    public void testViewDepthExceeded() {
         addView("view1", "from emp");
         addView("view2", "from view1");
         addView("view3", "from view2");
@@ -69,10 +86,11 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     public void testModifiedViewDepth() {
-        InMemoryViewService customViewService = viewService.withSettings(
-            Settings.builder().put(ViewService.MAX_VIEW_DEPTH_SETTING.getKey(), 1).build()
-        );
-        try {
+        try (
+            InMemoryViewService customViewService = viewService.withSettings(
+                Settings.builder().put(ViewService.MAX_VIEW_DEPTH_SETTING.getKey(), 1).build()
+            )
+        ) {
             addView("view1", "from emp", customViewService);
             addView("view2", "from view1", customViewService);
             addView("view3", "from view2", customViewService);
@@ -92,78 +110,80 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testViewCountExceeded() throws Exception {
+    public void testViewCountExceeded() {
         for (int i = 0; i < ViewService.MAX_VIEWS_COUNT_SETTING.getDefault(Settings.EMPTY); i++) {
             addView("view" + i, "from emp");
         }
 
         // FROM view11 should fail
-        Exception e = expectThrows(IllegalArgumentException.class, () -> addView("viewx", "from emp"));
-        assertThat(e.getMessage(), startsWith("cannot add view, the maximum number of views is reached: 100"));
+        Exception e = expectThrows(Exception.class, () -> addView("viewx", "from emp"));
+        assertThat(e.getMessage(), containsString("cannot add view, the maximum number of views is reached: 100"));
     }
 
     public void testModifiedViewCount() {
-        InMemoryViewService customViewService = viewService.withSettings(
-            Settings.builder().put(ViewService.MAX_VIEWS_COUNT_SETTING.getKey(), 1).build()
-        );
-        try {
+        try (
+            InMemoryViewService customViewService = new InMemoryViewService(
+                Settings.builder().put(ViewService.MAX_VIEWS_COUNT_SETTING.getKey(), 1).build()
+            )
+        ) {
             addView("view1", "from emp", customViewService);
 
             // View2 should fail
-            Exception e = expectThrows(IllegalArgumentException.class, () -> addView("view2", "from emp", customViewService));
-            assertThat(e.getMessage(), startsWith("cannot add view, the maximum number of views is reached: 1"));
+            Exception e = expectThrows(Exception.class, () -> addView("view2", "from emp", customViewService));
+            assertThat(e.getMessage(), containsString("cannot add view, the maximum number of views is reached: 1"));
         } catch (Exception e) {
             throw new AssertionError("unexpected exception", e);
         }
     }
 
-    public void testViewLengthExceeded() throws Exception {
+    public void testViewLengthExceeded() {
         addView("view1", "from short");
 
         // Long view definition should fail
-        StringBuilder longView = new StringBuilder("from ");
-        for (int i = 0; i < ViewService.MAX_VIEW_LENGTH_SETTING.getDefault(Settings.EMPTY); i++) {
-            longView.append("a");
-        }
-        Exception e = expectThrows(IllegalArgumentException.class, () -> addView("viewx", longView.toString()));
-        assertThat(e.getMessage(), startsWith("view query is too large: 10005 characters, the maximum allowed is 10000"));
+        Exception e = expectThrows(
+            Exception.class,
+            () -> addView("viewx", "from " + "a".repeat(Math.max(0, ViewService.MAX_VIEW_LENGTH_SETTING.getDefault(Settings.EMPTY))))
+        );
+        assertThat(e.getMessage(), containsString("view query is too large: 10005 characters, the maximum allowed is 10000"));
     }
 
     public void testModifiedViewLength() {
-        InMemoryViewService customViewService = viewService.withSettings(
-            Settings.builder().put(ViewService.MAX_VIEW_LENGTH_SETTING.getKey(), 6).build()
-        );
-        try {
+        try (
+            InMemoryViewService customViewService = viewService.withSettings(
+                Settings.builder().put(ViewService.MAX_VIEW_LENGTH_SETTING.getKey(), 6).build()
+            )
+        ) {
             addView("view1", "from a", customViewService);
 
             // Just one character longer should fail
-            Exception e = expectThrows(IllegalArgumentException.class, () -> addView("view2", "from aa", customViewService));
-            assertThat(e.getMessage(), startsWith("view query is too large: 7 characters, the maximum allowed is 6"));
+            Exception e = expectThrows(Exception.class, () -> addView("view2", "from aa", customViewService));
+            assertThat(e.getMessage(), containsString("view query is too large: 7 characters, the maximum allowed is 6"));
         } catch (Exception e) {
             throw new AssertionError("unexpected exception", e);
         }
     }
 
     public void testInvalidViewNames() {
-        InMemoryViewService customViewService = new InMemoryViewService();
-        for (var name : Map.of(
-            "viewX",
-            "Invalid view name [viewX], must be lowercase",
-            ".",
-            "Invalid view name [.], must not be '.' or '..'",
-            "..",
-            "Invalid view name [..], must not be '.' or '..'",
-            "invalid name",
-            "Invalid view name [invalid name], must not contain the following characters",
-            "invalid*name",
-            "Invalid view name [invalid*name], must not contain the following characters"
-        ).entrySet()) {
-            Exception e = expectThrows(
-                "Expected '" + name.getKey() + "' to be an invalid name, but it was not",
-                IllegalArgumentException.class,
-                startsWith(name.getValue()),
-                () -> addView(name.getKey(), "from aa", customViewService)
-            );
+        try (InMemoryViewService customViewService = new InMemoryViewService()) {
+            for (var name : Map.of(
+                "viewX",
+                "invalid view name [viewX], must be lowercase",
+                ".",
+                "invalid view name [.], must not be '.' or '..'",
+                "..",
+                "invalid view name [..], must not be '.' or '..'",
+                "invalid name",
+                "invalid view name [invalid name], must not contain the following characters",
+                "invalid*name",
+                "invalid view name [invalid*name], must not contain the following characters"
+            ).entrySet()) {
+                expectThrows(
+                    "Expected '" + name.getKey() + "' to be an invalid name, but it was not",
+                    Exception.class,
+                    containsString(name.getValue()),
+                    () -> addView(name.getKey(), "from aa", customViewService)
+                );
+            }
         }
     }
 
@@ -173,7 +193,21 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private void addView(String name, String query, ViewService viewService) {
         PutViewAction.Request request = new PutViewAction.Request(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE, new View(name, query));
-        viewService.putView(projectId, request, ActionListener.noop());
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> err = new AtomicReference<>(null);
+        viewService.putView(projectId, request, ActionListener.wrap(r -> latch.countDown(), e -> {
+            err.set(e);
+            latch.countDown();
+        }));
+        try {
+            // In-memory puts are synchronous, so we should never wait here
+            assert latch.await(1, TimeUnit.MILLISECONDS) : "should never timeout";
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        if (err.get() != null) {
+            throw new RuntimeException(err.get());
+        }
     }
 
 }

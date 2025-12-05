@@ -47,7 +47,6 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
@@ -55,9 +54,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -310,29 +307,6 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         numberOfShards = in.readVInt();
         scroll = in.readOptionalTimeValue();
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && in.getTransportVersion().before(TransportVersions.V_8_9_X)) {
-            // to deserialize between the 8.8 and 8.500.020 version we need to translate
-            // the rank queries into sub searches if we are ranking; if there are no rank queries
-            // we deserialize the empty list and do nothing
-            List<QueryBuilder> rankQueryBuilders = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
-            // if we are in the dfs phase in 8.8, we can have no rank queries
-            // and if we are in the query/fetch phase we can have either no rank queries
-            // for a standard query or hybrid search or 2+ rank queries, but we cannot have
-            // exactly 1 rank query ever so we check for this
-            assert rankQueryBuilders.size() != 1 : "[rank] requires at least [2] sub searches, but only found [1]";
-            // if we have 2+ rank queries we know we are ranking, so we set our
-            // sub searches from this; note this will override the boolean query deserialized from source
-            // because we use the same data structure for a single query and multiple queries
-            // but we will just re-create it as necessary
-            if (rankQueryBuilders.size() >= 2) {
-                assert source != null && source.rankBuilder() != null;
-                List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>();
-                for (QueryBuilder queryBuilder : rankQueryBuilders) {
-                    subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
-                }
-                source.subSearches(subSearchSourceBuilders);
-            }
-        }
         if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // types no longer relevant so ignore
             String[] types = in.readStringArray();
@@ -382,19 +356,6 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         }
         out.writeOptionalTimeValue(scroll);
         out.writeOptionalWriteable(source);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && out.getTransportVersion().before(TransportVersions.V_8_9_X)) {
-            // to serialize between the 8.8 and 8.500.020 version we need to translate
-            // the sub searches into rank queries if we are ranking, otherwise, we
-            // ignore this because linear combination will have multiple sub searches in
-            // 8.500.020+, but only use the combined boolean query in prior versions
-            List<QueryBuilder> rankQueryBuilders = new ArrayList<>();
-            if (source != null && source.rankBuilder() != null && source.subSearches().size() >= 2) {
-                for (SubSearchSourceBuilder subSearchSourceBuilder : source.subSearches()) {
-                    rankQueryBuilders.add(subSearchSourceBuilder.getQueryBuilder());
-                }
-            }
-            out.writeNamedWriteableCollection(rankQueryBuilders);
-        }
         if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeStringArray(Strings.EMPTY_ARRAY);

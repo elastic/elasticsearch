@@ -198,11 +198,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     public static SearchHit readFrom(StreamInput in, boolean pooled) throws IOException {
         final float score = in.readFloat();
         final int rank;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            rank = in.readVInt();
-        } else {
-            rank = NO_RANK;
-        }
+        rank = in.readVInt();
         final Text id = in.readOptionalText();
         if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readOptionalText();
@@ -234,15 +230,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         final SearchSortValues sortValues = SearchSortValues.readFrom(in);
 
         final Map<String, Float> matchedQueries;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            matchedQueries = in.readOrderedMap(StreamInput::readString, StreamInput::readFloat);
-        } else {
-            int size = in.readVInt();
-            matchedQueries = Maps.newLinkedHashMapWithExpectedSize(size);
-            for (int i = 0; i < size; i++) {
-                matchedQueries.put(in.readString(), Float.NaN);
-            }
-        }
+        matchedQueries = in.readOrderedMap(StreamInput::readString, StreamInput::readFloat);
 
         final SearchShardTarget shardTarget = in.readOptionalWriteable(SearchShardTarget::new);
         final String index;
@@ -312,11 +300,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     public void writeTo(StreamOutput out) throws IOException {
         assert hasReferences();
         out.writeFloat(score);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeVInt(rank);
-        } else if (rank != NO_RANK) {
-            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
-        }
+        out.writeVInt(rank);
         out.writeOptionalText(id);
         if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeOptionalText(SINGLE_MAPPING_TYPE);
@@ -346,11 +330,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         }
         sortValues.writeTo(out);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeMap(matchedQueries, StreamOutput::writeFloat);
-        } else {
-            out.writeStringCollection(matchedQueries.keySet());
-        }
+        out.writeMap(matchedQueries, StreamOutput::writeFloat);
         out.writeOptionalWriteable(shard);
         if (innerHits == null) {
             out.writeVInt(0);

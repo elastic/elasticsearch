@@ -215,11 +215,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         this.applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
         this.configurableClusterPrivileges = ConfigurableClusterPrivileges.readArray(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            this.remoteIndicesPrivileges = in.readArray(RemoteIndicesPrivileges::new, RemoteIndicesPrivileges[]::new);
-        } else {
-            this.remoteIndicesPrivileges = RemoteIndicesPrivileges.NONE;
-        }
+        this.remoteIndicesPrivileges = in.readArray(RemoteIndicesPrivileges::new, RemoteIndicesPrivileges[]::new);
         if (in.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {
             this.restriction = new Restriction(in);
         } else {
@@ -484,9 +480,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         out.writeGenericMap(transientMetadata);
         out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
         ConfigurableClusterPrivileges.writeArray(out, getConditionalClusterPrivileges());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeArray(remoteIndicesPrivileges);
-        }
+        out.writeArray(remoteIndicesPrivileges);
         if (out.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {
             restriction.writeTo(out);
         }

@@ -1338,6 +1338,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#valueName}.
+   * @param ctx the parse tree
+   */
+  void enterValueName(EsqlBaseParser.ValueNameContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#valueName}.
+   * @param ctx the parse tree
+   */
+  void exitValueName(EsqlBaseParser.ValueNameContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#promqlParam}.
    * @param ctx the parse tree
    */
@@ -1348,15 +1358,25 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitPromqlParam(EsqlBaseParser.PromqlParamContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#promqlParamContent}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#promqlParamName}.
    * @param ctx the parse tree
    */
-  void enterPromqlParamContent(EsqlBaseParser.PromqlParamContentContext ctx);
+  void enterPromqlParamName(EsqlBaseParser.PromqlParamNameContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#promqlParamContent}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#promqlParamName}.
    * @param ctx the parse tree
    */
-  void exitPromqlParamContent(EsqlBaseParser.PromqlParamContentContext ctx);
+  void exitPromqlParamName(EsqlBaseParser.PromqlParamNameContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#promqlParamValue}.
+   * @param ctx the parse tree
+   */
+  void enterPromqlParamValue(EsqlBaseParser.PromqlParamValueContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#promqlParamValue}.
+   * @param ctx the parse tree
+   */
+  void exitPromqlParamValue(EsqlBaseParser.PromqlParamValueContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#promqlQueryPart}.
    * @param ctx the parse tree

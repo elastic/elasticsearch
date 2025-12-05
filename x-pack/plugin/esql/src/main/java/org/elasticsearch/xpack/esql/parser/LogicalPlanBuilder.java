@@ -123,8 +123,8 @@ import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
-    private static final String TIME = "time", START = "start", END = "end", STEP = "step";
-    private static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP);
+    private static final String TIME = "time", START = "start", END = "end", STEP = "step", INDEX = "index";
+    private static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, INDEX);
 
     /**
      * Maximum number of commands allowed per query
@@ -1239,16 +1239,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 "PROMQL command is not available. Requires snapshot build with capability [promql_vX] enabled"
             );
         }
-        IndexPattern table;
-        if (ctx.indexPattern().isEmpty()) {
-            // Default to all indices if no index pattern is provided
-            table = new IndexPattern(source, "*");
-        } else {
-            table = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
-        }
-        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, List.of(), null, SourceCommand.PROMQL);
 
         PromqlParams params = parsePromqlParams(ctx, source);
+        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(
+            source,
+            params.indexPattern(),
+            false,
+            List.of(),
+            null,
+            SourceCommand.PROMQL
+        );
 
         // TODO: Perform type and value validation
         var queryCtx = ctx.promqlQueryPart();
@@ -1282,6 +1282,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);
         }
 
+        String valueColumnName = getValueColumnName(ctx.valueName(), promqlQuery);
+
         return new PromqlCommand(
             source,
             unresolvedRelation,
@@ -1289,8 +1291,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             params.startLiteral(),
             params.endLiteral(),
             params.stepLiteral(),
+            valueColumnName,
             new UnresolvedTimestamp(source)
         );
+    }
+
+    private String getValueColumnName(EsqlBaseParser.ValueNameContext ctx, String promqlQuery) {
+        if (ctx == null) {
+            return promqlQuery;
+        } else if (ctx.UNQUOTED_SOURCE() != null) {
+            return ctx.UNQUOTED_SOURCE().getText();
+        } else if (ctx.QUOTED_IDENTIFIER() != null) {
+            return AbstractBuilder.unquote(ctx.QUOTED_IDENTIFIER().getText());
+        } else {
+            return promqlQuery;
+        }
     }
 
     private PromqlParams parsePromqlParams(EsqlBaseParser.PromqlCommandContext ctx, Source source) {
@@ -1298,6 +1313,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Instant start = null;
         Instant end = null;
         Duration step = null;
+        IndexPattern indexPattern = new IndexPattern(source, "*");
 
         Set<String> paramsSeen = new HashSet<>();
         for (EsqlBaseParser.PromqlParamContext paramCtx : ctx.promqlParam()) {
@@ -1307,18 +1323,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 throw new ParsingException(source(paramNameCtx), "[{}] already specified", name);
             }
             Source valueSource = source(paramCtx.value);
-            String valueString = parseParamValue(paramCtx.value);
             switch (name) {
-                case TIME -> time = PromqlParserUtils.parseDate(valueSource, valueString);
-                case START -> start = PromqlParserUtils.parseDate(valueSource, valueString);
-                case END -> end = PromqlParserUtils.parseDate(valueSource, valueString);
+                case TIME -> time = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
+                case START -> start = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
+                case END -> end = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
                 case STEP -> {
                     try {
-                        step = Duration.ofSeconds(Integer.parseInt(valueString));
+                        step = Duration.ofSeconds(Integer.parseInt(parseParamValueString(paramCtx.value)));
                     } catch (NumberFormatException ignore) {
-                        step = PromqlParserUtils.parseDuration(valueSource, valueString);
+                        step = PromqlParserUtils.parseDuration(valueSource, parseParamValueString(paramCtx.value));
                     }
                 }
+                case INDEX -> indexPattern = parseIndexPattern(paramCtx.value);
                 default -> {
                     String message = "Unknown parameter [{}]";
                     List<String> similar = StringUtils.findSimilar(name, PROMQL_ALLOWED_PARAMS);
@@ -1374,10 +1390,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         } else {
             throw new ParsingException(source, "Parameter [{}] or [{}] is required", STEP, TIME);
         }
-        return new PromqlParams(source, start, end, step);
+        return new PromqlParams(source, start, end, step, indexPattern);
     }
 
-    private String parseParamName(EsqlBaseParser.PromqlParamContentContext ctx) {
+    private String parseParamName(EsqlBaseParser.PromqlParamNameContext ctx) {
         if (ctx.UNQUOTED_SOURCE() != null) {
             return ctx.UNQUOTED_SOURCE().getText();
         } else if (ctx.QUOTED_IDENTIFIER() != null) {
@@ -1387,18 +1403,29 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
     }
 
-    private String parseParamValue(EsqlBaseParser.PromqlParamContentContext ctx) {
-        if (ctx.UNQUOTED_SOURCE() != null) {
-            return ctx.UNQUOTED_SOURCE().getText();
-        } else if (ctx.QUOTED_STRING() != null) {
-            return AbstractBuilder.unquote(ctx.QUOTED_STRING().getText());
-        } else if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
+    private String parseParamValueString(EsqlBaseParser.PromqlParamValueContext ctx) {
+        if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
             QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
             return param.value().toString();
         } else if (ctx.QUOTED_IDENTIFIER() != null) {
             throw new ParsingException(source(ctx), "Parameter value [{}] must not be a quoted identifier", ctx.getText());
+        } else if (ctx.indexPattern().size() == 1) {
+            EsqlBaseParser.IndexStringContext string = ctx.indexPattern().getFirst().indexString();
+            if (string.UNQUOTED_SOURCE() != null) {
+                return string.UNQUOTED_SOURCE().getText();
+            } else if (string.QUOTED_STRING() != null) {
+                return AbstractBuilder.unquote(string.QUOTED_STRING().getText());
+            }
+        }
+        throw new ParsingException(source(ctx), "Invalid parameter value [{}]", ctx.getText());
+    }
+
+    private IndexPattern parseIndexPattern(EsqlBaseParser.PromqlParamValueContext ctx) {
+        if (ctx.indexPattern().isEmpty()) {
+            // Default to all indices if no index pattern is provided
+            return new IndexPattern(source(ctx), "*");
         } else {
-            throw new ParsingException(source(ctx), "Invalid parameter value [{}]", ctx.getText());
+            return new IndexPattern(source(ctx), visitIndexPattern(ctx.indexPattern()));
         }
     }
 
@@ -1420,7 +1447,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      *
      * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/#expression-queries">PromQL API documentation</a>
      */
-    public record PromqlParams(Source source, Instant start, Instant end, Duration step) {
+    public record PromqlParams(Source source, Instant start, Instant end, Duration step, IndexPattern indexPattern) {
 
         public Literal startLiteral() {
             if (start == null) {

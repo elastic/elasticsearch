@@ -565,7 +565,7 @@ class IndicesAndAliasesResolver {
             assert replaceable.getResolvedIndexExpressions().getRemoteIndicesList().isEmpty() && resolved.getRemoteIndicesList().isEmpty()
                 : message;
             // Since the first resolution expands all wildcards, the second resolution is performed against concrete names.
-            // As a result, the resolved indices from the second resolution must be identical (most of the time) or a subset of the
+            // As a result, the resolved indices from the second resolution must be identical (most likely) or a subset of the
             // resolved indices from the first resolution if the user's role changes in between the two authorizations.
             assert replaceable.getResolvedIndexExpressions().getLocalIndicesList().containsAll(resolved.getLocalIndicesList()) : message;
         }

@@ -1,6 +1,6 @@
 version: 9.2.2
-released: false
-generated: 2025-11-29T00:13:53.871438437Z
+released: true
+generated: 2025-12-02T16:11:31.092527168Z
 changelogs:
   - pr: 108875
     summary: Break on `FieldData` when building global ordinals

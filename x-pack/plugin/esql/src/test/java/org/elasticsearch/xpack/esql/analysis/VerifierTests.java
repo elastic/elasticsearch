@@ -1174,7 +1174,8 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("FROM test | STATS count(network.bytes_out)", tsdb),
             equalTo(
-                "1:19: argument of [count(network.bytes_out)] must be [any type except counter types or dense_vector],"
+                "1:19: argument of [count(network.bytes_out)] must be"
+                    + " [any type except counter types, dense_vector or exponential_histogram],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -3293,47 +3294,45 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testChunkFunctionInvalidInputs() {
-        if (EsqlCapabilities.Cap.CHUNK_FUNCTION_V2.isEnabled()) {
-            assertThat(
-                error("from test | EVAL chunks = CHUNK(body, null)", fullTextAnalyzer, VerificationException.class),
-                equalTo("1:27: invalid chunking_settings, found [null]")
-            );
-            assertThat(
-                error("from test | EVAL chunks = CHUNK(body, {\"strategy\": \"invalid\"})", fullTextAnalyzer, VerificationException.class),
-                equalTo("1:27: Invalid chunkingStrategy invalid")
-            );
-            assertThat(
-                error(
-                    "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 5, \"sentence_overlap\": 1})",
-                    fullTextAnalyzer,
-                    VerificationException.class
-                ),
-                equalTo(
-                    "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
-                        + "[max_chunk_size] must be a greater than or equal to [20.0];"
-                )
-            );
-            assertThat(
-                error(
-                    "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 5, \"sentence_overlap\": 5})",
-                    fullTextAnalyzer,
-                    VerificationException.class
-                ),
-                equalTo(
-                    "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
-                        + "[max_chunk_size] must be a greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
-                )
-            );
-            assertThat(
-                error(
-                    "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 20, "
-                        + "\"sentence_overlap\": 1, \"extra_value\": \"foo\"})",
-                    fullTextAnalyzer,
-                    VerificationException.class
-                ),
-                equalTo("1:27: Validation Failed: 1: Sentence based chunking settings can not have the following settings: [extra_value];")
-            );
-        }
+        assertThat(
+            error("from test | EVAL chunks = CHUNK(body, null)", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:27: invalid chunking_settings, found [null]")
+        );
+        assertThat(
+            error("from test | EVAL chunks = CHUNK(body, {\"strategy\": \"invalid\"})", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:27: Invalid chunkingStrategy invalid")
+        );
+        assertThat(
+            error(
+                "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 5, \"sentence_overlap\": 1})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo(
+                "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
+                    + "[max_chunk_size] must be a greater than or equal to [20.0];"
+            )
+        );
+        assertThat(
+            error(
+                "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 5, \"sentence_overlap\": 5})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo(
+                "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
+                    + "[max_chunk_size] must be a greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
+            )
+        );
+        assertThat(
+            error(
+                "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 20, "
+                    + "\"sentence_overlap\": 1, \"extra_value\": \"foo\"})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:27: Validation Failed: 1: Sentence based chunking settings can not have the following settings: [extra_value];")
+        );
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

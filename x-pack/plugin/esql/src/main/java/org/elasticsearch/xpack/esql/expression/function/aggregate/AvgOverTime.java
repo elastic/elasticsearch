@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,7 +31,7 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link Avg}, but it is used to calculate the average value over a time series of values from the given field.
  */
-public class AvgOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, SurrogateExpression {
+public class AvgOverTime extends TimeSeriesAggregateFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "AvgOverTime",
@@ -101,13 +99,6 @@ public class AvgOverTime extends TimeSeriesAggregateFunction implements Optional
     @Override
     public AvgOverTime withFilter(Expression filter) {
         return new AvgOverTime(source(), field(), filter, window());
-    }
-
-    @Override
-    public Expression surrogate() {
-        Source s = source();
-        Expression f = field();
-        return new Div(s, new SumOverTime(s, f, filter(), window()), new CountOverTime(s, f, filter(), window()), dataType());
     }
 
     @Override

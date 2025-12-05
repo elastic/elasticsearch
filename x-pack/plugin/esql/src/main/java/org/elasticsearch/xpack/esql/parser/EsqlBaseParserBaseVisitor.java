@@ -894,6 +894,13 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitValueName(EsqlBaseParser.ValueNameContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitPromqlParam(EsqlBaseParser.PromqlParamContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -901,7 +908,14 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitPromqlParamContent(EsqlBaseParser.PromqlParamContentContext ctx) { return visitChildren(ctx); }
+  @Override public T visitPromqlParamName(EsqlBaseParser.PromqlParamNameContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitPromqlParamValue(EsqlBaseParser.PromqlParamValueContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

@@ -44,6 +44,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.hamcrest.Matchers;
 
 import java.nio.file.Path;
@@ -62,7 +63,7 @@ public class ProjectLifeCycleServiceTests extends ESTestCase {
             var pathHome = LuceneTestCase.createTempDir().toAbsolutePath();
             var repoPath = LuceneTestCase.createTempDir();
             var nodeSettings = Settings.builder()
-                .put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true)
+                .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
                 .put(Environment.PATH_HOME_SETTING.getKey(), pathHome)
                 .put(PATH_REPO_SETTING.getKey(), repoPath)
                 .put(BUCKET_SETTING.getKey(), repoPath)

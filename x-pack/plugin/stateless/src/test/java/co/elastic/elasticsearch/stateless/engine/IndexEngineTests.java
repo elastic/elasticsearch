@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.ShardLocalCommitsTracker;
@@ -51,6 +50,7 @@ import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.junit.After;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
@@ -143,7 +143,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
     }
 
     public void testRefreshNeededBasedOnSearcherAndCommits() throws Exception {
-        Settings nodeSettings = Settings.builder().put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true).build();
+        Settings nodeSettings = Settings.builder().put(StatelessPlugin.STATELESS_ENABLED.getKey(), true).build();
         try (
             var engine = newIndexEngine(
                 indexConfig(
@@ -179,7 +179,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
     }
 
     public void testRefreshesDoesNotWaitForUploadWithStatelessUploadDelayed() throws IOException {
-        Settings nodeSettings = Settings.builder().put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true).build();
+        Settings nodeSettings = Settings.builder().put(StatelessPlugin.STATELESS_ENABLED.getKey(), true).build();
 
         try (
             var engine = newIndexEngine(
@@ -224,7 +224,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
     }
 
     public void testFlushesWaitForUpload() throws IOException {
-        Settings nodeSettings = Settings.builder().put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true).build();
+        Settings nodeSettings = Settings.builder().put(StatelessPlugin.STATELESS_ENABLED.getKey(), true).build();
 
         try (
             var engine = newIndexEngine(
@@ -251,7 +251,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
     }
 
     public void testStartingTranslogFileIsPlaceInUserData() throws Exception {
-        Settings nodeSettings = Settings.builder().put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true).build();
+        Settings nodeSettings = Settings.builder().put(StatelessPlugin.STATELESS_ENABLED.getKey(), true).build();
 
         TranslogReplicator replicator = mock(TranslogReplicator.class);
         long maxUploadedFile = randomLongBetween(10, 20);
@@ -281,7 +281,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
     }
 
     public void testStartingAndEndTranslogFilesForHollowCommitInUserData() throws Exception {
-        Settings nodeSettings = Settings.builder().put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true).build();
+        Settings nodeSettings = Settings.builder().put(StatelessPlugin.STATELESS_ENABLED.getKey(), true).build();
 
         TranslogReplicator replicator = mock(TranslogReplicator.class);
         long maxUploadedFile = randomLongBetween(10, 20);
@@ -334,7 +334,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 openReaderGenerations.removeIf(gen -> openBCCs.contains(gen) == false);
             }), null)
         );
-        Settings nodeSettings = Settings.builder().put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true).build();
+        Settings nodeSettings = Settings.builder().put(StatelessPlugin.STATELESS_ENABLED.getKey(), true).build();
         try (
             var engine = newIndexEngine(
                 indexConfig(
@@ -488,7 +488,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             var engine = newIndexEngine(
                 indexConfig(
                     Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build(),
-                    Settings.builder().put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true).build(),
+                    Settings.builder().put(StatelessPlugin.STATELESS_ENABLED.getKey(), true).build(),
                     () -> 1L,
                     NoMergePolicy.INSTANCE
                 )

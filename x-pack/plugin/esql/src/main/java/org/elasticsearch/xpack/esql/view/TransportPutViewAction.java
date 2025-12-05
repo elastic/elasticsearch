@@ -22,7 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportPutViewAction extends AcknowledgedTransportMasterNodeProjectAction<PutViewAction.Request> {
-    private final ClusterViewService viewService;
+    private final ViewService viewService;
 
     @Inject
     public TransportPutViewAction(
@@ -30,7 +30,7 @@ public class TransportPutViewAction extends AcknowledgedTransportMasterNodeProje
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        ClusterViewService viewService,
+        ViewService viewService,
         ProjectResolver projectResolver
     ) {
         super(
@@ -53,7 +53,7 @@ public class TransportPutViewAction extends AcknowledgedTransportMasterNodeProje
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        viewService.put(state.projectId(), request, listener.map(v -> AcknowledgedResponse.TRUE));
+        viewService.putView(state.projectId(), request, listener.map(v -> AcknowledgedResponse.TRUE));
     }
 
     @Override

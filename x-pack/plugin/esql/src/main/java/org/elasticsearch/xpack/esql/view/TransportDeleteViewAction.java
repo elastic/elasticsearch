@@ -22,7 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportDeleteViewAction extends AcknowledgedTransportMasterNodeProjectAction<DeleteViewAction.Request> {
-    private final ClusterViewService viewService;
+    private final ViewService viewService;
 
     @Inject
     public TransportDeleteViewAction(
@@ -31,7 +31,7 @@ public class TransportDeleteViewAction extends AcknowledgedTransportMasterNodePr
         ThreadPool threadPool,
         ActionFilters actionFilters,
         ProjectResolver projectResolver,
-        ClusterViewService viewService
+        ViewService viewService
     ) {
         super(
             DeleteViewAction.NAME,
@@ -53,7 +53,7 @@ public class TransportDeleteViewAction extends AcknowledgedTransportMasterNodePr
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        viewService.delete(state.projectId(), request, listener.map(v -> AcknowledgedResponse.TRUE));
+        viewService.deleteView(state.projectId(), request, listener.map(v -> AcknowledgedResponse.TRUE));
     }
 
     @Override

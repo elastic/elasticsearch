@@ -31,7 +31,7 @@ import java.util.List;
 
 public class TransportGetViewAction extends TransportLocalProjectMetadataAction<GetViewAction.Request, GetViewAction.Response> {
     public static final ActionType<RemoteInfoResponse> TYPE = new ActionType<>(GetViewAction.NAME);
-    private final ClusterViewService viewService;
+    private final ViewService viewService;
 
     @Inject
     public TransportGetViewAction(
@@ -39,7 +39,7 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
         ActionFilters actionFilters,
         ClusterService clusterService,
         ProjectResolver projectResolver,
-        ClusterViewService viewService
+        ViewService viewService
     ) {
         super(
             GetViewAction.NAME,
@@ -64,7 +64,7 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
         List<String> missing = new ArrayList<>();
         Collection<String> names = request.names();
         if (names.isEmpty()) {
-            names = Collections.unmodifiableList(viewService.list(projectId));
+            names = Collections.unmodifiableSet(viewService.list(projectId));
         }
         for (String name : names) {
             View view = viewService.get(projectId, name);

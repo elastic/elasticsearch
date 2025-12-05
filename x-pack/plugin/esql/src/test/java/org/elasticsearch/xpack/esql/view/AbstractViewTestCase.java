@@ -34,7 +34,7 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
 
     protected ViewService viewService(ProjectResolver projectResolver) {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        return new ClusterViewService(clusterService, projectResolver, DEFAULT);
+        return new ViewService(clusterService, projectResolver, DEFAULT);
     }
 
     protected class TestViewsApi {
@@ -58,7 +58,7 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
             assertNotNull(view.name());
             TestResponseCapture<AcknowledgedResponse> responseCapture = new TestResponseCapture<>();
             PutViewAction.Request request = new PutViewAction.Request(TimeValue.MAX_VALUE, TimeValue.MAX_VALUE, view);
-            viewService.put(projectId, request, responseCapture);
+            viewService.putView(projectId, request, responseCapture);
             responseCapture.latch.await();
             return responseCapture.error;
         }
@@ -67,7 +67,7 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
             assertNotNull(name);
             TestResponseCapture<AcknowledgedResponse> responseCapture = new TestResponseCapture<>();
             DeleteViewAction.Request request = new DeleteViewAction.Request(TimeValue.MAX_VALUE, TimeValue.MAX_VALUE, name);
-            viewService.delete(projectId, request, responseCapture);
+            viewService.deleteView(projectId, request, responseCapture);
             responseCapture.latch.await();
             if (responseCapture.error.get() != null) {
                 throw responseCapture.error.get();

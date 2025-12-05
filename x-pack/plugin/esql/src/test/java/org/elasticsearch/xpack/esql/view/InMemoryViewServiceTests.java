@@ -169,7 +169,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private void addView(String name, String query, ViewService viewService) {
         PutViewAction.Request request = new PutViewAction.Request(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE, new View(name, query));
-        viewService.put(projectId, request, ActionListener.noop());
+        viewService.putView(projectId, request, ActionListener.noop());
     }
 
 }

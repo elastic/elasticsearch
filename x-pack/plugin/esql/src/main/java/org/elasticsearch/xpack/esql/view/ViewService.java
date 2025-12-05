@@ -9,14 +9,21 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SequentialAckingBatchedTaskExecutor;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -25,19 +32,21 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
-public abstract class ViewService {
+public class ViewService {
     private final ViewServiceConfig config;
     private final PlanTelemetry telemetry;
+    private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
+    private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
 
     public record ViewServiceConfig(int maxViews, int maxViewSize, int maxViewDepth) {
 
@@ -55,14 +64,138 @@ public abstract class ViewService {
         }
     }
 
-    public ViewService(ViewServiceConfig config) {
+    public ViewService(ClusterService clusterService, ProjectResolver projectResolver, ViewServiceConfig config) {
+        this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
+        this.taskQueue = clusterService.createTaskQueue(
+            "update-esql-view-metadata",
+            Priority.NORMAL,
+            new SequentialAckingBatchedTaskExecutor<>()
+        );
         this.telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
         this.config = config;
     }
 
-    protected abstract ViewMetadata getMetadata();
+    ViewMetadata getMetadata() {
+        return getMetadata(projectResolver.getProjectId());
+    }
 
-    protected abstract ViewMetadata getMetadata(ProjectId projectId);
+    protected ViewMetadata getMetadata(ProjectMetadata projectMetadata) {
+        return projectMetadata.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
+    }
+
+    ViewMetadata getMetadata(ProjectId projectId) {
+        return getMetadata(clusterService.state().metadata().getProject(projectId));
+    }
+
+    /**
+     * Adds or modifies a view by name.
+     */
+    public void putView(ProjectId projectId, PutViewAction.Request request, ActionListener<? extends AcknowledgedResponse> listener) {
+        if (viewsFeatureEnabled() == false) {
+            listener.onFailure(new IllegalArgumentException("ESQL views are not enabled"));
+            return;
+        }
+
+        final View view = request.view();
+        final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
+        validatePutView(metadata, view);
+        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                final ProjectMetadata project = currentState.metadata().getProject(projectId);
+                final ViewMetadata viewMetadata = project.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
+                final View currentView = viewMetadata.getView(view.name());
+                if (view.equals(currentView)) {
+                    // The update is a no-op, so no change is necessary
+                    return currentState;
+                }
+                // Validate the view again, because it could have become invalid between the pre-task submission and post-task submission.
+                validatePutView(metadata, view);
+                final Map<String, View> updatedViews = new HashMap<>(viewMetadata.views());
+                updatedViews.put(view.name(), view);
+                var metadata = ProjectMetadata.builder(project).putCustom(ViewMetadata.TYPE, new ViewMetadata(updatedViews));
+                return ClusterState.builder(currentState).putProjectMetadata(metadata).build();
+            }
+        };
+        taskQueue.submitTask("update-esql-view-metadata-[" + view.name() + "]", task, task.timeout());
+    }
+
+    /**
+     * Removes a view from the cluster state.
+     */
+    public void deleteView(ProjectId projectId, DeleteViewAction.Request request, ActionListener<? extends AcknowledgedResponse> listener) {
+        if (viewsFeatureEnabled() == false) {
+            listener.onFailure(new IllegalArgumentException("ESQL views are not enabled"));
+            return;
+        }
+        final String name = request.name();
+        final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
+        final ViewMetadata viewMetadata = metadata.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
+        if (viewMetadata.getView(name) == null) {
+            listener.onFailure(new ResourceNotFoundException("view [{}] not found", name));
+            return;
+        }
+
+        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                final ProjectMetadata project = currentState.metadata().getProject(projectId);
+                final ViewMetadata viewMetadata = project.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
+                final View currentView = viewMetadata.getView(name);
+                if (currentView == null) {
+                    // The update is a no-op, because we're trying to remove the view, but it doesn't exist, so no change is necessary
+                    return currentState;
+                }
+                final Map<String, View> updatedViews = new HashMap<>(viewMetadata.views());
+                final View existingView = updatedViews.remove(name);
+                assert existingView != null : "we should have short-circuited if removing a view that already didn't exist";
+                var metadata = ProjectMetadata.builder(project).putCustom(ViewMetadata.TYPE, new ViewMetadata(updatedViews));
+                return ClusterState.builder(currentState).putProjectMetadata(metadata).build();
+            }
+        };
+        taskQueue.submitTask("delete-esql-view-metadata-[" + name + "]", task, task.timeout());
+    }
+
+    /**
+     * Validates that a view may be inserted into the cluster state
+     */
+    private void validatePutView(ProjectMetadata metadata, View view) {
+        if (view.query().length() > config.maxViewSize) {
+            throw new IllegalArgumentException(
+                "view query is too large: " + view.query().length() + " characters, the maximum allowed is " + config.maxViewSize
+            );
+        }
+        final ViewMetadata views = getMetadata(metadata);
+        final View existing = views.getView(view.name());
+        if (existing == null && views.views().size() >= config.maxViews) {
+            throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + config.maxViews);
+        }
+        // Parse the query to ensure it's valid, this will throw appropriate exceptions if not
+        new EsqlParser().createStatement(view.query(), new QueryParams(), telemetry);
+    }
+
+    /**
+     * Gets a view by name.
+     */
+    @Nullable
+    public View get(ProjectId projectId, String name) {
+        if (Strings.hasText(name) == false) {
+            throw new IllegalArgumentException("name is missing or empty");
+        }
+        return viewsFeatureEnabled() ? getMetadata(projectId).getView(name) : null;
+    }
+
+    /**
+     * List all current view names.
+     */
+    public Set<String> list(ProjectId projectId) {
+        return viewsFeatureEnabled() ? getMetadata(projectId).viewNames() : Set.of();
+    }
+
+    protected boolean viewsFeatureEnabled() {
+        return EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled();
+    }
 
     public LogicalPlan replaceViews(LogicalPlan plan, PlanTelemetry telemetry) {
         if (viewsFeatureEnabled() == false) {
@@ -145,117 +278,4 @@ public abstract class ViewService {
         }
         throw new VerificationException(b.toString());
     }
-
-    /**
-     * Adds or modifies a view by name. This method can only be invoked on the master node.
-     */
-    public void put(ProjectId projectId, PutViewAction.Request request, ActionListener<? extends AcknowledgedResponse> callback) {
-        assertMasterNode();
-        if (viewsFeatureEnabled()) {
-            View view = request.view();
-            validatePutView(projectId, view);
-            updateViewMetadata("PUT", projectId, request, callback, current -> {
-                Map<String, View> updated = new HashMap<>(current.views());
-                View exists = current.getView(view.name());
-                if (exists != null) {
-                    // View already exists
-                    if (exists.equals(request.view())) {
-                        // no change
-                        return current.views();
-                    }
-                    // Remove the existing view
-                    updated.put(view.name(), view);
-                }
-                return updated;
-            });
-        }
-    }
-
-    private void validatePutView(ProjectId projectId, View view) {
-        if (view == null) {
-            throw new IllegalArgumentException("view is missing");
-        }
-        String name = view.name();
-        if (Strings.hasText(name) == false) {
-            throw new IllegalArgumentException("name is missing or empty");
-        }
-        // The view name is used in a similar context to an index name and therefore has the same restrictions as an index name
-        MetadataCreateIndexService.validateIndexOrAliasName(
-            name,
-            (viewName, error) -> new IllegalArgumentException("Invalid view name [" + viewName + "], " + error)
-        );
-        if (name.toLowerCase(Locale.ROOT).equals(name) == false) {
-            throw new IllegalArgumentException("Invalid view name [" + name + "], must be lowercase");
-        }
-        String query = view.query();
-        if (Strings.isNullOrEmpty(query)) {
-            throw new IllegalArgumentException("view query is missing or empty");
-        }
-        if (query.length() > config.maxViewSize) {
-            throw new IllegalArgumentException(
-                "view query is too large: " + query.length() + " characters, the maximum allowed is " + config.maxViewSize
-            );
-        }
-        ViewMetadata views = getMetadata(projectId);
-        View existing = getMetadata(projectId).getView(name);
-        if (existing == null && views.views().size() >= config.maxViews) {
-            throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + config.maxViews);
-        }
-        // Parse the query to ensure it's valid, this will throw appropriate exceptions if not
-        new EsqlParser().createStatement(query, new QueryParams(), telemetry);
-    }
-
-    /**
-     * Gets the view by name.
-     */
-    public View get(ProjectId projectId, String name) {
-        if (Strings.hasText(name) == false) {
-            throw new IllegalArgumentException("name is missing or empty");
-        }
-        return viewsFeatureEnabled() ? getMetadata(projectId).getView(name) : null;
-    }
-
-    /**
-     * List current view names.
-     */
-    public Set<String> list(ProjectId projectId) {
-        return viewsFeatureEnabled() ? getMetadata(projectId).viewNames() : Set.of();
-    }
-
-    /**
-     * Removes a view from the cluster state. This method can only be invoked on the master node.
-     */
-    public void delete(ProjectId projectId, DeleteViewAction.Request request, ActionListener<? extends AcknowledgedResponse> callback) {
-        assertMasterNode();
-        String name = request.name();
-        if (Strings.hasText(name) == false) {
-            throw new IllegalArgumentException("name is missing or empty");
-        }
-
-        if (viewsFeatureEnabled()) {
-            updateViewMetadata("DELETE", projectId, request, callback, current -> {
-                View original = current.getView(name);
-                if (original == null) {
-                    throw new ResourceNotFoundException("view [{}] not found", name);
-                }
-                Map<String, View> updated = new HashMap<>(current.views());
-                updated.remove(name);
-                return updated;
-            });
-        }
-    }
-
-    protected abstract void assertMasterNode();
-
-    protected boolean viewsFeatureEnabled() {
-        return true;
-    }
-
-    protected abstract void updateViewMetadata(
-        String verb,
-        ProjectId projectId,
-        AcknowledgedRequest<?> request,
-        ActionListener<? extends AcknowledgedResponse> callback,
-        Function<ViewMetadata, Map<String, View>> function
-    );
 }

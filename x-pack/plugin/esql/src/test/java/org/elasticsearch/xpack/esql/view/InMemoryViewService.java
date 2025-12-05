@@ -8,17 +8,18 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
+import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.threadpool.TestThreadPool;
 
+import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
- * Simple implementation of {@link ClusterViewService} that keeps the views in memory.
+ * Simple implementation of {@link ViewService} that keeps the views in memory.
  * This is useful for testing.
  */
 public class InMemoryViewService extends ViewService {
@@ -34,7 +35,7 @@ public class InMemoryViewService extends ViewService {
     }
 
     private InMemoryViewService(ViewServiceConfig config, ViewMetadata metadata) {
-        super(config);
+        super(ClusterServiceUtils.createClusterService(new TestThreadPool("in-memory-views")), null, config);
         this.metadata = metadata;
     }
 
@@ -53,19 +54,16 @@ public class InMemoryViewService extends ViewService {
     }
 
     @Override
-    protected void updateViewMetadata(
-        String verb,
-        ProjectId projectId,
-        AcknowledgedRequest<?> request,
-        ActionListener<? extends AcknowledgedResponse> callback,
-        Function<ViewMetadata, Map<String, View>> function
-    ) {
-        Map<String, View> updated = function.apply(metadata);
-        this.metadata = new ViewMetadata(updated);
+    public void putView(ProjectId projectId, PutViewAction.Request request, ActionListener<? extends AcknowledgedResponse> listener) {
+        Map<String, View> existingViews = new HashMap<>(metadata.views());
+        existingViews.put(request.view().name(), request.view());
+        metadata = new ViewMetadata(existingViews);
     }
 
     @Override
-    protected void assertMasterNode() {
-        // no-op
+    public void deleteView(ProjectId projectId, DeleteViewAction.Request request, ActionListener<? extends AcknowledgedResponse> listener) {
+        Map<String, View> existingViews = new HashMap<>(metadata.views());
+        existingViews.remove(request.name());
+        metadata = new ViewMetadata(existingViews);
     }
 }

@@ -19,37 +19,56 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import java.io.IOException;
 
 /**
- * Data node streams hits back using many small chunk requests.
- * DTO that carries each chunk of fetch results
+ * A single chunk of fetch results streamed from a data node to the coordinator
  **/
 public record FetchPhaseResponseChunk(
     long timestampMillis,
     Type type,
     int shardIndex,
-    ShardSearchContextId contextId,
     SearchHits hits,
     int from,
     int size,
     int expectedDocs
 ) implements Writeable {
 
+    /**
+     * The type of chunk being sent.
+     */
     public enum Type {
+        /**
+         * Signals the start of the response stream. Sent once before any HITS chunks.
+         * Contains no hit data.
+         */
         START_RESPONSE,
+        /**
+         * Contains a batch of search hits. Multiple HITS chunks may be sent for a single
+         * shard fetch operation.
+         */
         HITS,
     }
 
+    /**
+     * Compact constructor with validation.
+     *
+     * @throws IllegalArgumentException if shardIndex is invalid
+     */
     public FetchPhaseResponseChunk {
         if (shardIndex < -1) {
             throw new IllegalArgumentException("invalid: " + this);
         }
     }
 
+    /**
+     * Deserializes a chunk from the given stream.
+     *
+     * @param in the stream to read from
+     * @throws IOException if deserialization fails
+     */
     public FetchPhaseResponseChunk(StreamInput in) throws IOException {
         this(
             in.readVLong(),
             in.readEnum(Type.class),
             in.readVInt(),
-            in.readOptionalWriteable(ShardSearchContextId::new),
             readOptionalHits(in),
             in.readVInt(),
             in.readVInt(),
@@ -69,23 +88,23 @@ public record FetchPhaseResponseChunk(
         out.writeVLong(timestampMillis);
         out.writeEnum(type);
         out.writeVInt(shardIndex);
-        out.writeOptionalWriteable(contextId);
 
-
-        // hits (optional)
         if (hits == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
             hits.writeTo(out);
         }
-        //out.writeOptionalWriteable(hits);
         out.writeVInt(from);
         out.writeVInt(size);
         out.writeVInt(expectedDocs);
     }
 
-
+    /**
+     * Interface for sending chunk responses from the data node to the coordinator.
+     * <p>
+     * Implementations send chunks via {@link TransportFetchPhaseResponseChunkAction}.
+     */
     public interface Writer {
         void writeResponseChunk(FetchPhaseResponseChunk responseChunk, ActionListener<Void> listener);
     }

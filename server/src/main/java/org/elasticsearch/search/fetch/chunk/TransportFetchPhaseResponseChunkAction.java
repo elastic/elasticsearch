@@ -23,17 +23,40 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * This is the receiver for chunk requests from the data node.
- * Receives chunk transport requests from the data node and forwards them into the response stream.
+ * Transport action that receives fetch result chunks from data nodes. This action runs on the coordinator node and serves as
+ * the receiver endpoint for {@link FetchPhaseResponseChunk} messages sent by data nodes during chunked fetch operations.
  */
 public class TransportFetchPhaseResponseChunkAction extends HandledTransportAction<
     TransportFetchPhaseResponseChunkAction.Request,
     ActionResponse.Empty> {
 
+    /*
+     * [Data Node]                                   [Coordinator]
+     *    |                                               |
+     *    | FetchPhase.execute(writer)                    |
+     *    |   ↓                                           |
+     *    | writer.writeResponseChunk(chunk) ------------>| TransportFetchPhaseResponseChunkAction
+     *    |                                               |     ↓
+     *    |                                               | activeFetchPhaseTasks.acquireResponseStream()
+     *    |                                               |     ↓
+     *    |                                               | responseStream.writeChunk()
+     *    |                                               |
+     *    |<------------- [ACK (Empty)]------- -----------|
+     *
+     */
+
     public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("indices:data/read/fetch/chunk");
 
     private final ActiveFetchPhaseTasks activeFetchPhaseTasks;
 
+
+    /**
+     * Creates a new chunk receiver action.
+     *
+     * @param transportService the transport service
+     * @param actionFilters the action filters
+     * @param activeFetchPhaseTasks the registry of active fetch response streams
+     */
     @Inject
     public TransportFetchPhaseResponseChunkAction(
         TransportService transportService,
@@ -44,10 +67,19 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
         this.activeFetchPhaseTasks = activeFetchPhaseTasks;
     }
 
+    /**
+     * Request wrapper containing the coordinating task ID and the chunk contents.
+     */
     public static class Request extends LegacyActionRequest {
         private long coordinatingTaskId;
         private FetchPhaseResponseChunk chunkContents;
 
+        /**
+         * Creates a new chunk request.
+         *
+         * @param coordinatingTaskId the ID of the coordinating search task
+         * @param chunkContents the chunk to deliver
+         */
         public Request(long coordinatingTaskId, FetchPhaseResponseChunk chunkContents) {
             this.coordinatingTaskId = coordinatingTaskId;
             this.chunkContents = Objects.requireNonNull(chunkContents);
@@ -76,7 +108,23 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
         }
     }
 
-    // Running on the coordinator node, receives chunk requests from the data node (FetchPhaseResponseChunk)
+    /**
+     *  Running on the coordinator node. Processes an incoming chunk by routing it to the appropriate response stream.
+     * <p>
+     * This method:
+     * <ol>
+     *   <li>Extracts the shard ID from the chunk</li>
+     *   <li>Acquires the response stream from {@link ActiveFetchPhaseTasks}</li>
+     *   <li>Delegates to {@link FetchPhaseResponseStream#startResponse} or
+     *       {@link FetchPhaseResponseStream#writeChunk} based on chunk type</li>
+     *   <li>Releases the response stream reference</li>
+     *   <li>Sends an acknowledgment response to the data node</li>
+     * </ol>
+     *
+     * @param task the current task
+     * @param request the chunk request
+     * @param listener callback for sending the acknowledgment
+     */
     @Override
     protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
         ActionListener.run(listener, l -> {

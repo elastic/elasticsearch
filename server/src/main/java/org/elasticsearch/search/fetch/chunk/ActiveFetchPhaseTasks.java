@@ -17,13 +17,26 @@ import org.elasticsearch.core.Releasables;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * Registers the mapping between coordinating tasks and response streams. When the coordination action starts, it registers the stream.
- * When each chunk arrives, TransportFetchPhaseResponseChunkAction calls acquireResponseStream to find the right response stream.
+ * Manages the registry of active fetch response streams on the coordinator node.
  */
+
 public final class ActiveFetchPhaseTasks {
 
     private final ConcurrentMap<ResponseStreamKey, FetchPhaseResponseStream> tasks = ConcurrentCollections.newConcurrentMap();
 
+    /**
+     * Registers a response stream for a specific coordinating task and shard.
+     *
+     * This method is called by {@link TransportFetchPhaseCoordinationAction} when starting
+     * a chunked fetch. The returned {@link Releasable} must be closed when the fetch
+     * completes to remove the stream from the registry.
+     *
+     * @param coordinatingTaskId the ID of the coordinating search task
+     * @param shardId the shard ID being fetched
+     * @param responseStream the stream to register (must have at least one reference count)
+     * @return a releasable that removes the registration when closed
+     * @throws IllegalStateException if a stream for this task+shard combination is already registered
+     */
     Releasable registerResponseBuilder(long coordinatingTaskId, int shardId, FetchPhaseResponseStream responseStream) {
         assert responseStream.hasReferences();
 
@@ -47,8 +60,15 @@ public final class ActiveFetchPhaseTasks {
     }
 
     /**
-     * Obtain the response stream for the given coordinating-node task ID, and increment its refcount.
-     * @throws ResourceNotFoundException if the task is not running or its refcount already reached zero (likely because it completed)
+     * Acquires the response stream for the given coordinating task and shard, incrementing its reference count.
+     *
+     * This method is called by {@link TransportFetchPhaseResponseChunkAction} for each arriving chunk.
+     * The caller must call {@link FetchPhaseResponseStream#decRef()} when done processing the chunk.
+     *
+     * @param coordinatingTaskId the ID of the coordinating search task
+     * @param shardId the shard ID
+     * @return the response stream with an incremented reference count
+     * @throws ResourceNotFoundException if the task is not registered or has already completed
      */
     public FetchPhaseResponseStream acquireResponseStream(long coordinatingTaskId,  int shardId) {
         final var outerRequest  = tasks.get(new ResponseStreamKey(coordinatingTaskId, shardId));

@@ -18,33 +18,71 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-/**
- * The coordinating transport action for fetch
- * Receives a ShardFetchSearchRequest wrapped in TransportFetchPhaseCoordinationAction.Request.
- */
 public class TransportFetchPhaseCoordinationAction extends HandledTransportAction<
     TransportFetchPhaseCoordinationAction.Request,
     TransportFetchPhaseCoordinationAction.Response> {
+
+    /*
+     * Transport action that coordinates chunked fetch operations from the coordinator node.
+     * <p>
+     * This action orchestrates the chunked fetch flow by:
+     * <ol>
+     *   <li>Registering a {@link FetchPhaseResponseStream} for accumulating chunks</li>
+     *   <li>Setting coordinator information on the fetch request</li>
+     *   <li>Sending the request to the data node via the standard fetch transport action</li>
+     *   <li>Building the final result from accumulated chunks when the data node completes</li>
+     * </ol>
+     * <p>
+     * +-------------------+                  +-------------+                          +-----------+
+     * | FetchSearchPhase  |                  | Coordinator |                          | Data Node |
+     * +-------------------+                  +-------------+                          +-----------+
+     *      |                                     |                                          |
+     *      |- execute(request, dataNode)-------->|                                          | --[Initialization Phase]
+     *      |                                     |---[ShardFetchRequest]------------------->|
+     *      |                                     |                                          |
+     *      |                                     |                                          | --[Chunked Streaming Phase]
+     *      |                                     |<---[START_RESPONSE chunk]----------------|
+     *      |                                     |----[ACK (Empty)]------------------------>|
+     *      |                                     |                                          | --[Process data]
+     *      |                                     |<---[HITS chunk 1]------------------------|
+     *      |                                     |  [Accumulate in stream]                  |
+     *      |                                     |----[ACK (Empty)]------------------------>|
+     *      |                                     |                                          | --[Process more data]
+     *      |                                     |<---[HITS chunk 2]------------------------|
+     *      |                                     |  [Accumulate in stream]                  |
+     *      |                                     |----[ACK (Empty)]------------------------>|
+     *      |                                     |                                          |
+     *      |                                     |<--FetchSearchResult----------------------| --[Completion Phase]
+     *      |                                     |   (final response)                       |
+     *      |                                     |                                          |
+     *      |                                     |--[Build final result]                    |
+     *      |                                     |  (from accumulated chunks)               |
+     *      |<-- FetchSearchResult (complete) ----|                                          |
+     */
 
     public static final ActionType<Response> TYPE = new ActionType<>("internal:data/read/search/fetch/coordination");
 
     private final TransportService transportService;
     private final ActiveFetchPhaseTasks activeFetchPhaseTasks;
+    private final CircuitBreakerService circuitBreakerService;
 
     public static class Request extends ActionRequest {
         private final ShardFetchSearchRequest shardFetchRequest;
@@ -90,7 +128,6 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         }
 
         public Response(StreamInput in) throws IOException {
-            //super(in);
             this.result = new FetchSearchResult(in);
         }
 
@@ -108,7 +145,8 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
     public TransportFetchPhaseCoordinationAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        ActiveFetchPhaseTasks activeFetchPhaseTasks
+        ActiveFetchPhaseTasks activeFetchPhaseTasks,
+        CircuitBreakerService circuitBreakerService
     ) {
         super(
             TYPE.name(),
@@ -119,40 +157,36 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         );
         this.transportService = transportService;
         this.activeFetchPhaseTasks = activeFetchPhaseTasks;
+        this.circuitBreakerService = circuitBreakerService;
     }
 
+    // Creates and registers a response stream for the coordinating task
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-
-        // Creates and registers a response stram for the coordinating task
-        ShardFetchSearchRequest fetchReq = request.getShardFetchRequest();
-        DiscoveryNode dataNode = request.getDataNode();
-        long coordinatingTaskId = task.getId();
+        final long coordinatingTaskId = task.getId();
 
         // Set coordinator information on the request
+        final ShardFetchSearchRequest fetchReq = request.getShardFetchRequest();
         fetchReq.setCoordinatingNode(transportService.getLocalNode());
         fetchReq.setCoordinatingTaskId(coordinatingTaskId);
 
         // Create and register response stream
+        assert fetchReq.getShardSearchRequest() != null;
         int shardId = fetchReq.getShardSearchRequest().shardId().id();
         int expectedDocs = fetchReq.docIds().length;
-        FetchPhaseResponseStream responseStream = new FetchPhaseResponseStream(shardId, expectedDocs);
-        responseStream.incRef();
 
-        Releasable registration = activeFetchPhaseTasks.registerResponseBuilder(
-            coordinatingTaskId,
-            shardId,
-            responseStream
-        );
+        CircuitBreaker circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
+        FetchPhaseResponseStream responseStream = new FetchPhaseResponseStream(shardId, expectedDocs, circuitBreaker);
+        Releasable registration = activeFetchPhaseTasks.registerResponseBuilder(coordinatingTaskId, shardId, responseStream);
 
-        // Create listener that builds final result from accumulated chunks
+        // Listener that builds final result from accumulated chunks
         ActionListener<FetchSearchResult> childListener = ActionListener.wrap(
             dataNodeResult -> {
                 try {
-                    // Data node has finished - build final result from chunks
                     ShardSearchContextId ctxId = dataNodeResult.getContextId();
                     SearchShardTarget shardTarget = dataNodeResult.getSearchShardTarget();
-                    FetchSearchResult finalResult = responseStream.buildFinalResult(ctxId, shardTarget);
+                    ProfileResult profileResult = dataNodeResult.profileResult();
+                    FetchSearchResult finalResult = responseStream.buildFinalResult(ctxId, shardTarget, profileResult);
                     listener.onResponse(new Response(finalResult));
                 } catch (Exception e) {
                     listener.onFailure(e);
@@ -172,10 +206,9 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         );
 
         // Forward request to data node using the existing FETCH_ID_ACTION_NAME
-        // The data node will see coordinator info and automatically use chunking
         transportService.sendChildRequest(
-            dataNode,
-            "indices:data/read/search[phase/fetch/id]", // FETCH_ID_ACTION_NAME
+            request.getDataNode(),
+            "indices:data/read/search[phase/fetch/id]",
             fetchReq,
             task,
             TransportRequestOptions.EMPTY,

@@ -34,7 +34,6 @@ import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.profile.ProfileResult;
@@ -91,21 +90,18 @@ public final class FetchPhase {
         }
 
         if (docIdsToLoad == null || docIdsToLoad.length == 0) {
-            // no individual hits to process, so we shortcut
-            // keep existing behavior on the data node
-            context.fetchResult()
-                .shardResult(
-                    SearchHits.empty(context.queryResult().getTotalHits(), context.queryResult().getMaxScore()),
-                    null
-                );
+            SearchHits emptyHits = SearchHits.empty(
+                context.queryResult().getTotalHits(),
+                context.queryResult().getMaxScore()
+            );
+            context.fetchResult().shardResult(emptyHits, null);
 
-            // optionally inform the coordinator that this shard produced no docs
+            // If chunking, send START_RESPONSE to signal no hits
             if (writer != null) {
                 FetchPhaseResponseChunk start = new FetchPhaseResponseChunk(
                     System.currentTimeMillis(),
                     FetchPhaseResponseChunk.Type.START_RESPONSE,
                     context.shardTarget().getShardId().id(),
-                    context.id(),
                     null,
                     0,
                     0,
@@ -116,7 +112,6 @@ public final class FetchPhase {
             return;
         }
 
-        // same profiling logic as the original execute(...)
         final Profiler profiler = context.getProfilers() == null
             || (context.request().source() != null && context.request().source().rankBuilder() != null)
             ? Profiler.NOOP
@@ -124,73 +119,29 @@ public final class FetchPhase {
 
         SearchHits hits = null;
         try {
-            // build all hits using the existing code path
-            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker);
+            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker, writer);
+            ProfileResult profileResult = profiler.finish();
 
-            if (writer != null) {
-                final int shardIndex = context.shardTarget().getShardId().id();
-                final ShardSearchContextId ctxId = context.id();
-                final int expectedDocs = docIdsToLoad.length;
-
-                // 1) START_RESPONSE chunk
-                FetchPhaseResponseChunk start = new FetchPhaseResponseChunk(
-                    System.currentTimeMillis(),
-                    FetchPhaseResponseChunk.Type.START_RESPONSE,
-                    shardIndex,
-                    ctxId,
-                    null,
-                    0,
-                    0,
-                    expectedDocs
+            if (writer == null) {
+                // Set full result on data node (all hits in memory)
+                context.fetchResult().shardResult(hits, profileResult);
+                hits = null;
+            } else {
+                // Set EMPTY hits (coordinator builds from chunks)
+                SearchHits emptyHits = SearchHits.empty(
+                    context.queryResult().getTotalHits(),
+                    context.queryResult().getMaxScore()
                 );
-                writer.writeResponseChunk(start, ActionListener.running(() -> {}));
+                context.fetchResult().shardResult(emptyHits, profileResult);
 
-                // 2) HITS chunks
-                SearchHit[] allHits = hits.getHits();
-                if (allHits != null && allHits.length > 0) {
-                    final int chunkSize = 5; // TODO tune as needed
-                    int from = 0;
-                    while (from < allHits.length) {
-                        int to = Math.min(from + chunkSize, allHits.length);
-                        int size = to - from;
-
-                        SearchHit[] slice = new SearchHit[size];
-                        System.arraycopy(allHits, from, slice, 0, size);
-
-                        // This SearchHits is only for the chunk; totalHits here is the chunk size
-                        SearchHits chunkHits = new SearchHits(
-                            slice,
-                            new TotalHits(size, TotalHits.Relation.EQUAL_TO),
-                            hits.getMaxScore()
-                        );
-
-                        FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(
-                            System.currentTimeMillis(),
-                            FetchPhaseResponseChunk.Type.HITS,
-                            shardIndex,
-                            ctxId,
-                            chunkHits,
-                            from,
-                            size,
-                            expectedDocs
-                        );
-                        writer.writeResponseChunk(chunk, ActionListener.running(() -> {}));
-
-                        from = to;
-                    }
+                if (hits != null) {
+                    hits.decRef();
+                    hits = null;
                 }
             }
         } finally {
-            try {
-                ProfileResult profileResult = profiler.finish();
-                if (hits != null) {
-                    context.fetchResult().shardResult(hits, profileResult);
-                    hits = null;
-                }
-            } finally {
-                if (hits != null) {
-                    hits.decRef();
-                }
+            if (hits != null) {
+                hits.decRef();
             }
         }
     }
@@ -224,7 +175,7 @@ public final class FetchPhase {
                 : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
         try {
-            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker);
+            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker, null);
         } finally {
             try {
                 // Always finish profiling
@@ -257,7 +208,8 @@ public final class FetchPhase {
         int[] docIdsToLoad,
         Profiler profiler,
         RankDocShardInfo rankDocs,
-        IntConsumer memoryChecker
+        IntConsumer memoryChecker,
+        FetchPhaseResponseChunk.Writer writer
     ) {
         var lookup = context.getSearchExecutionContext().getMappingLookup();
 
@@ -399,7 +351,9 @@ public final class FetchPhase {
                 context.searcher().getIndexReader(),
                 docIdsToLoad,
                 context.request().allowPartialSearchResults(),
-                context.queryResult()
+                context.queryResult(),
+                writer,
+               5
             );
 
             if (context.isCancelled()) {

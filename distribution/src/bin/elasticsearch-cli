@@ -6,9 +6,7 @@ source "`dirname "$0"`"/elasticsearch-env
 
 # use a small heap size for the CLI tools, and thus the serial collector to
 # avoid stealing many CPU cycles; a user can override by setting CLI_JAVA_OPTS
-CLI_JAVA_OPTS="-Xms4m -Xmx32m -XX:+UseSerialGC -XX:MaxHeapFreeRatio=10 -XX:MinHeapFreeRatio=5 -XX:-ShrinkHeapInSteps \
--XX:-UseAdaptiveSizePolicy -XX:TrimNativeHeapInterval=2000 -XX:ThreadStackSize=256 -XX:MaxMetaspaceSize=16m \
--XX:-TieredCompilation -XX:ReservedCodeCacheSize=8m ${CLI_JAVA_OPTS}"
+CLI_JAVA_OPTS="-Xms4m -Xmx64m -XX:+UseSerialGC ${CLI_JAVA_OPTS}"
 
 LAUNCHER_CLASSPATH=$ES_HOME/lib/*:$ES_HOME/lib/cli-launcher/*
 

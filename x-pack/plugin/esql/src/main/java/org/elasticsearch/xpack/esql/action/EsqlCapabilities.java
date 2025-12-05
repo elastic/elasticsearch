@@ -1580,7 +1580,7 @@ public class EsqlCapabilities {
          * When implementing changes on this type, we'll simply increment the version suffix at the end to prevent bwc tests from running.
          * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          */
-        EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V7(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+        EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
         TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY(T_DIGEST_ESQL_SUPPORT),
 
@@ -1710,7 +1710,7 @@ public class EsqlCapabilities {
          * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          * At this point, we need to add new capabilities for any further changes.
          */
-        PROMQL_PRE_TECH_PREVIEW_V5(Build.current().isSnapshot()),
+        PROMQL_PRE_TECH_PREVIEW_V7(Build.current().isSnapshot()),
 
         /**
          * KNN function adds support for k and visit_percentage options

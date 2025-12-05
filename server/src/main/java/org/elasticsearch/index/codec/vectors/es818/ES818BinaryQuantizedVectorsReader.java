@@ -33,6 +33,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -53,6 +54,7 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
@@ -251,6 +253,60 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
         final RandomVectorScorer scorer = getRandomVectorScorer(field, target);
         if (scorer == null) return;
         OrdinalTranslatedKnnCollector collector = new OrdinalTranslatedKnnCollector(knnCollector, scorer::ordToDoc);
+        
+        DocIdSetIterator acceptDocsIterator = acceptDocs.iterator();
+        if (acceptDocsIterator == null) {
+            for (int i = 0; i < scorer.maxOrd(); i++) {
+                collector.collect(i, scorer.score(i));
+                collector.incVisitedCount(1);
+            }
+        } else {
+            if (acceptDocs instanceof org.elasticsearch.search.vectors.ESAcceptDocs esAcceptDocs) {
+                java.util.Set<Integer> acceptedDocs = new java.util.HashSet<>();
+                for (int doc = acceptDocsIterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = acceptDocsIterator.nextDoc()) {
+                    acceptedDocs.add(doc);
+                }
+                
+                for (int i = 0; i < scorer.maxOrd(); i++) {
+                    int doc = scorer.ordToDoc(i);
+                    if (acceptedDocs.contains(doc)) {
+                        collector.collect(i, scorer.score(i));
+                        collector.incVisitedCount(1);
+                    }
+                }
+            } else {
+                collectWithBits(collector, acceptDocs, scorer);
+            }
+        }
+    }
+    
+    private void collectWithIterator(OrdinalTranslatedKnnCollector collector, DocIdSetIterator acceptDocsIterator, RandomVectorScorer scorer) throws IOException {
+        java.util.Set<Integer> acceptedDocs = new java.util.HashSet<>();
+        for (int doc = acceptDocsIterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = acceptDocsIterator.nextDoc()) {
+            acceptedDocs.add(doc);
+        }
+        
+        // Check each ordinal against accepted docs
+        for (int i = 0; i < scorer.maxOrd(); i++) {
+            int doc = scorer.ordToDoc(i);
+            if (acceptedDocs.contains(doc)) {
+                collector.collect(i, scorer.score(i));
+                collector.incVisitedCount(1);
+            }
+        }
+    }
+    
+    private void collectWithBitSet(OrdinalTranslatedKnnCollector collector, org.apache.lucene.util.BitSet acceptDocsBitSet, RandomVectorScorer scorer) throws IOException {
+        for (int i = 0; i < scorer.maxOrd(); i++) {
+            int doc = scorer.ordToDoc(i);
+            if (acceptDocsBitSet.get(doc)) {
+                collector.collect(i, scorer.score(i));
+                collector.incVisitedCount(1);
+            }
+        }
+    }
+    
+    private void collectWithBits(OrdinalTranslatedKnnCollector collector, AcceptDocs acceptDocs, RandomVectorScorer scorer) throws IOException {
         Bits acceptedOrds = scorer.getAcceptOrds(acceptDocs.bits());
         for (int i = 0; i < scorer.maxOrd(); i++) {
             if (acceptedOrds == null || acceptedOrds.get(i)) {

@@ -26,6 +26,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
@@ -136,11 +137,25 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
         private void collectAllMatchingDocs(KnnCollector knnCollector, AcceptDocs acceptDocs, RandomVectorScorer scorer)
             throws IOException {
             OrdinalTranslatedKnnCollector collector = new OrdinalTranslatedKnnCollector(knnCollector, scorer::ordToDoc);
-            Bits acceptedOrds = scorer.getAcceptOrds(acceptDocs.bits());
-            for (int i = 0; i < scorer.maxOrd(); i++) {
-                if (acceptedOrds == null || acceptedOrds.get(i)) {
+            
+            DocIdSetIterator acceptDocsIterator = acceptDocs.iterator();
+            if (acceptDocsIterator == null) {
+                for (int i = 0; i < scorer.maxOrd(); i++) {
                     collector.collect(i, scorer.score(i));
                     collector.incVisitedCount(1);
+                }
+            } else {
+                java.util.Set<Integer> acceptedDocs = new java.util.HashSet<>();
+                for (int doc = acceptDocsIterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = acceptDocsIterator.nextDoc()) {
+                    acceptedDocs.add(doc);
+                }
+                
+                for (int i = 0; i < scorer.maxOrd(); i++) {
+                    int doc = scorer.ordToDoc(i);
+                    if (acceptedDocs.contains(doc)) {
+                        collector.collect(i, scorer.score(i));
+                        collector.incVisitedCount(1);
+                    }
                 }
             }
             assert collector.earlyTerminated() == false;

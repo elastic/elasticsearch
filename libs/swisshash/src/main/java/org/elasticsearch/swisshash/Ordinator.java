@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Superclass of table to assign {@code int} ids to various key types,
@@ -46,9 +47,9 @@ public abstract class Ordinator {
         int initialCapacity,
         float smallCoreFillFactor
     ) {
-        this.recycler = recycler;
-        this.breaker = breaker;
-        this.idSpace = idSpace;
+        this.breaker = Objects.requireNonNull(breaker);
+        this.idSpace = Objects.requireNonNull(idSpace);
+        this.recycler = recycler == null?  PageCacheRecycler.NON_RECYCLING_INSTANCE : recycler;
 
         this.capacity = initialCapacity;
         this.mask = capacity - 1;

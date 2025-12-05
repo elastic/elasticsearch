@@ -71,10 +71,6 @@ abstract class FetchPhaseDocsIterator {
 
     /**
      * Iterate over a set of docsIds within a particular shard and index reader.
-     * <p>
-     * <b>Backward compatible signature:</b> This method maintains the original behavior
-     * without streaming chunks. Use {@link #iterate(SearchShardTarget, IndexReader, int[],
-     * boolean, QuerySearchResult, FetchPhaseResponseChunk.Writer, int)} for streaming support.
      */
     public final SearchHit[] iterate(
         SearchShardTarget shardTarget,
@@ -91,12 +87,10 @@ abstract class FetchPhaseDocsIterator {
     /**
      * Iterate over a set of docsIds within a particular shard and index reader.
      * If a writer is provided, hits are sent in chunks as they are produced (streaming mode).
-     * <p>
-     * <b>Streaming mode:</b> When {@code chunkWriter} is non-null, hits are buffered and sent
+     * Streaming mode:< When {@code chunkWriter} is non-null, hits are buffered and sent
      * in chunks of size {@code chunkSize}. This reduces memory footprint for large result sets
      * by streaming results to the coordinator as they are produced.
-     * <p>
-     * <b>Legacy mode:</b> When {@code chunkWriter} is null, behaves exactly like the original
+     * Legacy mode: When {@code chunkWriter} is null, behaves exactly like the original
      * {@link #iterate(SearchShardTarget, IndexReader, int[], boolean, QuerySearchResult)} method.
      *
      * @param shardTarget         the shard being fetched from

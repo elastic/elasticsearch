@@ -543,9 +543,7 @@ public class SearchTransportService {
         );
 
         final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> {
-            // Pattern matching - checks type and assigns variable in one step
-            if (request instanceof ShardFetchSearchRequest fetchSearchReq
-                && fetchSearchReq.getCoordinatingNode() != null) {
+            if (request instanceof ShardFetchSearchRequest fetchSearchReq && fetchSearchReq.getCoordinatingNode() != null) {
 
                 // CHUNKED PATH
                 final FetchPhaseResponseChunk.Writer writer = new FetchPhaseResponseChunk.Writer() {
@@ -583,7 +581,6 @@ public class SearchTransportService {
                     writer,
                     new ChannelActionListener<>(channel)
                 );
-
             } else {
                 // Normal path
                 searchService.executeFetchPhase(

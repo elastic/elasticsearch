@@ -108,7 +108,6 @@ class FetchSearchPhase extends SearchPhase {
             && context.getRequest().hasKnnSearch() == false
             && reducedQueryPhase.queryPhaseRankCoordinatorContext() == null
             && (context.getRequest().source() == null || context.getRequest().source().rankBuilder() == null);
-        queryAndFetchOptimization = false;
         if (queryAndFetchOptimization) {
             assert assertConsistentWithQueryAndFetchOptimization();
             // query AND fetch optimization
@@ -294,7 +293,7 @@ class FetchSearchPhase extends SearchPhase {
     }
 
     private boolean shouldUseChunking(List<Integer> docIds) {
-        return docIds != null && docIds.size() > 1; // TODO set it properly
+        return docIds != null && docIds.size() > 10; // TODO set it properly
     }
 
     private void moveToNextPhase(

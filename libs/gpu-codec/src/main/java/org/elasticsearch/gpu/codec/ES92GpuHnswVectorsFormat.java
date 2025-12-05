@@ -45,7 +45,7 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
     static final int MIN_NUM_VECTORS_FOR_GPU_BUILD = 2;
 
     private static final FlatVectorsFormat flatVectorsFormat = new Lucene99FlatVectorsFormat(
-        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+        new DelegatingFlatVectorsScorer(FlatVectorScorerUtil.getLucene99FlatVectorsScorer())
     );
 
     // How many nodes each node in the graph is connected to in the final graph

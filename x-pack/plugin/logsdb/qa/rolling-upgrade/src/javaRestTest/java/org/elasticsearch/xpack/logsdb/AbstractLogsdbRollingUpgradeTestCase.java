@@ -17,7 +17,7 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 
-public class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCase {
+public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCase {
     private static final String USER = "admin-user";
     private static final String PASS = "x-pack-test-password";
 

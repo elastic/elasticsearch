@@ -9,7 +9,6 @@
 
 package org.elasticsearch.test.fixtures.testcontainers;
 
-import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.Description;
@@ -18,6 +17,7 @@ import org.testcontainers.containers.Network;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.test.fixtures.testcontainers.DockerAvailability.assumeDockerIsAvailable;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -26,7 +26,7 @@ public class Junit4NetworkRuleTests {
 
     @BeforeClass
     public static void checkDockerAvailable() {
-        Assume.assumeTrue("Docker is not available", DockerEnvironmentAwareTestContainer.isDockerAvailable());
+        assumeDockerIsAvailable();
     }
 
     @Test

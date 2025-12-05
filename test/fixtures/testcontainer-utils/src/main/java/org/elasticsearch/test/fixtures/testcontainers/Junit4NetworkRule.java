@@ -9,10 +9,13 @@
 
 package org.elasticsearch.test.fixtures.testcontainers;
 
+import org.junit.AssumptionViolatedException;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import org.testcontainers.containers.Network;
+
+import static org.elasticsearch.test.fixtures.testcontainers.DockerAvailability.assumeDockerIsAvailable;
 
 public class Junit4NetworkRule implements TestRule {
 
@@ -26,12 +29,26 @@ public class Junit4NetworkRule implements TestRule {
     public Statement apply(Statement statement, Description description) {
         return new Statement() {
             @Override
-            public void evaluate() throws Throwable {
-                network.getId();
-                statement.evaluate();
-                network.close();
+            public void evaluate() {
+                try {
+                    assumeDockerIsAvailable();
+                    network.getId();
+                    statement.evaluate();
+                    network.close();
+                } catch (AssumptionViolatedException e) {
+                    throw e;
+                } catch (Throwable e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    try {
+                        network.close();
+                    } catch (Throwable e) {
+
+                    }
+                }
             }
         };
+
     }
 
     public static Junit4NetworkRule from(Network network) {

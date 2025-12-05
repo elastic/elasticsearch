@@ -24,13 +24,13 @@ import static io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.ne
  *     OpenTelemetry Collector Exponential Histogram Tests
  * </a>
  */
-public class ExponentialHistogramTDigestConverterTests extends ESTestCase {
+public class ExponentialHistogramToTDigestConverterTests extends ESTestCase {
 
     private final ExponentialHistogramDataPoint dataPoint;
     private final List<Long> expectedCounts;
     private final List<Double> expectedValues;
 
-    public ExponentialHistogramTDigestConverterTests(
+    public ExponentialHistogramToTDigestConverterTests(
         String name,
         ExponentialHistogramDataPoint.Builder builder,
         List<Long> expectedCounts,

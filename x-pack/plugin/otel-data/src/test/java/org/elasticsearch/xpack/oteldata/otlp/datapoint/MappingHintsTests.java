@@ -12,6 +12,7 @@ import io.opentelemetry.proto.common.v1.ArrayValue;
 import io.opentelemetry.proto.common.v1.KeyValue;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.oteldata.OTelPlugin;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.HistogramMapping;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
@@ -21,7 +22,10 @@ public class MappingHintsTests extends ESTestCase {
 
     private MappingHints randomDefaultHints() {
         boolean useExponentialHistogram = randomBoolean();
-        return MappingHints.fromSettings(useExponentialHistogram);
+        return MappingHints.fromSettings(useExponentialHistogram ?
+            OTelPlugin.HistogramMappingSettingValues.EXPONENTIAL_HISTOGRAM :
+            OTelPlugin.HistogramMappingSettingValues.HISTOGRAM
+        );
     }
 
     public void testEmptyAttributes() {

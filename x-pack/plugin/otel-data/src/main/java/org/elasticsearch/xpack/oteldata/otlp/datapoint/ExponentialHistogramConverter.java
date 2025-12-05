@@ -39,14 +39,16 @@ public class ExponentialHistogramConverter {
         builder.field("scale", dataPoint.getScale());
         if (dataPoint.getZeroCount() > 0) {
             builder.startObject("zero")
-                .field("count", dataPoint.getZeroCount())
-                .field("threshold", dataPoint.getZeroThreshold())
-                .endObject();
+                .field("count", dataPoint.getZeroCount());
+            if (dataPoint.getZeroThreshold() != 0) {
+                builder.field("threshold", dataPoint.getZeroThreshold());
+            }
+            builder.endObject();
         }
         if (dataPoint.hasNegative()) {
             writeExponentialBuckets(builder, "negative", dataPoint.getNegative());
         }
-        if (dataPoint.hasNegative()) {
+        if (dataPoint.hasPositive()) {
             writeExponentialBuckets(builder, "positive", dataPoint.getPositive());
         }
         if (dataPoint.hasSum()) {

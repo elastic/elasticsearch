@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -61,6 +62,8 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
 
     @Nullable
     private String projectRouting;
+
+    private static final TransportVersion MSEARCH_PROJECT_ROUTING = TransportVersion.fromName("msearch_project_routing");
 
     public MultiSearchRequest() {}
 
@@ -141,6 +144,11 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
             SearchRequest request = new SearchRequest(in);
             requests.add(request);
         }
+        if (in.getTransportVersion().supports(MSEARCH_PROJECT_ROUTING)) {
+            this.projectRouting = in.readOptionalString();
+        } else {
+            this.projectRouting = null;
+        }
     }
 
     @Override
@@ -148,6 +156,9 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
         super.writeTo(out);
         out.writeVInt(maxConcurrentSearchRequests);
         out.writeCollection(requests);
+        if (out.getTransportVersion().supports(MSEARCH_PROJECT_ROUTING)) {
+            out.writeOptionalString(this.projectRouting);
+        }
     }
 
     @Override

@@ -12,6 +12,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermState;
@@ -26,26 +27,23 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
 class CachedDirectoryReader extends FilterDirectoryReader {
-    LookupEnrichQueryGenerator queryList;
 
-    CachedDirectoryReader(DirectoryReader in, LookupEnrichQueryGenerator queryList) throws IOException {
+    CachedDirectoryReader(DirectoryReader in) throws IOException {
         super(in, new SubReaderWrapper() {
             @Override
             public LeafReader wrap(LeafReader reader) {
-                return new CachedLeafReader(reader, queryList);
+                return new CachedLeafReader(reader);
             }
         });
-        this.queryList = queryList;
     }
 
     @Override
     protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-        return new CachedDirectoryReader(in, queryList);
+        return new CachedDirectoryReader(in);
     }
 
     @Override
@@ -53,16 +51,19 @@ class CachedDirectoryReader extends FilterDirectoryReader {
         return in.getReaderCacheHelper();
     }
 
+    void resetTermsEnumCache() {
+        for (LeafReaderContext leafContext : leaves()) {
+            CachedLeafReader cachedLeafReader = (CachedLeafReader) leafContext.reader();
+            cachedLeafReader.termEnums.values().forEach(termEnum -> termEnum.inUsed = false);
+        }
+    }
+
     static class CachedLeafReader extends FilterLeafReader {
         final Map<String, NumericDocValues> docValues = new HashMap<>();
-        final Map<String, TermsEnum> termEnums = new HashMap<>();
-        final Set<String> fieldsWithMultipleQueries;
+        final Map<String, SharedTermEnum> termEnums = new HashMap<>();
 
-        CachedLeafReader(LeafReader in, LookupEnrichQueryGenerator queryList) {
+        CachedLeafReader(LeafReader in) {
             super(in);
-            // Get the precomputed fields with multiple queries from the queryList
-            // Only ExpressionQueryList can have repeating fields, and it computes this once during initialization
-            this.fieldsWithMultipleQueries = queryList.fieldsWithMultipleQueries();
         }
 
         @Override
@@ -85,24 +86,19 @@ class CachedDirectoryReader extends FilterDirectoryReader {
             if (terms == null) {
                 return null;
             }
-            // If multiple queries use the same field, don't cache TermsEnum
-            // This avoids a data issue where the same TermsEnum is reused for different queries
-            // (e.g., in OR NOT expressions like: OR NOT (other1 != "omicron" AND other1 != "nu"))
-            if (fieldsWithMultipleQueries.contains(field)) {
-                return terms;
-            }
             return new FilterTerms(terms) {
                 @Override
                 public TermsEnum iterator() throws IOException {
                     return new CachedTermsEnum((reuse) -> {
                         return termEnums.compute(field, (k, curr) -> {
-                            if (curr == null || reuse == false) {
+                            if (curr == null || reuse == false || curr.inUsed) {
                                 try {
-                                    curr = in.iterator();
+                                    curr = new SharedTermEnum(in.iterator());
                                 } catch (IOException e) {
                                     throw new UncheckedIOException(e);
                                 }
                             }
+                            curr.inUsed = true;
                             return curr;
                         });
                     });
@@ -118,6 +114,14 @@ class CachedDirectoryReader extends FilterDirectoryReader {
         @Override
         public CacheHelper getReaderCacheHelper() {
             return in.getCoreCacheHelper();
+        }
+    }
+
+    static final class SharedTermEnum extends FilterLeafReader.FilterTermsEnum {
+        boolean inUsed = false;
+
+        SharedTermEnum(TermsEnum delegate) {
+            super(delegate);
         }
     }
 
@@ -204,7 +208,7 @@ class CachedDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public void seekExact(BytesRef term, TermState state) throws IOException {
-            getDelegate(false).seekExact(term, state);
+            getDelegate(true).seekExact(term, state);
         }
 
         @Override

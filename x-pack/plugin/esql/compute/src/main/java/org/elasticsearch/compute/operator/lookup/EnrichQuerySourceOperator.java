@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator.lookup;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -42,7 +41,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
     private int queryPosition = -1;
     private final IndexedByShardId<? extends ShardContext> shardContexts;
     private final ShardContext shardContext;
-    private final IndexReader indexReader;
+    private final CachedDirectoryReader indexReader;
     private final IndexSearcher searcher;
     private final Warnings warnings;
     private final int maxPageSize;
@@ -65,7 +64,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         this.shardContext = shardContexts.get(shardId);
         this.shardContext.incRef();
         try {
-            this.indexReader = new CachedDirectoryReader((DirectoryReader) shardContext.searcher().getIndexReader(), queryList);
+            this.indexReader = new CachedDirectoryReader((DirectoryReader) shardContext.searcher().getIndexReader());
             this.searcher = new IndexSearcher(this.indexReader);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -102,6 +101,8 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
                         assert isFinished();
                         break;
                     }
+                    // allow reusing the previous terms enums
+                    indexReader.resetTermsEnumCache();
                     query = searcher.rewrite(new ConstantScoreQuery(query));
                 } catch (Exception e) {
                     warnings.registerException(e);

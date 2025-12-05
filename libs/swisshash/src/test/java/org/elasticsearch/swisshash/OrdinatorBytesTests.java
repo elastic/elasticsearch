@@ -133,36 +133,17 @@ public class OrdinatorBytesTests extends ESTestCase {
                 assertThat(leftOrd.size(), equalTo(0));
                 assertThat(rightOrd.size(), equalTo(0));
 
-                // When sharing BytesRefArray, IDs are allocated sequentially from the single array.
-                // So if we alternate adds, IDs will interleave.
-                
-                // However, OrdinatorBytes logic assumes "add to BytesRefArray" returns the ID.
-                // If leftOrd adds, ID is 0.
-                // If rightOrd adds, ID is 1.
-                
-                // Wait, if they share the BytesRefArray, does `add` work as expected for hashing?
-                // `OrdinatorBytes` stores (hash, control, id).
-                // `leftOrd` will map Key -> ID 0.
-                // `rightOrd` will map Key -> ID 1.
-                // `leftOrd` will NOT know about ID 1 unless we add it there too.
-                // But the IDs are global to the BytesRefArray.
 
-                // This test verifies that we can use the *same* storage for keys/IDs
-                // but maintain *different* hash sets (indices).
-                
                 for (int i = 0; i < count; i++) {
                     // Add to left
                     int idLeft = leftOrd.add(left[i]);
                     // Add to right
                     int idRight = rightOrd.add(right[i]);
 
-                    // IDs should be unique and sequential globally
-                    // idLeft should be 2*i
-                    // idRight should be 2*i + 1
                     assertThat(idLeft, equalTo(2 * i));
                     assertThat(idRight, equalTo(2 * i + 1));
                 }
-                
+
                 assertThat(leftOrd.size(), equalTo(count));
                 assertThat(rightOrd.size(), equalTo(count));
 
@@ -170,21 +151,6 @@ public class OrdinatorBytesTests extends ESTestCase {
                     assertThat(leftOrd.find(left[i]), equalTo(2 * i));
                     assertThat(rightOrd.find(right[i]), equalTo(2 * i + 1));
                 }
-                
-                // Verify finding works correctly (left shouldn't find right's keys if not added, wait...)
-                // If I search for right[i] in leftOrd, it should return -1.
-                // Unless right[i] equals left[j]. (Assuming disjoint sets for simplicity).
-                
-                // My randomValues doesn't guarantee disjoint, but highly likely.
-                // Let's assume they might overlap, but the ID returned would be different if added separately?
-                // No, if `left[0] == right[0]`, then:
-                // leftOrd.add(left[0]) -> ID 0.
-                // rightOrd.add(right[0]) -> calls bytesRefs.append(right[0]).
-                // BytesRefArray just appends. It doesn't check uniqueness.
-                // So we get ID 1. Key is duplicated in BytesRefArray.
-                // leftOrd maps left[0] -> ID 0.
-                // rightOrd maps right[0] -> ID 1.
-                // Correct.
 
                 assertStatus(leftOrd);
                 assertStatus(rightOrd);
@@ -206,7 +172,7 @@ public class OrdinatorBytesTests extends ESTestCase {
              // Reduce slightly to force break if we allocate anything extra.
              breakAt = Math.max(1, breakAt - 100);
         }
-        
+
         // Note: BigArrays also uses the breaker.
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("test", ByteSizeValue.ofBytes(breakAt));
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
@@ -224,10 +190,7 @@ public class OrdinatorBytesTests extends ESTestCase {
 
     private void assertStatus(OrdinatorBytes ord) {
         Ordinator.Status status = ord.status();
-        // Note: OrdinatorBytes.size() returns bytesRefs.size().
-        // If shared, it might be larger than the number of entries *in this hash*.
-        // But in testValues() it's not shared.
-        
+
         if (expectedGrowCount == 0) {
              // In small core, capacity is fixed.
             assertThat(status.growCount(), equalTo(0));

@@ -17,8 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.allocation;
 
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -26,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 
 import java.util.Set;
 
@@ -73,9 +72,6 @@ public class StatelessAllocationDecider extends AllocationDecider {
     }
 
     private static String statelessNodeRole(Set<DiscoveryNodeRole> roles) {
-        return roles.stream()
-            .filter(ServerlessStatelessPlugin.STATELESS_ROLES::contains)
-            .map(DiscoveryNodeRole::roleName)
-            .collect(joining(","));
+        return roles.stream().filter(StatelessPlugin.STATELESS_ROLES::contains).map(DiscoveryNodeRole::roleName).collect(joining(","));
     }
 }

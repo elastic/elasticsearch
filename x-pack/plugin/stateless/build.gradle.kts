@@ -13,7 +13,7 @@ esplugin {
     name = "serverless-stateless"
     description = "Stateless module for Serverless Elasticsearch"
     classname = "co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin"
-    extendedPlugins = listOf("x-pack-core", "blob-cache")
+    extendedPlugins = listOf("x-pack-core", "blob-cache", "stateless")
 }
 
 configurations {
@@ -32,10 +32,12 @@ GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.withType<Test
 dependencies {
     compileOnly(xpackModule("core"))
     compileOnly(xpackModule("blob-cache"))
+    compileOnly(xpackModule("stateless"))
     compileOnly(project(":libs:serverless-shared-constants"))
     implementation(project(":libs:serverless-stateless-api"))
     internalClusterTestImplementation(testArtifact(xpackModule("core")))
     internalClusterTestImplementation(xpackModule("shutdown"))
+    internalClusterTestImplementation(testArtifact(xpackModule("stateless"), sourceSet = "internalClusterTest"))
     internalClusterTestImplementation(project(":modules:serverless-autoscaling"))
     internalClusterTestImplementation("org.elasticsearch.plugin:data-streams")
     internalClusterTestImplementation("org.elasticsearch.plugin:mapper-extras")

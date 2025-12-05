@@ -1,5 +1,5 @@
 pr: 137842
-summary: Add `VectorByteUtils` for vectorized byte comparison utilities
+summary: Provide vectorized array comparison utilities using Neon, AVX, AVX 512
 area: "Performance"
 type: enhancement
 issues: []

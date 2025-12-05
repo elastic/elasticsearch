@@ -436,7 +436,7 @@ public class ESVectorUtil {
         return IMPL.indexOf(bytes, offset, length, marker);
     }
 
-    public static VectorByteUtils getVectorByteUtils() {
-        return IMPL.getVectorByteUtils();
+    public static VectorComparisonUtils getVectorComparisonUtils() {
+        return IMPL.getVectorComparisonUtils();
     }
 }

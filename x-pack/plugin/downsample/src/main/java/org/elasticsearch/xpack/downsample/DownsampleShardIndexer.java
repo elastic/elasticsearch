@@ -375,7 +375,7 @@ class DownsampleShardIndexer {
                         metricFieldProducer,
                         fieldValueFetcher.getNumericLeaf(ctx)
                     );
-                } else if (fieldProducer instanceof ExponentialHistogramMetricFieldProducer exponentialHistogramProducer) {
+                } else if (fieldProducer instanceof ExponentialHistogramFieldProducer exponentialHistogramProducer) {
                     fieldCollectors[i] = new LeafDownsampleCollector.FieldCollector<>(
                         exponentialHistogramProducer,
                         fieldValueFetcher.getExponentialHistogramLeaf(ctx)

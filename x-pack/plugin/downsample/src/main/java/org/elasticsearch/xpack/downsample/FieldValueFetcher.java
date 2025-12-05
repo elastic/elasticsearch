@@ -78,13 +78,16 @@ class FieldValueFetcher {
     private AbstractDownsampleFieldProducer<?> createFieldProducer(DownsampleConfig.SamplingMethod samplingMethod) {
         assert "aggregate_metric_double".equals(fieldType.typeName()) == false
             : "Aggregate metric double should be handled by a dedicated FieldValueFetcher";
+        if ("exponential_histogram".equals(fieldType.typeName())) {
+            return ExponentialHistogramFieldProducer.create(name(), samplingMethod);
+        }
         if (fieldType.getMetricType() != null) {
             return switch (fieldType.getMetricType()) {
                 case GAUGE -> NumericMetricFieldProducer.createFieldProducerForGauge(name(), samplingMethod);
                 case COUNTER -> LastValueFieldProducer.createForMetric(name());
                 case HISTOGRAM -> {
                     if ("exponential_histogram".equals(fieldType.typeName())) {
-                        yield ExponentialHistogramMetricFieldProducer.createMetricProducerForExponentialHistogram(name(), samplingMethod);
+                        yield ExponentialHistogramFieldProducer.create(name(), samplingMethod);
                     }
                     throw new IllegalArgumentException("Time series metrics supports only exponential histogram");
                 }

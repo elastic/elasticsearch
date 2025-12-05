@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -69,6 +70,17 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     }
 
     @Override
+    public String visitPromqlClusterString(EsqlBaseParser.PromqlClusterStringContext ctx) {
+        if (ctx == null) {
+            return null;
+        } else if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
+            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
+        } else {
+            return ctx.UNQUOTED_SOURCE().getText();
+        }
+    }
+
+    @Override
     public String visitIndexString(IndexStringContext ctx) {
         if (ctx.UNQUOTED_SOURCE() != null) {
             return ctx.UNQUOTED_SOURCE().getText();
@@ -78,9 +90,31 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     }
 
     @Override
+    public String visitPromqlIndexString(EsqlBaseParser.PromqlIndexStringContext ctx) {
+        if (ctx.UNQUOTED_SOURCE() != null) {
+            return ctx.UNQUOTED_SOURCE().getText();
+        } else if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
+            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
+        } else {
+            return unquote(ctx.QUOTED_STRING().getText());
+        }
+    }
+
+    @Override
     public String visitSelectorString(EsqlBaseParser.SelectorStringContext ctx) {
         if (ctx == null) {
             return null;
+        } else {
+            return ctx.UNQUOTED_SOURCE().getText();
+        }
+    }
+
+    @Override
+    public String visitPromqlSelectorString(EsqlBaseParser.PromqlSelectorStringContext ctx) {
+        if (ctx == null) {
+            return null;
+        } else if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
+            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
         } else {
             return ctx.UNQUOTED_SOURCE().getText();
         }
@@ -101,12 +135,29 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         return Strings.collectionToDelimitedString(patterns, ",");
     }
 
-    private static void throwInvalidIndexNameException(String indexPattern, String message, EsqlBaseParser.IndexPatternContext ctx) {
+    public String visitPromqlIndexPattern(List<EsqlBaseParser.PromqlIndexPatternContext> ctx) {
+        List<String> patterns = new ArrayList<>(ctx.size());
+        Holder<Boolean> hasSeenStar = new Holder<>(false);
+        ctx.forEach(c -> {
+            String indexPattern = c.promqlUnquotedIndexString() != null
+                ? c.promqlUnquotedIndexString().getText()
+                : visitPromqlIndexString(c.promqlIndexString());
+            String clusterString = visitPromqlClusterString(c.promqlClusterString());
+            String selectorString = visitPromqlSelectorString(c.promqlSelectorString());
+
+            hasSeenStar.set(hasSeenStar.get() || indexPattern.contains(WILDCARD));
+            validate(clusterString, indexPattern, selectorString, c, hasSeenStar.get());
+            patterns.add(reassembleIndexName(clusterString, indexPattern, selectorString));
+        });
+        return Strings.collectionToDelimitedString(patterns, ",");
+    }
+
+    private static void throwInvalidIndexNameException(String indexPattern, String message, ParserRuleContext ctx) {
         var ie = new InvalidIndexNameException(indexPattern, message);
         throw new ParsingException(ie, source(ctx), ie.getMessage());
     }
 
-    private static void throwOnMixingSelectorWithCluster(String indexPattern, EsqlBaseParser.IndexPatternContext c) {
+    private static void throwOnMixingSelectorWithCluster(String indexPattern, ParserRuleContext c) {
         throwInvalidIndexNameException(indexPattern, "Selectors are not yet supported on remote cluster patterns", c);
     }
 
@@ -125,7 +176,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         return expression.toString();
     }
 
-    protected static void validateClusterString(String clusterString, EsqlBaseParser.IndexPatternContext ctx) {
+    protected static void validateClusterString(String clusterString, ParserRuleContext ctx) {
         if (clusterString.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR) != -1) {
             throw new ParsingException(source(ctx), "cluster string [{}] must not contain ':'", clusterString);
         }
@@ -144,7 +195,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         String clusterString,
         String indexPattern,
         String selectorString,
-        EsqlBaseParser.IndexPatternContext ctx,
+        ParserRuleContext ctx,
         boolean hasSeenStar
     ) {
         /*
@@ -204,7 +255,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         String clusterString,
         String indexName,
         String selectorString,
-        EsqlBaseParser.IndexPatternContext ctx,
+        ParserRuleContext ctx,
         boolean hasSeenStar
     ) {
         indexName = indexName.strip();
@@ -275,7 +326,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         }
     }
 
-    private static void resolveAndValidateIndex(String index, EsqlBaseParser.IndexPatternContext ctx, boolean hasSeenStar) {
+    private static void resolveAndValidateIndex(String index, ParserRuleContext ctx, boolean hasSeenStar) {
         // If index name is blank without any replacements, it was likely blank right from the beginning and is invalid.
         if (index.isBlank()) {
             throwInvalidIndexNameException(index, BLANK_INDEX_ERROR_MESSAGE, ctx);

@@ -40,7 +40,6 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
-    @SuppressWarnings("unchecked")
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         // TODO multivalue fields
@@ -178,6 +177,13 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             "ToStringFromAggregateMetricDoubleEvaluator[field=" + read + "]",
             DataType.KEYWORD,
             agg -> matchesBytesRef(EsqlDataTypeConverter.aggregateMetricDoubleLiteralToString(agg)),
+            List.of()
+        );
+        TestCaseSupplier.forUnaryExponentialHistogram(
+            suppliers,
+            "ToStringFromExponentialHistogramEvaluator[histogram=" + read + "]",
+            DataType.KEYWORD,
+            eh -> new BytesRef(EsqlDataTypeConverter.exponentialHistogramToString(eh)),
             List.of()
         );
 

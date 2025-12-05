@@ -205,16 +205,10 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                     EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()
                 ) },
             // Implicit cast shouldn't add extra metrics
-            new Object[] {
-                new Test(
-                    """
-                        FROM idx
-                        | EVAL x = DATE_DIFF("hours", "2021-01-02T00:00:00", "2021-01-02T00:00:00Z")
-                        """,
-                    Map.of("FROM", 1, "EVAL", 1),
-                    Map.of("DATE_DIFF", 1),
-                    true
-                ) }
+            new Object[] { new Test("""
+                FROM idx
+                | EVAL x = DATE_DIFF("hours", "2021-01-02T00:00:00", "2021-01-02T00:00:00Z")
+                """, Map.of("FROM", 1, "EVAL", 1), Map.of("DATE_DIFF", 1), true) }
         );
     }
 

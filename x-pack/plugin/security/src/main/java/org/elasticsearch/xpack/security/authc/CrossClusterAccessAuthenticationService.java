@@ -92,8 +92,6 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
             return;
         }
 
-        // This check is to ensure all nodes understand cross_cluster_access subject type
-
         // This is ensured by CrossClusterAccessServerTransportFilter -- validating for internal consistency here
         assert threadContext.getHeaders().keySet().stream().noneMatch(ClientHelper.SECURITY_HEADER_FILTERS::contains);
         try (

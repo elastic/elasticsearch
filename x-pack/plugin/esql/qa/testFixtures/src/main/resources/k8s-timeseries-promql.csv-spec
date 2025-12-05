@@ -1,6 +1,6 @@
 promql_start_end_step
-required_capability: promql_pre_tech_preview_v5
-PROMQL k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" (
+required_capability: promql_pre_tech_preview_v6
+PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" (
   sum(avg_over_time(network.cost[5m]))
 );
 

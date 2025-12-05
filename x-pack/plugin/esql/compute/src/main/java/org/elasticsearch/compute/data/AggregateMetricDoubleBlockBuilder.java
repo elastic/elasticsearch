@@ -203,6 +203,16 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
         public String getLabel() {
             return label;
         }
+
+        public static Metric indexToMetric(int i) {
+            return switch (i) {
+                case 0 -> MIN;
+                case 1 -> MAX;
+                case 2 -> SUM;
+                case 3 -> COUNT;
+                default -> null;
+            };
+        }
     }
 
     /**

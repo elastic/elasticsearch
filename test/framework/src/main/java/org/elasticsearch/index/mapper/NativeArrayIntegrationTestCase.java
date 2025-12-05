@@ -259,17 +259,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
     private XContentBuilder arrayToSource(Object[] array) throws IOException {
         var source = jsonBuilder().startObject();
         if (array != null) {
-            // collapse array if it only consists of one element
-            // if the only element is null, then we'll skip synthesizing source for that field
-            if (array.length == 1 && array[0] != null) {
-                source.field("field", array[0]);
-            } else {
-                source.startArray("field");
-                for (Object arrayValue : array) {
-                    source.value(arrayValue);
-                }
-                source.endArray();
+            source.startArray("field");
+            for (Object arrayValue : array) {
+                source.value(arrayValue);
             }
+            source.endArray();
         } else {
             source.field("field").nullValue();
         }

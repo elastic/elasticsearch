@@ -20,17 +20,28 @@ import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.LicensedFeature;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.List;
 
 public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlugin {
 
+    private static final Logger log = LogManager.getLogger(GPUPlugin.class);
+
     public static final FeatureFlag GPU_FORMAT = new FeatureFlag("gpu_vectors_indexing");
 
-    private static final License.OperationMode MINIMUM_ALLOWED_LICENSE = License.OperationMode.ENTERPRISE;
+    public static final LicensedFeature.Momentary GPU_INDEXING_FEATURE = LicensedFeature.momentary(
+        null,
+        XPackField.GPU_INDEXING,
+        License.OperationMode.ENTERPRISE
+    );
 
     private final GpuMode gpuMode;
 
@@ -75,7 +86,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
     // Allow tests to override the license state
     protected boolean isGpuIndexingFeatureAllowed() {
         var licenseState = XPackPlugin.getSharedLicenseState();
-        return licenseState != null && licenseState.isAllowedByLicense(MINIMUM_ALLOWED_LICENSE);
+        return licenseState != null && GPU_INDEXING_FEATURE.check(licenseState);
     }
 
     @Override
@@ -115,9 +126,35 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
     @Override
     public VectorsFormatProvider getVectorsFormatProvider() {
         return (indexSettings, indexOptions, similarity, elementType) -> {
-            if (GPU_FORMAT.isEnabled() && isGpuIndexingFeatureAllowed()) {
-                if ((gpuMode == GpuMode.TRUE || (gpuMode == GpuMode.AUTO && GPUSupport.isSupported()))
-                    && vectorIndexAndElementTypeSupported(indexOptions.getType(), elementType)) {
+            if (GPU_FORMAT.isEnabled()) {
+                if (gpuMode == GpuMode.TRUE) {
+                    assert GPUSupport.isSupported();
+                    if (isGpuIndexingFeatureAllowed() == false) {
+                        log.error(
+                            String.format(
+                                "[%s] is set to TRUE, but it is not allowed by the current license",
+                                VECTORS_INDEXING_USE_GPU_NODE_SETTING.getKey()
+                            ),
+                            LicenseUtils.newComplianceException(XPackField.GPU_INDEXING)
+                        );
+                        return null;
+                    }
+                }
+
+                if (gpuMode == GpuMode.AUTO && GPUSupport.isSupported()) {
+                    if (isGpuIndexingFeatureAllowed() == false) {
+                        log.warn(
+                            String.format(
+                                "The current configuration supports GPU indexing, but it is not allowed by the current license. " +
+                                    "If this is intentional, it is possible to suppress this message by setting [%s] to FALSE",
+                                VECTORS_INDEXING_USE_GPU_NODE_SETTING.getKey()
+                            )
+                        );
+                        return null;
+                    }
+                }
+
+                if (vectorIndexAndElementTypeSupported(indexOptions.getType(), elementType)) {
                     return getVectorsFormat(indexOptions, similarity);
                 }
             }

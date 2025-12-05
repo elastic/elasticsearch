@@ -583,7 +583,7 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
     public void testDuplicatedInlineAggWithFoldableIdenticalExpressions() {
         String query = """
                 FROM airports
-                | INLINE STATS a = 2*COUNT_DISTINCT(scalerank, 100),
+                | INLINESTATS a = 2*COUNT_DISTINCT(scalerank, 100),
                 b = 2*COUNT_DISTINCT(scalerank, 220 - 150 + 30),
                 c = 2*COUNT_DISTINCT(scalerank, 1 + 200 - 80 - 20 - 1)
             """;

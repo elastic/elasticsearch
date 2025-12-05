@@ -1003,12 +1003,13 @@ alpha db server    |alpha          |127.0.0.1      |hosts           |127.0.0.1|1
 ;
 
 fixClassCastBugWithSeveralCounts
-required_capability: inline_stats
+required_capability: inlinestats_v7
 required_capability: fix_stats_classcast_exception
 
 FROM sample_data, sample_data_str
 | EVAL one_ip = client_ip::ip
-| INLINE STATS count1=count(client_ip::ip), count2=count(one_ip)
+| INLINESTATS count1=count(client_ip::ip), count2=count(one_ip)
+| SORT @timestamp
 | KEEP count1, count2
 | LIMIT 3
 ;

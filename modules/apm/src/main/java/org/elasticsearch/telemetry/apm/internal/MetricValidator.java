@@ -109,6 +109,7 @@ public class MetricValidator {
         "recovery_type",
         "reindex_source",
         "repo_name",
+        "repo_type",
         "response_status",
         "server_name",
         "service",
@@ -206,7 +207,7 @@ public class MetricValidator {
                     ATTRIBUTE_PATTERN
                 );
             // we cannot log a deprecation here, that would fail too many tests
-            logger.error(message);
+            logger.warn(message);
             assert ATTRIBUTE_SKIP_VALIDATION.contains(attribute) : message;
         }
     }

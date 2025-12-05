@@ -49,12 +49,12 @@ public class MetricValidatorTests extends ESTestCase {
     }
 
     public void testNameHas3ElementsExcludingSuffix() {
+        MetricValidator.validateMetricName("es.group.total");
         MetricValidator.validateMetricName("es.group.subgroup.total");
 
         expectThrows(IllegalArgumentException.class, () -> MetricValidator.validateMetricName("es"));
         expectThrows(IllegalArgumentException.class, () -> MetricValidator.validateMetricName("es."));
         expectThrows(IllegalArgumentException.class, () -> MetricValidator.validateMetricName("es.total"));
-        expectThrows(IllegalArgumentException.class, () -> MetricValidator.validateMetricName("es.sth.total"));
     }
 
     public void testNumberOfElementsLimit() {
@@ -83,9 +83,9 @@ public class MetricValidatorTests extends ESTestCase {
     }
 
     public void testSkipValidationDueToBWC() {
-        MetricValidator.validateMetricName("es.threadpool.searchable_snapshots_cache_fetch_async.total");
-        MetricValidator.validateMetricName("es.threadpool.searchable_snapshots_cache_prewarming.total");
-        MetricValidator.validateMetricName("es.threadpool.security-crypto.total");
+        MetricValidator.validateMetricName("es.thread_pool.searchable_snapshots_cache_fetch_async.total");
+        MetricValidator.validateMetricName("es.thread_pool.searchable_snapshots_cache_prewarming.total");
+        MetricValidator.validateMetricName("es.thread_pool.security-crypto.total");
     }
 
     public static String metricNameWithLength(int length) {

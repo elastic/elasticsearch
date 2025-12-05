@@ -105,12 +105,14 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
 
         indexDocuments(indexConfig);
         testQueryAll(indexConfig);
+        testEsqlSource(indexConfig);
 
         int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
         for (int i = 0; i < numNodes; i++) {
             upgradeNode(i);
             indexDocuments(indexConfig);
             testQueryAll(indexConfig);
+            testEsqlSource(indexConfig);
         }
     }
 
@@ -194,6 +196,50 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
         return hitsList.stream()
             .sorted(Comparator.comparing((Map<String, Object> hit) -> Integer.valueOf((String) hit.get("_id"))))
             .map(hit -> (Map<String, Object>) hit.get("_source"))
+            .toList();
+    }
+
+    private void testEsqlSource(TestIndexConfig indexConfig) throws IOException {
+        var xcontentMappings = XContentFactory.jsonBuilder().map(indexConfig.mapping().raw());
+
+        var actualSettings = getIndexSettingsAsMap(indexConfig.indexName);
+        var actualSettingsBuilder = Settings.builder().loadFromMap(actualSettings);
+
+        var expectedDocs = indexConfig.documents.stream()
+            .map(d -> XContentHelper.convertToMap(XContentType.JSON.xContent(), d, true))
+            .toList();
+
+        final String query = "FROM "
+            + indexConfig.indexName
+            + " METADATA _source, _id | KEEP _source, _id | LIMIT "
+            + indexConfig.documents.size();
+        var queryHits = getEsqlSourceResults(esql(query));
+
+        final MatchResult matchResult = Matcher.matchSource()
+            .mappings(indexConfig.mapping().lookup(), xcontentMappings, xcontentMappings)
+            .settings(actualSettingsBuilder, indexConfig.settings)
+            .expected(expectedDocs)
+            .ignoringSort(true)
+            .isEqualTo(queryHits);
+        assertTrue(matchResult.getMessage(), matchResult.isMatch());
+    }
+
+    private Response esql(final String query) throws IOException {
+        final Request request = new Request("POST", "/_query");
+        request.setJsonEntity("{\"query\": \"" + query + "\"}");
+        return client().performRequest(request);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> getEsqlSourceResults(final Response response) throws IOException {
+        final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
+        final List<List<Object>> values = (List<List<Object>>) map.get("values");
+        assertThat(values.size(), greaterThan(0));
+
+        // Results contain a list of [source, id] lists.
+        return values.stream()
+            .sorted(Comparator.comparing((List<Object> value) -> Integer.valueOf(((String) value.get(1)))))
+            .map(value -> (Map<String, Object>) value.get(0))
             .toList();
     }
 }

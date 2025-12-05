@@ -3337,6 +3337,9 @@ public class VerifierTests extends ESTestCase {
 
     public void testTopSnippetsFunctionInvalidInputs() {
         assumeTrue("Requires top snippet function", EsqlCapabilities.Cap.TOP_SNIPPETS_FUNCTION.isEnabled());
+        // Null field allowed
+        query("from test | | EVAL snippets = TOP_SNIPPETS(null, \"query\")");
+
         assertThat(
             error("from test | EVAL snippets = TOP_SNIPPETS(42, \"query\")", fullTextAnalyzer, VerificationException.class),
             equalTo("1:29: first argument of [TOP_SNIPPETS(42, \"query\")] must be [string], found value [42] type [integer]")

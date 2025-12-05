@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
+import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
 
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.action.ActionFuture;
@@ -91,6 +92,7 @@ public class StatelessConcurrentRefreshIT extends AbstractServerlessStatelessPlu
             HollowShardsService hollowShardsService,
             SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
             RefreshThrottler.Factory refreshThrottlerFactory,
+            ReshardIndexService reshardIndexService,
             DocumentParsingProvider documentParsingProvider,
             IndexEngine.EngineMetrics engineMetrics
         ) {
@@ -102,6 +104,7 @@ public class StatelessConcurrentRefreshIT extends AbstractServerlessStatelessPlu
                 hollowShardsService,
                 sharedBlobCacheWarmingService,
                 refreshThrottlerFactory,
+                reshardIndexService,
                 statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
                 documentParsingProvider,
                 engineMetrics,

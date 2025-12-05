@@ -149,12 +149,15 @@ public class SplitTargetService {
             new ActionListener<>() {
                 @Override
                 public void onResponse(ActionResponse actionResponse) {
+                    logger.info("notifying of split completion for target shard {}", indexShard.shardId());
+                    reshardIndexService.notifySplitCompletion(indexShard.shardId());
                     moveToDone(indexShard, split);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     stateError(indexShard, split, IndexReshardingState.Split.TargetShardState.SPLIT, e);
+                    reshardIndexService.notifySplitFailure(indexShard.shardId(), e);
                 }
             }
         );

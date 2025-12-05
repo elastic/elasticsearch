@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
 
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.NoMergePolicy;
@@ -582,6 +583,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 mock(HollowShardsService.class),
                 mock(SharedBlobCacheWarmingService.class),
                 RefreshThrottler.Noop::new,
+                mock(ReshardIndexService.class),
                 commitService.getCommitBCCResolverForShard(indexConfig.getShardId()),
                 DocumentParsingProvider.EMPTY_INSTANCE,
                 new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP),

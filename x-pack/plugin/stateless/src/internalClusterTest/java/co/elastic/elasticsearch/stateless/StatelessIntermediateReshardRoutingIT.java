@@ -217,26 +217,16 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractServerlessSta
     // Flush request is forwarded to the new shard by the source primary.
     // Flush response indicates the flush request was executed on both shards.
     public void testFlushRoutingWhenCoordinatorStale() throws Exception {
-        testBroadcastRoutingWhenCoordinatorStale("flush", false);
+        testBroadcastRoutingWhenCoordinatorStale(false);
     }
 
     // Similar to testFlushRoutingWhenCoordinatorStale(), except the coordinator knows about resharding.
     // The coordinator is stale and only knows about CLONE state.
     public void testFlushRoutingWhenCoordinatorStaleReshardingState() throws Exception {
-        testBroadcastRoutingWhenCoordinatorStale("flush", true);
+        testBroadcastRoutingWhenCoordinatorStale(true);
     }
 
-    // Test forwarding of refresh requests by the primary shard when the coordinator is so stale that
-    // it is not even aware of ongoing resharding.
-    public void testRefreshRoutingWhenCoordinatorStale() throws Exception {
-        testBroadcastRoutingWhenCoordinatorStale("refresh", false);
-    }
-
-    public void testRefreshRoutingWhenCoordinatorStaleReshardingState() throws Exception {
-        testBroadcastRoutingWhenCoordinatorStale("refresh", true);
-    }
-
-    private void testBroadcastRoutingWhenCoordinatorStale(String actionType, boolean waitForReshardingState) throws Exception {
+    private void testBroadcastRoutingWhenCoordinatorStale(boolean waitForReshardingState) throws Exception {
         // -- Cluster setup
         String masterNode = startMasterOnlyNode();
         String indexNode = startIndexNode();
@@ -326,7 +316,7 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractServerlessSta
             indexDocsToNode(indexNode, docsToIndex, indexName);
 
             // Perform broadcast action (flush or refresh) on isolated node
-            verifyBroadcastRequestExecution(isolatedSearchNode, indexName, actionType, numShards.numPrimaries * multiple);
+            verifyBroadcastRequestExecution(isolatedSearchNode, indexName, "flush", numShards.numPrimaries * multiple);
 
             // Wait for all target shards to arrive at SPLIT point (blocked)
             splitTransitionBlock.await();
@@ -335,7 +325,7 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractServerlessSta
             indexDocsToNode(indexNode, docsToIndex, indexName);
 
             // Perform broadcast action (flush or refresh) on isolated node
-            verifyBroadcastRequestExecution(isolatedSearchNode, indexName, actionType, numShards.numPrimaries * multiple);
+            verifyBroadcastRequestExecution(isolatedSearchNode, indexName, "flush", numShards.numPrimaries * multiple);
 
             // Unblock reshard.
             // We need to unblock SPLIT again since it needs to be acked, and it wasn't acked before

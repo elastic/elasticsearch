@@ -20,6 +20,14 @@ package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.ExecutorStats;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.TimeProviderUtils;
@@ -31,21 +39,31 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.mockito.Mockito;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.DEFAULT_MAX_TIME_TO_CLEAR_QUEUE;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.MAX_MANAGEABLE_QUEUED_WORK;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.calculateIngestionLoadForExecutor;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsServiceTests.createShutdownMetadata;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE;
 import static org.elasticsearch.core.TimeValue.ZERO;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class IngestLoadProbeTests extends ESTestCase {
 
@@ -162,7 +180,7 @@ public class IngestLoadProbeTests extends ESTestCase {
 
     public void testGetIngestionLoad() {
         Map<String, ExecutorStats> statsPerExecutor = new HashMap<>();
-        final ClusterSettings clusterSettings = createClusterSettings();
+        final ClusterSettings clusterSettings = createClusterSettings(Settings.EMPTY);
         AtomicLong nowInMillis = new AtomicLong(randomNonNegativeLong());
         var ingestLoadProbe = new IngestLoadProbe(clusterSettings, statsPerExecutor::get, TimeProviderUtils.create(nowInMillis::get));
         var indexShard = Mockito.mock(IndexShard.class);
@@ -241,7 +259,7 @@ public class IngestLoadProbeTests extends ESTestCase {
 
     public void testQueueReportedAfterFirstShardAssignment() {
         Map<String, ExecutorStats> statsPerExecutor = new HashMap<>();
-        final ClusterSettings clusterSettings = createClusterSettings();
+        final ClusterSettings clusterSettings = createClusterSettings(Settings.EMPTY);
         AtomicLong nowInMillis = new AtomicLong(randomNonNegativeLong());
         var ingestLoadProbe = new IngestLoadProbe(clusterSettings, statsPerExecutor::get, TimeProviderUtils.create(nowInMillis::get));
         var nodeHasItsFirstShard = randomBoolean();
@@ -264,16 +282,200 @@ public class IngestLoadProbeTests extends ESTestCase {
         assertThat(ingestLoadProbe.getNodeIngestionLoad().totalIngestionLoad(), closeTo(3.0 + (nodeHasItsFirstShard ? 1.0 : 0.0), 1e-3));
     }
 
-    private static ClusterSettings createClusterSettings() {
+    public void testIntervals() {
+        final var nodeRoles = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE);
+        var node0 = DiscoveryNodeUtils.builder("node-0").roles(nodeRoles).build();
+        var node1 = DiscoveryNodeUtils.builder("node-1").roles(nodeRoles).build();
+        final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+        builder.add(node0).add(node1);
+        builder.localNodeId(node0.getId()).masterNodeId(node0.getId());
+        final var initialClusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(builder).build();
+
+        final TimeValue interval = randomTimeValue(0, 5, TimeUnit.MINUTES);
+
+        final ClusterSettings clusterSettings = createClusterSettings(
+            Settings.builder()
+                .put(INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE.getKey(), interval)
+                .put(INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE.getKey(), interval)
+                .put(INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION.getKey(), interval)
+                .build()
+        );
+        AtomicLong now = new AtomicLong(randomLong());
+        final var executorStats = randomExecutorStats();
+        var ingestLoadProbe = new IngestLoadProbe(clusterSettings, executorStats::get, TimeProviderUtils.create(now::get));
+        ingestLoadProbe.clusterChanged(new ClusterChangedEvent("initial", initialClusterState, ClusterState.EMPTY_STATE));
+
+        assertThat(ingestLoadProbe.considerTaskExecutionTimeUnstableDueToInitialStart(), equalTo(interval.millis() > 0));
+        assertThat(ingestLoadProbe.dropQueueDueToInitialStartingInterval(), equalTo(interval.millis() > 0));
+        assertThat(ingestLoadProbe.considerTaskExecutionTimeUnstableDueToScaling(), equalTo(false));
+        // gets first shard
+        var indexShard = Mockito.mock(IndexShard.class);
+        ingestLoadProbe.beforeIndexShardRecovery(indexShard, null, ActionListener.noop());
+        // might get a shutdown marker
+        final var shutdownMarkerAdded = randomBoolean();
+        ClusterState clusterStateWithShutdowns = null;
+        if (shutdownMarkerAdded) {
+            final var shutdownMetadata = createShutdownMetadata(List.of(node1));
+            clusterStateWithShutdowns = ClusterState.builder(initialClusterState)
+                .metadata(Metadata.builder(initialClusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata))
+                .build();
+            ingestLoadProbe.clusterChanged(new ClusterChangedEvent("shutdown added", clusterStateWithShutdowns, initialClusterState));
+
+        }
+        if (interval.millis() == 0) {
+            assertThat(ingestLoadProbe.considerTaskExecutionTimeUnstableDueToInitialStart(), equalTo(false));
+            assertThat(ingestLoadProbe.dropQueueDueToInitialStartingInterval(), equalTo(false));
+            assertThat(ingestLoadProbe.considerTaskExecutionTimeUnstableDueToScaling(), equalTo(false));
+            now.addAndGet(randomNonNegativeLong());
+        } else {
+            assertThat(ingestLoadProbe.considerTaskExecutionTimeUnstableDueToInitialStart(), equalTo(true));
+            assertThat(ingestLoadProbe.dropQueueDueToInitialStartingInterval(), equalTo(true));
+            assertThat(ingestLoadProbe.considerTaskExecutionTimeUnstableDueToScaling(), equalTo(shutdownMarkerAdded));
+            // advance time randomly but not beyond the interval
+            long toAdvance = randomLongBetween(1, interval.millis() - 1);
+            now.addAndGet(toAdvance);
+            if (randomBoolean()) {
+                ingestLoadProbe.beforeIndexShardRecovery(indexShard, null, ActionListener.noop());
+            }
+            assertThat(ingestLoadProbe.considerTaskExecutionTimeUnstableDueToInitialStart(), equalTo(true));
+            assertThat(ingestLoadProbe.dropQueueDueToInitialStartingInterval(), equalTo(true));
+            assertThat(ingestLoadProbe.considerTaskExecutionTimeUnstableDueToScaling(), equalTo(shutdownMarkerAdded));
+            // even if the node leaves, we still continue to consider within the scaling window
+            if (shutdownMarkerAdded && randomBoolean()) {
+                final var clusterStateWithNodeGone = ClusterState.builder(clusterStateWithShutdowns).nodes(builder.remove(node1)).build();
+                ingestLoadProbe.clusterChanged(new ClusterChangedEvent("node left", clusterStateWithNodeGone, clusterStateWithShutdowns));
+                assertThat(ingestLoadProbe.considerTaskExecutionTimeUnstableDueToScaling(), equalTo(true));
+            }
+            toAdvance = interval.millis() - toAdvance + randomLongBetween(0, 1000);
+            now.addAndGet(toAdvance);
+        }
+        assertThat(ingestLoadProbe.considerTaskExecutionTimeUnstableDueToInitialStart(), equalTo(false));
+        assertThat(ingestLoadProbe.dropQueueDueToInitialStartingInterval(), equalTo(false));
+        assertThat(ingestLoadProbe.considerTaskExecutionTimeUnstableDueToScaling(), equalTo(false));
+    }
+
+    public void testLastStableAverageTaskExecutionTime() {
+        // initial cluster state with two nodes
+        final var nodeRoles = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE);
+        final var initialNodes = IntStream.range(0, 2)
+            .mapToObj(i -> DiscoveryNodeUtils.builder("node-" + i).roles(nodeRoles).build())
+            .toList();
+        final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+        initialNodes.forEach(builder::add);
+        builder.localNodeId(initialNodes.get(0).getId()).masterNodeId(initialNodes.get(0).getId());
+        final var initialClusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(builder).build();
+
+        final TimeValue initialIntervalToConsiderNodeAvgTaskExecTimeUnstable = randomTimeValue(1, 5, TimeUnit.MINUTES);
+        final TimeValue initialScalingWindowToConsiderAvgTaskExecTimesUnstable = randomTimeValue(1, 5, TimeUnit.MINUTES);
+        final ClusterSettings clusterSettings = createClusterSettings(
+            Settings.builder()
+                .put(
+                    INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE.getKey(),
+                    initialIntervalToConsiderNodeAvgTaskExecTimeUnstable
+                )
+                .put(
+                    INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE.getKey(),
+                    initialScalingWindowToConsiderAvgTaskExecTimesUnstable
+                )
+                .build()
+        );
+        final var expectedWriteExecutorEntries = AverageWriteLoadSampler.WRITE_EXECUTORS.size();
+        final var currentTimeMillis = TimeValue.nsecToMSec(Math.abs(System.nanoTime())); // technically System.nanoTime() can be negative
+        AtomicLong now = new AtomicLong(randomLongBetween(-currentTimeMillis, currentTimeMillis));
+        final var executorStats = randomExecutorStats();
+        var ingestLoadProbe = new IngestLoadProbe(clusterSettings, executorStats::get, TimeProviderUtils.create(now::get));
+        var indexShard = Mockito.mock(IndexShard.class);
+        ingestLoadProbe.clusterChanged(new ClusterChangedEvent("initial", initialClusterState, ClusterState.EMPTY_STATE));
+
+        final var ingestionLoad0 = ingestLoadProbe.getNodeIngestionLoad();
+        assertThat(ingestionLoad0.totalIngestionLoad(), greaterThan(0.0));
+        assertThat(ingestionLoad0.executorStats().size(), equalTo(expectedWriteExecutorEntries));
+        assertThat(ingestionLoad0.executorIngestionLoads().size(), equalTo(expectedWriteExecutorEntries));
+        assertThat(ingestionLoad0.lastStableAvgTaskExecutionTimes().size(), equalTo(0));
+
+        ingestLoadProbe.beforeIndexShardRecovery(indexShard, null, ActionListener.noop());
+
+        final var ingestionLoad1 = ingestLoadProbe.getNodeIngestionLoad();
+        assertThat(ingestionLoad1.totalIngestionLoad(), greaterThan(0.0));
+        assertThat(ingestionLoad1.executorStats().size(), equalTo(expectedWriteExecutorEntries));
+        assertThat(ingestionLoad1.executorIngestionLoads().size(), equalTo(expectedWriteExecutorEntries));
+        assertThat(ingestionLoad1.lastStableAvgTaskExecutionTimes().size(), equalTo(0));
+
+        now.addAndGet(initialIntervalToConsiderNodeAvgTaskExecTimeUnstable.millis() + randomLongBetween(0, 10000));
+        final var ingestionLoad2 = ingestLoadProbe.getNodeIngestionLoad();
+        assertThat(ingestionLoad2.totalIngestionLoad(), greaterThan(0.0));
+        assertThat(ingestionLoad2.executorStats().size(), equalTo(expectedWriteExecutorEntries));
+        assertThat(ingestionLoad2.executorIngestionLoads().size(), equalTo(expectedWriteExecutorEntries));
+        assertThat(ingestionLoad2.lastStableAvgTaskExecutionTimes().size(), equalTo(expectedWriteExecutorEntries));
+        ingestionLoad2.lastStableAvgTaskExecutionTimes()
+            .forEach((executor, execTime) -> assertThat(execTime, equalTo(executorStats.get(executor).averageTaskExecutionNanosEWMA())));
+
+        // Publish during scaling window, last stable avg task execution times should not get updated
+        final var shutdownMetadata = createShutdownMetadata(initialNodes);
+        final var clusterStateWithShutdowns = ClusterState.builder(initialClusterState)
+            .metadata(Metadata.builder(initialClusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata))
+            .build();
+        ingestLoadProbe.clusterChanged(new ClusterChangedEvent("shutdown added", clusterStateWithShutdowns, initialClusterState));
+        final var previousExecutorStats = new HashMap<>(executorStats);
+        executorStats.clear();
+        executorStats.putAll(randomExecutorStats());
+        final var ingestionLoad3 = ingestLoadProbe.getNodeIngestionLoad();
+        assertThat(ingestionLoad3.totalIngestionLoad(), greaterThan(0.0));
+        assertThat(ingestionLoad3.executorStats(), equalTo(executorStats));
+        assertThat(ingestionLoad3.executorIngestionLoads().size(), equalTo(expectedWriteExecutorEntries));
+        assertThat(ingestionLoad3.lastStableAvgTaskExecutionTimes().size(), equalTo(expectedWriteExecutorEntries));
+        // The last stable avg task execution times should remain unchanged
+        ingestionLoad3.lastStableAvgTaskExecutionTimes()
+            .forEach(
+                (executor, execTime) -> assertThat(execTime, equalTo(previousExecutorStats.get(executor).averageTaskExecutionNanosEWMA()))
+            );
+
+        // After both intervals, last stable avg task execution times should get updated
+        now.addAndGet(
+            Math.max(
+                initialScalingWindowToConsiderAvgTaskExecTimesUnstable.millis(),
+                initialIntervalToConsiderNodeAvgTaskExecTimeUnstable.millis()
+            ) + randomLongBetween(0, 10000)
+        );
+        final var ingestionLoad4 = ingestLoadProbe.getNodeIngestionLoad();
+        assertThat(ingestionLoad4.totalIngestionLoad(), greaterThan(0.0));
+        assertThat(ingestionLoad4.executorStats().size(), equalTo(expectedWriteExecutorEntries));
+        assertThat(ingestionLoad4.executorIngestionLoads().size(), equalTo(expectedWriteExecutorEntries));
+        assertThat(ingestionLoad4.lastStableAvgTaskExecutionTimes().size(), equalTo(expectedWriteExecutorEntries));
+        assertThat(ingestLoadProbe.considerTaskExecutionTimeUnstableDueToScaling(), equalTo(false));
+        assertThat(ingestLoadProbe.considerTaskExecutionTimeUnstableDueToInitialStart(), equalTo(false));
+        ingestionLoad4.lastStableAvgTaskExecutionTimes()
+            .forEach((executor, execTime) -> assertThat(execTime, equalTo(executorStats.get(executor).averageTaskExecutionNanosEWMA())));
+    }
+
+    private static Map<String, ExecutorStats> randomExecutorStats() {
+        return AverageWriteLoadSampler.WRITE_EXECUTORS.stream()
+            .collect(
+                Collectors.toMap(
+                    executorName -> executorName,
+                    executorName -> new ExecutorStats(
+                        randomDoubleBetween(0, 100, true),
+                        randomTimeValue(10, 10000, TimeUnit.MILLISECONDS).nanos(),
+                        randomInt(1000),
+                        randomDoubleBetween(0, 500, true),
+                        randomIntBetween(1, 64)
+                    )
+                )
+            );
+    }
+
+    private static ClusterSettings createClusterSettings(Settings settings) {
         return new ClusterSettings(
-            Settings.EMPTY,
+            settings,
             Sets.addToCopy(
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
                 MAX_TIME_TO_CLEAR_QUEUE,
                 MAX_QUEUE_CONTRIBUTION_FACTOR,
                 INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED,
                 INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION,
-                MAX_MANAGEABLE_QUEUED_WORK
+                MAX_MANAGEABLE_QUEUED_WORK,
+                INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE,
+                INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE
             )
         );
     }

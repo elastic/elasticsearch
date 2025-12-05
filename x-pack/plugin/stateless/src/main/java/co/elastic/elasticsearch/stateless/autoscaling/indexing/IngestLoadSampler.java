@@ -123,7 +123,7 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
                 "nanoseconds",
                 () -> {
                     var stats = ingestionLoad.executorStats().get(executor);
-                    return stats == null ? List.of() : List.of(new DoubleWithAttributes(stats.averageTaskExecutionEWMA()));
+                    return stats == null ? List.of() : List.of(new DoubleWithAttributes(stats.averageTaskExecutionNanosEWMA()));
                 }
             );
             meterRegistry.registerLongsGauge(

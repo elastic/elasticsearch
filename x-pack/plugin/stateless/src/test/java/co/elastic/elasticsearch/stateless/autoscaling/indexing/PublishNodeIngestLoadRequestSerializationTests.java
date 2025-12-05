@@ -86,6 +86,15 @@ public class PublishNodeIngestLoadRequestSerializationTests extends AbstractWire
         return new ExecutorIngestionLoad(randomDoubleBetween(0, 100, true), randomDoubleBetween(0, 50, true));
     }
 
+    private static Map<String, Double> randomLastStableAvgTaskExecutionTimes() {
+        if (rarely()) return Map.of();
+        Map<String, Double> lastStableAvgTaskExecutionTimes = new HashMap<>();
+        for (String executorName : AverageWriteLoadSampler.WRITE_EXECUTORS) {
+            lastStableAvgTaskExecutionTimes.put(executorName, randomDoubleBetween(10, 100000, true));
+        }
+        return lastStableAvgTaskExecutionTimes;
+    }
+
     private static NodeIngestionLoad randomNodeIngestionLoad() {
         Map<String, ExecutorStats> executorStats = new HashMap<>();
         Map<String, ExecutorIngestionLoad> executorIngestionLoads = new HashMap<>();
@@ -94,28 +103,43 @@ public class PublishNodeIngestLoadRequestSerializationTests extends AbstractWire
             executorIngestionLoads.put(executorName, randomExecutorIngestionLoad());
         }
         double totalIngestionLoad = randomDoubleBetween(0, 512, true);
-        return new NodeIngestionLoad(executorStats, executorIngestionLoads, totalIngestionLoad);
+        return new NodeIngestionLoad(executorStats, randomLastStableAvgTaskExecutionTimes(), executorIngestionLoads, totalIngestionLoad);
     }
 
     private NodeIngestionLoad mutateNodeIngestionLoad(NodeIngestionLoad load) {
-        return switch (randomInt(2)) {
+        return switch (randomInt(3)) {
             case 0 -> {
                 Map<String, ExecutorStats> newExecutorStats = new HashMap<>(load.executorStats());
                 String executor = randomFrom(newExecutorStats.keySet());
                 newExecutorStats.put(executor, randomValueOtherThan(load.executorStats().get(executor), () -> randomExecutorStats()));
-                yield new NodeIngestionLoad(newExecutorStats, load.executorIngestionLoads(), load.totalIngestionLoad());
+                yield new NodeIngestionLoad(
+                    newExecutorStats,
+                    load.lastStableAvgTaskExecutionTimes(),
+                    load.executorIngestionLoads(),
+                    load.totalIngestionLoad()
+                );
             }
             case 1 -> {
+                var newValue = randomValueOtherThan(load.lastStableAvgTaskExecutionTimes(), () -> randomLastStableAvgTaskExecutionTimes());
+                yield new NodeIngestionLoad(load.executorStats(), newValue, load.executorIngestionLoads(), load.totalIngestionLoad());
+            }
+            case 2 -> {
                 Map<String, ExecutorIngestionLoad> newExecutorIngestionLoads = new HashMap<>(load.executorIngestionLoads());
                 String executor = randomFrom(newExecutorIngestionLoads.keySet());
                 newExecutorIngestionLoads.put(
                     executor,
                     randomValueOtherThan(load.executorIngestionLoads().get(executor), () -> randomExecutorIngestionLoad())
                 );
-                yield new NodeIngestionLoad(load.executorStats(), newExecutorIngestionLoads, load.totalIngestionLoad());
+                yield new NodeIngestionLoad(
+                    load.executorStats(),
+                    load.lastStableAvgTaskExecutionTimes(),
+                    newExecutorIngestionLoads,
+                    load.totalIngestionLoad()
+                );
             }
-            case 2 -> new NodeIngestionLoad(
+            case 3 -> new NodeIngestionLoad(
                 load.executorStats(),
+                load.lastStableAvgTaskExecutionTimes(),
                 load.executorIngestionLoads(),
                 randomValueOtherThan(load.totalIngestionLoad(), () -> randomDoubleBetween(0, 512, true))
             );

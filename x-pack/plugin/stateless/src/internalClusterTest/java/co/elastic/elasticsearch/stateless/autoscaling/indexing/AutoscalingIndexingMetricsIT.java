@@ -63,22 +63,27 @@ import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.ADJUSTED;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.SINGLE;
@@ -86,6 +91,9 @@ import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetr
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.groupIndexNodesByShutdownStatus;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.ACCURATE_LOAD_WINDOW;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.TIER_WIDE_WRITE_THREADPOOL_AVG_TASK_EXEC_TIME_METRIC_NAME;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.USE_TIER_WIDE_AVG_TASK_EXEC_TIME_DURING_SCALING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
@@ -1153,6 +1161,214 @@ public class AutoscalingIndexingMetricsIT extends AbstractServerlessStatelessPlu
             assertThat(ingestionLoad.size(), equalTo(1));
             assertThat(ingestionLoad.getFirst().load(), equalTo(0.0));
         }
+    }
+
+    public void testUseTierWideWriteAvgTaskExecTimeForNewNode() throws Exception {
+        final var nodeSettings = Settings.builder()
+            .put(USE_TIER_WIDE_AVG_TASK_EXEC_TIME_DURING_SCALING.getKey(), true)
+            .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE.getKey(), TimeValue.timeValueSeconds(1))
+            // Make sure initially queue contribution is not ignored
+            .put(IngestLoadProbe.INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION.getKey(), TimeValue.ZERO)
+            .put(IngestLoadProbe.MAX_MANAGEABLE_QUEUED_WORK.getKey(), TimeValue.ZERO)
+            .put(INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE.getKey(), TimeValue.ZERO)
+            .build();
+        var indexNode1 = startMasterAndIndexNode(
+            Settings.builder()
+                .put(nodeSettings)
+                .put(INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE.getKey(), TimeValue.ZERO)
+                .build()
+        );
+        // add an index pinned to this node and keep indexing into it. make sure there is a tier wide avg available
+        final String index1 = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(index1, indexSettings(1, 0).put("index.routing.allocation.include._name", indexNode1).build());
+        ensureGreen(index1);
+        final var indices = Collections.synchronizedSet(new HashSet<String>());
+        indices.add(index1);
+        AtomicBoolean runIndexer = new AtomicBoolean(true);
+        var indexer = new Thread(() -> {
+            while (runIndexer.get()) {
+                for (var index : indices) {
+                    var writeRequests = randomIntBetween(5, 10);
+                    for (int i = 0; i < writeRequests; i++) {
+                        client().prepareBulk().add(new IndexRequest(index).source("field", i)).execute();
+                    }
+                }
+                safeSleep(randomLongBetween(1, 1000));
+            }
+        });
+        indexer.start();
+        final TestTelemetryPlugin plugin = findPlugin(indexNode1, TestTelemetryPlugin.class);
+        assertBusy(() -> {
+            plugin.resetMeter(); // Reset so there is only one measurement
+            var ingestionLoads = getNodesIngestLoad();
+            plugin.collect();
+            var measurements = plugin.getDoubleGaugeMeasurement(TIER_WIDE_WRITE_THREADPOOL_AVG_TASK_EXEC_TIME_METRIC_NAME);
+            assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.get(0).value().doubleValue(), greaterThan(0.0));
+            assertThat(ingestionLoads.size(), equalTo(1));
+            assertThat(ingestionLoads.getFirst().load(), greaterThan(0.0));
+            assertThat(ingestionLoads.getFirst().metricQuality(), equalTo(MetricQuality.EXACT));
+        });
+        updateClusterSettings(
+            Settings.builder().put(INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE.getKey(), TimeValue.ONE_HOUR)
+        );
+        var indexNode2 = startMasterAndIndexNode(nodeSettings);
+        final String index2 = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(index2, indexSettings(1, 0).put("index.routing.allocation.include._name", indexNode2).build());
+        ensureGreen(index2);
+        // Make sure initial EWMA is not empty
+        indexDocs(index2, randomIntBetween(5000, 6000));
+        indices.add(index2);
+        // Block the executor workers to pile up writes
+        var threadpool = internalCluster().getInstance(ThreadPool.class, indexNode2);
+        var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadpool.executor(ThreadPool.Names.WRITE);
+        final var executorThreads = threadpool.info(ThreadPool.Names.WRITE).getMax();
+        var barrier = new CyclicBarrier(executorThreads + 1);
+        for (int i = 0; i < executorThreads; i++) {
+            executor.execute(() -> {
+                try {
+                    barrier.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+        assertBusy(() -> {
+            plugin.resetMeter();
+            var ingestionLoads = getNodesIngestLoad();
+            plugin.collect();
+            var measurements = plugin.getDoubleGaugeMeasurement(TIER_WIDE_WRITE_THREADPOOL_AVG_TASK_EXEC_TIME_METRIC_NAME);
+            assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.get(0).value().doubleValue(), greaterThan(0.0));
+            assertThat(ingestionLoads.size(), equalTo(2));
+            assertTrue(ingestionLoads.stream().anyMatch(l -> l.metricQuality().equals(MetricQuality.EXACT) && l.load() > 0.0));
+            // we'd get minimum due to node starting new, we want minimum _with_ load > 0
+            assertTrue(ingestionLoads.stream().anyMatch(l -> l.metricQuality().equals(MetricQuality.MINIMUM) && l.load() > 0.0));
+        });
+        barrier.await(30, TimeUnit.SECONDS);
+
+        runIndexer.set(false);
+        indexer.join();
+    }
+
+    public void testUseTierWideWriteAvgTaskExecTimeDuringScaling() throws Exception {
+        final var nodeSettings = Settings.builder()
+            .put(USE_TIER_WIDE_AVG_TASK_EXEC_TIME_DURING_SCALING.getKey(), true)
+            .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE.getKey(), TimeValue.timeValueSeconds(1))
+            .put(HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), 1.0)
+            .put(LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), 1.0)
+            // Make sure initially queue contribution is not ignored
+            .put(IngestLoadProbe.INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION.getKey(), TimeValue.ZERO)
+            .put(IngestLoadProbe.MAX_MANAGEABLE_QUEUED_WORK.getKey(), TimeValue.ZERO)
+            .put(INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE.getKey(), TimeValue.ZERO)
+            .put(INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE.getKey(), TimeValue.ONE_HOUR)
+            .build();
+        var indexNode1 = startMasterAndIndexNode(nodeSettings);
+        var indexNode2 = startMasterAndIndexNode(nodeSettings);
+        // add an index pinned to this node and keep indexing into it. make sure there is a tier wide avg available
+        final String index1 = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(index1, indexSettings(1, 0).put("index.routing.allocation.include._name", indexNode1).build());
+        final String index2 = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(index2, indexSettings(1, 0).put("index.routing.allocation.include._name", indexNode2).build());
+        ensureGreen(index1, index2);
+
+        final var indices = Set.of(index1, index2);
+        AtomicBoolean runIndexer = new AtomicBoolean(true);
+        var indexer = new Thread(() -> {
+            while (runIndexer.get()) {
+                for (var index : indices) {
+                    var writeRequests = randomIntBetween(5, 10);
+                    for (int i = 0; i < writeRequests; i++) {
+                        client().prepareBulk().add(new IndexRequest(index).source("field", i)).execute();
+                    }
+                }
+                safeSleep(randomLongBetween(1, 1000));
+            }
+        });
+        indexer.start();
+
+        final TestTelemetryPlugin plugin = findPlugin(indexNode1, TestTelemetryPlugin.class);
+        assertBusy(() -> {
+            plugin.resetMeter(); // Reset so there is only one measurement
+            var ingestionLoads = getNodesIngestLoad();
+            plugin.collect();
+            var measurements = plugin.getDoubleGaugeMeasurement(TIER_WIDE_WRITE_THREADPOOL_AVG_TASK_EXEC_TIME_METRIC_NAME);
+            assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.get(0).value().doubleValue(), greaterThan(0.0));
+            assertThat(ingestionLoads.size(), equalTo(2));
+            assertTrue(ingestionLoads.stream().allMatch(l -> l.metricQuality().equals(MetricQuality.EXACT) && l.load() > 0.0));
+        });
+        // mark both for shutdown, block to get some queueing and make sure we get MIN quality
+        markNodesForShutdown(List.copyOf(clusterService().state().nodes().getAllNodes()), List.of(SingleNodeShutdownMetadata.Type.SIGTERM));
+        // Block the executor workers to pile up writes
+        var indexNode1ThreadPool = internalCluster().getInstance(ThreadPool.class, indexNode1);
+        var indexNode2ThreadPool = internalCluster().getInstance(ThreadPool.class, indexNode2);
+        var indexNode1WriteExecutor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) indexNode1ThreadPool.executor(ThreadPool.Names.WRITE);
+        var indexNode2WriteExecutor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) indexNode2ThreadPool.executor(ThreadPool.Names.WRITE);
+        final var indexNode1ExecutorThreads = indexNode1ThreadPool.info(ThreadPool.Names.WRITE).getMax();
+        final var indexNode2ExecutorThreads = indexNode2ThreadPool.info(ThreadPool.Names.WRITE).getMax();
+        var barrier = new CyclicBarrier(indexNode1ExecutorThreads + indexNode2ExecutorThreads + 1);
+        for (int i = 0; i < indexNode1ExecutorThreads; i++) {
+            indexNode1WriteExecutor.execute(() -> {
+                try {
+                    barrier.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+        for (int i = 0; i < indexNode2ExecutorThreads; i++) {
+            indexNode2WriteExecutor.execute(() -> {
+                try {
+                    barrier.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+        assertBusy(() -> {
+            final var plugin2 = findPlugin(internalCluster().getMasterName(), TestTelemetryPlugin.class);
+            plugin2.resetMeter();
+            var ingestionLoads = getNodesIngestLoad();
+            plugin2.collect();
+            var measurements = plugin2.getDoubleGaugeMeasurement(TIER_WIDE_WRITE_THREADPOOL_AVG_TASK_EXEC_TIME_METRIC_NAME);
+            assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.get(0).value().doubleValue(), greaterThan(0.0));
+            assertThat(ingestionLoads.size(), equalTo(2));
+            assertTrue(
+                ingestionLoads.toString(),
+                ingestionLoads.stream().allMatch(l -> l.metricQuality().equals(MetricQuality.MINIMUM) && l.load() > 0.0)
+            );
+        });
+
+        if (randomBoolean()) {
+            updateClusterSettings(
+                Settings.builder().put(INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE.getKey(), TimeValue.ZERO)
+            );
+        } else {
+            updateClusterSettings(Settings.builder().put(USE_TIER_WIDE_AVG_TASK_EXEC_TIME_DURING_SCALING.getKey(), false));
+        }
+
+        assertBusy(() -> {
+            final var plugin2 = findPlugin(internalCluster().getMasterName(), TestTelemetryPlugin.class);
+            plugin2.resetMeter();
+            var ingestionLoads = getNodesIngestLoad();
+            plugin2.collect();
+            var measurements = plugin2.getDoubleGaugeMeasurement(TIER_WIDE_WRITE_THREADPOOL_AVG_TASK_EXEC_TIME_METRIC_NAME);
+            assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.get(0).value().doubleValue(), greaterThan(0.0));
+            assertThat(ingestionLoads.size(), equalTo(2));
+            assertTrue(
+                ingestionLoads.toString(),
+                ingestionLoads.stream().allMatch(l -> l.metricQuality().equals(MetricQuality.EXACT) && l.load() > 0.0)
+            );
+        });
+
+        barrier.await(30, TimeUnit.SECONDS);
+        runIndexer.set(false);
+        indexer.join();
     }
 
     public static class CustomIngestTestPlugin extends IngestTestPlugin {

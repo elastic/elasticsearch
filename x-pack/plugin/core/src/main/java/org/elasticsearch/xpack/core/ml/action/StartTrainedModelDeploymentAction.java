@@ -177,11 +177,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             queueCapacity = in.readVInt();
             this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             this.priority = in.readEnum(Priority.class);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                this.deploymentId = in.readString();
-            } else {
-                this.deploymentId = modelId;
-            }
+            this.deploymentId = in.readString();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
             } else {
@@ -299,9 +295,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeVInt(queueCapacity);
             out.writeOptionalWriteable(cacheSize);
             out.writeEnum(priority);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                out.writeString(deploymentId);
-            }
+            out.writeString(deploymentId);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeOptionalWriteable(adaptiveAllocationsSettings);
             }
@@ -569,11 +563,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             this.queueCapacity = in.readVInt();
             this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             this.priority = in.readEnum(Priority.class);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                this.deploymentId = in.readString();
-            } else {
-                this.deploymentId = modelId;
-            }
+            this.deploymentId = in.readString();
 
             if (in.getTransportVersion().onOrAfter(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
                 // We store additional model usage per allocation in the task params.
@@ -629,9 +619,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeVInt(queueCapacity);
             out.writeOptionalWriteable(cacheSize);
             out.writeEnum(priority);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                out.writeString(deploymentId);
-            }
+            out.writeString(deploymentId);
             if (out.getTransportVersion().onOrAfter(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
                 out.writeLong(perDeploymentMemoryBytes);
                 out.writeLong(perAllocationMemoryBytes);

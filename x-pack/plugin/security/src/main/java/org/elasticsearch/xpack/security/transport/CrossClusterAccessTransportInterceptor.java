@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -195,16 +194,6 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
                     throw LicenseUtils.newComplianceException(Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.getName());
                 }
                 final String remoteClusterAlias = remoteClusterCredentials.clusterAlias();
-
-                if (connection.getTransportVersion().before(TransportVersions.V_8_10_X)) {
-                    throw illegalArgumentExceptionWithDebugLog(
-                        "Settings for remote cluster ["
-                            + remoteClusterAlias
-                            + "] indicate cross cluster access headers should be sent but target cluster version ["
-                            + connection.getTransportVersion().toReleaseVersion()
-                            + "] does not support receiving them"
-                    );
-                }
 
                 logger.trace(
                     () -> format(

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.RemoteConnectionInfo;
@@ -33,7 +32,7 @@ public class RemoteClusterFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_10_X;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

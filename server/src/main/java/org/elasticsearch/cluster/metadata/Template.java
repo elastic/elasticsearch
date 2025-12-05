@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -226,9 +225,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             out.writeBoolean(true);
             out.writeMap(this.aliases, StreamOutput::writeWriteable);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            out.writeOptionalWriteable(lifecycle);
-        }
+        out.writeOptionalWriteable(lifecycle);
         ResettableValue.write(out, dataStreamOptions, (o, v) -> v.writeTo(o));
     }
 

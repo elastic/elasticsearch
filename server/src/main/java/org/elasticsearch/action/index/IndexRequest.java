@@ -196,10 +196,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         ifPrimaryTerm = in.readVLong();
         requireAlias = in.readBoolean();
         dynamicTemplates = in.readMap(StreamInput::readString);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)
-            && in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            in.readBoolean(); // obsolete, prior to tracking normalisedBytesParsed
-        }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.listExecutedPipelines = in.readBoolean();
             if (listExecutedPipelines) {
@@ -790,10 +786,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(requireAlias);
         out.writeMap(dynamicTemplates, StreamOutput::writeString);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)
-            && out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(false); // obsolete, prior to tracking normalisedBytesParsed
-        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(listExecutedPipelines);
             if (listExecutedPipelines) {

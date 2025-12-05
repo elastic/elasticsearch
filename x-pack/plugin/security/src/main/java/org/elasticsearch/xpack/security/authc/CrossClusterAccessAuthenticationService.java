@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -94,18 +93,6 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
         }
 
         // This check is to ensure all nodes understand cross_cluster_access subject type
-        if (getMinTransportVersion().before(TransportVersions.V_8_10_X)) {
-            withRequestProcessingFailure(
-                authcContext,
-                new IllegalArgumentException(
-                    "all nodes must have version ["
-                        + TransportVersions.V_8_10_X.toReleaseVersion()
-                        + "] or higher to support cross cluster requests through the dedicated remote cluster port"
-                ),
-                listener
-            );
-            return;
-        }
 
         // This is ensured by CrossClusterAccessServerTransportFilter -- validating for internal consistency here
         assert threadContext.getHeaders().keySet().stream().noneMatch(ClientHelper.SECURITY_HEADER_FILTERS::contains);

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -286,11 +285,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         usedBuiltInTokenizers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
         usedBuiltInTokenFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
         usedBuiltInAnalyzers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
-        if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            usedSynonyms = input.readImmutableMap(SynonymsStats::new);
-        } else {
-            usedSynonyms = Collections.emptyMap();
-        }
+        usedSynonyms = input.readImmutableMap(SynonymsStats::new);
     }
 
     @Override
@@ -303,9 +298,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         out.writeCollection(usedBuiltInTokenizers);
         out.writeCollection(usedBuiltInTokenFilters);
         out.writeCollection(usedBuiltInAnalyzers);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            out.writeMap(usedSynonyms, StreamOutput::writeWriteable);
-        }
+        out.writeMap(usedSynonyms, StreamOutput::writeWriteable);
     }
 
     /**

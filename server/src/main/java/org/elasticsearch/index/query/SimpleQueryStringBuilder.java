@@ -13,7 +13,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -165,11 +164,7 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
         settings.fuzzyPrefixLength(in.readVInt());
         settings.fuzzyMaxExpansions(in.readVInt());
         settings.fuzzyTranspositions(in.readBoolean());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            this.type = MultiMatchQueryBuilder.Type.readFromStream(in);
-        } else {
-            this.type = DEFAULT_TYPE;
-        }
+        this.type = MultiMatchQueryBuilder.Type.readFromStream(in);
     }
 
     @Override
@@ -192,9 +187,7 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
         out.writeVInt(settings.fuzzyPrefixLength());
         out.writeVInt(settings.fuzzyMaxExpansions());
         out.writeBoolean(settings.fuzzyTranspositions());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            type.writeTo(out);
-        }
+        type.writeTo(out);
     }
 
     /** Returns the text to parse the query from. */

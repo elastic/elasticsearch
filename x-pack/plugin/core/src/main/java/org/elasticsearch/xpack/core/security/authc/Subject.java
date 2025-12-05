@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ArrayUtils;
@@ -286,7 +285,7 @@ public class Subject {
 
     // Package private for testing
     RoleReference.CrossClusterApiKeyRoleReference buildRoleReferenceForCrossClusterApiKey() {
-        assert version.onOrAfter(TransportVersions.V_8_10_X);
+        assert version.onOrAfter(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
         assert ApiKey.Type.CROSS_CLUSTER == getApiKeyType() : "cross cluster access must use cross-cluster API keys";
         final BytesReference roleDescriptorsBytes = (BytesReference) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
@@ -396,8 +395,8 @@ public class Subject {
 
     private ApiKey.Type getApiKeyType() {
         final String typeString = (String) metadata.get(AuthenticationField.API_KEY_TYPE_KEY);
-        assert (typeString != null) || version.before(TransportVersions.V_8_10_X)
-            : "API key type must be non-null except for versions older than " + TransportVersions.V_8_10_X;
+        assert (typeString != null) || version.before(Authentication.VERSION_CROSS_CLUSTER_ACCESS)
+            : "API key type must be non-null except for versions older than " + Authentication.VERSION_CROSS_CLUSTER_ACCESS;
 
         // A null type string can only be for the REST type because it is not possible to
         // create cross-cluster API keys for mixed cluster with old nodes.

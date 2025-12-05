@@ -402,11 +402,11 @@ public class ApiKeyService implements Closeable {
                 return;
             }
 
-            if (transportVersion.before(TransportVersions.V_8_10_X) && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
+            if (transportVersion.before(Authentication.VERSION_CROSS_CLUSTER_ACCESS) && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
                 listener.onFailure(
                     new IllegalArgumentException(
                         "all nodes must have version ["
-                            + TransportVersions.V_8_10_X.toReleaseVersion()
+                            + Authentication.VERSION_CROSS_CLUSTER_ACCESS.toReleaseVersion()
                             + "] or higher to support creating cross cluster API keys"
                     )
                 );
@@ -433,12 +433,12 @@ public class ApiKeyService implements Closeable {
         final List<RoleDescriptor> roleDescriptors,
         final TransportVersion transportVersion
     ) {
-        if (transportVersion.before(TransportVersions.V_8_10_X) && hasRemoteIndices(roleDescriptors)) {
+        if (transportVersion.before(Authentication.VERSION_CROSS_CLUSTER_ACCESS) && hasRemoteIndices(roleDescriptors)) {
             // API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
                 new IllegalArgumentException(
                     "all nodes must have version ["
-                        + TransportVersions.V_8_10_X.toReleaseVersion()
+                        + Authentication.VERSION_CROSS_CLUSTER_ACCESS.toReleaseVersion()
                         + "] or higher to support remote indices privileges for API keys"
                 )
             );

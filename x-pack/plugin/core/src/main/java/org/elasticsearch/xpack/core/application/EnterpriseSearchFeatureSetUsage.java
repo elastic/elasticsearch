@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.application;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -55,10 +54,8 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureUsage {
         this.searchApplicationsUsage = in.readGenericMap();
         Map<String, Object> analyticsCollectionsUsage = new HashMap<>();
         Map<String, Object> queryRulesUsage = new HashMap<>();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            analyticsCollectionsUsage = in.readGenericMap();
-            queryRulesUsage = in.readGenericMap();
-        }
+        analyticsCollectionsUsage = in.readGenericMap();
+        queryRulesUsage = in.readGenericMap();
         this.analyticsCollectionsUsage = analyticsCollectionsUsage;
         this.queryRulesUsage = queryRulesUsage;
     }
@@ -68,9 +65,7 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureUsage {
         super.writeTo(out);
         out.writeGenericMap(searchApplicationsUsage);
         out.writeGenericMap(analyticsCollectionsUsage);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            out.writeGenericMap(queryRulesUsage);
-        }
+        out.writeGenericMap(queryRulesUsage);
     }
 
     @Override

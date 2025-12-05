@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -874,8 +873,7 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata() throws IOException {
-        final TransportVersion crossClusterAccessRealmVersion =
-                TransportVersions.V_8_10_X;
+        final TransportVersion crossClusterAccessRealmVersion = Authentication.VERSION_CROSS_CLUSTER_ACCESS;
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             crossClusterAccessRealmVersion,
@@ -1022,7 +1020,7 @@ public class AuthenticationTests extends ESTestCase {
         final Authentication original = AuthenticationTestHelper.builder()
             .apiKey()
             .metadata(metadata)
-            .transportVersion(TransportVersions.V_8_10_X)
+            .transportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS)
             .build();
 
         // pick a version before that of the authentication instance to force a rewrite

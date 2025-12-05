@@ -111,6 +111,7 @@ public class MetricValidator {
         "repo_name",
         "response_status",
         "server_name",
+        "service",
         "scales_to_zero",
         "sort",
         "source",

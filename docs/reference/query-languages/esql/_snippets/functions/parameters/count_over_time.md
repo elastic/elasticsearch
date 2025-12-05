@@ -5,3 +5,6 @@
 `field`
 :   
 
+`window`
+:   the time window over which to compute the count over time
+

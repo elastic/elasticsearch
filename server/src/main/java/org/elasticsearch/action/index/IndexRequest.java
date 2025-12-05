@@ -37,7 +37,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -79,6 +78,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_10_X;
     private static final TransportVersion INDEX_REQUEST_INCLUDE_TSID = TransportVersion.fromName("index_request_include_tsid");
     private static final TransportVersion INDEX_SOURCE = TransportVersion.fromName("index_source");
+    static final TransportVersion INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS = TransportVersion.fromName(
+        "ingest_request_dynamic_template_params"
+    );
 
     private static final Supplier<String> ID_GENERATOR = UUIDs::base64UUID;
 
@@ -147,6 +149,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
     private Map<String, String> dynamicTemplates = Map.of();
+    private Map<String, Map<String, String>> dynamicTemplateParams = Map.of();
 
     /**
      * rawTimestamp field is used on the coordinate node, it doesn't need to be serialised.
@@ -160,10 +163,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     public IndexRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            String type = in.readOptionalString();
-            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
-        }
         id = in.readOptionalString();
         routing = in.readOptionalString();
         boolean beforeSourceContext = in.getTransportVersion().supports(INDEX_SOURCE) == false;
@@ -227,12 +226,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             }
         }
 
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            includeSourceOnError = in.readBoolean();
-        } // else default value is true
+        includeSourceOnError = in.readBoolean();
 
         if (in.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             tsid = in.readBytesRefOrNullIfEmpty();
+        }
+
+        if (in.getTransportVersion().supports(INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS)) {
+            dynamicTemplateParams = in.readMap(StreamInput::readString, i -> i.readMap(StreamInput::readString));
         }
     }
 
@@ -762,9 +763,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     private void writeBody(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         if (out.getTransportVersion().supports(INDEX_SOURCE)) {
@@ -817,11 +815,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                 out.writeBoolean(false); // obsolete originatesFromUpdateByDoc
             }
         }
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeBoolean(includeSourceOnError);
-        }
+        out.writeBoolean(includeSourceOnError);
         if (out.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             out.writeBytesRef(tsid);
+        }
+        if (out.getTransportVersion().supports(INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS)) {
+            out.writeMap(dynamicTemplateParams, StreamOutput::writeString, (o, v) -> o.writeMap(v, StreamOutput::writeString));
         }
     }
 
@@ -980,6 +979,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public Map<String, String> getDynamicTemplates() {
         return dynamicTemplates;
+    }
+
+    public IndexRequest setDynamicTemplateParams(Map<String, Map<String, String>> dynamicTemplateParams) {
+        this.dynamicTemplateParams = dynamicTemplateParams;
+        return this;
+    }
+
+    public Map<String, Map<String, String>> getDynamicTemplateParams() {
+        return dynamicTemplateParams;
     }
 
     public Object getRawTimestamp() {

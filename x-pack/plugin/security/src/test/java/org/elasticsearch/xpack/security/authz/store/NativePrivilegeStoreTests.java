@@ -85,6 +85,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -702,7 +703,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             assertThat(request.indices(), arrayContaining(SecuritySystemIndices.SECURITY_MAIN_ALIAS));
             assertThat(request.id(), equalTo("application-privilege_" + privilege.getApplication() + ":" + privilege.getName()));
             final XContentBuilder builder = privilege.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), true);
-            assertThat(request.source(), equalTo(BytesReference.bytes(builder)));
+            assertThat(request.source(), equalBytes(BytesReference.bytes(builder)));
             final boolean created = privilege.getName().equals("user") == false;
             responses[i] = BulkItemResponse.success(
                 i,
@@ -900,7 +901,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         return securityIndex.new IndexState(
             Metadata.DEFAULT_PROJECT_ID, SecurityIndexManager.ProjectStatus.PROJECT_AVAILABLE, Instant.now(), isIndexUpToDate, true, true,
-            true, true, null, null, null, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, "my_uuid", Set.of()
+            true, true, null, false, null, null, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, "my_uuid", Set
+                .of()
         );
     }
 

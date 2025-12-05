@@ -16,7 +16,6 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
@@ -62,68 +61,21 @@ public final class AllLastLongByTimestampGroupingAggregatorFunction implements G
       Page page) {
     LongBlock valueBlock = page.getBlock(channels.get(0));
     LongBlock timestampBlock = page.getBlock(channels.get(1));
-    LongVector valueVector = valueBlock.asVector();
-    if (valueVector == null) {
-      maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock);
-      return new GroupingAggregatorFunction.AddInput() {
-        @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
-        }
-
-        @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
-        }
-
-        @Override
-        public void close() {
-        }
-      };
-    }
-    LongVector timestampVector = timestampBlock.asVector();
-    if (timestampVector == null) {
-      maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock);
-      return new GroupingAggregatorFunction.AddInput() {
-        @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
-        }
-
-        @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
-        }
-
-        @Override
-        public void close() {
-        }
-      };
-    }
+    maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
-        // This type does not support vectors because all values are multi-valued
+        addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
       }
 
       @Override
       public void add(int positionOffset, IntBigArrayBlock groupIds) {
-        // This type does not support vectors because all values are multi-valued
+        addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        // This type does not support vectors because all values are multi-valued
+        addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
       }
 
       @Override

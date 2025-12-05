@@ -50,6 +50,38 @@ ip:ip       | cluster:keyword | time_bucket:datetime
 10.10.20.34 | staging         | 2024-05-10T00:03:00.000Z
 ;
 
+max_over_time_with_window
+required_capability: ts_command_v0
+required_capability: time_series_window_v1
+
+TS k8s 
+| STATS ip = max(max_over_time(client.ip, 3 minute)) BY cluster, time_bucket = bucket(@timestamp,1minute) 
+| SORT time_bucket, cluster 
+| LIMIT 20;
+
+ip:ip       | cluster:keyword | time_bucket:datetime
+10.10.20.35 | prod            | 2024-05-10T00:00:00.000Z
+10.10.20.34 | qa              | 2024-05-10T00:00:00.000Z
+10.10.20.35 | staging         | 2024-05-10T00:00:00.000Z
+10.10.20.35 | prod            | 2024-05-10T00:01:00.000Z
+10.10.20.35 | qa              | 2024-05-10T00:01:00.000Z
+10.10.20.35 | staging         | 2024-05-10T00:01:00.000Z
+10.10.20.35 | prod            | 2024-05-10T00:02:00.000Z
+10.10.20.35 | qa              | 2024-05-10T00:02:00.000Z
+10.10.20.35 | staging         | 2024-05-10T00:02:00.000Z
+10.10.20.35 | prod            | 2024-05-10T00:03:00.000Z
+10.10.20.35 | qa              | 2024-05-10T00:03:00.000Z
+10.10.20.34 | staging         | 2024-05-10T00:03:00.000Z
+10.10.20.35 | prod            | 2024-05-10T00:04:00.000Z
+10.10.20.35 | qa              | 2024-05-10T00:04:00.000Z
+10.10.20.34 | staging         | 2024-05-10T00:04:00.000Z
+10.10.20.35 | prod            | 2024-05-10T00:05:00.000Z
+10.10.20.35 | qa              | 2024-05-10T00:05:00.000Z
+10.10.20.34 | staging         | 2024-05-10T00:05:00.000Z
+10.10.20.35 | prod            | 2024-05-10T00:06:00.000Z
+10.10.20.35 | qa              | 2024-05-10T00:06:00.000Z
+;
+
 max_over_time_of_long
 required_capability: ts_command_v0
 TS k8s | STATS bytes_in = sum(max_over_time(network.bytes_in)) BY time_bucket = bucket(@timestamp,1minute) | SORT bytes_in DESC, time_bucket | LIMIT 10;

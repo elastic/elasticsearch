@@ -92,7 +92,7 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
 
     public static class NodeResponse extends BaseNodeResponse {
 
-        private static final TransportVersion KEYSTORE_DETAILS = TransportVersion.fromName(
+        public static final TransportVersion KEYSTORE_DETAILS = TransportVersion.fromName(
             "keystore_details_in_reload_secure_settings_response"
         );
 

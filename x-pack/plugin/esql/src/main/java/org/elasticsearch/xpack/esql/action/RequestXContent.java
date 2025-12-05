@@ -34,6 +34,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE_OBJECT_ARRAY;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isValidParamName;
@@ -88,9 +90,10 @@ final class RequestXContent {
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
     static final ParseField KEEP_ALIVE = new ParseField("keep_alive");
     static final ParseField KEEP_ON_COMPLETION = new ParseField("keep_on_completion");
+    static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
-    private static final ObjectParser<EsqlQueryRequest, Void> SYNC_PARSER = objectParserSync(EsqlQueryRequest::syncEsqlQueryRequest);
-    private static final ObjectParser<EsqlQueryRequest, Void> ASYNC_PARSER = objectParserAsync(EsqlQueryRequest::asyncEsqlQueryRequest);
+    private static final ObjectParser<EsqlQueryRequest, Void> SYNC_PARSER = objectParserSync(() -> syncEsqlQueryRequest(null));
+    private static final ObjectParser<EsqlQueryRequest, Void> ASYNC_PARSER = objectParserAsync(() -> asyncEsqlQueryRequest(null));
 
     /** Parses a synchronous request. */
     static EsqlQueryRequest parseSync(XContentParser parser) {
@@ -119,6 +122,7 @@ final class RequestXContent {
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
         parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
         parser.declareField((p, r, c) -> new ParseTables(r, p).parseTables(), TABLES_FIELD, ObjectParser.ValueType.OBJECT);
+        parser.declareString(EsqlQueryRequest::projectRouting, PROJECT_ROUTING);
     }
 
     private static ObjectParser<EsqlQueryRequest, Void> objectParserSync(Supplier<EsqlQueryRequest> supplier) {

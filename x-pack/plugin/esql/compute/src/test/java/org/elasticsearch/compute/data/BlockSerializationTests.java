@@ -24,6 +24,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -435,6 +436,69 @@ public class BlockSerializationTests extends SerializationTestCase {
                 for (int b = 0; b < numBlocks; b++) {
                     assertThat(deserBlock.getBlock(b), equalTo(origBlock.getBlock(b)));
                 }
+                EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
+            }
+        }
+    }
+
+    public void testAggregateMetricDouble() throws IOException {
+        final int positionCount = randomIntBetween(1, 1000);
+        DoubleBlock minBlock = (DoubleBlock) RandomBlock.randomBlock(
+            blockFactory,
+            randomFrom(ElementType.DOUBLE, ElementType.NULL),
+            positionCount,
+            true,
+            0,
+            1,
+            0,
+            0
+        ).block();
+
+        DoubleBlock maxBlock = (DoubleBlock) RandomBlock.randomBlock(
+            blockFactory,
+            randomFrom(ElementType.DOUBLE, ElementType.NULL),
+            positionCount,
+            true,
+            0,
+            1,
+            0,
+            0
+        ).block();
+
+        DoubleBlock suBlock = (DoubleBlock) RandomBlock.randomBlock(
+            blockFactory,
+            randomFrom(ElementType.DOUBLE, ElementType.NULL),
+            positionCount,
+            true,
+            0,
+            1,
+            0,
+            0
+        ).block();
+
+        IntBlock countBlock = (IntBlock) RandomBlock.randomBlock(
+            blockFactory,
+            randomFrom(ElementType.INT, ElementType.NULL),
+            positionCount,
+            true,
+            0,
+            1,
+            0,
+            0
+        ).block();
+
+        try (var origBlock = new AggregateMetricDoubleArrayBlock(minBlock, maxBlock, suBlock, countBlock)) {
+            try (
+                AggregateMetricDoubleBlock deserBlock = serializeDeserializeBlockWithVersion(
+                    origBlock,
+                    TransportVersionUtils.randomVersionBetween(
+                        random(),
+                        DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION,
+                        TransportVersion.current()
+                    )
+                )
+            ) {
+                assertThat(deserBlock, equalTo(origBlock));
                 EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
             }
         }

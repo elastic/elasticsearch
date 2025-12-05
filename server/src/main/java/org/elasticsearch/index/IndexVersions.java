@@ -196,6 +196,11 @@ public class IndexVersions {
     public static final IndexVersion TIME_SERIES_DIMENSIONS_USE_SKIPPERS = def(9_045_0_00, Version.LUCENE_10_3_1);
     public static final IndexVersion TIME_SERIES_ALL_FIELDS_USE_SKIPPERS = def(9_046_0_00, Version.LUCENE_10_3_1);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_3_2 = def(9_047_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion SECURITY_MIGRATIONS_METADATA_FLATTENED_UPDATE = def(9_048_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion STANDARD_INDEXES_USE_SKIPPERS = def(9_049_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion NESTED_PATH_LIMIT = def(9_050_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion GENERIC_DENSE_VECTOR_FORMAT = def(9_051_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion SKIPPER_DEFAULTS_ONLY_ON_TSDB = def(9_052_0_00, Version.LUCENE_10_3_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

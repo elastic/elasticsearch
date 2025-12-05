@@ -196,11 +196,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
-        final ViewService viewService = new ViewService(
-            services.clusterService(),
-            services.projectResolver(),
-            ViewService.ViewServiceConfig.fromSettings(settings)
-        );
+        final ViewService viewService = new ViewService(services.clusterService(), services.projectResolver(), settings);
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
             .toList();
@@ -240,26 +236,34 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
      */
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(
-            AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE,
-            AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE,
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE,
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
-            QUERY_ALLOW_PARTIAL_RESULTS,
-            ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
-            ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
-            ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
-            ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
-            ESQL_QUERYLOG_INCLUDE_USER_SETTING,
-            PlannerSettings.DEFAULT_DATA_PARTITIONING,
-            PlannerSettings.VALUES_LOADING_JUMBO_SIZE,
-            PlannerSettings.LUCENE_TOPN_LIMIT,
-            PlannerSettings.INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
-            PlannerSettings.REDUCTION_LATE_MATERIALIZATION,
-            STORED_FIELDS_SEQUENTIAL_PROPORTION,
-            EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
-            EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
+        List<Setting<?>> settings = new ArrayList<>(
+            List.of(
+                AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE,
+                AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE,
+                AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE,
+                AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
+                QUERY_ALLOW_PARTIAL_RESULTS,
+                ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
+                ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
+                ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
+                ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
+                ESQL_QUERYLOG_INCLUDE_USER_SETTING,
+                PlannerSettings.DEFAULT_DATA_PARTITIONING,
+                PlannerSettings.VALUES_LOADING_JUMBO_SIZE,
+                PlannerSettings.LUCENE_TOPN_LIMIT,
+                PlannerSettings.INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
+                PlannerSettings.REDUCTION_LATE_MATERIALIZATION,
+                STORED_FIELDS_SEQUENTIAL_PROPORTION,
+                EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
+                EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
+            )
         );
+        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
+            settings.add(ViewService.MAX_VIEWS_COUNT_SETTING);
+            settings.add(ViewService.MAX_VIEW_LENGTH_SETTING);
+            settings.add(ViewService.MAX_VIEW_DEPTH_SETTING);
+        }
+        return settings;
     }
 
     @Override

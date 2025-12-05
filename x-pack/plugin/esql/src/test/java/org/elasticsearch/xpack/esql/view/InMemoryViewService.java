@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 
@@ -27,20 +28,20 @@ public class InMemoryViewService extends ViewService {
     private ViewMetadata metadata;
 
     public InMemoryViewService() {
-        this(ViewServiceConfig.DEFAULT);
+        this(Settings.EMPTY);
     }
 
-    public InMemoryViewService(ViewServiceConfig config) {
-        this(config, ViewMetadata.EMPTY);
+    public InMemoryViewService(Settings settings) {
+        this(settings, ViewMetadata.EMPTY);
     }
 
-    private InMemoryViewService(ViewServiceConfig config, ViewMetadata metadata) {
-        super(ClusterServiceUtils.createClusterService(new TestThreadPool("in-memory-views")), null, config);
+    private InMemoryViewService(Settings settings, ViewMetadata metadata) {
+        super(ClusterServiceUtils.createClusterService(new TestThreadPool("in-memory-views")), null, settings);
         this.metadata = metadata;
     }
 
-    InMemoryViewService withConfig(ViewServiceConfig config) {
-        return new InMemoryViewService(config, this.metadata);
+    InMemoryViewService withSettings(Settings settings) {
+        return new InMemoryViewService(settings, this.metadata);
     }
 
     @Override

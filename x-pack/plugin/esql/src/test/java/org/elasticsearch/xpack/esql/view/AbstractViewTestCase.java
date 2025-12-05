@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -23,7 +24,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG;
-import static org.elasticsearch.xpack.esql.view.ViewService.ViewServiceConfig.DEFAULT;
 
 public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
 
@@ -34,7 +34,7 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
 
     protected ViewService viewService(ProjectResolver projectResolver) {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        return new ViewService(clusterService, projectResolver, DEFAULT);
+        return new ViewService(clusterService, projectResolver, Settings.EMPTY);
     }
 
     protected class TestViewsApi {

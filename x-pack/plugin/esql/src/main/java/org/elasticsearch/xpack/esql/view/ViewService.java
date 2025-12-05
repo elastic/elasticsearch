@@ -22,8 +22,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -42,29 +45,45 @@ import java.util.Map;
 import java.util.Set;
 
 public class ViewService {
-    private final ViewServiceConfig config;
+    private static final Logger logger = LogManager.getLogger(ViewService.class);
+
     private final PlanTelemetry telemetry;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
 
-    public record ViewServiceConfig(int maxViews, int maxViewSize, int maxViewDepth) {
+    // TODO: these are not currently publicly allowed on Serverless, should they be?
+    public static final Setting<Integer> MAX_VIEWS_COUNT_SETTING = Setting.intSetting(
+        "esql.views.max_count",
+        100,
+        0,
+        1_000_000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<Integer> MAX_VIEW_LENGTH_SETTING = Setting.intSetting(
+        "esql.views.max_view_length",
+        10_000,
+        1,
+        1_000_000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<Integer> MAX_VIEW_DEPTH_SETTING = Setting.intSetting(
+        "esql.views.max_view_depth",
+        10,
+        0,
+        100,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
-        public static final String MAX_VIEWS_COUNT_SETTING = "esql.views.max_count";
-        public static final String MAX_VIEWS_SIZE_SETTING = "esql.views.max_size";
-        public static final String MAX_VIEWS_DEPTH_SETTING = "esql.views.max_depth";
-        public static final ViewServiceConfig DEFAULT = new ViewServiceConfig(100, 10_000, 10);
+    private volatile int maxViewsCount;
+    private volatile int maxViewLength;
+    // TODO: not yet used, but will be
+    private volatile int maxViewDepth;
 
-        public static ViewServiceConfig fromSettings(Settings settings) {
-            return new ViewServiceConfig(
-                settings.getAsInt(MAX_VIEWS_COUNT_SETTING, DEFAULT.maxViews),
-                settings.getAsInt(MAX_VIEWS_SIZE_SETTING, DEFAULT.maxViewSize),
-                settings.getAsInt(MAX_VIEWS_DEPTH_SETTING, DEFAULT.maxViewDepth)
-            );
-        }
-    }
-
-    public ViewService(ClusterService clusterService, ProjectResolver projectResolver, ViewServiceConfig config) {
+    public ViewService(ClusterService clusterService, ProjectResolver projectResolver, Settings settings) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.taskQueue = clusterService.createTaskQueue(
@@ -73,7 +92,12 @@ public class ViewService {
             new SequentialAckingBatchedTaskExecutor<>()
         );
         this.telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
-        this.config = config;
+        this.maxViewsCount = MAX_VIEWS_COUNT_SETTING.get(settings);
+        this.maxViewLength = MAX_VIEW_LENGTH_SETTING.get(settings);
+        this.maxViewDepth = MAX_VIEW_DEPTH_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_VIEWS_COUNT_SETTING, (i) -> this.maxViewsCount = i);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_VIEW_LENGTH_SETTING, (i) -> this.maxViewLength = i);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_VIEW_DEPTH_SETTING, (i) -> this.maxViewDepth = i);
     }
 
     ViewMetadata getMetadata() {
@@ -161,15 +185,15 @@ public class ViewService {
      * Validates that a view may be inserted into the cluster state
      */
     private void validatePutView(ProjectMetadata metadata, View view) {
-        if (view.query().length() > config.maxViewSize) {
+        if (view.query().length() > this.maxViewLength) {
             throw new IllegalArgumentException(
-                "view query is too large: " + view.query().length() + " characters, the maximum allowed is " + config.maxViewSize
+                "view query is too large: " + view.query().length() + " characters, the maximum allowed is " + this.maxViewLength
             );
         }
         final ViewMetadata views = getMetadata(metadata);
         final View existing = views.getView(view.name());
-        if (existing == null && views.views().size() >= config.maxViews) {
-            throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + config.maxViews);
+        if (existing == null && views.views().size() >= this.maxViewsCount) {
+            throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + this.maxViewsCount);
         }
         // Parse the query to ensure it's valid, this will throw appropriate exceptions if not
         new EsqlParser().createStatement(view.query(), new QueryParams(), telemetry);
@@ -218,8 +242,8 @@ public class ViewService {
                         if (alreadySeen) {
                             throw viewError("circular view reference ", seen);
                         }
-                        if (seen.size() > config.maxViewDepth) {
-                            throw viewError("The maximum allowed view depth of " + config.maxViewDepth + " has been exceeded: ", seen);
+                        if (seen.size() > this.maxViewDepth) {
+                            throw viewError("The maximum allowed view depth of " + this.maxViewDepth + " has been exceeded: ", seen);
                         }
                         subqueries.add(resolve(view, telemetry));
                     } else {

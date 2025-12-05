@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.view;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -68,8 +69,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     public void testModifiedViewDepth() {
-        var config = new ViewService.ViewServiceConfig(100, 10_000, 1);
-        InMemoryViewService customViewService = viewService.withConfig(config);
+        InMemoryViewService customViewService = viewService.withSettings(
+            Settings.builder().put(ViewService.MAX_VIEW_DEPTH_SETTING.getKey(), 1).build()
+        );
         try {
             addView("view1", "from emp", customViewService);
             addView("view2", "from view1", customViewService);
@@ -91,7 +93,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     public void testViewCountExceeded() throws Exception {
-        for (int i = 0; i < ViewService.ViewServiceConfig.DEFAULT.maxViews(); i++) {
+        for (int i = 0; i < ViewService.MAX_VIEWS_COUNT_SETTING.getDefault(Settings.EMPTY); i++) {
             addView("view" + i, "from emp");
         }
 
@@ -101,8 +103,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     public void testModifiedViewCount() {
-        var config = new ViewService.ViewServiceConfig(1, 10_000, 10);
-        InMemoryViewService customViewService = viewService.withConfig(config);
+        InMemoryViewService customViewService = viewService.withSettings(
+            Settings.builder().put(ViewService.MAX_VIEWS_COUNT_SETTING.getKey(), 1).build()
+        );
         try {
             addView("view1", "from emp", customViewService);
 
@@ -119,7 +122,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
         // Long view definition should fail
         StringBuilder longView = new StringBuilder("from ");
-        for (int i = 0; i < ViewService.ViewServiceConfig.DEFAULT.maxViewSize(); i++) {
+        for (int i = 0; i < ViewService.MAX_VIEW_LENGTH_SETTING.getDefault(Settings.EMPTY); i++) {
             longView.append("a");
         }
         Exception e = expectThrows(IllegalArgumentException.class, () -> addView("viewx", longView.toString()));
@@ -127,8 +130,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     public void testModifiedViewLength() {
-        var config = new ViewService.ViewServiceConfig(100, 6, 10);
-        InMemoryViewService customViewService = viewService.withConfig(config);
+        InMemoryViewService customViewService = viewService.withSettings(
+            Settings.builder().put(ViewService.MAX_VIEW_LENGTH_SETTING.getKey(), 6).build()
+        );
         try {
             addView("view1", "from a", customViewService);
 
@@ -141,7 +145,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidViewNames() {
-        InMemoryViewService customViewService = viewService.withConfig(ViewService.ViewServiceConfig.DEFAULT);
+        InMemoryViewService customViewService = new InMemoryViewService();
         for (var name : Map.of(
             "viewX",
             "Invalid view name [viewX], must be lowercase",

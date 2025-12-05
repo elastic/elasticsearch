@@ -64,11 +64,11 @@ public class MetricValidatorTests extends ESTestCase {
     }
 
     public void testElementLengthLimit() {
-        MetricValidator.validateMetricName("es.namespace." + "a".repeat(MetricValidator.METRIC_SEGMENT_MAX_LENGTH) + ".total");
+        MetricValidator.validateMetricName("es.namespace." + "a".repeat(MetricValidator.MAX_SEGMENT_LENGTH) + ".total");
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> MetricValidator.validateMetricName("es.namespace." + "a".repeat(MetricValidator.METRIC_SEGMENT_MAX_LENGTH + 1) + ".total")
+            () -> MetricValidator.validateMetricName("es.namespace." + "a".repeat(MetricValidator.MAX_SEGMENT_LENGTH + 1) + ".total")
         );
     }
 
@@ -95,7 +95,7 @@ public class MetricValidatorTests extends ESTestCase {
         while (i < remainingChars) {
             metricName.append("a");
             i++;
-            for (int j = 0; j < MetricValidator.METRIC_SEGMENT_MAX_LENGTH - 1 && i < remainingChars; j++) {
+            for (int j = 0; j < MetricValidator.MAX_SEGMENT_LENGTH - 1 && i < remainingChars; j++) {
                 metricName.append("x");
                 i++;
             }

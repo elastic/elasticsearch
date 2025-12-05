@@ -163,6 +163,7 @@ public abstract class FullTextFunction extends Function
             return false;
         }
 
+        // Compare query builders using identity because that's how they are compared during query rewriting
         FullTextFunction other = (FullTextFunction) obj;
         return queryBuilder == other.queryBuilder && Objects.equals(query, other.query);
     }

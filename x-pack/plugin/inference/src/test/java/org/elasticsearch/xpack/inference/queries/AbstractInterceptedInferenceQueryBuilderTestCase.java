@@ -70,6 +70,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.TransportVersions.V_8_15_0;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
@@ -191,32 +192,83 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         assertRewriteAndSerializeOnNonInferenceField(nonInferenceFieldQuery, contextCurrent);
     }
 
-    // TODO: Adjust test
-    @AwaitsFix(bugUrl = "http://fake.url")
-    public void testCcsSerializationWithMinimizeRoundTripsFalse() throws Exception {
+    protected void ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType taskType, String queryName) throws Exception {
+        final String inferenceId;
+        final MinimalServiceSettings serviceSettings;
+        switch (taskType) {
+            case SPARSE_EMBEDDING:
+                inferenceId = SPARSE_INFERENCE_ID;
+                serviceSettings = SPARSE_INFERENCE_ID_SETTINGS;
+                break;
+            case TEXT_EMBEDDING:
+                inferenceId = DENSE_INFERENCE_ID;
+                serviceSettings = DENSE_INFERENCE_ID_SETTINGS;
+                break;
+            default:
+                throw new AssertionError("Unsupported task type");
+        }
+
+        final String indexName = "test-index";
         final String inferenceField = "semantic_field";
         final T inferenceFieldQuery = createQueryBuilder(inferenceField);
         final T nonInferenceFieldQuery = createQueryBuilder("non_inference_field");
+        final Map<String, Map<String, String>> localIndexInferenceFields = Map.of(indexName, Map.of(inferenceField, inferenceId));
 
-        final QueryRewriteContext minimizeRoundTripsFalseContext = createQueryRewriteContext(
-            Map.of("local-index", Map.of(inferenceField, SPARSE_INFERENCE_ID)),
-            Map.of("remote-alias", "remote-index"),
-            TransportVersion.current(),
-            false
+        final var remoteInferenceEndpoints = Map.of(inferenceId, serviceSettings);
+        final var remoteIndexConfigs = List.of(
+            new MockInferenceRemoteClusterClient.RemoteIndexConfig(indexName, Map.of(inferenceField, inferenceId))
         );
 
+        final String currentRemoteClusterAlias = "current-remote-cluster";
+        final MockInferenceRemoteClusterClient.RemoteClusterConfig currentRemoteClusterConfig =
+            new MockInferenceRemoteClusterClient.RemoteClusterConfig(
+                remoteInferenceEndpoints,
+                remoteIndexConfigs,
+                TransportVersion.current()
+            );
+
+        QueryRewriteContext currentRemoteClusterContext = createQueryRewriteContext(
+            localIndexInferenceFields,
+            TransportVersion.current(),
+            false,
+            Map.of(currentRemoteClusterAlias, currentRemoteClusterConfig)
+        );
+        assertRewriteAndSerializeOnInferenceField(inferenceFieldQuery, currentRemoteClusterContext, null, null);
+        assertRewriteAndSerializeOnNonInferenceField(nonInferenceFieldQuery, currentRemoteClusterContext);
+
+        final String preCcsRemoteClusterAlias = "pre-ccs-remote-cluster";
+        final MockInferenceRemoteClusterClient.RemoteClusterConfig preCcsRemoteClusterConfig =
+            new MockInferenceRemoteClusterClient.RemoteClusterConfig(
+                remoteInferenceEndpoints,
+                remoteIndexConfigs,
+                TransportVersionUtils.randomVersionBetween(
+                    random(),
+                    SEMANTIC_SEARCH_CCS_SUPPORT,
+                    TransportVersionUtils.getPreviousVersion(GET_INFERENCE_FIELDS_ACTION_TV)
+                )
+            );
+
+        QueryRewriteContext preCcsRemoteClusterContext = createQueryRewriteContext(
+            localIndexInferenceFields,
+            TransportVersion.current(),
+            false,
+            Map.of(preCcsRemoteClusterAlias, preCcsRemoteClusterConfig)
+        );
         assertRewriteAndSerializeOnInferenceField(
             inferenceFieldQuery,
-            minimizeRoundTripsFalseContext,
+            preCcsRemoteClusterContext,
             new IllegalArgumentException(
-                inferenceFieldQuery.getName()
-                    + " query does not support cross-cluster search when querying a ["
-                    + SemanticTextFieldMapper.CONTENT_TYPE
-                    + "] field when [ccs_minimize_roundtrips] is false"
+                "One or more remote clusters does not support "
+                    + queryName
+                    + " query cross-cluster search when"
+                    + " [ccs_minimize_roundtrips] is false. Please update all clusters to at least "
+                    + GET_INFERENCE_FIELDS_ACTION_TV.toReleaseVersion()
             ),
             null
         );
-        assertRewriteAndSerializeOnNonInferenceField(nonInferenceFieldQuery, minimizeRoundTripsFalseContext);
+        assertRewriteAndSerializeOnNonInferenceField(nonInferenceFieldQuery, preCcsRemoteClusterContext);
+
+        // TODO: Test with an empty local index inference fields map to demonstrate the detection gap
     }
 
     public void testCcsBwCSerialization() throws Exception {

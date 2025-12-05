@@ -80,8 +80,7 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
         // Default formatter cases
         TestCaseSupplier.unary(
             suppliers,
-            "DateFormatMillisConstantEvaluator[val=Attribute[channel=0], "
-                + "formatter=format[strict_date_optional_time] locale[en_US]]",
+            "DateFormatMillisConstantEvaluator[val=Attribute[channel=0], " + "formatter=format[strict_date_optional_time] locale[en_US]]",
             TestCaseSupplier.dateCases(Instant.parse("1900-01-01T00:00:00.00Z"), Instant.parse("9999-12-31T00:00:00.00Z")),
             DataType.KEYWORD,
             (value) -> new BytesRef(EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER.formatMillis(((Instant) value).toEpochMilli())),
@@ -89,8 +88,7 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
         );
         TestCaseSupplier.unary(
             suppliers,
-            "DateFormatNanosConstantEvaluator[val=Attribute[channel=0], "
-                + "formatter=format[strict_date_optional_time] locale[en_US]]",
+            "DateFormatNanosConstantEvaluator[val=Attribute[channel=0], " + "formatter=format[strict_date_optional_time] locale[en_US]]",
             TestCaseSupplier.dateNanosCases(),
             DataType.KEYWORD,
             (value) -> new BytesRef(EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER.formatNanos(DateUtils.toLong((Instant) value))),

@@ -22,9 +22,14 @@ import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.Exe
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.time.TimeProvider;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -33,14 +38,17 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * This class computes the current node indexing load
  */
-public class IngestLoadProbe implements IndexEventListener {
+public class IngestLoadProbe implements IndexEventListener, ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(IngestLoadProbe.class);
 
@@ -89,6 +97,7 @@ public class IngestLoadProbe implements IndexEventListener {
     public static final Setting<TimeValue> INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION = Setting.timeSetting(
         "serverless.autoscaling.indexing.sampler.initial_interval_to_ignore_queue_contribution",
         DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION,
+        TimeValue.ZERO,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );
@@ -106,14 +115,26 @@ public class IngestLoadProbe implements IndexEventListener {
         Setting.Property.OperatorDynamic
     );
 
+    public static final Setting<TimeValue> INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE = Setting.timeSetting(
+        "serverless.autoscaling.ingest_metrics.initial_interval_to_consider_node_avg_task_exec_time_unstable",
+        TimeValue.timeValueMinutes(5),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final Function<String, ExecutorStats> executorStatsProvider;
     private final TimeProvider timeProvider;
     private volatile TimeValue maxTimeToClearQueue;
     private volatile float maxQueueContributionFactor;
     private volatile boolean includeWriteCoordinationExecutors;
     private volatile TimeValue initialIntervalToIgnoreQueueContribution;
-    private volatile long firstShardRecoveryTimeInMillis;
+    private volatile OptionalLong firstShardRecoveryTimeInMillis = OptionalLong.empty();
     private volatile TimeValue maxManageableQueuedWork;
+    private volatile TimeValue initialIntervalToConsiderNodeAvgTaskExecTimeUnstable;
+    private volatile TimeValue initialScalingWindowToConsiderNodeAvgTaskExecTimesUnstable;
+    private final Map<String, Double> lastStableAverageTaskExecutionTime = new HashMap<>();
+    private volatile OptionalLong lastScalingWindowStartTimeInMillis = OptionalLong.empty();
 
     @SuppressWarnings("this-escape")
     public IngestLoadProbe(
@@ -131,6 +152,14 @@ public class IngestLoadProbe implements IndexEventListener {
             value -> this.initialIntervalToIgnoreQueueContribution = value
         );
         clusterSettings.initializeAndWatch(MAX_MANAGEABLE_QUEUED_WORK, value -> this.maxManageableQueuedWork = value);
+        clusterSettings.initializeAndWatch(
+            INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE,
+            value -> this.initialIntervalToConsiderNodeAvgTaskExecTimeUnstable = value
+        );
+        clusterSettings.initializeAndWatch(
+            NodeIngestionLoadTracker.INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE,
+            value -> this.initialScalingWindowToConsiderNodeAvgTaskExecTimesUnstable = value
+        );
     }
 
     private void setMaxQueueContributionFactor(float maxQueueContributionFactor) {
@@ -142,25 +171,43 @@ public class IngestLoadProbe implements IndexEventListener {
     }
 
     public NodeIngestionLoad getNodeIngestionLoad() {
-        long currentTimeInMillis = timeProvider.relativeTimeInMillis();
+        boolean dropQueueDueToInitialStartingInterval = dropQueueDueToInitialStartingInterval();
         double totalIngestionLoad = 0.0;
         Map<String, ExecutorStats> nodeExecutorStats = new HashMap<>(AverageWriteLoadSampler.WRITE_EXECUTORS.size());
         Map<String, ExecutorIngestionLoad> nodeExecutorIngestionLoads = new HashMap<>(AverageWriteLoadSampler.WRITE_EXECUTORS.size());
+        final boolean considerTaskExecutionTimeUnstableDueToInitialStart = considerTaskExecutionTimeUnstableDueToInitialStart();
+        final boolean considerTaskExecutionTimeUnstableDueToScaling = considerTaskExecutionTimeUnstableDueToScaling();
         for (String executorName : AverageWriteLoadSampler.WRITE_EXECUTORS) {
             var executorStats = executorStatsProvider.apply(executorName);
+            if (considerTaskExecutionTimeUnstableDueToInitialStart == false && considerTaskExecutionTimeUnstableDueToScaling == false) {
+                lastStableAverageTaskExecutionTime.put(executorName, executorStats.averageTaskExecutionNanosEWMA());
+            } else if (logger.isDebugEnabled() && executorName.equals(ThreadPool.Names.WRITE)) {
+                var reasons = new ArrayList<String>(2);
+                if (considerTaskExecutionTimeUnstableDueToInitialStart) {
+                    reasons.add("within the initial interval after node start");
+                }
+                if (considerTaskExecutionTimeUnstableDueToScaling) {
+                    reasons.add("within the initial scaling window after scaling event started");
+                }
+                final var lastKnownStableExecTime = lastStableAverageTaskExecutionTime.get(executorName);
+                logger.debug(
+                    "considering average task execution time for the WRITE executor unstable because {} "
+                        + "(last known stable avg task execution time: {})",
+                    reasons,
+                    lastKnownStableExecTime == null ? "n/a" : TimeValue.timeValueNanos(lastKnownStableExecTime.longValue())
+                );
+            }
             var ingestionLoadForExecutor = calculateIngestionLoadForExecutor(
                 executorName,
                 executorStats.averageLoad(),
-                executorStats.averageTaskExecutionEWMA(),
+                executorStats.averageTaskExecutionNanosEWMA(),
                 executorStats.averageQueueSize(),
                 executorStats.maxThreads(),
                 maxTimeToClearQueue,
                 maxManageableQueuedWork,
                 maxQueueContributionFactor * executorStats.maxThreads()
             );
-            if (ingestionLoadForExecutor.queueThreadsNeeded() > 0.0
-                && (firstShardRecoveryTimeInMillis == 0
-                    || currentTimeInMillis - firstShardRecoveryTimeInMillis < initialIntervalToIgnoreQueueContribution.millis())) {
+            if (ingestionLoadForExecutor.queueThreadsNeeded() > 0.0 && dropQueueDueToInitialStartingInterval) {
                 // This is a newly started node as defined by the INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION
                 // setting. Drop the queue contribution.
                 logger.info(
@@ -181,10 +228,40 @@ public class IngestLoadProbe implements IndexEventListener {
                 totalIngestionLoad += nodeExecutorIngestionLoads.get(executorName).total();
             }
         }
-        return new NodeIngestionLoad(nodeExecutorStats, nodeExecutorIngestionLoads, totalIngestionLoad);
+        return new NodeIngestionLoad(nodeExecutorStats, lastStableAverageTaskExecutionTime, nodeExecutorIngestionLoads, totalIngestionLoad);
     }
 
-    static ExecutorIngestionLoad calculateIngestionLoadForExecutor(
+    boolean dropQueueDueToInitialStartingInterval() {
+        final var settingIntervalMillis = initialIntervalToIgnoreQueueContribution.millis();
+        if (settingIntervalMillis == 0) {
+            return false;
+        }
+        if (firstShardRecoveryTimeInMillis.isEmpty()) {
+            return true;
+        }
+        return timeProvider.relativeTimeInMillis() - firstShardRecoveryTimeInMillis.getAsLong() < settingIntervalMillis;
+    }
+
+    boolean considerTaskExecutionTimeUnstableDueToInitialStart() {
+        final var settingIntervalMillis = initialIntervalToConsiderNodeAvgTaskExecTimeUnstable.millis();
+        if (settingIntervalMillis == 0) {
+            return false;
+        }
+        if (firstShardRecoveryTimeInMillis.isEmpty()) {
+            return true;
+        }
+        return timeProvider.relativeTimeInMillis() - firstShardRecoveryTimeInMillis.getAsLong() < settingIntervalMillis;
+    }
+
+    boolean considerTaskExecutionTimeUnstableDueToScaling() {
+        final var settingIntervalMillis = initialScalingWindowToConsiderNodeAvgTaskExecTimesUnstable.millis();
+        if (lastScalingWindowStartTimeInMillis.isEmpty() || settingIntervalMillis == 0) {
+            return false;
+        }
+        return timeProvider.relativeTimeInMillis() - lastScalingWindowStartTimeInMillis.getAsLong() < settingIntervalMillis;
+    }
+
+    public static ExecutorIngestionLoad calculateIngestionLoadForExecutor(
         String executor,
         double averageWriteLoad,
         double averageTaskExecutionTime,
@@ -229,9 +306,29 @@ public class IngestLoadProbe implements IndexEventListener {
 
     @Override
     public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
-        if (firstShardRecoveryTimeInMillis == 0) {
-            firstShardRecoveryTimeInMillis = timeProvider.relativeTimeInMillis();
+        if (firstShardRecoveryTimeInMillis.isEmpty()) {
+            firstShardRecoveryTimeInMillis = OptionalLong.of(timeProvider.relativeTimeInMillis());
         }
         listener.onResponse(null);
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        int nodesShuttingDownPreviously = shuttingDownIndexingNodes(event.previousState());
+        int nodesShuttingDownNow = shuttingDownIndexingNodes(event.state());
+        // We can only detect the start of a scaling event (nodes shutting down) here based on addition of shutdown markers.
+        // We treat that as the starting point, and consider it ongoing until there are no more shutting down nodes.
+        // A node that starts during the scaling event might not see the state change that adds the shutdown marker(s), but it
+        // will start timing the scaling event immediately.
+        if (nodesShuttingDownNow > 0 && (nodesShuttingDownPreviously == 0 || lastScalingWindowStartTimeInMillis.isEmpty())) {
+            lastScalingWindowStartTimeInMillis = OptionalLong.of(timeProvider.relativeTimeInMillis());
+        }
+    }
+
+    public static int shuttingDownIndexingNodes(ClusterState state) {
+        return Sets.intersection(
+            state.metadata().nodeShutdowns().getAllNodeIds(),
+            state.nodes().stream().filter(IngestMetricsService::isIndexNode).map(DiscoveryNode::getId).collect(Collectors.toSet())
+        ).size();
     }
 }

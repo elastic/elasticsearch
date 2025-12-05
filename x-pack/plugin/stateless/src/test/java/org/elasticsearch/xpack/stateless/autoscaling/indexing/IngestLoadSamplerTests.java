@@ -503,7 +503,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
 
     private NodeIngestionLoad mockedNodeIngestionLoad(double totalIngestionLoad) {
         // TODO: produce random executor stats and loads
-        return new NodeIngestionLoad(Map.of(), Map.of(), totalIngestionLoad);
+        return new NodeIngestionLoad(Map.of(), Map.of(), Map.of(), totalIngestionLoad);
     }
 
     // A mocked sampler that returns random values

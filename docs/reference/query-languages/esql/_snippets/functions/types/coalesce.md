@@ -10,6 +10,7 @@
 | cartesian_shape | cartesian_shape | cartesian_shape |
 | date | date | date |
 | date_nanos | date_nanos | date_nanos |
+| exponential_histogram | exponential_histogram | exponential_histogram |
 | geo_point | geo_point | geo_point |
 | geo_shape | geo_shape | geo_shape |
 | geohash | geohash | geohash |

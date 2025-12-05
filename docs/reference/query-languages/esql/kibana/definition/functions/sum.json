@@ -32,6 +32,18 @@
       "params" : [
         {
           "name" : "number",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
           "type" : "integer",
           "optional" : false,
           "description" : ""

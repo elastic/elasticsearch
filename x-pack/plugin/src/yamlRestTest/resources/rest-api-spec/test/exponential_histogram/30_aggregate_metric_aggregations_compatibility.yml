@@ -1,5 +1,8 @@
 setup:
-  # Create an index template for the data stream with histogram field
+  - requires:
+      cluster_features: [ "mapper.exponential_histogram_type" ]
+      reason: exponential_histogram field type was introduced
+  # Create an index template for the data stream with aggregate_metric_double field
   - do:
       indices.put_index_template:
         name: test_data_stream_template
@@ -9,24 +12,28 @@ setup:
           template:
             mappings:
               properties:
-                tdigest_or_exp_histo:
-                  type: histogram
+                histo_or_aggregate_metric:
+                  type: aggregate_metric_double
+                  metrics: [min, max, sum, value_count]
+                  default_metric: value_count
 
   # Create the data stream
   - do:
       indices.create_data_stream:
         name: test-data-stream
 
-  # Insert a document with T-Digest histogram value
+  # Insert a document with aggregate_metric_double value
   - do:
       index:
         index: test-data-stream
         refresh: true
         body:
           '@timestamp': "2023-01-01T00:00:00Z"
-          tdigest_or_exp_histo:
-            values: [1.0, 2.0, 4.0]
-            counts: [2, 2, 1]
+          histo_or_aggregate_metric:
+            min: 1.0
+            max: 10.0
+            sum: 20.0
+            value_count: 3
 
   # Update the index template to change the field type to exponential_histogram
   - do:
@@ -38,7 +45,7 @@ setup:
           template:
             mappings:
               properties:
-                tdigest_or_exp_histo:
+                histo_or_aggregate_metric:
                   type: exponential_histogram
 
   # Rollover the data stream to apply the new mapping
@@ -53,13 +60,13 @@ setup:
         refresh: true
         body:
           '@timestamp': "2023-01-02T00:00:00Z"
-          tdigest_or_exp_histo:
+          histo_or_aggregate_metric:
             scale: 1
             sum: 100.0
             min: 1.0
             max: 10.0
             zero: { count: 1 }
-            positive: { indices: [0,1], counts: [1,2] }
+            positive: { indices: [0,1], counts: [2,3] }
             negative: { indices: [0], counts: [1] }
 
 ---
@@ -72,7 +79,7 @@ setup:
           aggs:
             value_count_metric:
               value_count:
-                field: tdigest_or_exp_histo
+                field: histo_or_aggregate_metric
   - match: { aggregations.value_count_metric.value: 10.0 }
 
 ---
@@ -85,8 +92,8 @@ setup:
           aggs:
             sum_metric:
               sum:
-                field: tdigest_or_exp_histo
-  - match: { aggregations.sum_metric.value: 110.0 }
+                field: histo_or_aggregate_metric
+  - match: { aggregations.sum_metric.value: 120.0 }
 
 ---
 "Average aggregation over aggregate_metric_double and exponential_histogram":
@@ -98,5 +105,5 @@ setup:
           aggs:
             avg_metric:
               avg:
-                field: tdigest_or_exp_histo
-  - match: { aggregations.avg_metric.value: 11.0 }
+                field: histo_or_aggregate_metric
+  - match: { aggregations.avg_metric.value: 12.0 }

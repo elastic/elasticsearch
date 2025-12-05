@@ -378,7 +378,10 @@ public enum DataType implements Writeable {
         builder().esType("exponential_histogram")
             .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
             .docValues()
-            .underConstruction(DataTypesTransportVersions.RESOLVE_FIELDS_RESPONSE_USED_TV)
+            .supportedSince(
+                DataTypesTransportVersions.RESOLVE_FIELDS_RESPONSE_USED_TV,
+                DataTypesTransportVersions.ESQL_EXPONENTIAL_HISTOGRAM_SUPPORTED_VERSION
+            )
     ),
 
     /*
@@ -1056,6 +1059,10 @@ public enum DataType implements Writeable {
          */
         public static final TransportVersion RESOLVE_FIELDS_RESPONSE_USED_TV = TransportVersion.fromName(
             "esql_resolve_fields_response_used"
+        );
+
+        public static final TransportVersion ESQL_EXPONENTIAL_HISTOGRAM_SUPPORTED_VERSION = TransportVersion.fromName(
+            "esql_exponential_histogram_supported_version"
         );
     }
 }

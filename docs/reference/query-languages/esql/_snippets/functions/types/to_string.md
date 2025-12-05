@@ -12,6 +12,7 @@
 | date_nanos | keyword |
 | dense_vector | keyword |
 | double | keyword |
+| exponential_histogram | keyword |
 | geo_point | keyword |
 | geo_shape | keyword |
 | geohash | keyword |

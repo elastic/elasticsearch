@@ -92,6 +92,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : "Expression that outputs values to be checked for presence."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "geo_point",
           "optional" : false,
           "description" : "Expression that outputs values to be checked for presence."

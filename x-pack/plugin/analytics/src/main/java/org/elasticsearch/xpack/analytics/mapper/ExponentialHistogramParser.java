@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.analytics.mapper;
 
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
@@ -66,8 +65,6 @@ public class ExponentialHistogramParser {
     private static final ParseField NEGATIVE_FIELD = new ParseField(ExponentialHistogramXContent.NEGATIVE_FIELD);
     private static final ParseField BUCKET_INDICES_FIELD = new ParseField(ExponentialHistogramXContent.BUCKET_INDICES_FIELD);
     private static final ParseField BUCKET_COUNTS_FIELD = new ParseField(ExponentialHistogramXContent.BUCKET_COUNTS_FIELD);
-
-    public static final FeatureFlag EXPONENTIAL_HISTOGRAM_FEATURE = new FeatureFlag("exponential_histogram");
 
     private static final Set<String> ROOT_FIELD_NAMES = Set.of(
         SCALE_FIELD.getPreferredName(),

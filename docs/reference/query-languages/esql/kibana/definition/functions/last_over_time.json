@@ -80,6 +80,24 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : "the field to calculate the latest value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to find the latest value"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "exponential_histogram"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
           "description" : "the field to calculate the latest value for"

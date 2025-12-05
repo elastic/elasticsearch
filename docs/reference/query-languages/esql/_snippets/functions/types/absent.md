@@ -11,6 +11,7 @@
 | date | boolean |
 | date_nanos | boolean |
 | double | boolean |
+| exponential_histogram | boolean |
 | geo_point | boolean |
 | geo_shape | boolean |
 | geohash | boolean |

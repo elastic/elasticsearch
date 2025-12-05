@@ -9,6 +9,7 @@
 | date | date |
 | date_nanos | date_nanos |
 | double | double |
+| exponential_histogram | double |
 | integer | integer |
 | ip | ip |
 | keyword | keyword |

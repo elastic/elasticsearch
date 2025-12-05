@@ -26,8 +26,7 @@ import static org.hamcrest.Matchers.is;
 public class SamlServiceProviderMetadataIT extends SamlRestTestCase {
 
     public void testAuthenticationWhenMetadataIsUnreliable() throws Exception {
-        // Start with no metadata available
-        makeAllMetadataUnavailable();
+        // initially, metadata in unavailable for all realms
 
         final String username = randomAlphaOfLengthBetween(4, 12);
         for (int realmNumber : shuffledList(List.of(1, 2, 3))) {

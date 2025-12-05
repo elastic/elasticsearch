@@ -22,9 +22,10 @@ public class MappingHintsTests extends ESTestCase {
 
     private MappingHints randomDefaultHints() {
         boolean useExponentialHistogram = randomBoolean();
-        return MappingHints.fromSettings(useExponentialHistogram ?
-            OTelPlugin.HistogramMappingSettingValues.EXPONENTIAL_HISTOGRAM :
-            OTelPlugin.HistogramMappingSettingValues.HISTOGRAM
+        return MappingHints.fromSettings(
+            useExponentialHistogram
+                ? OTelPlugin.HistogramMappingSettingValues.EXPONENTIAL_HISTOGRAM
+                : OTelPlugin.HistogramMappingSettingValues.HISTOGRAM
         );
     }
 

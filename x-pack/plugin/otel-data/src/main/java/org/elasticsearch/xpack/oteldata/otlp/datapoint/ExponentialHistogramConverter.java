@@ -38,8 +38,7 @@ public class ExponentialHistogramConverter {
         builder.startObject();
         builder.field("scale", dataPoint.getScale());
         if (dataPoint.getZeroCount() > 0) {
-            builder.startObject("zero")
-                .field("count", dataPoint.getZeroCount());
+            builder.startObject("zero").field("count", dataPoint.getZeroCount());
             if (dataPoint.getZeroThreshold() != 0) {
                 builder.field("threshold", dataPoint.getZeroThreshold());
             }

@@ -52,10 +52,7 @@ public class SamlRestTestCase extends ESRestTestCase {
     private static Path caPath;
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(new RunnableTestRuleAdapter(SamlRestTestCase::initWebserver))
-        .around(cluster)
-        // during the startup, the metadata remains unavailable to prevent caching. After cluster init, make metadata available.
-        .around(new RunnableTestRuleAdapter(() -> makeMetadataAvailable(1, 2, 3)));
+    public static TestRule ruleChain = RuleChain.outerRule(new RunnableTestRuleAdapter(SamlRestTestCase::initWebserver)).around(cluster);
 
     private static void initWebserver() {
         try {

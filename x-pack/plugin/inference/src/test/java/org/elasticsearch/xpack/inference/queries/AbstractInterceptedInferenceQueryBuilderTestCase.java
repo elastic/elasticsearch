@@ -392,6 +392,29 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         TransportVersion minTransportVersion,
         Boolean ccsMinimizeRoundTrips
     ) {
+        // Convert remote index names into remote cluster configs
+        Map<String, MockInferenceRemoteClusterClient.RemoteClusterConfig> remoteClusterConfigs = remoteIndexNames.entrySet()
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey,
+                    entry -> new MockInferenceRemoteClusterClient.RemoteClusterConfig(
+                        Map.of(),
+                        List.of(new MockInferenceRemoteClusterClient.RemoteIndexConfig(entry.getValue(), Map.of())),
+                        TransportVersion.current()
+                    )
+                )
+            );
+
+        return createQueryRewriteContext(localIndexInferenceFields, minTransportVersion, ccsMinimizeRoundTrips, remoteClusterConfigs);
+    }
+
+    protected QueryRewriteContext createQueryRewriteContext(
+        Map<String, Map<String, String>> localIndexInferenceFields,
+        TransportVersion minTransportVersion,
+        Boolean ccsMinimizeRoundTrips,
+        Map<String, MockInferenceRemoteClusterClient.RemoteClusterConfig> remoteClusterConfigs
+    ) {
         Map<Index, IndexMetadata> indexMetadata = new HashMap<>();
         for (var indexEntry : localIndexInferenceFields.entrySet()) {
             String indexName = indexEntry.getKey();
@@ -419,11 +442,13 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         }
 
         Map<String, OriginalIndices> remoteIndices = new HashMap<>();
-        if (remoteIndexNames != null) {
-            for (var entry : remoteIndexNames.entrySet()) {
-                remoteIndices.put(entry.getKey(), new OriginalIndices(new String[] { entry.getValue() }, IndicesOptions.DEFAULT));
-            }
-        }
+        remoteClusterConfigs.forEach((clusterAlias, remoteClusterConfig) -> {
+            String[] indices = remoteClusterConfig.indexConfigs()
+                .stream()
+                .map(MockInferenceRemoteClusterClient.RemoteIndexConfig::indexName)
+                .toArray(String[]::new);
+            remoteIndices.put(clusterAlias, new OriginalIndices(indices, IndicesOptions.DEFAULT));
+        });
 
         ResolvedIndices resolvedIndices = new MockResolvedIndices(
             remoteIndices,
@@ -437,7 +462,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
         return new QueryRewriteContext(
             null,
-            new MockInferenceClient(threadPool, INFERENCE_ENDPOINT_MAP),
+            new MockInferenceClient(threadPool, INFERENCE_ENDPOINT_MAP, remoteClusterConfigs),
             null,
             minTransportVersion,
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,

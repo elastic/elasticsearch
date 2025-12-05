@@ -120,30 +120,6 @@ public final class ViewMetadata extends AbstractNamedDiffable<Metadata.ProjectCu
         return ChunkedToXContentHelper.xContentObjectFields(VIEWS.getPreferredName(), views);
     }
 
-    public static class ViewIterator implements Iterator<ToXContent> {
-        private final Iterator<View> internal;
-
-        public ViewIterator(List<View> views) {
-            this.internal = views.iterator();
-        }
-
-        @Override
-        public boolean hasNext() {
-            return internal.hasNext();
-        }
-
-        @Override
-        public ToXContent next() {
-            View view = internal.next();
-            return (builder, params) -> {
-                builder.startObject();
-                view.toXContent(builder, params);
-                builder.endObject();
-                return builder;
-            };
-        }
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

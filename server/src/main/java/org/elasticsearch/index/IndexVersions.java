@@ -198,6 +198,7 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_TO_LUCENE_10_3_2 = def(9_047_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion SECURITY_MIGRATIONS_METADATA_FLATTENED_UPDATE = def(9_048_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion STANDARD_INDEXES_USE_SKIPPERS = def(9_049_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion NESTED_PATH_LIMIT = def(9_050_0_00, Version.LUCENE_10_3_2);
 
     public static final IndexVersion UPGRADE_TO_LUCENE_10_4_0 = def(9_060_00_0, Version.LUCENE_10_4_0);
 

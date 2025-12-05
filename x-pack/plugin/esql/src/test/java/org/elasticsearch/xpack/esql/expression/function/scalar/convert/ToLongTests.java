@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
-
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;

@@ -200,7 +200,10 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         TimeValue configuredRetention = TimeValue.timeValueDays(100);
         TimeValue globalDefaultRetention = TimeValue.timeValueDays(10);
         TimeValue globalMaxRetention = TimeValue.timeValueDays(50);
-        DataStreamLifecycle dataStreamLifecycle = DataStreamLifecycle.createDataLifecycle(true, configuredRetention, null, null);
+        DataStreamLifecycle dataStreamLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .enabled(true)
+            .dataRetention(configuredRetention)
+            .build();
         {
             boolean isSystemDataStream = true;
             ExplainIndexDataStreamLifecycle explainIndexDataStreamLifecycle = createManagedIndexDataStreamLifecycleExplanation(

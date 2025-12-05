@@ -2,5 +2,5 @@
 
 **Description**
 
-Returns clamps the values of all input samples clamped to have an upper limit of max.
+Limits (or clamps) all input sample values to an upper bound of max. Any value above max is reduced to max.
 

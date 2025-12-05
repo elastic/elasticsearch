@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -122,8 +123,8 @@ import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
-    private static final String TIME = "time", START = "start", END = "end", STEP = "step";
-    private static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP);
+    private static final String TIME = "time", START = "start", END = "end", STEP = "step", INDEX = "index";
+    private static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, INDEX);
 
     /**
      * Maximum number of commands allowed per query
@@ -353,7 +354,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
     }
 
-    private LogicalPlan visitRelation(Source source, IndexMode indexMode, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {
+    private LogicalPlan visitRelation(Source source, SourceCommand command, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {
         List<EsqlBaseParser.IndexPatternOrSubqueryContext> ctxs = ctx == null ? null : ctx.indexPatternOrSubquery();
         List<EsqlBaseParser.IndexPatternContext> indexPatternsCtx = new ArrayList<>();
         List<EsqlBaseParser.SubqueryContext> subqueriesCtx = new ArrayList<>();
@@ -383,13 +384,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
         List<Attribute> metadataFields = List.of(metadataMap.values().toArray(Attribute[]::new));
-        final String commandName = indexMode == IndexMode.TIME_SERIES ? "TS" : "FROM";
-        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, indexMode, null, commandName);
+        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, null, command);
         if (subqueries.isEmpty()) {
             return unresolvedRelation;
         } else {
             // subquery is not supported with time-series indices at the moment
-            if (indexMode == IndexMode.TIME_SERIES) {
+            if (command == SourceCommand.TS) {
                 throw new ParsingException(source, "Subqueries are not supported in TS command");
             }
 
@@ -441,7 +441,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
-        return visitRelation(source(ctx), IndexMode.STANDARD, ctx.indexPatternAndMetadataFields());
+        return visitRelation(source(ctx), SourceCommand.FROM, ctx.indexPatternAndMetadataFields());
     }
 
     @Override
@@ -720,7 +720,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) {
-        return visitRelation(source(ctx), IndexMode.TIME_SERIES, ctx.indexPatternAndMetadataFields());
+        return visitRelation(source(ctx), SourceCommand.TS, ctx.indexPatternAndMetadataFields());
     }
 
     @Override
@@ -1229,7 +1229,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public PlanFactory visitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) {
+    public LogicalPlan visitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) {
         Source source = source(ctx);
 
         // Check if PromQL functionality is enabled
@@ -1241,6 +1241,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         PromqlParams params = parsePromqlParams(ctx, source);
+        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(
+            source,
+            params.indexPattern(),
+            false,
+            List.of(),
+            null,
+            SourceCommand.PROMQL
+        );
 
         // TODO: Perform type and value validation
         var queryCtx = ctx.promqlQueryPart();
@@ -1274,15 +1282,30 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);
         }
 
-        return plan -> new PromqlCommand(
+        String valueColumnName = getValueColumnName(ctx.valueName(), promqlQuery);
+
+        return new PromqlCommand(
             source,
-            plan,
+            unresolvedRelation,
             promqlPlan,
             params.startLiteral(),
             params.endLiteral(),
             params.stepLiteral(),
+            valueColumnName,
             new UnresolvedTimestamp(source)
         );
+    }
+
+    private String getValueColumnName(EsqlBaseParser.ValueNameContext ctx, String promqlQuery) {
+        if (ctx == null) {
+            return promqlQuery;
+        } else if (ctx.UNQUOTED_IDENTIFIER() != null) {
+            return ctx.UNQUOTED_IDENTIFIER().getText();
+        } else if (ctx.QUOTED_IDENTIFIER() != null) {
+            return AbstractBuilder.unquote(ctx.QUOTED_IDENTIFIER().getText());
+        } else {
+            return promqlQuery;
+        }
     }
 
     private PromqlParams parsePromqlParams(EsqlBaseParser.PromqlCommandContext ctx, Source source) {
@@ -1290,6 +1313,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Instant start = null;
         Instant end = null;
         Duration step = null;
+        IndexPattern indexPattern = new IndexPattern(source, "*");
 
         Set<String> paramsSeen = new HashSet<>();
         for (EsqlBaseParser.PromqlParamContext paramCtx : ctx.promqlParam()) {
@@ -1299,18 +1323,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 throw new ParsingException(source(paramNameCtx), "[{}] already specified", name);
             }
             Source valueSource = source(paramCtx.value);
-            String valueString = parseParamValue(paramCtx.value);
             switch (name) {
-                case TIME -> time = PromqlParserUtils.parseDate(valueSource, valueString);
-                case START -> start = PromqlParserUtils.parseDate(valueSource, valueString);
-                case END -> end = PromqlParserUtils.parseDate(valueSource, valueString);
+                case TIME -> time = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
+                case START -> start = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
+                case END -> end = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
                 case STEP -> {
                     try {
-                        step = Duration.ofSeconds(Integer.parseInt(valueString));
+                        step = Duration.ofSeconds(Integer.parseInt(parseParamValueString(paramCtx.value)));
                     } catch (NumberFormatException ignore) {
-                        step = PromqlParserUtils.parseDuration(valueSource, valueString);
+                        step = PromqlParserUtils.parseDuration(valueSource, parseParamValueString(paramCtx.value));
                     }
                 }
+                case INDEX -> indexPattern = parseIndexPattern(paramCtx.value);
                 default -> {
                     String message = "Unknown parameter [{}]";
                     List<String> similar = StringUtils.findSimilar(name, PROMQL_ALLOWED_PARAMS);
@@ -1336,7 +1360,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             start = time;
             end = time;
-        } else if (step != null) {
+        } else if (step != null || start != null || end != null) {
             if (start != null || end != null) {
                 if (start == null || end == null) {
                     throw new ParsingException(
@@ -1355,7 +1379,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     );
                 }
             }
-            if (step.isPositive() == false) {
+            if (step == null) {
+                throw new ParsingException(source, "Parameter [{}] must be specified for a range query", STEP);
+            } else if (step.isPositive() == false) {
                 throw new ParsingException(
                     source,
                     "invalid parameter \"step\": zero or negative query resolution step widths are not accepted. "
@@ -1364,14 +1390,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 );
             }
         } else {
-            throw new ParsingException(source, "Parameter [{}] or [{}] is required", STEP, TIME);
+            start = Instant.now();
+            end = start;
         }
-        return new PromqlParams(source, start, end, step);
+        return new PromqlParams(source, start, end, step, indexPattern);
     }
 
-    private String parseParamName(EsqlBaseParser.PromqlParamContentContext ctx) {
-        if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
-            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
+    private String parseParamName(EsqlBaseParser.PromqlParamNameContext ctx) {
+        if (ctx.UNQUOTED_IDENTIFIER() != null) {
+            return ctx.UNQUOTED_IDENTIFIER().getText();
         } else if (ctx.QUOTED_IDENTIFIER() != null) {
             return AbstractBuilder.unquote(ctx.QUOTED_IDENTIFIER().getText());
         } else {
@@ -1379,18 +1406,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
     }
 
-    private String parseParamValue(EsqlBaseParser.PromqlParamContentContext ctx) {
-        if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
-            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
-        } else if (ctx.QUOTED_STRING() != null) {
-            return AbstractBuilder.unquote(ctx.QUOTED_STRING().getText());
-        } else if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
+    private String parseParamValueString(EsqlBaseParser.PromqlParamValueContext ctx) {
+        if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
             QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
             return param.value().toString();
         } else if (ctx.QUOTED_IDENTIFIER() != null) {
             throw new ParsingException(source(ctx), "Parameter value [{}] must not be a quoted identifier", ctx.getText());
+        } else if (ctx.promqlIndexPattern().size() == 1) {
+            EsqlBaseParser.PromqlIndexStringContext string = ctx.promqlIndexPattern().getFirst().promqlIndexString();
+            if (string.UNQUOTED_SOURCE() != null) {
+                return string.UNQUOTED_SOURCE().getText();
+            } else if (string.UNQUOTED_IDENTIFIER() != null) {
+                return string.UNQUOTED_IDENTIFIER().getText();
+            } else if (string.QUOTED_STRING() != null) {
+                return AbstractBuilder.unquote(string.QUOTED_STRING().getText());
+            }
+        }
+        throw new ParsingException(source(ctx), "Invalid parameter value [{}]", ctx.getText());
+    }
+
+    private IndexPattern parseIndexPattern(EsqlBaseParser.PromqlParamValueContext ctx) {
+        if (ctx.promqlIndexPattern().isEmpty()) {
+            // Default to all indices if no index pattern is provided
+            return new IndexPattern(source(ctx), "*");
         } else {
-            throw new ParsingException(source(ctx), "Invalid parameter value [{}]", ctx.getText());
+            return new IndexPattern(source(ctx), visitPromqlIndexPattern(ctx.promqlIndexPattern()));
         }
     }
 
@@ -1412,7 +1452,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      *
      * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/#expression-queries">PromQL API documentation</a>
      */
-    public record PromqlParams(Source source, Instant start, Instant end, Duration step) {
+    public record PromqlParams(Source source, Instant start, Instant end, Duration step, IndexPattern indexPattern) {
 
         public Literal startLiteral() {
             if (start == null) {

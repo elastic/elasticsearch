@@ -16,6 +16,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -57,6 +58,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
@@ -109,6 +111,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -118,6 +121,8 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -395,6 +400,11 @@ public final class EsqlTestUtils {
         @Override
         public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
             return false;
+        }
+
+        @Override
+        public Map<ShardId, IndexMetadata> targetShards() {
+            return Map.of();
         }
     }
 
@@ -1279,4 +1289,90 @@ public final class EsqlTestUtils {
             return fragmentExec.withFragment(ignoredInFragment);
         });
     }
+
+    public static String addRemoteIndices(String query, Set<String> lookupIndices, boolean onlyRemotes) {
+        String[] commands = query.split("\\|");
+        // remove subqueries
+        String first = commands[0].split(",\\s+\\(")[0].trim();
+
+        // Split "SET a=b; FROM x" into "SET a=b" and "FROM x"
+        int lastSetDelimiterPosition = first.lastIndexOf(';');
+        String setStatements = lastSetDelimiterPosition == -1 ? "" : first.substring(0, lastSetDelimiterPosition + 1);
+        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition + 1);
+
+        // Split "FROM a, b, c" into "FROM" and "a, b, c"
+        String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
+
+        String command = commandParts[0].trim();
+        if (SourceCommand.isSourceCommand(command)) {
+            String commandArgs = commandParts[1].trim();
+            String[] indices = new EsqlParser().createStatement(afterSetStatements)
+                .collect(UnresolvedRelation.class)
+                .getFirst()
+                .indexPattern()
+                .indexPattern()
+                .split(",");
+            // This method may be called multiple times on the same testcase when using @Repeat
+            boolean alreadyConverted = Arrays.stream(indices).anyMatch(i -> i.trim().startsWith("*:"));
+            if (alreadyConverted == false) {
+                if (Arrays.stream(indices).anyMatch(i -> lookupIndices.contains(i.trim().toLowerCase(Locale.ROOT)))) {
+                    // If the query contains lookup indices, use only remotes to avoid duplication
+                    onlyRemotes = true;
+                }
+                int i = 0;
+                for (String index : indices) {
+                    i = commandArgs.indexOf(index, i);
+                    String newIndex = unquoteAndRequoteAsRemote(index.trim(), onlyRemotes);
+                    if (i >= 0) {
+                        commandArgs = commandArgs.substring(0, i) + newIndex + commandArgs.substring(i + index.length());
+                    } else if (command.equalsIgnoreCase("PROMQL")) {
+                        // PROMQL queries may not list indices explicitly, relying on the default value
+                        newIndex = "index=" + newIndex + " ";
+                        commandArgs = newIndex + commandArgs;
+                    } else {
+                        throw new IllegalStateException("Could not find index [" + index + "] in command arguments [" + commandArgs + "]");
+                    }
+                    i += newIndex.length();
+                }
+                String newFirstCommand = command + " " + commandArgs;
+                return (setStatements + " " + newFirstCommand.trim() + query.substring(first.length())).trim();
+            }
+        }
+        return query;
+    }
+
+    /**
+     * Since partial quoting is prohibited, we need to take the index name, unquote it,
+     * convert it to a remote index, and then requote it. For example, "employees" is unquoted,
+     * turned into the remote index *:employees, and then requoted to get "*:employees".
+     * @param index Name of the index.
+     * @param asRemoteIndexOnly If the return needs to be in the form of "*:idx,idx" or "*:idx".
+     * @return A remote index pattern that's requoted.
+     */
+    private static String unquoteAndRequoteAsRemote(String index, boolean asRemoteIndexOnly) {
+        index = index.trim();
+
+        int numOfQuotes = 0;
+        for (; numOfQuotes < index.length(); numOfQuotes++) {
+            if (index.charAt(numOfQuotes) != '"') {
+                break;
+            }
+        }
+
+        String unquoted = unquote(index, numOfQuotes);
+        if (asRemoteIndexOnly) {
+            return quote("*:" + unquoted, numOfQuotes);
+        } else {
+            return quote("*:" + unquoted + "," + unquoted, numOfQuotes);
+        }
+    }
+
+    private static String quote(String index, int numOfQuotes) {
+        return "\"".repeat(numOfQuotes) + index + "\"".repeat(numOfQuotes);
+    }
+
+    private static String unquote(String index, int numOfQuotes) {
+        return index.substring(numOfQuotes, index.length() - numOfQuotes);
+    }
+
 }

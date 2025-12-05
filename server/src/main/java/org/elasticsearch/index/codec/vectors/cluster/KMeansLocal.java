@@ -365,7 +365,7 @@ class KMeansLocal {
         IntToIntFunction translateOrd = i -> i;
         FloatVectorValues sampledVectors = vectors;
         if (sampleSize < n) {
-            sampledVectors = SampleReader.createSampleReader(vectors, sampleSize, 42L);
+            sampledVectors = FloatVectorValuesSlice.createRandomSlice(vectors, sampleSize, 42L);
             translateOrd = sampledVectors::ordToDoc;
         }
 

@@ -18,4 +18,7 @@ public interface MetricAttributes {
 
     /** Node tier of the metered node (as opposed to the metering node in {@code labels.node_tier}). */
     String ES_NODE_TIER = "es_node_tier";
+
+    // refers to https://opentelemetry.io/docs/specs/semconv/registry/attributes/error/#error-type
+    String ERROR_TYPE = "error_type";
 }

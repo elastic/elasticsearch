@@ -48,8 +48,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.blobcache.BlobCachePlugin;
-import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -76,7 +74,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
@@ -97,7 +94,6 @@ import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -111,11 +107,12 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.XContentTestUtils;
-import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIT;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -127,7 +124,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -149,8 +145,6 @@ import java.util.stream.StreamSupport;
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
-import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
-import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.cluster.metadata.RepositoriesMetadata.HIDE_GENERATIONS_PARAM;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -165,7 +159,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-public abstract class AbstractServerlessStatelessPluginIntegTestCase extends ESIntegTestCase {
+public abstract class AbstractServerlessStatelessPluginIntegTestCase extends AbstractStatelessPluginIT {
 
     private int uploadMaxCommits;
 
@@ -201,16 +195,6 @@ public abstract class AbstractServerlessStatelessPluginIntegTestCase extends ESI
         return uploadMaxCommits;
     }
 
-    @Override
-    protected boolean addMockInternalEngine() {
-        return false;
-    }
-
-    @Override
-    protected boolean forceSingleDataPath() {
-        return true;
-    }
-
     public static final String SYSTEM_INDEX_NAME = ".sys-idx";
 
     protected void createSystemIndex(Settings indexSettings) {
@@ -243,15 +227,20 @@ public abstract class AbstractServerlessStatelessPluginIntegTestCase extends ESI
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return nodePlugins(addMockFsRepository(), multiProjectIntegrationTest());
+        final var plugins = new ArrayList<Class<? extends Plugin>>();
+        plugins.addAll(super.nodePlugins());
+        plugins.addAll(getRequiredNodePlugins(addMockFsRepository(), multiProjectIntegrationTest()));
+        return List.copyOf(plugins);
     }
 
-    public static Collection<Class<? extends Plugin>> nodePlugins(boolean addMockFsRepository, boolean multiProjectIntegrationTest) {
+    public static Collection<Class<? extends Plugin>> getRequiredNodePlugins(
+        boolean addMockFsRepository,
+        boolean multiProjectIntegrationTest
+    ) {
         var plugins = new ArrayList<Class<? extends Plugin>>();
+        plugins.addAll(AbstractStatelessPluginIT.getRequiredNodePlugins());
         plugins.add(SystemIndexTestPlugin.class);
-        plugins.add(BlobCachePlugin.class);
         plugins.add(ServerlessStatelessPlugin.class);
-        plugins.add(MockTransportService.TestPlugin.class);
         if (addMockFsRepository) {
             plugins.add(ConcurrentMultiPartUploadsMockFsRepository.Plugin.class);
         }
@@ -379,8 +368,7 @@ public abstract class AbstractServerlessStatelessPluginIntegTestCase extends ESI
     private static final int DEFAULT_TEST_MAX_MISSED_HEARTBEATS = 1000;
 
     protected Settings.Builder nodeSettings() {
-        final Settings.Builder builder = Settings.builder()
-            .put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true)
+        final Settings.Builder builder = super.nodeSettings().put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
             .put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), StatelessElectionStrategy.NAME)
             .put(RecoverySettings.INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey(), false)
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), getFsRepoSanitizedBucketName())
@@ -407,97 +395,6 @@ public abstract class AbstractServerlessStatelessPluginIntegTestCase extends ESI
             builder.put(ServerlessMultiProjectPlugin.MULTI_PROJECT_ENABLED.getKey(), true);
         }
         return builder;
-    }
-
-    protected String startIndexNode() {
-        return startIndexNode(Settings.EMPTY);
-    }
-
-    protected String startIndexNode(Settings extraSettings) {
-        return internalCluster().startNode(settingsForRoles(DiscoveryNodeRole.INDEX_ROLE).put(extraSettings));
-    }
-
-    protected String startSearchNode() {
-        return startSearchNode(Settings.EMPTY);
-    }
-
-    protected String startSearchNode(Settings extraSettings) {
-        return internalCluster().startNode(settingsForRoles(DiscoveryNodeRole.SEARCH_ROLE).put(extraSettings));
-    }
-
-    protected Settings.Builder settingsForRoles(DiscoveryNodeRole... roles) {
-        var builder = Settings.builder()
-            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), Arrays.stream(roles).map(DiscoveryNodeRole::roleName).toList());
-
-        // when changing those values, keep in mind that multiple nodes with their own caches can be created by integration tests which can
-        // also be executed concurrently.
-        if (frequently()) {
-            if (randomBoolean()) {
-                // region is between 1 page (4kb) to 8 pages (32kb)
-                var regionPages = randomIntBetween(1, 8);
-                builder.put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes((long) regionPages * SharedBytes.PAGE_SIZE));
-                // cache is between 1 and 256 regions (max. possible cache size is 8mb)
-                builder.put(
-                    SHARED_CACHE_SIZE_SETTING.getKey(),
-                    ByteSizeValue.ofBytes((long) randomIntBetween(regionPages, 256) * SharedBytes.PAGE_SIZE)
-                );
-            } else {
-                if (randomBoolean()) {
-                    // region is between 8 pages (32kb) to 256 pages (1mb)
-                    var regionPages = randomIntBetween(8, 256);
-                    builder.put(
-                        SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
-                        ByteSizeValue.ofBytes((long) regionPages * SharedBytes.PAGE_SIZE)
-                    );
-                }
-                // cache only uses up to 0.1% disk to be friendly with default region size
-                builder.put(SHARED_CACHE_SIZE_SETTING.getKey(), new RatioValue(randomDoubleBetween(0.0d, 0.1d, false)).toString());
-            }
-        } else {
-            // no cache (a single region does not even fit in the cache)
-            builder.put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(1L));
-        }
-
-        // Add settings from nodeSettings last, allowing them to take precedence over the randomly generated values
-        return builder.put(nodeSettings().build());
-    }
-
-    protected String startMasterOnlyNode() {
-        return startMasterOnlyNode(Settings.EMPTY);
-    }
-
-    protected String startMasterOnlyNode(Settings extraSettings) {
-        return internalCluster().startMasterOnlyNode(nodeSettings().put(extraSettings).build());
-    }
-
-    protected String startMasterAndIndexNode() {
-        return startMasterAndIndexNode(Settings.EMPTY);
-    }
-
-    protected String startMasterAndIndexNode(Settings extraSettings) {
-        return internalCluster().startNode(
-            settingsForRoles(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE).put(extraSettings)
-        );
-    }
-
-    protected List<String> startIndexNodes(int numOfNodes) {
-        return startIndexNodes(numOfNodes, Settings.EMPTY);
-    }
-
-    protected List<String> startIndexNodes(int numOfNodes, Settings extraSettings) {
-        final List<String> nodes = new ArrayList<>(numOfNodes);
-        for (int i = 0; i < numOfNodes; i++) {
-            nodes.add(startIndexNode(extraSettings));
-        }
-        return List.copyOf(nodes);
-    }
-
-    protected List<String> startSearchNodes(int numOfNodes) {
-        final List<String> nodes = new ArrayList<>(numOfNodes);
-        for (int i = 0; i < numOfNodes; i++) {
-            nodes.add(startSearchNode());
-        }
-        return List.copyOf(nodes);
     }
 
     protected String startSearchNode(StatelessMockRepositoryStrategy strategy) {
@@ -937,11 +834,6 @@ public abstract class AbstractServerlessStatelessPluginIntegTestCase extends ESI
         }
     }
 
-    @Override
-    protected boolean addMockFSIndexStore() {
-        return false;
-    }
-
     protected static ObjectStoreService getCurrentMasterObjectStoreService() {
         return internalCluster().getCurrentMasterNodeInstance(StatelessComponents.class).getObjectStoreService();
     }
@@ -1130,11 +1022,6 @@ public abstract class AbstractServerlessStatelessPluginIntegTestCase extends ESI
             .index(indexName)
             .primaryTerm(shardId);
         return indexObjectStoreService.getProjectBlobContainer(new ShardId(resolveIndex(indexName), shardId), primaryTerm);
-    }
-
-    @Override
-    protected boolean autoManageVotingExclusions() {
-        return false;
     }
 
     protected void flushNoForceNoWait(String... indexNames) {

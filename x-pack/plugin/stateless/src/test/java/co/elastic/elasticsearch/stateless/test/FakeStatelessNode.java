@@ -118,6 +118,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -587,10 +588,7 @@ public class FakeStatelessNode implements Closeable {
 
     protected ClusterService createClusterService() {
         // TODO: stateless enabled should be part of nodeSettings
-        final Settings settings = Settings.builder()
-            .put(nodeSettings)
-            .put(ServerlessStatelessPlugin.STATELESS_ENABLED.getKey(), true)
-            .build();
+        final Settings settings = Settings.builder().put(nodeSettings).put(StatelessPlugin.STATELESS_ENABLED.getKey(), true).build();
         return ClusterServiceUtils.createClusterService(
             threadPool,
             DiscoveryNodeUtils.create("node", "node"),

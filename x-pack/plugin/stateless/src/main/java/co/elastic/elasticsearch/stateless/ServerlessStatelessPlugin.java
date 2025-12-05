@@ -223,7 +223,6 @@ import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.os.OsProbe;
-import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -271,9 +270,7 @@ import java.util.stream.Collectors;
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.PROJECT_TYPE;
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
-import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
-import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING;
+import static org.elasticsearch.xpack.stateless.StatelessPlugin.STATELESS_ENABLED;
 
 public class ServerlessStatelessPlugin extends Plugin
     implements
@@ -295,13 +292,6 @@ public class ServerlessStatelessPlugin extends Plugin
 
     public static final ActionType<ClearBlobCacheNodesResponse> CLEAR_BLOB_CACHE_ACTION = new ActionType<>(
         "cluster:admin/" + NAME + "/blob_cache/clear"
-    );
-
-    /** Setting for enabling stateless. Defaults to false. **/
-    public static final Setting<Boolean> STATELESS_ENABLED = Setting.boolSetting(
-        DiscoveryNode.STATELESS_ENABLED_SETTING_NAME,
-        false,
-        Setting.Property.NodeScope
     );
 
     /** Temporary feature flag setting for creating indices with a refresh block. Defaults to false. **/
@@ -339,7 +329,6 @@ public class ServerlessStatelessPlugin extends Plugin
      * The set of {@link ShardRouting.Role}s that we expect to see in a stateless deployment
      */
     public static final Set<ShardRouting.Role> STATELESS_SHARD_ROLES = Set.of(ShardRouting.Role.INDEX_ONLY, ShardRouting.Role.SEARCH_ONLY);
-    public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
     private final SetOnce<SplitTargetService> splitTargetService = new SetOnce<>();
     private final SetOnce<SplitSourceService> splitSourceService = new SetOnce<>();
     private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
@@ -521,7 +510,6 @@ public class ServerlessStatelessPlugin extends Plugin
         } else {
             throw new IllegalArgumentException("Directly setting [" + nodeMemoryAttrName + "] is not permitted - it is reserved.");
         }
-        settings.put(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false);
         // Explicitly disable the recovery source, as it is not needed in stateless mode.
         settings.put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false);
         return settings.build();
@@ -1109,7 +1097,6 @@ public class ServerlessStatelessPlugin extends Plugin
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
-            STATELESS_ENABLED,
             ObjectStoreService.TYPE_SETTING,
             ObjectStoreService.BUCKET_SETTING,
             ObjectStoreService.CLIENT_SETTING,
@@ -1897,27 +1884,6 @@ public class ServerlessStatelessPlugin extends Plugin
     private static void validateSettings(final Settings settings) {
         if (STATELESS_ENABLED.get(settings) == false) {
             throw new IllegalArgumentException(NAME + " is not enabled");
-        }
-        var nonStatelessDataNodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings)
-            .stream()
-            .filter(r -> r.canContainData() && STATELESS_ROLES.contains(r) == false)
-            .map(DiscoveryNodeRole::roleName)
-            .collect(Collectors.toSet());
-        if (nonStatelessDataNodeRoles.isEmpty() == false) {
-            throw new IllegalArgumentException(NAME + " does not support roles " + nonStatelessDataNodeRoles);
-        }
-        if (CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.exists(settings)) {
-            if (CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings)) {
-                throw new IllegalArgumentException(
-                    CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey() + " cannot be enabled"
-                );
-            }
-        }
-        logger.info("{} is enabled", NAME);
-        if (Objects.equals(SHARDS_ALLOCATOR_TYPE_SETTING.get(settings), DESIRED_BALANCE_ALLOCATOR) == false) {
-            throw new IllegalArgumentException(
-                NAME + " can only be used with " + SHARDS_ALLOCATOR_TYPE_SETTING.getKey() + "=" + DESIRED_BALANCE_ALLOCATOR
-            );
         }
     }
 

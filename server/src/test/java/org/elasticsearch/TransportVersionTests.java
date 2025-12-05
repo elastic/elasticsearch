@@ -39,7 +39,11 @@ public class TransportVersionTests extends ESTestCase {
             TransportVersion.minimumCompatible(),
             TransportVersionUtils.getPreviousVersion(TransportVersion.current())
         );
-        TransportVersion newer = TransportVersionUtils.randomVersionBetween(random(), older, TransportVersion.current());
+        TransportVersion newer = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersionUtils.getNextVersion(older),
+            TransportVersion.current()
+        );
         assertThat(older.before(newer), is(true));
         assertThat(older.before(older), is(false));
         assertThat(newer.before(older), is(false));

@@ -2,4 +2,6 @@
 
 CLI_NAME=server
 CLI_LIBS=lib/tools/server-cli
+CLI_JAVA_OPTS="-XX:MaxHeapFreeRatio=10 -XX:MinHeapFreeRatio=5 -XX:-ShrinkHeapInSteps \
+-XX:-UseAdaptiveSizePolicy ${CLI_JAVA_OPTS}"
 source "`dirname "$0"`"/elasticsearch-cli

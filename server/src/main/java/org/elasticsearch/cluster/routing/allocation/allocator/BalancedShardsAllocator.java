@@ -492,9 +492,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             // balance the shard, if a better node can be found
             final float currentWeight = sorter.getWeightFunction().calculateNodeWeightWithIndex(this, currentNode, index);
             final AllocationDeciders deciders = allocation.deciders();
-            // Rebalancing should not relocate a shard to a NO or NOT_PREFERRED node. The target node will only be chosen if a better
-            // decision than this default is found.
-            Type bestRebalanceCanAllocateDecisionType = Type.NOT_PREFERRED;
+            // Rebalancing should not relocate a shard to a NO or NOT_PREFERRED node. A target node will only be chosen if a better
+            // decision is found.
+            Type bestRebalanceCanAllocateDecisionType = Type.NO;
             ModelNode targetNode = null;
             List<Tuple<ModelNode, Decision>> betterBalanceNodes = new ArrayList<>();
             List<Tuple<ModelNode, Decision>> sameBalanceNodes = new ArrayList<>();
@@ -530,10 +530,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // if the simulated weight delta with the shard moved away is better than the weight delta
                     // with the shard remaining on the current node, and we are allowed to allocate to the
                     // node in question, then allow the rebalance
-                    if (rebalanceConditionsMet && canAllocate.type().higherThan(bestRebalanceCanAllocateDecisionType)) {
-                        assert canAllocate.type() == Type.YES || canAllocate.type() == Type.THROTTLE : canAllocate;
+                    if (rebalanceConditionsMet
+                        && canAllocate.type().higherThan(Type.NOT_PREFERRED) // same as NO for rebalancing
+                        && canAllocate.type().higherThan(bestRebalanceCanAllocateDecisionType)) {
                         // Overwrite the best decision since it is better than the last. This means YES decisions will replace
-                        // THROTTLE decisions.
+                        // THROTTLE decisions, and THROTTLE/YES will replace the default NO.
                         bestRebalanceCanAllocateDecisionType = canAllocate.type();
                         targetNode = node;
                     }

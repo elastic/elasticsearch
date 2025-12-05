@@ -239,7 +239,7 @@ similar to how the Gradle build-in `java-test-fixtures` plugin works.
 ```
 dependencies {
   testImplementation(project(":fixture-providing-project')) {
-    requireCapabilities("org.elasticsearch.gradle:fixture-providing-project-test-artifacts")
+    requireCapabilities(${project(":fixture-providing-project').group}:fixture-providing-project-test-artifacts")
   }
 }
 ```

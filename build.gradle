@@ -96,7 +96,7 @@ tasks.named('zipAggregation').configure {
 ext.testArtifact = { p, String name = "test" ->
   def projectDependency = p.dependencies.create(p)
   projectDependency.capabilities {
-    requireCapabilities("org.elasticsearch.gradle:${projectDependency.name}-${name}-artifacts")
+    requireCapabilities("${p.group}:${projectDependency.name}-${name}-artifacts")
   };
 }
 

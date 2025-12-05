@@ -176,7 +176,12 @@ static inline void dot7u_inner_bulk(
     const int8_t* a0 = safe_mapper_offset<0, mapper>(a, pitch, offsets, count);
     const int8_t* a1 = safe_mapper_offset<1, mapper>(a, pitch, offsets, count);
 
-    // Process 4 vectors at a time
+    // Process a batch of 2 vectors at a time, after instructing the CPU to
+    // prefetch the next batch.
+    // Prefetching multiple memory locations while computing keeps the CPU
+    // execution units busy. For this "older" generation of x64 processors
+    // (supporting AVX2, but not AVX-512), benchmarks show that a batch of 2
+    // is ideal -- more, and it starts to hurt performances due to bandwidth
     for (; c + 3 < count; c += 2) {
         const int8_t* next_a0 = a + mapper(c + 2, offsets) * pitch;
         const int8_t* next_a1 = a + mapper(c + 3, offsets) * pitch;
@@ -203,7 +208,7 @@ static inline void dot7u_inner_bulk(
         a1 = next_a1;
     }
 
-    // Tail-handling: remaining 0..3 vectors
+    // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
         results[c] = (f32_t)vec_dot7u(a0, b, dims);

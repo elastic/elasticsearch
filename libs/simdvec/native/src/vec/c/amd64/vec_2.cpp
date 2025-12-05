@@ -145,7 +145,10 @@ static inline void dot7u_inner_bulk(
     const int8_t* a2 = safe_mapper_offset<2, mapper>(a, pitch, offsets, count);
     const int8_t* a3 = safe_mapper_offset<3, mapper>(a, pitch, offsets, count);
 
-    // Process 4 vectors at a time
+    // Process a batch of 4 vectors at a time, after instructing the CPU to
+    // prefetch the next batch.
+    // Prefetching multiple memory locations while computing keeps the CPU
+    // execution units busy.
     for (; c + 7 < count; c += 4) {
         const int8_t* next_a0 = a + mapper(c + 4, offsets) * pitch;
         const int8_t* next_a1 = a + mapper(c + 5, offsets) * pitch;
@@ -186,7 +189,7 @@ static inline void dot7u_inner_bulk(
         a3 = next_a3;
     }
 
-    // Tail-handling: remaining 0..3 vectors
+    // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
         results[c] = (f32_t)vec_dot7u_2(a0, b, dims);

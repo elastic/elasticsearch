@@ -115,7 +115,13 @@ static inline void dot7u_inner_bulk(
     const int blk = dims & ~15;
     int c = 0;
 
-    // Process 4 vectors at a time
+    // Process 4 vectors at a time; this helps the CPU scheduler/prefetcher.
+    // Loading multiple memory locations while computing gives the prefetcher
+    // information on where the data to load will be next, and keeps the CPU
+    // execution units busy.
+    // Our benchmarks show that this "hint" is more effective than using
+    // explicit prefetch instructions (e.g. __builtin_prefetch) on many ARM
+    // processors (e.g. Graviton)
     for (; c + 3 < count; c += 4) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
         const int8_t* a1 = a + mapper(c + 1, offsets) * pitch;

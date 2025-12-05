@@ -18,15 +18,15 @@ import org.elasticsearch.compute.operator.DriverContext;
     {
         @IntermediateState(name = "count", type = "LONG"),
         @IntermediateState(name = "sumVal", type = "DOUBLE"),
-        @IntermediateState(name = "sumTs", type = "LONG"),
+        @IntermediateState(name = "sumTs", type = "DOUBLE"),
         @IntermediateState(name = "sumTsVal", type = "DOUBLE"),
-        @IntermediateState(name = "sumTsSq", type = "LONG") }
+        @IntermediateState(name = "sumTsSq", type = "DOUBLE"), }
 )
 @GroupingAggregator
 class DerivLongAggregator {
 
-    public static SimpleLinearRegressionWithTimeseries initSingle(DriverContext driverContext) {
-        return new SimpleLinearRegressionWithTimeseries();
+    public static SimpleLinearRegressionWithTimeseries initSingle(DriverContext driverContext, boolean dateNanos) {
+        return new SimpleLinearRegressionWithTimeseries(dateNanos);
     }
 
     public static void combine(SimpleLinearRegressionWithTimeseries current, long value, long timestamp) {
@@ -37,9 +37,9 @@ class DerivLongAggregator {
         SimpleLinearRegressionWithTimeseries state,
         long count,
         double sumVal,
-        long sumTs,
+        double sumTs,
         double sumTsVal,
-        long sumTsSq
+        double sumTsSq
     ) {
         DerivDoubleAggregator.combineIntermediate(state, count, sumVal, sumTs, sumTsVal, sumTsSq);
     }
@@ -48,8 +48,8 @@ class DerivLongAggregator {
         return DerivDoubleAggregator.evaluateFinal(state, driverContext);
     }
 
-    public static DerivDoubleAggregator.GroupingState initGrouping(DriverContext driverContext) {
-        return new DerivDoubleAggregator.GroupingState(driverContext.bigArrays());
+    public static DerivDoubleAggregator.GroupingState initGrouping(DriverContext driverContext, boolean dateNanos) {
+        return new DerivDoubleAggregator.GroupingState(driverContext.bigArrays(), dateNanos);
     }
 
     public static void combine(DerivDoubleAggregator.GroupingState state, int groupId, long value, long timestamp) {
@@ -61,9 +61,9 @@ class DerivLongAggregator {
         int groupId,
         long count,
         double sumVal,
-        long sumTs,
+        double sumTs,
         double sumTsVal,
-        long sumTsSq
+        double sumTsSq
     ) {
         combineIntermediate(state.getAndGrow(groupId), count, sumVal, sumTs, sumTsVal, sumTsSq);
     }

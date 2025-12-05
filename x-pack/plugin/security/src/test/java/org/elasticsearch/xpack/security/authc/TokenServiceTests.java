@@ -119,7 +119,6 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.security.authc.TokenService.RAW_TOKEN_BYTES_LENGTH;
 import static org.elasticsearch.xpack.security.authc.TokenService.RAW_TOKEN_BYTES_TOTAL_LENGTH;
 import static org.elasticsearch.xpack.security.authc.TokenService.RAW_TOKEN_DOC_ID_BYTES_LENGTH;
-import static org.elasticsearch.xpack.security.authc.TokenService.VERSION_CLIENT_AUTH_FOR_REFRESH;
 import static org.elasticsearch.xpack.security.authc.TokenService.VERSION_GET_TOKEN_DOC_FOR_REFRESH;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
@@ -258,13 +257,8 @@ public class TokenServiceTests extends ESTestCase {
     private static DiscoveryNode addAnotherPre8500DataNode(ClusterService clusterService) {
         Version version;
         TransportVersion transportVersion;
-        if (randomBoolean()) {
-            version = Version.V_8_8_1;
-            transportVersion = TransportVersions.V_8_8_1;
-        } else {
-            version = Version.V_8_9_0;
-            transportVersion = TransportVersions.V_8_9_X;
-        }
+        version = Version.V_8_9_0;
+        transportVersion = TransportVersions.V_8_9_X;
         return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
     }
 
@@ -557,20 +551,7 @@ public class TokenServiceTests extends ESTestCase {
         String iv,
         String salt
     ) {
-        if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
-            return new RefreshTokenStatus(invalidated, authentication, refreshed, refreshInstant, supersedingTokens, iv, salt);
-        } else {
-            return new RefreshTokenStatus(
-                invalidated,
-                authentication.getEffectiveSubject().getUser().principal(),
-                authentication.getAuthenticatingSubject().getRealm().getName(),
-                refreshed,
-                refreshInstant,
-                supersedingTokens,
-                iv,
-                salt
-            );
-        }
+        return new RefreshTokenStatus(invalidated, authentication, refreshed, refreshInstant, supersedingTokens, iv, salt);
     }
 
     private void storeTokenHeader(ThreadContext requestContext, String tokenString) {

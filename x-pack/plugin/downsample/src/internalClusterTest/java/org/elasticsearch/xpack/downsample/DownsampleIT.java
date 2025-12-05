@@ -117,6 +117,14 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     "cpu_usage": {
                         "type": "double",
                         "time_series_metric": "counter"
+                    },
+                    "memory_usage": {
+                        "type": "double",
+                        "time_series_metric": "counter"
+                    },
+                    "memory_usage.free": {
+                        "type": "double",
+                        "time_series_metric": "counter"
                     }
                   }
                 }
@@ -135,6 +143,8 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .field("attributes.os.name", randomFrom("linux", "windows", "macos"))
                     .field("metrics.cpu_usage", randomDouble())
                     .field("metrics.memory_usage", randomDouble())
+                    .field("metrics.memory_usage.free", randomDouble())
+                    .field("metrics.load", randomDouble())
                     .endObject();
             } catch (IOException e) {
                 throw new RuntimeException(e);

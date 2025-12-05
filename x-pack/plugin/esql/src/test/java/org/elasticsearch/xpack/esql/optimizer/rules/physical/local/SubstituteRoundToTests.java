@@ -883,20 +883,17 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         assertThat(mergeChildren, hasSize(2));
 
         PhysicalPlan leftBranch = mergeChildren.get(0);
-        ProjectExec leftProject = as(leftBranch, ProjectExec.class);
-        EvalExec leftEval = as(leftProject.child(), EvalExec.class);
-        LimitExec leftLimit = as(leftEval.child(), LimitExec.class);
-        ExchangeExec leftExchange = as(leftLimit.child(), ExchangeExec.class);
-        ProjectExec leftInnerProject = as(leftExchange.child(), ProjectExec.class);
-        FieldExtractExec leftFieldExtract = as(leftInnerProject.child(), FieldExtractExec.class);
-        as(leftFieldExtract.child(), EsQueryExec.class);
+        ExchangeExec leftExchange = as(leftBranch, ExchangeExec.class);
+        ProjectExec leftProject = as(leftExchange.child(), ProjectExec.class);
+        FieldExtractExec leftFieldExtract = as(leftProject.child(), FieldExtractExec.class);
+        EvalExec leftEval = as(leftFieldExtract.child(), EvalExec.class);
+        as(leftEval.child(), EsQueryExec.class);
 
         PhysicalPlan rightBranch = mergeChildren.get(1);
 
         ProjectExec subqueryProject = as(rightBranch, ProjectExec.class);
         EvalExec subqueryEval = as(subqueryProject.child(), EvalExec.class);
-        LimitExec subqueryLimit = as(subqueryEval.child(), LimitExec.class);
-        AggregateExec finalAgg = as(subqueryLimit.child(), AggregateExec.class);
+        AggregateExec finalAgg = as(subqueryEval.child(), AggregateExec.class);
         assertThat(finalAgg.getMode(), is(FINAL));
         var groupings = finalAgg.groupings();
         assertThat(groupings, hasSize(1));

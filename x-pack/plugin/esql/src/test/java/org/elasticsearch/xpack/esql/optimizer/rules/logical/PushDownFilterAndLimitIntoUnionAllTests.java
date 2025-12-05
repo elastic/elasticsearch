@@ -88,8 +88,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
 
         EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
         Eval eval = as(child1.child(), Eval.class);
-        Limit childLimit = as(eval.child(), Limit.class);
-        Filter childFilter = as(childLimit.child(), Filter.class);
+        Filter childFilter = as(eval.child(), Filter.class);
         GreaterThan greaterThan = as(childFilter.condition(), GreaterThan.class);
         FieldAttribute empNo = as(greaterThan.left(), FieldAttribute.class);
         assertEquals("emp_no", empNo.name());
@@ -101,8 +100,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
         eval = as(child2.child(), Eval.class);
         Subquery subquery = as(eval.child(), Subquery.class);
-        childLimit = as(subquery.child(), Limit.class);
-        childFilter = as(childLimit.child(), Filter.class);
+        childFilter = as(subquery.child(), Filter.class);
         And and = as(childFilter.condition(), And.class);
         greaterThan = as(and.left(), GreaterThan.class);
         empNo = as(greaterThan.left(), FieldAttribute.class);
@@ -137,7 +135,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      */
     public void testPushDownLimitPastSubqueryWithSort() {
         var plan = planSubquery("""
-            FROM test, (FROM test | WHERE languages > 0 | SORT emp_no)
+            FROM test, (FROM test | WHERE languages > 0 | SORT emp_no | LIMIT 1000)
             """);
 
         Limit limit = as(plan, Limit.class);
@@ -145,8 +143,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assertEquals(2, unionAll.children().size());
 
         EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
-        Limit childLimit = as(child1.child(), Limit.class);
-        EsRelation relation = as(childLimit.child(), EsRelation.class);
+        EsRelation relation = as(child1.child(), EsRelation.class);
         assertEquals("test", relation.indexPattern());
 
         EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
@@ -180,7 +177,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      */
     public void testPushDownFilterAndLimitPastSubqueryWithSort() {
         var plan = planSubquery("""
-            FROM test, (FROM test | WHERE languages > 0 | SORT emp_no)
+            FROM test, (FROM test | WHERE languages > 0 | SORT emp_no | LIMIT 1000)
             | WHERE emp_no > 10000
             """);
 
@@ -189,8 +186,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assertEquals(2, unionAll.children().size());
 
         EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
-        Limit childLimit = as(child1.child(), Limit.class);
-        Filter childFilter = as(childLimit.child(), Filter.class);
+        Filter childFilter = as(child1.child(), Filter.class);
         GreaterThan greaterThan = as(childFilter.condition(), GreaterThan.class);
         FieldAttribute empNo = as(greaterThan.left(), FieldAttribute.class);
         assertEquals("emp_no", empNo.name());
@@ -201,19 +197,19 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
 
         EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
         Subquery subquery = as(child2.child(), Subquery.class);
-        TopN topN = as(subquery.child(), TopN.class);
-        childFilter = as(topN.child(), Filter.class);
-        And and = as(childFilter.condition(), And.class);
-        greaterThan = as(and.left(), GreaterThan.class);
-        empNo = as(greaterThan.left(), FieldAttribute.class);
-        assertEquals("languages", empNo.name());
-        right = as(greaterThan.right(), Literal.class);
-        assertEquals(0, right.value());
-        greaterThan = as(and.right(), GreaterThan.class);
+        childFilter = as(subquery.child(), Filter.class);
+        greaterThan = as(childFilter.condition(), GreaterThan.class);
         empNo = as(greaterThan.left(), FieldAttribute.class);
         assertEquals("emp_no", empNo.name());
         right = as(greaterThan.right(), Literal.class);
         assertEquals(10000, right.value());
+        TopN topN = as(childFilter.child(), TopN.class);
+        childFilter = as(topN.child(), Filter.class);
+        greaterThan = as(childFilter.condition(), GreaterThan.class);
+        FieldAttribute languages = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("languages", languages.name());
+        right = as(greaterThan.right(), Literal.class);
+        assertEquals(0, right.value());
         relation = as(childFilter.child(), EsRelation.class);
         assertEquals("test", relation.indexPattern());
     }
@@ -253,8 +249,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
 
         EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
         Eval eval = as(child1.child(), Eval.class);
-        Limit childLimit = as(eval.child(), Limit.class);
-        Filter childFilter = as(childLimit.child(), Filter.class);
+        Filter childFilter = as(eval.child(), Filter.class);
         And and = as(childFilter.condition(), And.class);
         GreaterThan emp_no = as(and.left(), GreaterThan.class);
         FieldAttribute empNo = as(emp_no.left(), FieldAttribute.class);
@@ -272,8 +267,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
         eval = as(child2.child(), Eval.class);
         Subquery subquery = as(eval.child(), Subquery.class);
-        childLimit = as(subquery.child(), Limit.class);
-        childFilter = as(childLimit.child(), Filter.class);
+        childFilter = as(subquery.child(), Filter.class);
         and = as(childFilter.condition(), And.class);
         GreaterThan greaterThan = as(and.left(), GreaterThan.class);
         FieldAttribute languages = as(greaterThan.left(), FieldAttribute.class);
@@ -332,8 +326,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
 
         EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
         Eval eval = as(child1.child(), Eval.class);
-        Limit childLimit = as(eval.child(), Limit.class);
-        Filter childFilter = as(childLimit.child(), Filter.class);
+        Filter childFilter = as(eval.child(), Filter.class);
         Or or = as(childFilter.condition(), Or.class);
         GreaterThan emp_no = as(or.left(), GreaterThan.class);
         FieldAttribute empNo = as(emp_no.left(), FieldAttribute.class);
@@ -351,8 +344,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
         eval = as(child2.child(), Eval.class);
         Subquery subquery = as(eval.child(), Subquery.class);
-        childLimit = as(subquery.child(), Limit.class);
-        childFilter = as(childLimit.child(), Filter.class);
+        childFilter = as(subquery.child(), Filter.class);
         And and = as(childFilter.condition(), And.class);
         GreaterThan greaterThan = as(and.left(), GreaterThan.class);
         FieldAttribute languages = as(greaterThan.left(), FieldAttribute.class);
@@ -411,8 +403,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
 
         EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
         Eval eval = as(child1.child(), Eval.class);
-        Limit childLimit = as(eval.child(), Limit.class);
-        Filter childFilter = as(childLimit.child(), Filter.class);
+        Filter childFilter = as(eval.child(), Filter.class);
         And and = as(childFilter.condition(), And.class);
         GreaterThan emp_no = as(and.left(), GreaterThan.class);
         FieldAttribute empNo = as(emp_no.left(), FieldAttribute.class);
@@ -430,8 +421,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
         eval = as(child2.child(), Eval.class);
         Subquery subquery = as(eval.child(), Subquery.class);
-        childLimit = as(subquery.child(), Limit.class);
-        childFilter = as(childLimit.child(), Filter.class);
+        childFilter = as(subquery.child(), Filter.class);
         and = as(childFilter.condition(), And.class);
         emp_no = as(and.right(), GreaterThan.class);
         empNo = as(emp_no.left(), FieldAttribute.class);
@@ -549,8 +539,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assertEquals("y", aliases.get(3).name());
         Subquery subquery = as(eval.child(), Subquery.class);
         project = as(subquery.child(), Project.class);
-        Limit childLimit = as(project.child(), Limit.class);
-        Filter childFilter = as(childLimit.child(), Filter.class);
+        Filter childFilter = as(project.child(), Filter.class);
         GreaterThan greaterThan = as(childFilter.condition(), GreaterThan.class);
         ReferenceAttribute z = as(greaterThan.left(), ReferenceAttribute.class);
         assertEquals("z", z.name());
@@ -582,8 +571,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         eval = as(filter.child(), Eval.class);
         subquery = as(eval.child(), Subquery.class);
         eval = as(subquery.child(), Eval.class);
-        limit = as(eval.child(), Limit.class);
-        filter = as(limit.child(), Filter.class);
+        filter = as(eval.child(), Filter.class);
         greaterThan = as(filter.condition(), GreaterThan.class);
         z = as(greaterThan.left(), ReferenceAttribute.class);
         assertEquals("z", z.name());
@@ -615,10 +603,8 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assertEquals(6, aliases.size());
         subquery = as(eval.child(), Subquery.class);
         project = as(subquery.child(), Project.class);
-        limit = as(project.child(), Limit.class);
-        Join lookupJoin = as(limit.child(), Join.class);
-        limit = as(lookupJoin.left(), Limit.class);
-        filter = as(limit.child(), Filter.class);
+        Join lookupJoin = as(project.child(), Join.class);
+        filter = as(lookupJoin.left(), Filter.class);
         greaterThan = as(filter.condition(), GreaterThan.class);
         language_code = as(greaterThan.left(), FieldAttribute.class);
         assertEquals("languages", language_code.name());
@@ -659,8 +645,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
 
         EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
         Subquery subquery = as(child2.child(), Subquery.class);
-        Limit childLimit = as(subquery.child(), Limit.class);
-        Filter childFilter = as(childLimit.child(), Filter.class);
+        Filter childFilter = as(subquery.child(), Filter.class);
         GreaterThan greaterThan = as(childFilter.condition(), GreaterThan.class);
         ReferenceAttribute y = as(greaterThan.left(), ReferenceAttribute.class);
         assertEquals("y", y.name());
@@ -752,41 +737,55 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         List<? extends NamedExpression> projections = project.projections();
         assertEquals(26, projections.size());
         Limit limit = as(project.child(), Limit.class);
-        Filter filter = as(limit.child(), Filter.class);
-        And and = as(filter.condition(), And.class);
-        LessThan lessThan = as(and.right(), LessThan.class);
-        ReferenceAttribute salary = as(lessThan.left(), ReferenceAttribute.class);
-        assertEquals("languages", salary.name());
-        Literal right = as(lessThan.right(), Literal.class);
-        assertEquals(5, right.value());
-        and = as(and.left(), And.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
+        Filter childFilter = as(child1.child(), Filter.class);
+        And and = as(childFilter.condition(), And.class);
         GreaterThan greaterThan = as(and.left(), GreaterThan.class);
         ReferenceAttribute emp_no = as(greaterThan.left(), ReferenceAttribute.class);
         assertEquals("$$emp_no$converted_to$long", emp_no.name());
-        right = as(greaterThan.right(), Literal.class);
+        Literal right = as(greaterThan.right(), Literal.class);
         assertEquals(10000, right.value());
         IsNotNull isNotNull = as(and.right(), IsNotNull.class);
         ReferenceAttribute gender = as(isNotNull.field(), ReferenceAttribute.class);
         assertEquals("$$gender$converted_to$keyword", gender.name());
-        UnionAll unionAll = as(filter.child(), UnionAll.class);
-        assertEquals(2, unionAll.children().size());
-
-        EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
-        Eval eval = as(child1.child(), Eval.class);
-        limit = as(eval.child(), Limit.class);
-        EsRelation relation = as(limit.child(), EsRelation.class);
+        Eval eval = as(childFilter.child(), Eval.class);
+        childFilter = as(eval.child(), Filter.class);
+        LessThan lessThan = as(childFilter.condition(), LessThan.class);
+        FieldAttribute languages = as(lessThan.left(), FieldAttribute.class);
+        assertEquals("languages", languages.name());
+        right = as(lessThan.right(), Literal.class);
+        assertEquals(5, right.value());
+        EsRelation relation = as(childFilter.child(), EsRelation.class);
         assertEquals("test", relation.indexPattern());
 
         Project child2 = as(unionAll.children().get(1), Project.class);
-        eval = as(child2.child(), Eval.class);
+        childFilter = as(child2.child(), Filter.class);
+        isNotNull = as(childFilter.condition(), IsNotNull.class);
+        gender = as(isNotNull.field(), ReferenceAttribute.class);
+        assertEquals("$$gender$converted_to$keyword", gender.name());
+        eval = as(childFilter.child(), Eval.class);
         Subquery subquery = as(eval.child(), Subquery.class);
-        limit = as(subquery.child(), Limit.class);
-        Filter childFilter = as(limit.child(), Filter.class);
-        greaterThan = as(childFilter.condition(), GreaterThan.class);
-        FieldAttribute salaryField = as(greaterThan.left(), FieldAttribute.class);
-        assertEquals("languages", salaryField.name());
+        childFilter = as(subquery.child(), Filter.class);
+        and = as(childFilter.condition(), And.class);
+        greaterThan = as(and.left(), GreaterThan.class);
+        languages = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("languages", languages.name());
         right = as(greaterThan.right(), Literal.class);
         assertEquals(1, right.value());
+        and = as(and.right(), And.class);
+        greaterThan = as(and.left(), GreaterThan.class);
+        FieldAttribute emp_no_field = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("emp_no", emp_no_field.name());
+        right = as(greaterThan.right(), Literal.class);
+        assertEquals(10000, right.value());
+        lessThan = as(and.right(), LessThan.class);
+        languages = as(lessThan.left(), FieldAttribute.class);
+        assertEquals("languages", languages.name());
+        right = as(lessThan.right(), Literal.class);
+        assertEquals(5, right.value());
         relation = as(childFilter.child(), EsRelation.class);
         assertEquals("test_mixed_types", relation.indexPattern());
     }
@@ -818,8 +817,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assertEquals(2, unionAll.children().size());
 
         EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
-        Limit childLimit = as(child1.child(), Limit.class);
-        Filter childFilter = as(childLimit.child(), Filter.class);
+        Filter childFilter = as(child1.child(), Filter.class);
         MatchOperator match = as(childFilter.condition(), MatchOperator.class);
         FieldAttribute first_name = as(match.field(), FieldAttribute.class);
         assertEquals("first_name", first_name.name());
@@ -830,8 +828,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
 
         EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
         Subquery subquery = as(child2.child(), Subquery.class);
-        childLimit = as(subquery.child(), Limit.class);
-        childFilter = as(childLimit.child(), Filter.class);
+        childFilter = as(subquery.child(), Filter.class);
         And and = as(childFilter.condition(), And.class);
         MatchOperator matchOperator = as(and.right(), MatchOperator.class);
         first_name = as(matchOperator.field(), FieldAttribute.class);
@@ -875,8 +872,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assertEquals(2, unionAll.children().size());
 
         EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
-        Limit childLimit = as(child1.child(), Limit.class);
-        Filter childFilter = as(childLimit.child(), Filter.class);
+        Filter childFilter = as(child1.child(), Filter.class);
         And and = as(childFilter.condition(), And.class);
         QueryString queryString = as(and.left(), QueryString.class);
         Literal queryStringLiteral = as(queryString.query(), Literal.class);
@@ -890,8 +886,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
 
         EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
         Subquery subquery = as(child2.child(), Subquery.class);
-        childLimit = as(subquery.child(), Limit.class);
-        childFilter = as(childLimit.child(), Filter.class);
+        childFilter = as(subquery.child(), Filter.class);
         and = as(childFilter.condition(), And.class);
         And subqueryAnd = as(and.left(), And.class);
         GreaterThan greaterThan = as(subqueryAnd.left(), GreaterThan.class);
@@ -942,8 +937,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assertEquals(2, unionAll.children().size());
 
         EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
-        Limit childLimit = as(child1.child(), Limit.class);
-        Filter childFilter = as(childLimit.child(), Filter.class);
+        Filter childFilter = as(child1.child(), Filter.class);
         And and = as(childFilter.condition(), And.class);
         QueryString queryString = as(and.right(), QueryString.class);
         Literal queryStringLiteral = as(queryString.query(), Literal.class);
@@ -964,8 +958,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
 
         EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
         Subquery subquery = as(child2.child(), Subquery.class);
-        childLimit = as(subquery.child(), Limit.class);
-        childFilter = as(childLimit.child(), Filter.class);
+        childFilter = as(subquery.child(), Filter.class);
         and = as(childFilter.condition(), And.class);
         GreaterThan greaterThan = as(and.left(), GreaterThan.class);
         FieldAttribute languages = as(greaterThan.left(), FieldAttribute.class);
@@ -1019,8 +1012,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assertEquals(2, unionAll.children().size());
 
         EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
-        Limit childLimit = as(child1.child(), Limit.class);
-        Filter childFilter = as(childLimit.child(), Filter.class);
+        Filter childFilter = as(child1.child(), Filter.class);
         Or or = as(childFilter.condition(), Or.class);
         Kql kql = as(or.right(), Kql.class);
         Literal kqlLiteral = as(kql.query(), Literal.class);
@@ -1041,8 +1033,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
 
         EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
         Subquery subquery = as(child2.child(), Subquery.class);
-        childLimit = as(subquery.child(), Limit.class);
-        childFilter = as(childLimit.child(), Filter.class);
+        childFilter = as(subquery.child(), Filter.class);
         And and = as(childFilter.condition(), And.class);
         or = as(and.right(), Or.class);
         kql = as(or.right(), Kql.class);
@@ -1099,8 +1090,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assertEquals(11, aliases.size());
 
         Subquery subquery = as(eval2.child(), Subquery.class);
-        Limit childLimit = as(subquery.child(), Limit.class);
-        Filter filter = as(childLimit.child(), Filter.class);
+        Filter filter = as(subquery.child(), Filter.class);
         Match match = as(filter.condition(), Match.class);
         FieldAttribute languageName = as(match.field(), FieldAttribute.class);
         assertEquals("language_name", languageName.name());

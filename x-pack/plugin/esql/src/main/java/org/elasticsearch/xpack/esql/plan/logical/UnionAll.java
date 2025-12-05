@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.List;
 import java.util.Map;
@@ -101,8 +100,10 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
             });
         }
 
+        // TODO clean up the commented code after fully testing subqueries without implicit limit
         // Check InlineStats is not in the parent plan of UnionAll, as Limit is not allowed in the child plans of InlineStats.
         // Refer to Verifier.checkLimitBeforeInlineStats for details, provide a clear error message for subqueries here.
+        /*
         if (plan instanceof InlineStats inlineStats) {
             Holder<UnionAll> inlineStatsDescendantUnionAll = new Holder<>();
             inlineStats.forEachDownMayReturnEarly((p, breakEarly) -> {
@@ -123,6 +124,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
                 );
             }
         }
+         */
     }
 
     @Override

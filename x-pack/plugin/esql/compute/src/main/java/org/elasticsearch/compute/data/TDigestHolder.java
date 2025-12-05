@@ -38,9 +38,11 @@ public class TDigestHolder implements GenericNamedWriteable {
 
     private static final TransportVersion ESQL_SERIALIZEABLE_TDIGEST = TransportVersion.fromName("esql_serializeable_tdigest");
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(GenericNamedWriteable.class,
-    "TDigestHolder",
-    TDigestHolder::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        GenericNamedWriteable.class,
+        "TDigestHolder",
+        TDigestHolder::new
+    );
 
     private final double min;
     private final double max;

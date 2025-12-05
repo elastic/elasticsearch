@@ -38,7 +38,6 @@ PROMQL_COMMA : COMMA -> type(COMMA);
 PROMQL_PARAMS_PIPE : PIPE -> type(PIPE), popMode;
 
 // Opening paren starts query text capture
-//PROMQL_LP : LP {this.incPromqlDepth();} -> type(LP), pushMode(PROMQL_QUERY_MODE);
 PROMQL_LP : LP {this.incPromqlDepth();} -> type(LP);
 PROMQL_NESTED_RP
     : ')' {this.isPromqlQuery()}? {this.decPromqlDepth();} -> type(RP)

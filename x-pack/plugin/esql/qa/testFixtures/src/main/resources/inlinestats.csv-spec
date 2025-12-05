@@ -1001,3 +1001,20 @@ FROM hosts METADATA _index
   description:text |  host:keyword |   ip0:ip      | _index:keyword |   x:ip  | ip1:long | host_group:text | card:keyword
 alpha db server    |alpha          |127.0.0.1      |hosts           |127.0.0.1|1         |DB servers       |eth0
 ;
+
+fixClassCastBugWithSeveralCounts
+required_capability: inline_stats
+required_capability: fix_stats_classcast_exception
+
+FROM sample_data, sample_data_str
+| EVAL one_ip = client_ip::ip
+| INLINE STATS count1=count(client_ip::ip), count2=count(one_ip)
+| KEEP count1, count2
+| LIMIT 3
+;
+
+count1:long    |count2:long
+14             |14 
+14             |14 
+14             |14
+;

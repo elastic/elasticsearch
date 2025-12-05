@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineDisjunctions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAggs;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
@@ -171,6 +172,14 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new SplitInWithFoldableValue(),
             new PropagateEvalFoldables(),
             new ConstantFolding(),
+            /* Then deduplicate aggregations
+               We need this after the constant folding
+               because we could have expressions like
+                    count_distinct(_, 9 + 1)
+                    count_distinct(_, 10)
+               which are semantically identical
+             */
+            new DeduplicateAggs(),
             new PartiallyFoldCase(),
             // boolean
             new BooleanSimplification(),

@@ -196,16 +196,20 @@ public class WriteLoadConstraintMonitor {
             );
             lastRerouteTimeMillis = currentTimeMillisSupplier.getAsLong();
 
-            for (String nodeId : newHotspotNodes) {
-                hotspotNodeStartTimes.put(nodeId, currentTimeMillis);
-            }
-            hotspotNodesCount.set(hotspotNodeStartTimes.size());
+            recordHotspotStartTimes(newHotspotNodes, currentTimeMillis);
         } else {
             logger.debug(
                 "Not calling reroute because we called reroute [{}] ago and there are no new hot spots",
                 TimeValue.timeValueMillis(timeSinceLastRerouteMillis)
             );
         }
+    }
+
+    private void recordHotspotStartTimes(Set<String> nodeIds, long startTimestamp) {
+        for (String nodeId : nodeIds) {
+            hotspotNodeStartTimes.put(nodeId, startTimestamp);
+        }
+        hotspotNodesCount.set(hotspotNodeStartTimes.size());
     }
 
     private List<LongWithAttributes> getHotspotNodesCount() {

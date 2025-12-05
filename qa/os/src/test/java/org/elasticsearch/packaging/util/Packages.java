@@ -11,6 +11,7 @@ package org.elasticsearch.packaging.util;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.core.List;
 import org.elasticsearch.packaging.util.Shell.Result;
 
 import java.io.IOException;
@@ -20,6 +21,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
@@ -80,7 +82,7 @@ public class Packages {
     public static Installation installPackage(Shell sh, Distribution distribution) throws IOException {
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         String javaHomeEnvVar = Version.fromString(distribution.baseVersion).onOrAfter(Version.V_7_12_0) ? "ES_JAVA_HOME" : "JAVA_HOME";
-        if (distribution.hasJdk == false) {
+        if (requiresExplicitJavaHome(distribution)) {
             sh.getEnv().put(javaHomeEnvVar, systemJavaHome);
         }
         final Result result = runPackageManager(distribution, sh, PackageManagerCommand.INSTALL);
@@ -90,7 +92,7 @@ public class Packages {
 
         Installation installation = Installation.ofPackage(sh, distribution);
 
-        if (distribution.hasJdk == false) {
+        if (requiresExplicitJavaHome(distribution)) {
             Files.write(installation.envFile, singletonList(javaHomeEnvVar + "=" + systemJavaHome), StandardOpenOption.APPEND);
         }
 
@@ -100,13 +102,35 @@ public class Packages {
         return installation;
     }
 
+    private static boolean requiresExplicitJavaHome(Distribution distribution) {
+        if (distribution.hasJdk == false) {
+            return true;
+        }
+        Version version = Version.fromString(distribution.baseVersion);
+        boolean requiresPatch = Platforms.isUbuntu24() && (version.onOrAfter(Version.V_7_17_0) && version.before(Version.V_7_17_30));
+        return requiresPatch;
+    }
+
     public static Installation upgradePackage(Shell sh, Distribution distribution) throws IOException {
         final Result result = runPackageManager(distribution, sh, PackageManagerCommand.UPGRADE);
         if (result.exitCode != 0) {
             throw new RuntimeException("Upgrading distribution " + distribution + " failed: " + result);
         }
 
-        return Installation.ofPackage(sh, distribution);
+        Installation installation = Installation.ofPackage(sh, distribution);
+        if (requiresExplicitJavaHome(distribution)) {
+            String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+            Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
+        } else {
+            // Explicitly remove the line if added for previous installation
+            Files.write(
+                installation.envFile,
+                Files.readAllLines(installation.envFile).stream().filter(line -> line.startsWith("ES_JAVA_HOME") == false).collect(Collectors.toList()),
+                StandardOpenOption.WRITE,
+                StandardOpenOption.TRUNCATE_EXISTING
+            );
+        }
+        return installation;
     }
 
     public static Installation forceUpgradePackage(Shell sh, Distribution distribution) throws IOException {

@@ -27,6 +27,15 @@ public class Platforms {
         }
     }
 
+    public static boolean isUbuntu24() {
+        if (LINUX) {
+            String osRelease = getOsRelease();
+            return osRelease.contains("ID=ubuntu") && osRelease.contains("VERSION_ID=\"24.04\"");
+        } else {
+            return false;
+        }
+    }
+
     public static boolean isDPKG() {
         if (WINDOWS) {
             return false;

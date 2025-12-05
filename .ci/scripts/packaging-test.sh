@@ -70,6 +70,22 @@ sudo mkdir -p /elasticsearch/qa/ && sudo chown jenkins /elasticsearch/qa/ && ln 
 # See: https://git-scm.com/docs/git-config/2.35.2#Documentation/git-config.txt-safedirectory
 git config --global --add safe.directory $WORKSPACE
 
+# Older versions of openjdk are incompatible to newer kernel of ubuntu. Use adoptopenjdk17 instead
+resolve_system_java_home() {
+  if [[ "$BUILD_JAVA_HOME" == *"openjdk17"* ]]; then
+    if [ -f "/etc/os-release" ]; then
+        . /etc/os-release
+        if [[ "$ID" == "ubuntu" && "$VERSION_ID" == "24.04" ]]; then
+          echo "$HOME/.java/adoptopenjdk17"
+          return
+        fi
+      fi
+  fi
+
+  echo "$(readlink -f -n $BUILD_JAVA_HOME)"
+}
+
+
 # sudo sets it's own PATH thus we use env to override that and call sudo annother time so we keep the secure root PATH
 # run with --continue to run both bats and java tests even if one fails
 # be explicit about Gradle home dir so we use the same even with sudo
@@ -77,6 +93,6 @@ sudo -E env \
   PATH=$BUILD_JAVA_HOME/bin:`sudo bash -c 'echo -n $PATH'` \
   --unset=ES_JAVA_HOME \
   --unset=JAVA_HOME \
-  SYSTEM_JAVA_HOME=`readlink -f -n $ES_RUNTIME_JAVA` \
+  SYSTEM_JAVA_HOME=$(resolve_system_java_home) \
   ./gradlew -g $HOME/.gradle --console=plain --scan --parallel --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ --continue $@
 

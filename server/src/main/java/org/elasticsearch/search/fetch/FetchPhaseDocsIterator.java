@@ -87,7 +87,7 @@ abstract class FetchPhaseDocsIterator {
     /**
      * Iterate over a set of docsIds within a particular shard and index reader.
      * If a writer is provided, hits are sent in chunks as they are produced (streaming mode).
-     * Streaming mode:< When {@code chunkWriter} is non-null, hits are buffered and sent
+     * Streaming mode: When {@code chunkWriter} is non-null, hits are buffered and sent
      * in chunks of size {@code chunkSize}. This reduces memory footprint for large result sets
      * by streaming results to the coordinator as they are produced.
      * Legacy mode: When {@code chunkWriter} is null, behaves exactly like the original

@@ -1,0 +1,79 @@
+[[release-notes-8.19.8]]
+== {es} version 8.19.8
+
+coming[8.19.8]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.8]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Break on `FieldData` when building global ordinals {es-pull}108875[#108875] (issue: {es-issue}97075[#97075])
+
+Downsampling::
+* Fix: Downsample returns appropriate error when target index gets deleted unexpectedly. {es-pull}138228[#138228]
+
+EQL::
+* Better error message for sequences with only one clause plus UNTIL {es-pull}132638[#132638]
+
+ES|QL::
+* Fix integer overflow in block memory estimation {es-pull}138132[#138132]
+* Handle index deletion while querying in ES|QL {es-pull}137702[#137702] (issue: {es-issue}135863[#135863])
+
+ILM+SLM::
+* ILM Explain: valid JSON on truncated step info {es-pull}137638[#137638] (issue: {es-issue}135458[#135458])
+
+Indices APIs::
+* Serverless filtering create from {es-pull}137850[#137850]
+
+Infra/Core::
+* Fix for GET /_migration/deprecations doesn't check deprecated affix settings correctly {es-pull}137976[#137976] (issue: {es-issue}137008[#137008])
+
+Infra/Settings::
+* Fix default value for some settings when filtered {es-pull}137652[#137652] (issue: {es-issue}136333[#136333])
+* Restore API: Fix file settings handling {es-pull}137585[#137585] (issue: {es-issue}122429[#122429])
+
+Ingest Node::
+* Improve concurrency design of `GeoIpDownloader` {es-pull}137660[#137660] (issues: {es-issue}135158[#135158], {es-issue}130681[#130681], {es-issue}135132[#135132], {es-issue}133597[#133597])
+
+Machine Learning::
+* Bump anomalies index template version to install latest {es-pull}138097[#138097]
+* Fix ML calendar event update scalability issues {es-pull}136886[#136886]
+
+Mapping::
+* Reject mappings that (eventually) set dimension and metric in the same field {es-pull}138308[#138308]
+
+Relevance::
+* Fix semantic highlighting when using a `knn` query with minimum `similarity` {es-pull}138140[#138140]
+
+Search::
+* Fix Bug in `RankDocRetrieverBuilder` when `from` is set to Default (-1) {es-pull}137637[#137637]
+* Remove early phase failure in batched {es-pull}136889[#136889] (issue: {es-issue}134151[#134151])
+
+Security::
+* Add User Profile Size Limit Enforced During Profile Updates {es-pull}137712[#137712]
+* Principal Extraction from Certificate RDN Attribute Value in PKI Realm {es-pull}137230[#137230]
+
+Snapshot/Restore::
+* Add length validation for `rename_replacement` parameter in snapshot restore request {es-pull}137859[#137859]
+
+[[enhancement-8.19.8]]
+[float]
+=== Enhancements
+
+Authorization::
+* [IRONSCALES] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` {es-pull}138094[#138094] (issue: {es-issue}138093[#138093])
+
+[[upgrade-8.19.8]]
+[float]
+=== Upgrades
+
+Security::
+* Upgrade UnboundID LDAP SDK to 7.0.3 {es-pull}138053[#138053]
+
+Snapshot/Restore::
+* Upgrading commons-lang3 version for repository-hdfs plugin {es-pull}138589[#138589]
+
+

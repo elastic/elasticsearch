@@ -51,6 +51,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
@@ -606,6 +607,63 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         );
         ensureGreen("splitagain");
         assertNoResizeSourceIndexSettings("splitagain");
+    }
+
+    /**
+     * Tests that shrinking a logsdb index with a non-default timestamp mapping doesn't result in any mapping conflicts.
+     */
+    public void testShrinkLogsdbIndexWithNonDefaultTimestamp() {
+        // Create a logsdb index with a date_nanos @timestamp field
+        final var settings = indexSettings(2, 0).put("index.mode", "logsdb")
+            .put("index.blocks.write", true)
+            .put("index.routing.allocation.require._name", internalCluster().getRandomDataNodeName());
+        prepareCreate("source").setSettings(settings).setMapping("@timestamp", "type=date_nanos").get();
+        ensureGreen();
+
+        // Shrink the index
+        indicesAdmin().prepareResizeIndex("source", "target")
+            .setResizeType(ResizeType.SHRINK)
+            // We need to explicitly set the number of replicas in case the source has 0 replicas and the cluster has only 1 data node
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build())
+            .get();
+
+        // Verify that the target index has the correct @timestamp mapping
+        final var targetMappings = indicesAdmin().prepareGetMappings("target").get();
+        assertThat(
+            ObjectPath.eval("properties.@timestamp.type", targetMappings.mappings().get("target").getSourceAsMap()),
+            equalTo("date_nanos")
+        );
+        ensureGreen();
+    }
+
+    /**
+     * Tests that shrinking a time series index with a non-default timestamp mapping doesn't result in any mapping conflicts.
+     */
+    public void testShrinkTimeSeriesIndexWithNonDefaultTimestamp() {
+        // Create a time series index with a date_nanos @timestamp field
+        final var settings = indexSettings(2, 0).put("index.mode", "time_series")
+            .put("index.routing_path", "sensor_id")
+            .put("index.routing.allocation.require._name", internalCluster().getRandomDataNodeName())
+            .put("index.blocks.write", true);
+        prepareCreate("source").setSettings(settings)
+            .setMapping("@timestamp", "type=date_nanos", "sensor_id", "type=keyword,time_series_dimension=true")
+            .get();
+        ensureGreen();
+
+        // Shrink the index
+        indicesAdmin().prepareResizeIndex("source", "target")
+            .setResizeType(ResizeType.SHRINK)
+            // We need to explicitly set the number of replicas in case the source has 0 replicas and the cluster has only 1 data node
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build())
+            .get();
+
+        // Verify that the target index has the correct @timestamp mapping
+        final var targetMappings = indicesAdmin().prepareGetMappings("target").get();
+        assertThat(
+            ObjectPath.eval("properties.@timestamp.type", targetMappings.mappings().get("target").getSourceAsMap()),
+            equalTo("date_nanos")
+        );
+        ensureGreen();
     }
 
     static void assertNoResizeSourceIndexSettings(final String index) {

@@ -33,15 +33,18 @@
       },
       "include_yes_decisions": {
         "type": "boolean",
+        "default": false,
         "description": "Return 'YES' decisions in explanation (default: false)"
       },
       "include_disk_info": {
         "type": "boolean",
+        "default": false,
         "description": "Return information about disk usage and shard sizes (default: false)"
       }
     },
     "body": {
-      "description": "The index, shard, and primary flag to explain. Empty means 'explain a randomly-chosen unassigned shard'"
+      "description": "The index, shard, and primary flag to explain. Empty means 'explain a randomly-chosen unassigned shard'",
+      "required": false
     }
   }
 }

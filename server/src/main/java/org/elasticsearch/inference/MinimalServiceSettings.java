@@ -10,7 +10,6 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -95,6 +94,10 @@ public record MinimalServiceSettings(
         return PARSER.parse(parser, null);
     }
 
+    private static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA = TransportVersion.fromName(
+        "inference_model_registry_metadata"
+    );
+
     public static MinimalServiceSettings textEmbedding(
         String serviceName,
         int dimensions,
@@ -161,7 +164,7 @@ public record MinimalServiceSettings(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA_8_19;
+        return INFERENCE_MODEL_REGISTRY_METADATA;
     }
 
     @Override

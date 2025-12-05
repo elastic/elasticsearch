@@ -128,7 +128,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         asyncExecutionId = in.readOptionalString();
         isPartial = in.readBoolean();
         isRunning = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             shardFailures = in.readArray(ShardSearchFailure::readShardSearchFailure, ShardSearchFailure[]::new);
         } else {
             shardFailures = ShardSearchFailure.EMPTY_ARRAY;
@@ -147,7 +147,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         out.writeOptionalString(asyncExecutionId);
         out.writeBoolean(isPartial);
         out.writeBoolean(isRunning);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeArray(shardFailures);
         }
     }

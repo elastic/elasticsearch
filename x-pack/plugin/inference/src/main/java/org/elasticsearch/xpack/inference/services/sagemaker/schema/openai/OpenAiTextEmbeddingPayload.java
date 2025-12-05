@@ -11,7 +11,6 @@ import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointResponse;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -126,6 +125,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
     record ApiServiceSettings(@Nullable Integer dimensions, Boolean dimensionsSetByUser) implements SageMakerStoredServiceSchema {
         private static final String NAME = "sagemaker_openai_text_embeddings_service_settings";
         private static final String DIMENSIONS_FIELD = "dimensions";
+        private static final TransportVersion ML_INFERENCE_SAGEMAKER = TransportVersion.fromName("ml_inference_sagemaker");
 
         ApiServiceSettings(StreamInput in) throws IOException {
             this(in.readOptionalInt(), in.readBoolean());
@@ -138,7 +138,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ML_INFERENCE_SAGEMAKER_8_19;
+            return ML_INFERENCE_SAGEMAKER;
         }
 
         @Override

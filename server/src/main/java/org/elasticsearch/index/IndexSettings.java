@@ -303,11 +303,6 @@ public final class IndexSettings {
 
     static class RefreshIntervalValidator implements Setting.Validator<TimeValue> {
 
-        static final String STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE = "es.stateless.allow.index.refresh_interval.override";
-        private static final boolean IS_OVERRIDE_ALLOWED = Boolean.parseBoolean(
-            System.getProperty(STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "false")
-        );
-
         @Override
         public void validate(TimeValue value) {}
 
@@ -323,18 +318,16 @@ public final class IndexSettings {
                 && value.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0
                 && indexVersion.after(IndexVersions.V_8_10_0)) {
 
-                if (IS_OVERRIDE_ALLOWED == false) {
-                    throw new IllegalArgumentException(
-                        "index setting ["
-                            + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
-                            + "="
-                            + value
-                            + "] should be either "
-                            + TimeValue.MINUS_ONE
-                            + " or equal to or greater than "
-                            + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL
-                    );
-                }
+                throw new IllegalArgumentException(
+                    "index setting ["
+                        + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+                        + "="
+                        + value
+                        + "] should be either "
+                        + TimeValue.MINUS_ONE
+                        + " or equal to or greater than "
+                        + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL
+                );
             }
         }
 

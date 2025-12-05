@@ -2,13 +2,14 @@ steps:
   - group: bwc
     steps: $BWC_STEPS
   - label: concurrent-search-tests
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true functionalTests
+    command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true functionalTests
     timeout_in_minutes: 420
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
+
   - label: encryption-at-rest
     command: .buildkite/scripts/encryption-at-rest.sh
     timeout_in_minutes: 420
@@ -17,6 +18,7 @@ steps:
       image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
+
   - label: eql-correctness
     command: .buildkite/scripts/eql-correctness.sh
     timeout_in_minutes: 300
@@ -25,26 +27,25 @@ steps:
       image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
+
   - label: example-plugins
     command: |-
-      cd $$WORKSPACE/plugins/examples
-
-      $$WORKSPACE/.ci/scripts/run-gradle.sh build
+      ./.ci/scripts/example-plugins.sh build
     timeout_in_minutes: 300
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
+
   - group: java-fips-matrix
     steps:
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-fips-matrix"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.fips.enabled=true $$GRADLE_TASK
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.fips.enabled=true $$GRADLE_TASK
         timeout_in_minutes: 300
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk17
               - adoptopenjdk17
             GRADLE_TASK:
               - checkPart1
@@ -56,43 +57,43 @@ steps:
               - checkRestCompat
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2204
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-fips-matrix-bwc"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.fips.enabled=true v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.fips.enabled=true v$$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk17
               - adoptopenjdk17
             BWC_VERSION: $BWC_LIST
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2204
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
+
   - group: java-matrix
     steps:
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-matrix"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true $$GRADLE_TASK
         timeout_in_minutes: 300
         matrix:
           setup:
             ES_RUNTIME_JAVA:
               - graalvm-ce17
-              - openjdk17
               - adoptopenjdk17
               - openjdk21
               - openjdk22
-              - openjdk23
+              - openjdk25
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -103,33 +104,34 @@ steps:
               - checkRestCompat
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2204
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-matrix-bwc"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
         matrix:
           setup:
             ES_RUNTIME_JAVA:
               - graalvm-ce17
-              - openjdk17
               - adoptopenjdk17
               - openjdk21
               - openjdk22
-              - openjdk23
+              - openjdk25
             BWC_VERSION: $BWC_LIST
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2204
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
+
   - label: release-tests
     command: .buildkite/scripts/release-tests.sh
     timeout_in_minutes: 360
@@ -138,14 +140,16 @@ steps:
       image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
+
   - label: single-processor-node-tests
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true functionalTests
+    command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true functionalTests
     timeout_in_minutes: 420
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
+
   - group: third-party tests
     steps:
       - label: third-party / azure-sas
@@ -153,7 +157,7 @@ steps:
           export azure_storage_container=elasticsearch-ci-thirdparty-sas
           export azure_storage_base_path=$BUILDKITE_BRANCH
 
-          .ci/scripts/run-gradle.sh azureThirdPartyTest
+          .ci/scripts/run-gradle.sh --continue azureThirdPartyTest
         env:
           USE_3RD_PARTY_AZURE_SAS_CREDENTIALS: "true"
         timeout_in_minutes: 30
@@ -162,12 +166,13 @@ steps:
           image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
+
       - label: third-party / azure
         command: |
           export azure_storage_container=elasticsearch-ci-thirdparty
           export azure_storage_base_path=$BUILDKITE_BRANCH
 
-          .ci/scripts/run-gradle.sh azureThirdPartyTest
+          .ci/scripts/run-gradle.sh --continue azureThirdPartyTest
         env:
           USE_3RD_PARTY_AZURE_CREDENTIALS: "true"
         timeout_in_minutes: 30
@@ -176,12 +181,13 @@ steps:
           image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
+
       - label: third-party / gcs
         command: |
           export google_storage_bucket=elasticsearch-ci-thirdparty
           export google_storage_base_path=$BUILDKITE_BRANCH
 
-          .ci/scripts/run-gradle.sh gcsThirdPartyTest
+          .ci/scripts/run-gradle.sh --continue gcsThirdPartyTest
         env:
           USE_3RD_PARTY_GCS_CREDENTIALS: "true"
         timeout_in_minutes: 30
@@ -190,21 +196,23 @@ steps:
           image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
+
       - label: third-party / geoip
         command: |
-          .ci/scripts/run-gradle.sh :modules:ingest-geoip:internalClusterTest -Dtests.jvm.argline="-Dgeoip_use_service=true"
+          .ci/scripts/run-gradle.sh --continue :modules:ingest-geoip:internalClusterTest -Dtests.jvm.argline="-Dgeoip_use_service=true"
         timeout_in_minutes: 30
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
+
       - label: third-party / s3
         command: |
           export amazon_s3_bucket=elasticsearch-ci.us-west-2
           export amazon_s3_base_path=$BUILDKITE_BRANCH
 
-          .ci/scripts/run-gradle.sh s3ThirdPartyTest
+          .ci/scripts/run-gradle.sh --continue s3ThirdPartyTest
         env:
           USE_3RD_PARTY_S3_CREDENTIALS: "true"
         timeout_in_minutes: 30
@@ -213,9 +221,10 @@ steps:
           image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
+
       - label: third-party / ms-graph
         command: |
-          .ci/scripts/run-gradle.sh msGraphThirdPartyTest
+          .ci/scripts/run-gradle.sh --continue msGraphThirdPartyTest
         env:
           USE_3RD_PARTY_MS_GRAPH_CREDENTIALS: "true"
         timeout_in_minutes: 30
@@ -235,6 +244,7 @@ steps:
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
     if: build.branch =~ /^(main|\d+\.\d+|\d+\.x)$$/
+
   - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
     timeout_in_minutes: 15
@@ -242,6 +252,7 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: n2-standard-2
+
   - label: check-branch-protection-rules
     command: .buildkite/scripts/branch-protection.sh
     timeout_in_minutes: 5

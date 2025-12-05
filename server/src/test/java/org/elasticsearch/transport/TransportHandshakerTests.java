@@ -260,7 +260,7 @@ public class TransportHandshakerTests extends ESTestCase {
     }
 
     private void assertDeprecationMessageIsLogged(TransportVersion remoteVersion, String remoteReleaseVersion, Object channel) {
-        if (remoteVersion.onOrAfter(TransportVersion.minimumCompatible()) && remoteVersion.before(V8_19_FIRST_VERSION)) {
+        if (remoteVersion.onOrAfter(TransportVersion.minimumCompatible()) && remoteVersion.supports(V8_19_FIRST_VERSION) == false) {
             assertWarnings(getDeprecationMessage(TransportVersion.current(), remoteVersion, remoteReleaseVersion, channel));
         }
     }

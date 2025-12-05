@@ -25,9 +25,9 @@
         }
       ]
     },
-    "params": {},
     "body": {
-      "description": "The script to execute"
+      "description": "The script to execute",
+      "required": true
     }
   }
 }

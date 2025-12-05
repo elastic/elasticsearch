@@ -137,7 +137,7 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_IBM_WATSONX_RERANK_ADDED;
+        return TransportVersions.V_8_18_0;
     }
 
     @Override

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
@@ -48,6 +47,10 @@ public enum JinaAIEmbeddingType {
     );
     static final EnumSet<DenseVectorFieldMapper.ElementType> SUPPORTED_ELEMENT_TYPES = EnumSet.copyOf(
         ELEMENT_TYPE_TO_JINA_AI_EMBEDDING.keySet()
+    );
+
+    private static final TransportVersion JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED = TransportVersion.fromName(
+        "jina_ai_embedding_type_support_added"
     );
 
     private final DenseVectorFieldMapper.ElementType elementType;
@@ -109,7 +112,7 @@ public enum JinaAIEmbeddingType {
      * @return the embedding type that is known to the version passed in
      */
     public static JinaAIEmbeddingType translateToVersion(JinaAIEmbeddingType embeddingType, TransportVersion version) {
-        if (version.onOrAfter(TransportVersions.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_19)) {
+        if (version.supports(JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED)) {
             return embeddingType;
         }
 

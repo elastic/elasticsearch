@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.deepseek;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
@@ -57,6 +56,7 @@ public class DeepSeekService extends SenderService {
         TaskType.CHAT_COMPLETION
     );
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES_FOR_STREAMING = EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+    private static final TransportVersion ML_INFERENCE_DEEPSEEK = TransportVersion.fromName("ml_inference_deepseek");
 
     public DeepSeekService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -112,7 +112,13 @@ public class DeepSeekService extends SenderService {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
+        // Should never be called
         listener.onFailure(new UnsupportedOperationException(Strings.format("The %s service only supports unified completion", NAME)));
+    }
+
+    @Override
+    protected boolean supportsChunkedInfer() {
+        return false;
     }
 
     @Override
@@ -167,7 +173,7 @@ public class DeepSeekService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_DEEPSEEK_8_19;
+        return ML_INFERENCE_DEEPSEEK;
     }
 
     @Override

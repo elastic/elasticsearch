@@ -1,11 +1,16 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
 esplugin {
   name = 'x-pack-watcher'
   description = 'Elasticsearch Expanded Pack Plugin - Watcher'
-  classname ='org.elasticsearch.xpack.watcher.Watcher'
-  hasNativeController =false
-  requiresKeystore =false
+  classname = 'org.elasticsearch.xpack.watcher.Watcher'
+  hasNativeController = false
+  requiresKeystore = false
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 
@@ -14,6 +19,16 @@ base {
 }
 
 ext.compactProfile = 'full'
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'index', 'indices', 'get', 'nodes', 'search', 'watcher', 'security', 'xpack',
+      'put_script', 'ingest', 'count', 'xpack'
+  }
+  restTests {
+    includeXpack 'watcher'
+  }
+}
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
@@ -44,6 +59,41 @@ dependencies {
   testImplementation 'com.google.code.findbugs:jsr305:3.0.2'
 
   internalClusterTestImplementation project(":modules:analysis-common")
+
+  javaRestTestImplementation project(':x-pack:qa')
+  yamlRestTestImplementation project(':x-pack:qa')
+
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:lang-mustache')
+  clusterModules project(':modules:lang-painless')
+  clusterModules project(xpackModule('ilm'))
+}
+
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+
+tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
+  task.skipTest("mustache/30_search_input/Test search input mustache integration (using request body and rest_total_hits_as_int)", "remove JodaCompatibleDateTime -- ZonedDateTime doesn't output millis/nanos if they're 0 (#78417)")
+  task.skipTest("mustache/30_search_input/Test search input mustache integration (using request body)", "remove JodaCompatibleDateTime -- ZonedDateTime doesn't output millis/nanos if they're 0 (#78417)")
+  task.skipTest("mustache/40_search_transform/Test search transform mustache integration (using request body)", "remove JodaCompatibleDateTime -- ZonedDateTime doesn't output millis/nanos if they're 0 (#78417)")
+  task.skipTest("painless/40_exception/Test painless exceptions are returned when logging a broken response", "Exceptions are no longer thrown from Mustache, but from the transform action itself")
+  task.replaceKeyInDo("watcher.ack_watch", "xpack-watcher.ack_watch")
+  task.replaceKeyInDo("watcher.activate_watch", "xpack-watcher.activate_watch")
+  task.replaceKeyInDo("watcher.deactivate_watch", "xpack-watcher.deactivate_watch")
+  task.replaceKeyInDo("watcher.delete_watch", "xpack-watcher.delete_watch")
+  task.replaceKeyInDo("watcher.execute_watch", "xpack-watcher.execute_watch")
+  task.replaceKeyInDo("watcher.get_watch", "xpack-watcher.get_watch")
+  task.replaceKeyInDo("watcher.put_watch", "xpack-watcher.put_watch")
+  task.replaceKeyInDo("watcher.start", "xpack-watcher.start")
+  task.replaceKeyInDo("watcher.stats", "xpack-watcher.stats")
+  task.replaceKeyInDo("watcher.stop", "xpack-watcher.stop")
+
+  task.addAllowedWarningRegex(".*_xpack/watcher/.* is deprecated.*")
+  task.addAllowedWarningRegex("\\[types removal\\].*")
+  task.replaceValueTextByKeyValue("path", "/my_index/my_type/{{ctx.watch_id}}", "/my_index/_doc/{{ctx.watch_id}}",
+    "Test webhook action with mustache integration")
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter

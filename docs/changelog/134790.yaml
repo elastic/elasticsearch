@@ -1,6 +1,0 @@
-pr: 134790
-summary: "Bug fix: Facilitate second retrieval of the same value"
-area: Infra/Core
-type: bug
-issues:
- - 134770

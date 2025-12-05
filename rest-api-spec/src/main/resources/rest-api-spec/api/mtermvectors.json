@@ -77,15 +77,16 @@
         "description": "Specify the node or shard the operation should be performed on (default: random) .Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\"."
       },
       "routing": {
-        "type": "string",
+        "type": "list",
         "description": "Specific routing value. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\"."
       },
       "realtime": {
         "type": "boolean",
+        "default": true,
         "description": "Specifies if requests are real-time as opposed to near-real-time (default: true)."
       },
       "version": {
-        "type": "number",
+        "type": "long",
         "description": "Explicit version number for concurrency control"
       },
       "version_type": {

@@ -18,6 +18,7 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -62,6 +64,7 @@ import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteOrder;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +73,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 
 /**
  * Field Mapper for geo_point types.
@@ -390,7 +394,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         private final IndexMode indexMode;
         private final boolean isSyntheticSource;
 
-        private GeoPointFieldType(
+        GeoPointFieldType(
             String name,
             boolean indexed,
             boolean stored,
@@ -548,25 +552,115 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (blContext.fieldExtractPreference() == DOC_VALUES && hasDocValues()) {
-                return new BlockDocValuesReader.LongsBlockLoader(name());
+            // load from doc values
+            if (hasDocValues()) {
+                if (blContext.fieldExtractPreference() == DOC_VALUES) {
+                    return new BlockDocValuesReader.LongsBlockLoader(name());
+                } else if (blContext.fieldExtractPreference() == NONE && isSyntheticSource) {
+                    // when the preference is not explicitly set to DOC_VALUES, we expect a BytesRef -> see PlannerUtils.toElementType()
+                    return new BytesRefFromLongsBlockLoader(name());
+                }
+                // if we got here, then either synthetic source is not enabled or the preference prohibits us from using doc_values
             }
 
-            // There are two scenarios possible once we arrive here:
-            //
-            // * Stored source - we'll just use blockLoaderFromSource
-            // * Synthetic source. However, because of the fieldExtractPreference() check above it is still possible that doc_values are
-            // present here.
-            // So we have two subcases:
-            // - doc_values are enabled - _ignored_source field does not exist since we have doc_values. We will use
-            // blockLoaderFromSource which reads "native" synthetic source.
-            // - doc_values are disabled - we know that _ignored_source field is present and use a special block loader unless it's a multi
-            // field.
+            // doc_values are disabled, fallback to ignored_source, except for multi fields since then don't have fallback synthetic source
             if (isSyntheticSource && hasDocValues() == false && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
             }
 
+            // otherwise, load from _source (synthetic or otherwise) - very slow
             return blockLoaderFromSource(blContext);
+        }
+    }
+
+    /**
+     * This is a GeoPoint-specific block loader that helps deal with an edge case where doc_values are available, yet
+     * FieldExtractPreference = NONE. When this happens, the BlockLoader sanity checker (see PlannerUtils.toElementType) expects a BytesRef.
+     * This implies that we need to load the value from _source. This however is very slow, especially when synthetic source is enabled.
+     * We're better off reading from doc_values and converting to BytesRef to satisfy the checker. This is what this block loader is for.
+     */
+    static final class BytesRefFromLongsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+
+        private final String fieldName;
+
+        BytesRefFromLongsBlockLoader(String fieldName) {
+            this.fieldName = fieldName;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        public AllReader reader(LeafReaderContext context) throws IOException {
+            SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
+            if (docValues != null) {
+                return new BytesRefsFromLong(docValues, (geoPointLong) -> {
+                    GeoPoint gp = new GeoPoint().resetFromEncoded(geoPointLong);
+                    byte[] wkb = WellKnownBinary.toWKB(new Point(gp.getX(), gp.getY()), ByteOrder.LITTLE_ENDIAN);
+                    return new BytesRef(wkb);
+                });
+            }
+            return new ConstantNullsReader();
+        }
+    }
+
+    private static final class BytesRefsFromLong extends BlockDocValuesReader {
+
+        private final SortedNumericDocValues numericDocValues;
+        private final Function<Long, BytesRef> longsToBytesRef;
+
+        BytesRefsFromLong(SortedNumericDocValues numericDocValues, Function<Long, BytesRef> longsToBytesRef) {
+            this.numericDocValues = numericDocValues;
+            this.longsToBytesRef = longsToBytesRef;
+        }
+
+        @Override
+        protected int docId() {
+            return numericDocValues.docID();
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.BytesRefsFromLong";
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
+
+            try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    read(doc, builder);
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+            read(docId, (BlockLoader.BytesRefBuilder) builder);
+        }
+
+        private void read(int doc, BlockLoader.BytesRefBuilder builder) throws IOException {
+            // no more values remaining
+            if (numericDocValues.advanceExact(doc) == false) {
+                builder.appendNull();
+                return;
+            }
+            int count = numericDocValues.docValueCount();
+            if (count == 1) {
+                BytesRef bytesRefValue = longsToBytesRef.apply(numericDocValues.nextValue());
+                builder.appendBytesRef(bytesRefValue);
+                return;
+            }
+            builder.beginPositionEntry();
+            for (int v = 0; v < count; v++) {
+                BytesRef bytesRefValue = longsToBytesRef.apply(numericDocValues.nextValue());
+                builder.appendBytesRef(bytesRefValue);
+            }
+            builder.endPositionEntry();
         }
     }
 

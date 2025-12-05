@@ -36,7 +36,7 @@ public class TextSimilarityRankDoc extends RankDoc {
 
     public TextSimilarityRankDoc(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             inferenceId = in.readOptionalString();
             field = in.readOptionalString();
         } else {
@@ -63,7 +63,7 @@ public class TextSimilarityRankDoc extends RankDoc {
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeOptionalString(inferenceId);
             out.writeOptionalString(field);
         } else {

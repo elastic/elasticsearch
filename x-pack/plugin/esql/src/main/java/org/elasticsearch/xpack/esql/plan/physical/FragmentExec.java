@@ -53,7 +53,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         super(Source.readFrom((PlanStreamInput) in));
         this.fragment = in.readNamedWriteable(LogicalPlan.class);
         this.esFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REMOVE_NODE_LEVEL_PLAN)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             this.estimatedRowSize = in.readVInt();
         } else {
             this.estimatedRowSize = Objects.requireNonNull(in.readOptionalVInt());
@@ -68,7 +68,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(fragment());
         out.writeOptionalNamedWriteable(esFilter());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REMOVE_NODE_LEVEL_PLAN)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeVInt(estimatedRowSize);
         } else {
             out.writeOptionalVInt(estimatedRowSize());

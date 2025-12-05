@@ -25,6 +25,7 @@ import java.util.List;
  */
 final class ComputeResponse extends TransportResponse {
 
+    private static final TransportVersion ESQL_FAILURE_FROM_REMOTE = TransportVersion.fromName("esql_failure_from_remote");
     private static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = TransportVersion.fromName(
         "esql_documents_found_and_values_loaded"
     );
@@ -87,7 +88,7 @@ final class ComputeResponse extends TransportResponse {
             this.skippedShards = 0;
             this.failedShards = 0;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)) {
+        if (in.getTransportVersion().supports(ESQL_FAILURE_FROM_REMOTE)) {
             this.failures = in.readCollectionAsImmutableList(ShardSearchFailure::readShardSearchFailure);
         } else {
             this.failures = List.of();
@@ -109,7 +110,7 @@ final class ComputeResponse extends TransportResponse {
             out.writeVInt(skippedShards);
             out.writeVInt(failedShards);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)) {
+        if (out.getTransportVersion().supports(ESQL_FAILURE_FROM_REMOTE)) {
             out.writeCollection(failures, (o, v) -> v.writeTo(o));
         }
     }

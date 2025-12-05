@@ -78,7 +78,7 @@ tasks.named('zipAggregation').configure {
   destinationDirectory.set(layout.buildDirectory.dir("distributions"));
 
   dependsOn gradle.includedBuild('build-tools').task(':zipElasticPublication')
-  from(zipTree(gradle.includedBuild('build-tools').task(':zipElasticPublication').resolveTask().archiveFile.get()))
+  from(zipTree("build-tools/build/nmcp/zip/publicationElastic.zip"))
 }
 
 /**

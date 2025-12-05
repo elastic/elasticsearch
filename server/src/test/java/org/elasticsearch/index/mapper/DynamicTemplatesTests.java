@@ -1433,259 +1433,39 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         );
     }
 
-    public void testSubobjectsAutoFlatPaths() throws IOException {
-        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
-        MapperService mapperService = createDynamicTemplateAutoSubobjects();
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
-            b.field("foo.metric.count", 10);
-            b.field("foo.bar.baz", 10);
-            b.field("foo.metric.count.min", 4);
-            b.field("foo.metric.count.max", 15);
-        }));
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
-        assertNoSubobjects(mapperService);
-    }
-
-    public void testSubobjectsAutoStructuredPaths() throws IOException {
-        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
-        MapperService mapperService = createDynamicTemplateAutoSubobjects();
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
-            b.startObject("foo");
-            {
-                b.startObject("metric");
+    /**
+     * test that bad mapping is accepted for indices created before 8.0.0.
+     * We still need to test this in v9 because of N-2 read compatibility
+     */
+    public void testMalformedDynamicMapping_v7() throws IOException {
+        String mapping = """
                 {
-                    b.field("count", 10);
-                    b.field("count.min", 4);
-                    b.field("count.max", 15);
-                }
-                b.endObject();
-                b.startObject("bar");
-                b.field("baz", 10);
-                b.endObject();
-            }
-            b.endObject();
-        }));
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
-        assertNoSubobjects(mapperService);
-    }
-
-    public void testSubobjectsAutoArrayOfObjects() throws IOException {
-        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
-        MapperService mapperService = createDynamicTemplateAutoSubobjects();
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
-            b.startObject("foo");
-            {
-                b.startArray("metric");
-                {
-                    b.startObject();
-                    {
-                        b.field("count", 10);
-                        b.field("count.min", 4);
-                        b.field("count.max", 15);
-                    }
-                    b.endObject();
-                    b.startObject();
-                    {
-                        b.field("count", 5);
-                        b.field("count.min", 3);
-                        b.field("count.max", 50);
-                    }
-                    b.endObject();
-                }
-                b.endArray();
-                b.startObject("bar");
-                b.field("baz", 10);
-                b.endObject();
-            }
-            b.endObject();
-        }));
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
-        assertNoSubobjects(mapperService);
-    }
-
-    public void testSubobjectAutoDynamicNested() throws IOException {
-        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
-            b.startArray("dynamic_templates");
-            {
-                b.startObject();
-                b.startObject("nested");
-                {
-                    b.field("match", "object");
-                    b.startObject("mapping");
-                    {
-                        b.field("type", "nested");
-                    }
-                    b.endObject();
-                }
-                b.endObject();
-                b.endObject();
-            }
-            b.endArray();
-            b.startObject("properties");
-            b.startObject("metrics").field("type", "object").field("subobjects", "auto").endObject();
-            b.endObject();
-        }));
-
-        ParsedDocument doc = mapper.parse(source("""
-            {
-              "metrics.object" : {
-                "foo" : "bar"
-              }
-            }
-            """));
-
-        assertNotNull(doc.docs().get(0).get("metrics.object.foo"));
-        assertThat(
-            ((ObjectMapper) doc.dynamicMappingsUpdate().getRoot().getMapper("metrics")).getMapper("object"),
-            instanceOf(NestedObjectMapper.class)
-        );
-    }
-
-    public void testRootSubobjectAutoDynamicNested() throws IOException {
-        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
-            b.startArray("dynamic_templates");
-            {
-                b.startObject();
-                b.startObject("nested");
-                {
-                    b.field("match", "object");
-                    b.startObject("mapping");
-                    {
-                        b.field("type", "nested");
-                    }
-                    b.endObject();
-                }
-                b.endObject();
-                b.endObject();
-            }
-            b.endArray();
-            b.field("subobjects", "auto");
-        }));
-
-        ParsedDocument doc = mapper.parse(source("""
-            {
-              "object" : {
-                "foo" : "bar"
-              }
-            }
-            """));
-
-        assertNotNull(doc.docs().get(0).get("object.foo"));
-        assertThat(doc.dynamicMappingsUpdate().getRoot().getMapper("object"), instanceOf(NestedObjectMapper.class));
-    }
-
-    public void testDynamicSubobjectsAutoDynamicFalse() throws Exception {
-        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
-        // verify that we read the dynamic value properly from the parent mapper. DocumentParser#dynamicOrDefault splits the field
-        // name where dots are found, but it does that only for the parent prefix e.g. metrics.service and not for the leaf suffix time.max
-        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
-            b.startArray("dynamic_templates");
-            {
-                b.startObject();
-                b.startObject("metrics");
-                {
-                    b.field("match", "metrics");
-                    b.startObject("mapping");
-                    {
-                        b.field("type", "object");
-                        b.field("dynamic", "false");
-                        b.startObject("properties");
-                        {
-                            b.startObject("service");
+                    "_doc": {
+                        "dynamic_templates": [
                             {
-                                b.field("type", "object");
-                                b.field("subobjects", "auto");
-                                b.startObject("properties");
-                                {
-                                    b.startObject("time");
-                                    b.field("type", "keyword");
-                                    b.endObject();
+                                "my_template": {
+                                    "mapping": {
+                                        "ignore_malformed": true,
+                                        "type": "keyword"
+                                    },
+                                    "path_match": "*"
                                 }
-                                b.endObject();
                             }
-                            b.endObject();
-                        }
-                        b.endObject();
+                        ]
                     }
-                    b.endObject();
                 }
-                b.endObject();
-                b.endObject();
-            }
-            b.endArray();
-        }));
+            """;
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
+        assertThat(ex.getMessage(), containsString("dynamic template [my_template] has invalid content"));
 
-        ParsedDocument doc = mapper.parse(source("""
-            {
-              "metrics": {
-                "service": {
-                  "time" : 10,
-                  "time.max" : 500
-                }
-              }
-            }
-            """));
-
-        assertNotNull(doc.rootDoc().getField("metrics.service.time"));
-        assertNull(doc.rootDoc().getField("metrics.service.time.max"));
-        assertNotNull(doc.dynamicMappingsUpdate());
-        ObjectMapper metrics = (ObjectMapper) doc.dynamicMappingsUpdate().getRoot().getMapper("metrics");
-        assertEquals(ObjectMapper.Dynamic.FALSE, metrics.dynamic());
-        assertEquals(1, metrics.mappers.size());
-        ObjectMapper service = (ObjectMapper) metrics.getMapper("service");
-        assertEquals(ObjectMapper.Subobjects.AUTO, service.subobjects());
-        assertEquals(1, service.mappers.size());
-        assertNotNull(service.getMapper("time"));
-    }
-
-    public void testSubobjectsAutoWithInnerNestedFromDynamicTemplate() throws IOException {
-        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
-            b.startArray("dynamic_templates");
-            {
-                b.startObject();
-                {
-                    b.startObject("test");
-                    {
-                        b.field("match", "metrics");
-                        b.startObject("mapping");
-                        {
-                            b.field("type", "object").field("subobjects", "auto");
-                            b.startObject("properties");
-                            {
-                                b.startObject("time");
-                                b.field("type", "nested");
-                                b.endObject();
-                            }
-                            b.endObject();
-                        }
-                        b.endObject();
-                    }
-                    b.endObject();
-                }
-                b.endObject();
-            }
-            b.endArray();
-        }));
-
-        ParsedDocument doc = mapper.parse(source("""
-            {
-              "metrics": {
-                "time" : {
-                  "foo" : "bar"
-                },
-                "time.max" : 500
-              }
-            }
-            """));
-
-        assertNotNull(doc.rootDoc().get("metrics.time.max"));
-        assertNotNull(doc.docs().get(0).get("metrics.time.foo"));
-        assertThat(
-            ((ObjectMapper) doc.dynamicMappingsUpdate().getRoot().getMapper("metrics")).getMapper("time"),
-            instanceOf(NestedObjectMapper.class)
+        // the previous exception should be ignored by indices with v7 index versions
+        IndexVersion indexVersion = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        Settings settings = Settings.builder().put("number_of_shards", 1).put("index.version.created", indexVersion).build();
+        MapperService mapperService = createMapperService(indexVersion, settings, () -> randomBoolean());
+        merge(mapperService, mapping);
+        assertWarnings(
+            "Parameter [ignore_malformed] is used in a dynamic template mapping and has no effect on type [keyword]. "
+                + "Usage will result in an error in future major versions and should be removed."
         );
     }
 
@@ -2104,54 +1884,6 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNotNull(fooBarMapper);
         assertEquals("text", fooBarMapper.typeName());
         Mapper fooStructuredMapper = mapperService.documentMapper().mappers().getMapper("attributes.complex.attribute");
-        assertNotNull(fooStructuredMapper);
-        assertEquals("flattened", fooStructuredMapper.typeName());
-    }
-
-    public void testSubobjectsAutoFlattened() throws IOException {
-        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
-        String mapping = """
-            {
-              "_doc": {
-                "properties": {
-                  "attributes": {
-                    "type": "object",
-                    "subobjects": "auto"
-                  }
-                },
-                "dynamic_templates": [
-                  {
-                    "test": {
-                      "path_match": "attributes.resource.*",
-                      "match_mapping_type": "object",
-                      "mapping": {
-                        "type": "flattened"
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-            """;
-        String docJson = """
-            {
-              "attributes.resource": {
-                "complex.attribute": {
-                  "a": "b"
-                },
-                "foo.bar": "baz"
-              }
-            }
-            """;
-
-        MapperService mapperService = createMapperService(mapping);
-        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
-
-        Mapper fooBarMapper = mapperService.documentMapper().mappers().getMapper("attributes.resource.foo.bar");
-        assertNotNull(fooBarMapper);
-        assertEquals("text", fooBarMapper.typeName());
-        Mapper fooStructuredMapper = mapperService.documentMapper().mappers().getMapper("attributes.resource.complex.attribute");
         assertNotNull(fooStructuredMapper);
         assertEquals("flattened", fooStructuredMapper.typeName());
     }

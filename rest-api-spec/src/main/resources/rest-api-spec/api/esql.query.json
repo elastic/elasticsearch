@@ -26,13 +26,23 @@
     },
     "params": {
       "format": {
-        "type": "string",
-        "description": "a short version of the Accept header, e.g. json, yaml"
+        "type": "enum",
+        "description": "A short version of the Accept header, e.g. json, yaml.\n\n`csv`, `tsv`, and `txt` formats will return results in a tabular format, excluding other metadata fields from the response.",
+        "options": [
+          "csv",
+          "json",
+          "tsv",
+          "txt",
+          "yaml",
+          "cbor",
+          "smile",
+          "arrow"
+        ]
       },
       "delimiter": {
         "type": "string",
         "description": "The character to use between values within a CSV row. Only valid for the csv format.",
-        "default": false
+        "default": ","
       },
       "drop_null_columns": {
         "type": "boolean",

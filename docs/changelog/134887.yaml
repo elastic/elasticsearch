@@ -1,5 +1,0 @@
-pr: 134887
-summary: Avoid holding references to `SearchExecutionContext` in `SourceConfirmedTextQuery`
-area: Mapping
-type: bug
-issues: []

@@ -64,6 +64,10 @@ public enum CohereEmbeddingType {
         ELEMENT_TYPE_TO_COHERE_EMBEDDING.keySet()
     );
 
+    private static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = TransportVersion.fromName(
+        "cohere_bit_embedding_type_support_added"
+    );
+
     private final DenseVectorFieldMapper.ElementType elementType;
     private final String requestString;
 
@@ -128,7 +132,7 @@ public enum CohereEmbeddingType {
         }
 
         if (embeddingType == BIT) {
-            if (version.onOrAfter(TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X)) {
+            if (version.supports(COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED)) {
                 // BIT embedding type is supported in these versions
                 return embeddingType;
             } else {

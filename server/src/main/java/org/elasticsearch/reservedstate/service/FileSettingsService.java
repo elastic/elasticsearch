@@ -11,6 +11,7 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -84,19 +85,18 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
     public void handleSnapshotRestore(ClusterState clusterState, Metadata.Builder mdBuilder) {
         assert clusterState.nodes().isLocalNodeElectedMaster();
 
-        ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
-
         // When we restore from a snapshot we remove the reserved cluster state for file settings,
         // since we don't know the current operator configuration, e.g. file settings could be disabled
         // on the target cluster. If file settings exist and the cluster state has lost it's reserved
         // state for the "file_settings" namespace, we touch our file settings file to cause it to re-process the file.
         if (watching() && filesExists(watchedFile())) {
+            ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
             if (fileSettingsMetadata != null) {
                 ReservedStateMetadata withResetVersion = new ReservedStateMetadata.Builder(fileSettingsMetadata).version(0L).build();
                 mdBuilder.put(withResetVersion);
             }
-        } else if (fileSettingsMetadata != null) {
-            mdBuilder.removeReservedState(fileSettingsMetadata);
+        } else {
+            stateService.initEmpty(NAMESPACE, ActionListener.noop());
         }
     }
 

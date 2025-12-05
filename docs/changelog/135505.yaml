@@ -1,6 +1,0 @@
-pr: 135505
-summary: Address es819 tsdb doc values format performance bug
-area: Codec
-type: bug
-issues:
- - 135340

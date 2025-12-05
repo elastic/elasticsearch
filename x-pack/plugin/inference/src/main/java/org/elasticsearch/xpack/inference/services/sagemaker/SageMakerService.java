@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.sagemaker;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.CheckedSupplier;
@@ -50,6 +49,8 @@ public class SageMakerService implements InferenceService {
     private static final List<String> ALIASES = List.of("sagemaker", "amazonsagemaker");
     private static final int DEFAULT_BATCH_SIZE = 256;
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.THIRTY_SECONDS;
+    private static final TransportVersion ML_INFERENCE_SAGEMAKER = TransportVersion.fromName("ml_inference_sagemaker");
+
     private final SageMakerModelBuilder modelBuilder;
     private final SageMakerClient client;
     private final SageMakerSchemas schemas;
@@ -250,6 +251,9 @@ public class SageMakerService implements InferenceService {
             listener.onFailure(createInvalidModelException(model));
             return;
         }
+        if (input.isEmpty()) {
+            listener.onResponse(List.of());
+        }
         try {
             var sageMakerModel = ((SageMakerModel) model).override(taskSettings);
             var batchedRequests = new EmbeddingRequestChunker<>(
@@ -303,7 +307,7 @@ public class SageMakerService implements InferenceService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_SAGEMAKER_8_19;
+        return ML_INFERENCE_SAGEMAKER;
     }
 
     @Override

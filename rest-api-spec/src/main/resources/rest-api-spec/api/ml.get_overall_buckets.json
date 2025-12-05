@@ -34,6 +34,7 @@
     "params": {
       "top_n": {
         "type": "int",
+        "default": 1,
         "description": "The number of top job bucket scores to be used in the overall_score calculation"
       },
       "bucket_span": {
@@ -46,23 +47,26 @@
       },
       "exclude_interim": {
         "type": "boolean",
+        "default": false,
         "description": "If true overall buckets that include interim buckets will be excluded"
       },
       "start": {
-        "type": "string",
+        "type": "date",
         "description": "Returns overall buckets with timestamps after this time"
       },
       "end": {
-        "type": "string",
+        "type": "date",
         "description": "Returns overall buckets with timestamps earlier than this time"
       },
       "allow_no_match": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to ignore if a wildcard expression matches no jobs. (This includes `_all` string or when no jobs have been specified)"
       }
     },
     "body": {
-      "description": "Overall bucket selection details if not provided in URI"
+      "description": "Overall bucket selection details if not provided in URI",
+      "required": false
     }
   }
 }

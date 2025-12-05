@@ -189,6 +189,7 @@ public class InferencePlugin extends Plugin
     );
 
     public static final String X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER = "X-elastic-product-use-case";
+    public static final String X_ELASTIC_ES_VERSION = "X-elastic-es-version";
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";

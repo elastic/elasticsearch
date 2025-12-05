@@ -42,6 +42,7 @@
       },
       "local": {
         "type": "boolean",
+        "default": false,
         "description": "Return local information, do not retrieve the state from master node (default: false)"
       },
       "master_timeout": {
@@ -63,7 +64,25 @@
       },
       "h": {
         "type": "list",
-        "description": "Comma-separated list of column names to display"
+        "default": "ip,hp,rp,r,m,n,cpu,l",
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "index",
+          "shard",
+          "prirep",
+          "ip",
+          "segment",
+          "generation",
+          "docs.count",
+          "docs.deleted",
+          "size",
+          "size.memory",
+          "committed",
+          "searchable",
+          "version",
+          "compound",
+          "id"
+        ]
       },
       "help": {
         "type": "boolean",
@@ -91,6 +110,38 @@
           "micros",
           "nanos"
         ]
+      },
+      "ignore_unavailable": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed). Only allowed when providing an index expression."
+      },
+      "ignore_throttled": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether specified concrete, expanded or aliased indices should be ignored when throttled. Only allowed when providing an index expression."
+      },
+      "allow_no_indices": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified). Only allowed when providing an index expression."
+      },
+      "expand_wildcards": {
+        "type": "list",
+        "options": [
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default": "open",
+        "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      },
+      "allow_closed": {
+        "type": "boolean",
+        "description": "If true, allow closed indices to be returned in the response otherwise if false, keep the legacy behaviour of throwing an exception if index pattern matches closed indices",
+        "default": false
       }
     }
   }

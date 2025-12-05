@@ -30,18 +30,21 @@
     "params": {
       "local": {
         "type": "boolean",
+        "default": false,
         "description": "Return local information, do not retrieve the state from master node (default: false)"
       },
       "ignore_unavailable": {
         "type": "boolean",
+        "default": false,
         "description": "Ignore unavailable indexes (default: false)"
       },
       "allow_no_indices": {
         "type": "boolean",
+        "default": true,
         "description": "Ignore if a wildcard expression resolves to no concrete indices (default: false)"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",
@@ -54,6 +57,7 @@
       },
       "flat_settings": {
         "type": "boolean",
+        "default": false,
         "description": "Return settings in flat format (default: false)"
       },
       "include_defaults": {

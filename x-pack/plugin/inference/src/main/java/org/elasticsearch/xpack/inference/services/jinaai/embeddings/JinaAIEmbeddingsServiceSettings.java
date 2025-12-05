@@ -69,6 +69,10 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
         );
     }
 
+    private static final TransportVersion JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED = TransportVersion.fromName(
+        "jina_ai_embedding_type_support_added"
+    );
+
     private final JinaAIServiceSettings commonSettings;
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
@@ -94,8 +98,7 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.dimensions = in.readOptionalVInt();
         this.maxInputTokens = in.readOptionalVInt();
-
-        this.embeddingType = (in.getTransportVersion().onOrAfter(TransportVersions.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_19))
+        this.embeddingType = (in.getTransportVersion().supports(JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED))
             ? Objects.requireNonNullElse(in.readOptionalEnum(JinaAIEmbeddingType.class), JinaAIEmbeddingType.FLOAT)
             : JinaAIEmbeddingType.FLOAT;
     }
@@ -170,7 +173,7 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.JINA_AI_INTEGRATION_ADDED;
+        return TransportVersions.V_8_18_0;
     }
 
     @Override
@@ -179,8 +182,7 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
         out.writeOptionalVInt(dimensions);
         out.writeOptionalVInt(maxInputTokens);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_19)) {
+        if (out.getTransportVersion().supports(JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED)) {
             out.writeOptionalEnum(JinaAIEmbeddingType.translateToVersion(embeddingType, out.getTransportVersion()));
         }
     }

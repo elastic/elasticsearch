@@ -41,6 +41,7 @@
     "params": {
       "wait_for_active_shards": {
         "type": "string",
+        "default": "1",
         "description": "Sets the number of shard copies that must be active before proceeding with the bulk operation. Defaults to 1, meaning the primary shard only. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)"
       },
       "refresh": {
@@ -50,14 +51,16 @@
           "false",
           "wait_for"
         ],
+        "default": "false",
         "description": "If `true` then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` (the default) then do nothing with refreshes."
       },
       "routing": {
-        "type": "string",
+        "type": "list",
         "description": "Specific routing value"
       },
       "timeout": {
         "type": "time",
+        "default": "1m",
         "description": "Explicit operation timeout"
       },
       "_source": {
@@ -78,18 +81,22 @@
       },
       "require_alias": {
         "type": "boolean",
-        "description": "Sets require_alias for all incoming documents. Defaults to unset (false)"
+        "default": false,
+        "description": "If true, the request's actions must target an index alias. Defaults to false."
       },
       "require_data_stream": {
         "type": "boolean",
-        "description": "When true, requires the destination to be a data stream (existing or to-be-created). Default is false"
+        "default": false,
+        "description": "If true, the request's actions must target a data stream (existing or to-be-created). Default to false"
       },
       "list_executed_pipelines": {
         "type": "boolean",
+        "default": false,
         "description": "Sets list_executed_pipelines for all incoming documents. Defaults to unset (false)"
       },
       "include_source_on_error": {
         "type": "boolean",
+        "default": true,
         "description": "True or false if to include the document source in the error message in case of parsing errors. Defaults to true."
       }
     },

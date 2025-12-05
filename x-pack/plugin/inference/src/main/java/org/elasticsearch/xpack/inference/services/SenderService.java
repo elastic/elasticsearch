@@ -90,6 +90,11 @@ public abstract class SenderService implements InferenceService {
             case RERANK -> {
                 ValidationException validationException = new ValidationException();
                 service.validateRerankParameters(returnDocuments, topN, validationException);
+
+                if (query == null) {
+                    validationException.addValidationError("Rerank task type requires a non-null query field");
+                }
+
                 if (validationException.validationErrors().isEmpty() == false) {
                     throw validationException;
                 }
@@ -150,9 +155,16 @@ public abstract class SenderService implements InferenceService {
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
-
-        // a non-null query is not supported and is dropped by all providers
-        doChunkedInfer(model, input, taskSettings, inputType, timeout, listener);
+        if (supportsChunkedInfer()) {
+            if (input.isEmpty()) {
+                listener.onResponse(List.of());
+            } else {
+                // a non-null query is not supported and is dropped by all providers
+                doChunkedInfer(model, input, taskSettings, inputType, timeout, listener);
+            }
+        } else {
+            listener.onFailure(new UnsupportedOperationException(Strings.format("%s service does not support chunked inference", name())));
+        }
     }
 
     protected abstract void doInfer(
@@ -182,6 +194,10 @@ public abstract class SenderService implements InferenceService {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     );
+
+    protected boolean supportsChunkedInfer() {
+        return true;
+    }
 
     public void start(Model model, ActionListener<Boolean> listener) {
         init();

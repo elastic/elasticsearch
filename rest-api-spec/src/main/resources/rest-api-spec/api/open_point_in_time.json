@@ -36,15 +36,16 @@
         "description": "Specify the node or shard the operation should be performed on (default: random)"
       },
       "routing": {
-        "type": "string",
+        "type": "list",
         "description": "Specific routing value"
       },
       "ignore_unavailable": {
         "type": "boolean",
+        "default": false,
         "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",
@@ -62,16 +63,18 @@
       },
       "allow_partial_search_results": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether to tolerate shards missing when creating the point-in-time, or otherwise throw an exception. (default: false)"
       },
       "max_concurrent_shard_requests": {
-        "type": "number",
+        "type": "int",
         "description": "The number of concurrent shard requests per node executed concurrently when opening this point-in-time. This value should be used to limit the impact of opening the point-in-time on the cluster",
         "default": 5
       }
     },
     "body": {
-      "description": "An index_filter specified with the Query DSL"
+      "description": "An index_filter specified with the Query DSL",
+      "required": false
     }
   }
 }

@@ -6,6 +6,10 @@
     },
     "stability": "stable",
     "visibility": "public",
+    "deprecated": {
+      "version": "7.8.0",
+      "description": "Legacy index templates are deprecated in favor of composable templates"
+    },
     "headers": {
       "accept": [
         "application/json"
@@ -36,6 +40,7 @@
     "params": {
       "flat_settings": {
         "type": "boolean",
+        "default": false,
         "description": "Return settings in flat format (default: false)"
       },
       "master_timeout": {
@@ -45,6 +50,7 @@
       },
       "local": {
         "type": "boolean",
+        "default": false,
         "description": "Return local information, do not retrieve the state from master node (default: false)"
       }
     }

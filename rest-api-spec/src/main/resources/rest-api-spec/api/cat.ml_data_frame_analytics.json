@@ -37,6 +37,7 @@
     "params": {
       "allow_no_match": {
         "type": "boolean",
+        "default": false,
         "description": "Whether to ignore if a wildcard expression matches no configs. (This includes `_all` string or when no configs have been specified)"
       },
       "bytes": {
@@ -58,7 +59,26 @@
       },
       "h": {
         "type": "list",
-        "description": "Comma-separated list of column names to display"
+        "default": "create_time,id,state,type",
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "assignment_explanation",
+          "create_time",
+          "description",
+          "dest_index",
+          "failure_reason",
+          "id",
+          "model_memory_limit",
+          "node.address",
+          "node.ephemeral_id",
+          "node.id",
+          "node.name",
+          "progress",
+          "source_index",
+          "state",
+          "type",
+          "version"
+        ]
       },
       "help": {
         "type": "boolean",
@@ -67,7 +87,25 @@
       },
       "s": {
         "type": "list",
-        "description": "Comma-separated list of column names or column aliases to sort by"
+        "description": "Comma-separated list of column names or column aliases to sort by",
+        "options": [
+          "assignment_explanation",
+          "create_time",
+          "description",
+          "dest_index",
+          "failure_reason",
+          "id",
+          "model_memory_limit",
+          "node.address",
+          "node.ephemeral_id",
+          "node.id",
+          "node.name",
+          "progress",
+          "source_index",
+          "state",
+          "type",
+          "version"
+        ]
       },
       "time": {
         "type": "enum",

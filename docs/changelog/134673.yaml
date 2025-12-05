@@ -1,6 +1,0 @@
-pr: 134673
-summary: Gracefully shutdown model deployment when node is removed from assignment
-  routing
-area: Machine Learning
-type: bug
-issues: []

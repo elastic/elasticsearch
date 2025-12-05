@@ -9,7 +9,6 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
@@ -369,34 +368,6 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             );
         }
         assertFalse(transportServiceA.nodeConnected(discoveryNode));
-    }
-
-    public void testAcceptsMismatchedServerlessBuildHash() {
-        assumeTrue("Current build needs to be a snapshot", Build.current().isSnapshot());
-        final DisruptingTransportInterceptor transportInterceptorA = new DisruptingTransportInterceptor();
-        final DisruptingTransportInterceptor transportInterceptorB = new DisruptingTransportInterceptor();
-        transportInterceptorA.setModifyBuildHash(true);
-        transportInterceptorB.setModifyBuildHash(true);
-        final Settings settings = Settings.builder()
-            .put("cluster.name", "a")
-            .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling
-            .build();
-        final TransportService transportServiceA = startServices(
-            "TS_A",
-            settings,
-            TransportVersion.current(),
-            VersionInformation.CURRENT,
-            transportInterceptorA
-        );
-        final TransportService transportServiceB = startServices(
-            "TS_B",
-            settings,
-            TransportVersion.current(),
-            VersionInformation.CURRENT,
-            transportInterceptorB
-        );
-        AbstractSimpleTransportTestCase.connectToNode(transportServiceA, transportServiceB.getLocalNode(), TestProfiles.LIGHT_PROFILE);
-        assertTrue(transportServiceA.nodeConnected(transportServiceB.getLocalNode()));
     }
 
     public void testAcceptsMismatchedBuildHashFromDifferentVersion() {

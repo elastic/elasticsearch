@@ -367,7 +367,7 @@ public class CohereService extends SenderService {
                         "The name of the model to use for the inference task."
                     )
                         .setLabel("Model ID")
-                        .setRequired(false)
+                        .setRequired(true)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)

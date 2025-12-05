@@ -49,7 +49,7 @@ public class SimulateIndexResponse extends IndexResponse {
         } else {
             this.exception = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_IGNORED_FIELDS)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             this.ignoredFields = in.readStringCollectionAsList();
         } else {
             this.ignoredFields = List.of();
@@ -124,7 +124,7 @@ public class SimulateIndexResponse extends IndexResponse {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeException(exception);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_IGNORED_FIELDS)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeStringCollection(ignoredFields);
         }
     }

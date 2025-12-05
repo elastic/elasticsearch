@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.sagemaker.schema.openai;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,6 +25,10 @@ record SageMakerOpenAiTaskSettings(@Nullable String user) implements SageMakerSt
     static final String NAME = "sagemaker_openai_task_settings";
     private static final String USER_FIELD = "user";
 
+    public static final TransportVersion ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION = TransportVersion.fromName(
+        "ml_inference_sagemaker_chat_completion"
+    );
+
     SageMakerOpenAiTaskSettings(StreamInput in) throws IOException {
         this(in.readOptionalString());
     }
@@ -37,7 +40,7 @@ record SageMakerOpenAiTaskSettings(@Nullable String user) implements SageMakerSt
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION_8_19;
+        return ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION;
     }
 
     @Override

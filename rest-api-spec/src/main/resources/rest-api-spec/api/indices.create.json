@@ -33,10 +33,12 @@
     "params": {
       "wait_for_active_shards": {
         "type": "string",
+        "default": "1",
         "description": "Set the number of active shards to wait for before the operation returns."
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout"
       },
       "master_timeout": {
@@ -46,7 +48,8 @@
       }
     },
     "body": {
-      "description": "The configuration for the index (`settings` and `mappings`)"
+      "description": "The configuration for the index (`settings` and `mappings`)",
+      "required": false
     }
   }
 }

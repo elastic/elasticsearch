@@ -1,0 +1,60 @@
+[[release-notes-8.19.6]]
+== {es} version 8.19.6
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.6]]
+[float]
+=== Bug fixes
+
+ES|QL::
+* Make `ResolveUnionTypes` rule stateless {es-pull}136492[#136492]
+* Pass fix size instead of `maxPageSize` to `LuceneTopNOperator` scorer {es-pull}135767[#135767]
+
+Health::
+* Limit number of allocation explanations in `shards_availability` health indicator {es-pull}136060[#136060]
+
+Indices APIs::
+* Reindex-from-remote: Validate basic auth params {es-pull}136501[#136501] (issue: {es-issue}135925[#135925])
+
+Logs::
+* Fix logsdb settings provider mapping filters {es-pull}136119[#136119] (issue: {es-issue}136107[#136107])
+
+Machine Learning::
+* Adjust jinaai rerank response parser to handle document field as string or object {es-pull}136751[#136751]
+* Clean up inference indices on failed endpoint creation {es-pull}136577[#136577] (issue: {es-issue}123726[#123726])
+* Cohere service Model Id field is required {es-pull}136017[#136017]
+* Ensure queued `AbstractRunnables` are notified when executor stops {es-pull}135966[#135966] (issue: {es-issue}134651[#134651])
+* Release cluster state {es-pull}136769[#136769] (issue: {es-issue}123243[#123243])
+
+Mapping::
+* Store full path in `_ignored` when ignoring dynamic array field {es-pull}136315[#136315]
+
+Search::
+* Initialize `TermsEnum` eagerly {es-pull}136279[#136279]
+
+Security::
+* Optimize Index Permission Automatons for Has Privileges {es-pull}136625[#136625]
+
+Transform::
+* Allow dynamic updates to frequency {es-pull}136757[#136757] (issue: {es-issue}133321[#133321])
+* Associate legacy audit index {es-pull}136508[#136508] (issue: {es-issue}121241[#121241])
+
+Vector Search::
+* Cardinality Aggregator Throws `UnsupportedOperationException` When Field Type is Vector {es-pull}135994[#135994]
+
+[[enhancement-8.19.6]]
+[float]
+=== Enhancements
+
+Authorization::
+* Lazy compute and cache `grantsAll` per privilege {es-pull}136684[#136684]
+
+[[upgrade-8.19.6]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Use java8 variant of apm-agent {es-pull}132651[#132651]
+
+

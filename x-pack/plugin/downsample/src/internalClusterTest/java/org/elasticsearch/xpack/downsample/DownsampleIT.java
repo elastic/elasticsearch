@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -31,8 +32,9 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
     public void testDownsamplingPassthroughDimensions() throws Exception {
         String dataStreamName = "metrics-foo";
         // Set up template
-        putTSDBIndexTemplate("my-template", List.of("metrics-foo"), null, """
+        putTSDBIndexTemplate("my-template", List.of("metrics-foo"), null, String.format(Locale.ROOT, """
             {
+              %s
               "properties": {
                 "attributes": {
                   "type": "passthrough",
@@ -45,7 +47,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 }
               }
             }
-            """, null, null);
+            """, generateForceMergeMetadata()), null, null);
 
         // Create data stream by indexing documents
         final Instant now = Instant.now();
@@ -95,5 +97,15 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         safeAwait(listener);
 
         assertDownsampleIndexFieldsAndDimensions(sourceIndex, targetIndex, downsampleConfig);
+    }
+
+    private String generateForceMergeMetadata() {
+        return switch (randomIntBetween(0, 4)) {
+            case 0 -> "\"_meta\": { \"downsample.forcemerge.enabled\": false},";
+            case 1 -> "\"_meta\": { \"downsample.forcemerge.enabled\": true},";
+            case 2 -> "\"_meta\": { \"downsample.forcemerge.enabled\": 4},";
+            case 3 -> "\"_meta\": { \"downsample.forcemerge.enabled\": null},";
+            default -> "";
+        };
     }
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.registry;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -86,6 +85,10 @@ public class ModelRegistryMetadata implements Metadata.Custom {
         ModelRegistryMetadata resp = metadata.custom(TYPE);
         return resp != null ? resp : EMPTY_NOT_UPGRADED;
     }
+
+    private static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA = TransportVersion.fromName(
+        "inference_model_registry_metadata"
+    );
 
     public ModelRegistryMetadata withAddedModel(String inferenceEntityId, MinimalServiceSettings settings) {
         final var existing = modelMap.get(inferenceEntityId);
@@ -176,7 +179,7 @@ public class ModelRegistryMetadata implements Metadata.Custom {
     }
 
     /**
-     * Determines whether all models created prior to {@link TransportVersions#INFERENCE_MODEL_REGISTRY_METADATA_8_19}
+     * Determines whether all models created prior to {@link #INFERENCE_MODEL_REGISTRY_METADATA}
      * have been successfully restored from the {@link InferenceIndex}.
      *
      * @return true if all such models have been restored; false otherwise.
@@ -226,7 +229,7 @@ public class ModelRegistryMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA_8_19;
+        return INFERENCE_MODEL_REGISTRY_METADATA;
     }
 
     @Override
@@ -292,7 +295,7 @@ public class ModelRegistryMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA_8_19;
+            return INFERENCE_MODEL_REGISTRY_METADATA;
         }
 
         @Override

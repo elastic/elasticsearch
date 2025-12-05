@@ -15,7 +15,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TimeseriesMoveToStepIT extends ESRestTestCase {
+public class TimeseriesMoveToStepIT extends IlmESRestTestCase {
     private static final Logger logger = LogManager.getLogger(TimeseriesMoveToStepIT.class);
 
     private String policy;
@@ -64,7 +64,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.include._name", "javaRestTest-0")
+                .put("index.routing.allocation.include._name", "test-cluster-0")
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
         );
@@ -102,7 +102,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.include._name", "javaRestTest-0")
+                .put("index.routing.allocation.include._name", "test-cluster-0")
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );

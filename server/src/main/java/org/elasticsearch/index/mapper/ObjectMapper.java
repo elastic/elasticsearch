@@ -63,8 +63,7 @@ public class ObjectMapper extends Mapper {
      */
     public enum Subobjects {
         ENABLED(Boolean.TRUE),
-        DISABLED(Boolean.FALSE),
-        AUTO("auto");
+        DISABLED(Boolean.FALSE);
 
         private final Object printedValue;
 
@@ -82,9 +81,6 @@ public class ObjectMapper extends Mapper {
                 }
                 if (value.equalsIgnoreCase("false")) {
                     return DISABLED;
-                }
-                if (SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled() && value.equalsIgnoreCase("auto")) {
-                    return AUTO;
                 }
             }
             throw new ElasticsearchParseException("unknown subobjects value: " + node);
@@ -200,9 +196,6 @@ public class ObjectMapper extends Mapper {
                 if (parentBuilder != null) {
                     parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
                     add(parentBuilder);
-                } else if (subobjects.isPresent() && subobjects.get() == Subobjects.AUTO) {
-                    // No matching parent object was found, the mapper is added as a leaf - similar to subobjects false.
-                    add(name, mapper);
                 } else {
                     // Expected to find a matching parent object but got null.
                     throw new IllegalStateException("Missing intermediate object " + immediateChildFullName);

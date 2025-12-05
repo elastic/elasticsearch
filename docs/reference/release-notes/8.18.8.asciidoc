@@ -1,0 +1,60 @@
+[[release-notes-8.18.8]]
+== {es} version 8.18.8
+
+Also see <<breaking-changes-8.18,Breaking changes in 8.18>>.
+
+[IMPORTANT]
+====
+The 8.18.8 release contains fixes for potential security vulnerabilities.
+Please see our https://discuss.elastic.co/c/announcements/security-announcements/31[security advisory] for more details.
+====
+
+[[bug-8.18.8]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Propagates filter() to aggregation functions' surrogates {es-pull}134461[#134461] (issue: {es-issue}134380[#134380])
+
+ES|QL::
+* Fix async get results with inconsistent headers {es-pull}135078[#135078] (issue: {es-issue}135042[#135042])
+
+Engine::
+* Bypass MMap arena grouping as this has caused issues with too many regions being mapped {es-pull}135012[#135012]
+
+Infra/Node Lifecycle::
+* Fix systemd notify to use a shared arena {es-pull}135235[#135235]
+
+Ingest Node::
+* Correctly apply field path to JSON processor when adding contents to document root {es-pull}135479[#135479]
+
+Machine Learning::
+* Add .reindexed-v7-ml-anomalies-* to anomaly results template index pattern {es-pull}135270[#135270]
+* Gracefully shutdown model deployment when node is removed from assignment routing {es-pull}134673[#134673]
+* Reset health status on successful empty checkpoint {es-pull}135653[#135653] (issue: {es-issue}135650[#135650])
+
+Mapping::
+* Fix for creating semantic_text fields on pre-8.11 indices crashing Elasticsearch {es-pull}135845[#135845]
+
+Search::
+* Fix KQL case-sensitivity for keyword fields in ES|QL {es-pull}135776[#135776] (issue: {es-issue}135772[#135772])
+* Prevent field caps from failing due to can match failure {es-pull}134134[#134134] (issue: {es-issue}116106[#116106])
+
+Transform::
+* Fix a bug in the GET _transform API that incorrectly claims some Transform configurations are missing {es-pull}134963[#134963] (issue: {es-issue}134263[#134263])
+* Prevent Transform from queuing too many PIT close requests by waiting for PIT to close before finishing the checkpoint {es-pull}134955[#134955] (issue: {es-issue}134925[#134925])
+
+[[enhancement-8.18.8]]
+[float]
+=== Enhancements
+
+Audit::
+* Change reindex to use ::es-redacted:: filtering {es-pull}135414[#135414]
+
+Authorization::
+* [Island Browser] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` {es-pull}134636[#134636] (issue: {es-issue}134136[#134136])
+
+Infra/Plugins::
+* Add Reason field to elastic-agent upgrade details metadata {es-pull}134711[#134711]
+
+

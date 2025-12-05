@@ -200,6 +200,30 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
         );
     }
 
+    @SuppressWarnings("unchecked")
+    public void testDenseVectorWithSimilarityThreshold() throws Exception {
+        var mapperService = createDefaultMapperService(useLegacyFormat);
+        Map<String, Object> queryMap = (Map<String, Object>) queries.get("dense_vector_1");
+        float[] vector = readDenseVector(queryMap.get("embeddings"));
+        var fieldType = (SemanticTextFieldMapper.SemanticTextFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_E5);
+
+        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(fieldType.getEmbeddingsField().fullPath(), vector, 10, 10, null, 0.85f);
+        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), knnQuery, ScoreMode.Max);
+        var shardRequest = createShardSearchRequest(nestedQueryBuilder);
+        var sourceToParse = new SourceToParse("0", readSampleDoc(useLegacyFormat), XContentType.JSON);
+
+        String[] expectedPassages = ((List<String>) queryMap.get("expected_with_similarity_threshold")).toArray(String[]::new);
+        assertHighlightOneDoc(
+            mapperService,
+            shardRequest,
+            sourceToParse,
+            SEMANTIC_FIELD_E5,
+            expectedPassages.length,
+            HighlightBuilder.Order.SCORE,
+            expectedPassages
+        );
+    }
+
     private MapperService createDefaultMapperService(boolean useLegacyFormat) throws IOException {
         var mappings = Streams.readFully(SemanticTextHighlighterTests.class.getResourceAsStream("mappings.json"));
         var settings = Settings.builder()

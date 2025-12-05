@@ -9,6 +9,7 @@ steps:
             image:
               - debian-11
               - debian-12
+              - debian-13
               - opensuse-leap-15
               - oraclelinux-7
               - oraclelinux-8
@@ -22,6 +23,7 @@ steps:
               - rhel-7
               - rhel-8
               - rhel-9
+              - rhel-10
               - almalinux-8
               - almalinux-9
         agents:

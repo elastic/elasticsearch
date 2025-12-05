@@ -786,6 +786,12 @@ public class BasicBlockTests extends ESTestCase {
             assertEmptyLookup(blockFactory, block);
             assertInsertNulls(block);
             releaseAndAssertBreaker(block);
+            // modify the offset
+            var v0 = block.getBytesRef(randomInt(positionCount), new BytesRef());
+            var v1 = block.getBytesRef(randomInt(positionCount), new BytesRef());
+            v1.length = 0;
+            var v2 = block.getBytesRef(randomInt(positionCount), new BytesRef());
+            assertThat(v2, equalTo(v0));
         }
     }
 

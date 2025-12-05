@@ -14,7 +14,7 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.develocity" version "4.1.1"
+  id "com.gradle.develocity" version "4.2.2"
   id 'elasticsearch.java-toolchain'
   id 'elasticsearch.component-metadata-rules'
 }

@@ -72,10 +72,10 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         request.setJsonEntity("""
             {
               "persistent": {
-                "logger.org.elasticsearch.xpack.ml.inference": "TRACE",
+                "logger.org.elasticsearch.xpack.ml.inference": "DEBUG",
                 "logger.org.elasticsearch.xpack.ml.inference.assignments": "DEBUG",
                 "logger.org.elasticsearch.xpack.ml.process": "DEBUG",
-                "logger.org.elasticsearch.xpack.ml.action": "TRACE"
+                "logger.org.elasticsearch.xpack.ml.action": "DEBUG"
               }
             }
             """);

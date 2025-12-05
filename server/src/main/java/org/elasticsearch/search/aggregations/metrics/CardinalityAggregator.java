@@ -32,6 +32,8 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -73,6 +75,11 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     ) throws IOException {
         super(name, context, parent, metadata);
         assert valuesSourceConfig.hasValues();
+        if (valuesSourceConfig.fieldContext() != null
+            && (valuesSourceConfig.fieldContext().fieldType() instanceof DenseVectorFieldMapper.DenseVectorFieldType
+                || valuesSourceConfig.fieldContext().fieldType() instanceof SparseVectorFieldMapper.SparseVectorFieldType)) {
+            throw new IllegalArgumentException("Cardinality aggregation [" + name + "] does not support vector fields");
+        }
         this.valuesSource = valuesSourceConfig.getValuesSource();
         this.precision = precision;
         this.counts = new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);

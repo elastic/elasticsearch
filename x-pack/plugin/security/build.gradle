@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -38,7 +40,10 @@ dependencies {
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
-  api 'com.unboundid:unboundid-ldapsdk:6.0.3'
+  api "com.unboundid:unboundid-ldapsdk:${versions.ldapsdk}"
+
+  internalClusterTestImplementation project(path: ':modules:lang-painless')
+  internalClusterTestImplementation project(path: ':modules:lang-painless:spi')
 
   // the following are all SAML dependencies - might as well download the whole internet
   api "org.opensaml:opensaml-core:${versions.opensaml}"
@@ -87,7 +92,7 @@ dependencies {
   api "net.jcip:jcip-annotations:1.0"
   api "net.minidev:json-smart:2.5.2"
   api "net.minidev:accessors-smart:2.5.2"
-  api "org.ow2.asm:asm:9.8"
+  api "org.ow2.asm:asm:9.9"
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 
@@ -172,7 +177,7 @@ tasks.named('assemble').configure {
   dependsOn tasks.named('jar')
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
   mapping from: /http.*/, to: 'httpclient'
   mapping from: /bc.*/, to: 'bouncycastle'

@@ -50,6 +50,7 @@ public final class SearchCapabilities {
     private static final String EXCLUDE_VECTORS_PARAM = "exclude_vectors_param";
     private static final String DENSE_VECTOR_UPDATABLE_BBQ = "dense_vector_updatable_bbq";
     private static final String BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR = "bucket_script_parent_multi_bucket_error";
+    private static final String REJECT_INVALID_REVERSE_NESTING = "reject_invalid_reverse_nesting";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -72,6 +73,7 @@ public final class SearchCapabilities {
         capabilities.add(EXCLUDE_VECTORS_PARAM);
         capabilities.add(DENSE_VECTOR_UPDATABLE_BBQ);
         capabilities.add(BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR);
+        capabilities.add(REJECT_INVALID_REVERSE_NESTING);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

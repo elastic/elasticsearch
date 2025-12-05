@@ -59,6 +59,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.only;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -401,6 +402,30 @@ public class SageMakerServiceTests extends ESTestCase {
             }))
         );
         verify(client, times(2)).invoke(any(), any(), any(), any());
+        verifyNoMoreInteractions(client, schemas, schema);
+    }
+
+    public void testChunkedInfer_noInputs() throws Exception {
+        var model = mockModelForChunking();
+
+        SageMakerSchema schema = mock();
+        when(schemas.schemaFor(model)).thenReturn(schema);
+        mockInvoke();
+
+        sageMakerService.chunkedInfer(
+            model,
+            QUERY,
+            List.of(),
+            null,
+            INPUT_TYPE,
+            THIRTY_SECONDS,
+            assertOnce(assertNoFailureListener(chunkedInferences -> {
+                verify(schemas, never()).schemaFor(any());
+                verify(schema, never()).request(any(), any());
+                verify(schema, never()).response(any(), any(), any());
+            }))
+        );
+        verify(client, never()).invoke(any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
 

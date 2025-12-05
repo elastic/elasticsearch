@@ -215,4 +215,20 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
         );
         assertThat(e.getMessage(), containsString("Pass-through object [bar] has a conflicting param [priority=1] with object [foo]"));
     }
+
+    public void testTimeSeriesDimensionAndMetricConflict() throws IOException {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("labels").field("type", "passthrough").field("priority", "0").field("time_series_dimension", "true");
+            {
+                b.startObject("properties");
+                b.startObject("dim").field("type", "long").field("time_series_metric", "counter").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString("[time_series_dimension] and [time_series_metric] cannot be set in conjunction with each other [labels.dim]")
+        );
+    }
 }

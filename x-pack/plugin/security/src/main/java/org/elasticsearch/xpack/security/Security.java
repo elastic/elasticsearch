@@ -482,7 +482,7 @@ public class Security extends Plugin
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
 
-    private static final int MAX_SECURITY_MIGRATION_RETRY_COUNT = 10;
+    private static final int MAX_SECURITY_MIGRATION_RETRY_COUNT = 1000;
 
     // TODO: ip filtering does not actually track license usage yet
     public static final LicensedFeature.Momentary IP_FILTERING_FEATURE = LicensedFeature.momentaryLenient(
@@ -1474,6 +1474,7 @@ public class Security extends Plugin
         settingsList.add(TokenService.TOKEN_EXPIRATION);
         settingsList.add(TokenService.DELETE_INTERVAL);
         settingsList.add(TokenService.DELETE_TIMEOUT);
+        settingsList.add(ProfileService.MAX_SIZE_SETTING);
         settingsList.addAll(SSLConfigurationSettings.getProfileSettings());
         settingsList.add(ApiKeyService.STORED_HASH_ALGO_SETTING);
         settingsList.add(ApiKeyService.DELETE_TIMEOUT);

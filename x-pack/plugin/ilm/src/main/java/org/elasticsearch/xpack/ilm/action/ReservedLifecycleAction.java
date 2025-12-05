@@ -108,6 +108,11 @@ public class ReservedLifecycleAction implements ReservedClusterStateHandler<List
     }
 
     @Override
+    public ClusterState remove(TransformState prevState) throws Exception {
+        return transform(List.of(), prevState).state();
+    }
+
+    @Override
     public List<LifecyclePolicy> fromXContent(XContentParser parser) throws IOException {
         List<LifecyclePolicy> result = new ArrayList<>();
 

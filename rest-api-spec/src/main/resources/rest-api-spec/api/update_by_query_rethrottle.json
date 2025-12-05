@@ -31,6 +31,7 @@
       "requests_per_second": {
         "type": "number",
         "required": true,
+        "default": -1,
         "description": "The throttle to set on this request in floating sub-requests per second. -1 means set no throttle."
       }
     }

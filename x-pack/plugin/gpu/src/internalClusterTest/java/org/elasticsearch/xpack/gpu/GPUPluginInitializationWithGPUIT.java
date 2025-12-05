@@ -97,7 +97,6 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            // TODO add other type support
             DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNotNull(format);
@@ -118,8 +117,32 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            // TODO add other type support
             DenseVectorFieldMapper.ElementType.FLOAT
+        );
+        assertNull(format);
+    }
+
+    public void testAutoModeUnsupportedElementType() {
+        gpuMode = GPUPlugin.GpuMode.AUTO;
+        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
+
+        GPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
+        VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
+
+        createIndex("index1");
+        IndexSettings settings = getIndexSettings();
+        final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
+        final var unsupportedElementType = randomFrom(
+            DenseVectorFieldMapper.ElementType.BYTE,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            DenseVectorFieldMapper.ElementType.BIT
+        );
+
+        var format = vectorsFormatProvider.getKnnVectorsFormat(
+            settings,
+            indexOptions,
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            unsupportedElementType
         );
         assertNull(format);
     }
@@ -140,7 +163,6 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            // TODO add other type support
             DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNull(format);
@@ -162,7 +184,6 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            // TODO add other type support
             DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNotNull(format);
@@ -183,8 +204,32 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            // TODO add other type support
             DenseVectorFieldMapper.ElementType.FLOAT
+        );
+        assertNull(format);
+    }
+
+    public void testTrueModeUnsupportedElementType() {
+        gpuMode = GPUPlugin.GpuMode.TRUE;
+        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
+
+        GPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
+        VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
+
+        createIndex("index1");
+        IndexSettings settings = getIndexSettings();
+        final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
+        final var unsupportedElementType = randomFrom(
+            DenseVectorFieldMapper.ElementType.BYTE,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            DenseVectorFieldMapper.ElementType.BIT
+        );
+
+        var format = vectorsFormatProvider.getKnnVectorsFormat(
+            settings,
+            indexOptions,
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            unsupportedElementType
         );
         assertNull(format);
     }
@@ -205,7 +250,6 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            // TODO add other type support
             DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNull(format);
@@ -227,7 +271,6 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            // TODO add other type support
             DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNull(format);

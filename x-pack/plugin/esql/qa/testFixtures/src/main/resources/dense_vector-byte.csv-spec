@@ -38,7 +38,7 @@ required_capability: l2_norm_vector_similarity_function
 FROM dense_vector 
 | EVAL v = byte_vector
 | RENAME v AS new_vector 
-| DROP float_vector, byte_vector, bit_vector
+| DROP float_vector, byte_vector, bit_vector, bfloat16_vector
 | SORT id
 ;
 

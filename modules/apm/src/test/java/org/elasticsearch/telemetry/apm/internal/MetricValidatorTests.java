@@ -76,7 +76,10 @@ public class MetricValidatorTests extends ESTestCase {
         for (String suffix : MetricValidator.METRIC_SUFFIXES) {
             MetricValidator.validateMetricName("es.somemodule.somemetric." + suffix);
         }
-        expectThrows(IllegalArgumentException.class, () -> MetricValidator.validateMetricName("es.somemodule.somemetric.some_other_suffix"));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> MetricValidator.validateMetricName("es.somemodule.somemetric.some_other_suffix")
+        );
     }
 
     public void testSkipValidationDueToBWC() {

@@ -21,6 +21,8 @@ import org.junit.Before;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 @LuceneTestCase.SuppressCodecs("*")
 public class DiskBBQLicensingIT extends ESIntegTestCase {
@@ -114,18 +116,13 @@ public class DiskBBQLicensingIT extends ESIntegTestCase {
               }
             """, XContentType.JSON).get();
 
+        final var ksb = new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f, 0.4f }, 10, 10, null, null, null);
         // valid license, should not throw
-        client().prepareSearch("diskbbq-index")
-            .setKnnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f, 0.4f }, 10, 10, null, null, null)))
-            .get();
+        assertNoFailures(client().prepareSearch("diskbbq-index").setKnnSearch(List.of(ksb)));
         disableLicensing();
-        client().prepareSearch("diskbbq-index")
-            .setKnnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f, 0.4f }, 10, 10, null, null, null)))
-            .get();
+        assertNoFailures(client().prepareSearch("diskbbq-index").setKnnSearch(List.of(ksb)));
         enableLicensing(randomInvalidLicenseType());
-        client().prepareSearch("diskbbq-index")
-            .setKnnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f, 0.4f }, 10, 10, null, null, null)))
-            .get();
+        assertNoFailures(client().prepareSearch("diskbbq-index").setKnnSearch(List.of(ksb)));
     }
 
     private static License.OperationMode randomInvalidLicenseType() {

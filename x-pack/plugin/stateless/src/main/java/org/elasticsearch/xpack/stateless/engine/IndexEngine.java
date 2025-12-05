@@ -31,6 +31,7 @@ import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetric
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
+import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
@@ -127,6 +128,7 @@ public class IndexEngine extends InternalEngine {
     private final HollowShardsService hollowShardsService;
     private final Function<String, BlobContainer> translogBlobContainer;
     private final RefreshThrottler refreshThrottler;
+    private final ReshardIndexService reshardIndexService;
     private final long mergeForceRefreshSize;
     private final CommitBCCResolver commitBCCResolver;
     private final DocumentSizeAccumulator documentSizeAccumulator;
@@ -152,6 +154,7 @@ public class IndexEngine extends InternalEngine {
         HollowShardsService hollowShardsService,
         SharedBlobCacheWarmingService cacheWarmingService,
         RefreshThrottler.Factory refreshThrottlerFactory,
+        ReshardIndexService reshardIndexService,
         CommitBCCResolver commitBCCResolver,
         DocumentParsingProvider documentParsingProvider,
         EngineMetrics metrics,
@@ -165,6 +168,7 @@ public class IndexEngine extends InternalEngine {
             hollowShardsService,
             cacheWarmingService,
             refreshThrottlerFactory,
+            reshardIndexService,
             commitBCCResolver,
             documentParsingProvider,
             metrics,
@@ -182,6 +186,7 @@ public class IndexEngine extends InternalEngine {
         HollowShardsService hollowShardsService,
         SharedBlobCacheWarmingService cacheWarmingService,
         RefreshThrottler.Factory refreshThrottlerFactory,
+        ReshardIndexService reshardIndexService,
         CommitBCCResolver commitBCCResolver,
         DocumentParsingProvider documentParsingProvider,
         EngineMetrics metrics,
@@ -196,6 +201,7 @@ public class IndexEngine extends InternalEngine {
         this.hollowShardsService = hollowShardsService;
         this.cacheWarmingService = cacheWarmingService;
         this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
+        this.reshardIndexService = reshardIndexService;
         this.mergeForceRefreshSize = MERGE_FORCE_REFRESH_SIZE.get(config().getIndexSettings().getSettings()).getBytes();
         this.commitBCCResolver = commitBCCResolver;
         this.documentSizeAccumulator = documentParsingProvider.createDocumentSizeAccumulator();
@@ -635,7 +641,25 @@ public class IndexEngine extends InternalEngine {
     public void externalRefresh(String source, ActionListener<RefreshResult> listener) {
         // TODO: should we first check if a flush/refresh is needed or not? If not we could simply not go
         // through the throttler.
-        refreshThrottler.maybeThrottle(new RefreshThrottler.Request(source, listener));
+        // During resharding, there is a period of time when new shards have become available for search
+        // but not all coordinators have learned this fact. If an up-to-date coordinator does some indexing and
+        // calls refresh, and some of the indexing operations apply to the new shards, then a stale coordinator
+        // that doesn't know about the new shards and so only consults the old shards may return search results
+        // that don't include the latest indexing operations. This violates the contract of refresh.
+        // To avoid this, if resharding is in progress we block refresh on the target nodes until we can confirm
+        // that all coordinators have either seen that the new shards are active or they will have their requests
+        // rejected for being stale.
+        // The throttler will call back the listener after it performs the refresh, so we wait for
+        // the split if necessary before adding the listener to the throttler. Although technically it's ok
+        // to *perform* the refresh, as long as we don't *acknowledge* it, blocking before queuing lets the
+        // throttler potentially batch more requests together.
+        reshardIndexService.maybeAwaitSplit(
+            shardId,
+            ActionListener.wrap(
+                (ignored) -> refreshThrottler.maybeThrottle(new RefreshThrottler.Request(source, listener)),
+                listener::onFailure
+            )
+        );
     }
 
     @Override

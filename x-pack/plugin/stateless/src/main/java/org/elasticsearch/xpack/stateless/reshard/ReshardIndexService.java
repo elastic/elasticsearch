@@ -49,15 +49,19 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 
+import java.util.ArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
@@ -67,6 +71,7 @@ public class ReshardIndexService {
     private static final Logger logger = LogManager.getLogger(ReshardIndexService.class);
 
     private final IndicesService indicesService;
+    private final SplitCompletionTracker splitCompletionTracker;
 
     private final MasterServiceTaskQueue<ReshardTask> reshardQueue;
     private final MasterServiceTaskQueue<TransitionTargetToHandoffStateTask> transitionTargetToHandOffStateQueue;
@@ -81,6 +86,7 @@ public class ReshardIndexService {
         final IndicesService indicesService
     ) {
         this.indicesService = indicesService;
+        splitCompletionTracker = new SplitCompletionTracker();
 
         this.reshardQueue = clusterService.createTaskQueue(
             "reshard-index",
@@ -208,12 +214,75 @@ public class ReshardIndexService {
         );
     }
 
+    /**
+     * Called by the SplitTargetService when a request to move to split has completed.
+     * This is not performed directly by {@link #transitionTargetState} because that runs as a master action
+     * which may not be on the same node as the target shard. It is expected to be called by SplitTargetService.
+     * @param shardId the shard that has completed the split
+     */
+    void notifySplitCompletion(ShardId shardId) {
+        splitCompletionTracker.notifyCompletion(shardId);
+    }
+
+    /**
+     * Called by the SplitTargetService when a request to move to split has failed.
+     * Listeners waiting for the split to complete will be notified of the failure.
+     * Any new listeners will immediately fail until a subsequent split attempt succeeds.
+     * @param shardId the shard that has failed to split
+     * @param e       the exception describing the failure
+     */
+    void notifySplitFailure(ShardId shardId, Exception e) {
+        splitCompletionTracker.notifyFailure(shardId, e);
+    }
+
     public void transitionSourceState(ShardId shardId, IndexReshardingState.Split.SourceShardState state, ActionListener<Void> listener) {
         transitionSourceStateQueue.submitTask(
             "transition-split-source-shard-state [" + shardId + "]",
             new TransitionSourceStateTask(shardId, state, listener),
             null
         );
+    }
+
+    /**
+     * If the shard is a target shard, wait for it to transition to SPLIT state before completing listener.
+     * This is used to block refresh until the new search shard is visible to all coordinating nodes,
+     * to prevent a stale coordinating node from omitting the new shard from search requests when
+     * it may contain data published by a refresh issued by another coordinating node. Without this,
+     * it would be possible for a client to index a document, refresh, and not find it a subsequent search.
+     * @param shardId  the shard performing the operation that may need to wait
+     * @param listener the listener to complete when the shard is ready
+     */
+    public void maybeAwaitSplit(ShardId shardId, ActionListener<Void> listener) {
+        try {
+            final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            final var indexShard = indexService.getShard(shardId.id());
+            maybeAwaitSplit(indexShard.indexSettings().getIndexMetadata().getReshardingMetadata(), shardId, listener);
+        } catch (IndexNotFoundException | IndexClosedException | ShardNotFoundException e) {
+            // let the caller deal with this as appropriate for the waiting operation
+            listener.onFailure(e);
+        }
+    }
+
+    // visible for testing
+    void maybeAwaitSplit(IndexReshardingMetadata reshardingMetadata, ShardId shardId, ActionListener<Void> listener) {
+        // we assume that we cannot proceed past the SPLIT state without requiring all coordinator nodes
+        // to have seen the state (or that any that haven't will have their requests failed), so if there
+        // is no metadata or the target shard is past SPLIT, there is no need to wait.
+        if (reshardingMetadata == null) {
+            listener.onResponse(null);
+            return;
+        }
+        final var split = reshardingMetadata.getSplit();
+        if (split.isTargetShard(shardId.id()) == false) {
+            listener.onResponse(null);
+            return;
+        }
+        if (split.getTargetShardState(shardId.id()).compareTo(IndexReshardingState.Split.TargetShardState.SPLIT) > 0) {
+            listener.onResponse(null);
+            return;
+        }
+        // Otherwise, request to be notified when the shard state has advanced.
+        splitCompletionTracker.registerListener(shardId, listener);
     }
 
     public void deleteUnownedDocuments(ShardId shardId, ActionListener<Void> listener) {
@@ -742,6 +811,117 @@ public class ReshardIndexService {
         @Override
         public void taskSucceeded(TransitionSourceStateTask task, Void unused) {
             task.listener.onResponse(null);
+        }
+    }
+
+    // Perhaps this should be closeable to fail tasks at shutdown time. Currently I'm assuming
+    // that if we're shutting down anyway there's no point in notifying these listeners. Tearing
+    // down the node should fail any remote requests anyway.
+    private static class SplitCompletionTracker {
+        private final ConcurrentHashMap<ShardId, ShardSplitCompletionTracker> shardListeners;
+
+        SplitCompletionTracker() {
+            shardListeners = new ConcurrentHashMap<>();
+        }
+
+        public void registerListener(ShardId shardId, ActionListener<Void> listener) {
+            getOrCreateShardTracker(shardId).registerListener(listener);
+        }
+
+        /**
+         * Call when a shard split has been acknowledged by all coordinating nodes
+         * This will notify all enqueued listeners as well as ensure that any new listeners that register after
+         * split has completed are immediately notified.
+         * @param shardId the shard that has completed split
+         */
+        public void notifyCompletion(ShardId shardId) {
+            logger.debug("notifying split completion for shard {}", shardId);
+            getOrCreateShardTracker(shardId).notifyCompletion();
+        }
+
+        /**
+         * Notify listeners that the last attempt to transition to split failed
+         * This state is latched until the shard successfully splits, which means after this function is called,
+         * all new listeners will instantly fail until notifyCompletion is called to reset the latch.
+         * @param shardId the shard that failed to split
+         * @param e       the exception that caused the failure
+         */
+        public void notifyFailure(ShardId shardId, Exception e) {
+            getOrCreateShardTracker(shardId).notifyFailure(e);
+        }
+
+        private ShardSplitCompletionTracker getOrCreateShardTracker(ShardId shardId) {
+            return shardListeners.computeIfAbsent(shardId, k -> new ShardSplitCompletionTracker());
+        }
+    }
+
+    /**
+     * Manages tasks waiting for the completion of a single shard split operation
+     * Tasks register a listener to be called when the split is complete. If the
+     * split is already complete tasks will be notified immediately.
+     */
+    private static class ShardSplitCompletionTracker {
+        private boolean completed = false;
+        @Nullable
+        private Exception exception = null;
+        private ArrayList<ActionListener<Void>> listeners = new ArrayList<>();
+
+        /**
+         * Call when the shard tracked by this instance has completed split successfully
+         * This will notify all enqueued listeners and ensure that any new listeners are immediately notified.
+         * Queued listeners are notified on the provided thread pool's generic executor, whereas listeners that
+         * can immediately complete do so on the caller's thread.
+         */
+        public void notifyCompletion() {
+            notify(null);
+        }
+
+        /**
+         * Call when the shard tracked by this instance has failed to split.
+         * This will fail any enqueued listeners as well as immediately failing any new listeners, until a
+         * a subsequent call to {@link #notifyCompletion}.
+         * Queued listeners are notified on the provided thread pool's generic executor, whereas listeners that
+         * can immediately complete do so on the caller's thread.
+         * @param e the exception that caused the failure
+         */
+        public void notifyFailure(Exception e) {
+            notify(e);
+        }
+
+        /**
+         * Register a listener to be notified when a shard split attempt completes.
+         * @param listener the listener to notify
+         */
+        public synchronized void registerListener(ActionListener<Void> listener) {
+            if (completed) {
+                if (exception != null) {
+                    listener.onFailure(exception);
+                } else {
+                    listener.onResponse(null);
+                }
+            } else {
+                listeners.add(listener);
+            }
+        }
+
+        private void notify(@Nullable Exception e) {
+            final ArrayList<ActionListener<Void>> toNotify;
+
+            synchronized (this) {
+                exception = e;
+                completed = true;
+                toNotify = listeners;
+                listeners = new ArrayList<>();
+                logger.debug("completed split, notifying {} listeners", toNotify.size());
+            }
+
+            toNotify.forEach(l -> {
+                if (e != null) {
+                    l.onFailure(e);
+                } else {
+                    l.onResponse(null);
+                }
+            });
         }
     }
 }

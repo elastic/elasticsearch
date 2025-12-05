@@ -29,6 +29,7 @@ import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
 
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.client.internal.Client;
@@ -131,6 +132,7 @@ public class StatelessCommitNotificationsIT extends AbstractServerlessStatelessP
             HollowShardsService hollowShardsService,
             SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
             RefreshThrottler.Factory refreshThrottlerFactory,
+            ReshardIndexService reshardIndexService,
             DocumentParsingProvider documentParsingProvider,
             IndexEngine.EngineMetrics engineMetrics
         ) {
@@ -142,6 +144,7 @@ public class StatelessCommitNotificationsIT extends AbstractServerlessStatelessP
                 hollowShardsService,
                 sharedBlobCacheWarmingService,
                 refreshThrottlerFactory,
+                reshardIndexService,
                 statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
                 documentParsingProvider,
                 engineMetrics,

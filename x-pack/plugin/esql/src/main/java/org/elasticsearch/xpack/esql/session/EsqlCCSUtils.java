@@ -351,15 +351,19 @@ public class EsqlCCSUtils {
                 }
             }
 
-            if (executionInfo.isCrossClusterSearch() && EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
-                throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
-            }
+            validateCcsLicense(licenseState, executionInfo);
         } catch (NoSuchRemoteClusterException e) {
             if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {
                 throw e;
             } else {
                 throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
             }
+        }
+    }
+
+    public static void validateCcsLicense(XPackLicenseState licenseState, EsqlExecutionInfo executionInfo) {
+        if (executionInfo.isCrossClusterSearch() && EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
+            throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
         }
     }
 

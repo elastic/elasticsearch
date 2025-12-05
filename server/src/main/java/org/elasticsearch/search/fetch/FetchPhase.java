@@ -121,24 +121,8 @@ public final class FetchPhase {
         try {
             hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker, writer);
             ProfileResult profileResult = profiler.finish();
-
-            if (writer == null) {
-                // Set full result on data node (all hits in memory)
-                context.fetchResult().shardResult(hits, profileResult);
-                hits = null;
-            } else {
-                // Set EMPTY hits (coordinator builds from chunks)
-                SearchHits emptyHits = SearchHits.empty(
-                    context.queryResult().getTotalHits(),
-                    context.queryResult().getMaxScore()
-                );
-                context.fetchResult().shardResult(emptyHits, profileResult);
-
-                if (hits != null) {
-                    hits.decRef();
-                    hits = null;
-                }
-            }
+            context.fetchResult().shardResult(hits, profileResult);
+            hits = null;
         } finally {
             if (hits != null) {
                 hits.decRef();
@@ -353,19 +337,30 @@ public final class FetchPhase {
                 context.request().allowPartialSearchResults(),
                 context.queryResult(),
                 writer,
-               5
+               5 // TODO set a proper number
             );
 
             if (context.isCancelled()) {
                 for (SearchHit hit : hits) {
-                    // release all hits that would otherwise become owned and eventually released by SearchHits below
-                    hit.decRef();
+                    if (hit != null) {
+                        hit.decRef();
+                    }
                 }
                 throw new TaskCancelledException("cancelled");
             }
 
             TotalHits totalHits = context.getTotalHits();
-            return new SearchHits(hits, totalHits, context.getMaxScore());
+
+            if (writer == null) {
+                return new SearchHits(hits, totalHits, context.getMaxScore());
+            } else {
+                for (SearchHit hit : hits) {
+                    if (hit != null) {
+                        hit.decRef();
+                    }
+                }
+                return SearchHits.empty(totalHits, context.getMaxScore());
+            }
         } finally {
             long bytes = docsIterator.getRequestBreakerBytes();
             if (bytes > 0L) {

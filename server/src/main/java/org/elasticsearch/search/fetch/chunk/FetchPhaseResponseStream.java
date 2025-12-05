@@ -47,6 +47,7 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     private final int expectedDocs;
     private final List<SearchHit> hits = new ArrayList<>();
     private volatile boolean responseStarted = false;
+    private volatile boolean ownershipTransferred = false;
     private final CircuitBreaker circuitBreaker;
 
     // Buffered circuit breaker accounting
@@ -193,6 +194,9 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
             maxScore = Float.NaN;
         }
 
+        // Hits have refCount=1, SearchHits constructor will increment to 2
+        ownershipTransferred = true;
+
         SearchHits searchHits = new SearchHits(
             hits.toArray(SearchHit[]::new),
             new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO),
@@ -218,8 +222,10 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
             );
         }
 
-        for (SearchHit hit : hits) {
-            hit.decRef();
+        if (ownershipTransferred == false) {
+            for (SearchHit hit : hits) {
+                hit.decRef();
+            }
         }
         hits.clear();
 

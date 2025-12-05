@@ -14,13 +14,11 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.junit.Test;
 
 import java.util.Random;
 
 public class AdaptiveHnswQueueSaturationCollectorTests extends LuceneTestCase {
 
-    @Test
     public void testDelegate() {
         Random random = random();
         int numDocs = 100;
@@ -36,7 +34,6 @@ public class AdaptiveHnswQueueSaturationCollectorTests extends LuceneTestCase {
         assertEquals(delegate.minCompetitiveSimilarity(), queueSaturationCollector.minCompetitiveSimilarity(), 1e-3);
     }
 
-    @Test
     public void testEarlyExpectedExit() {
         int numDocs = 1000;
         int k = 10;
@@ -54,7 +51,6 @@ public class AdaptiveHnswQueueSaturationCollectorTests extends LuceneTestCase {
         }
     }
 
-    @Test
     public void testDelegateVsSaturateEarlyExit() {
         Random random = random();
         int numDocs = 10000;
@@ -72,7 +68,6 @@ public class AdaptiveHnswQueueSaturationCollectorTests extends LuceneTestCase {
         }
     }
 
-    @Test
     public void testEarlyExitRelation() {
         Random random = random();
         int numDocs = 10000;

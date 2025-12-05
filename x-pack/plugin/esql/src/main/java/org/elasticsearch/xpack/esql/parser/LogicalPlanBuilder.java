@@ -1299,8 +1299,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     private String getValueColumnName(EsqlBaseParser.ValueNameContext ctx, String promqlQuery) {
         if (ctx == null) {
             return promqlQuery;
-        } else if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
-            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
+        } else if (ctx.UNQUOTED_IDENTIFIER() != null) {
+            return ctx.UNQUOTED_IDENTIFIER().getText();
         } else if (ctx.QUOTED_IDENTIFIER() != null) {
             return AbstractBuilder.unquote(ctx.QUOTED_IDENTIFIER().getText());
         } else {
@@ -1394,8 +1394,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private String parseParamName(EsqlBaseParser.PromqlParamNameContext ctx) {
-        if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
-            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
+        if (ctx.UNQUOTED_IDENTIFIER() != null) {
+            return ctx.UNQUOTED_IDENTIFIER().getText();
         } else if (ctx.QUOTED_IDENTIFIER() != null) {
             return AbstractBuilder.unquote(ctx.QUOTED_IDENTIFIER().getText());
         } else {
@@ -1413,8 +1413,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             EsqlBaseParser.PromqlIndexStringContext string = ctx.promqlIndexPattern().getFirst().promqlIndexString();
             if (string.UNQUOTED_SOURCE() != null) {
                 return string.UNQUOTED_SOURCE().getText();
-            } else if (string.PROMQL_UNQUOTED_IDENTIFIER() != null) {
-                return string.PROMQL_UNQUOTED_IDENTIFIER().getText();
+            } else if (string.UNQUOTED_IDENTIFIER() != null) {
+                return string.UNQUOTED_IDENTIFIER().getText();
             } else if (string.QUOTED_STRING() != null) {
                 return AbstractBuilder.unquote(string.QUOTED_STRING().getText());
             }

@@ -76,6 +76,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  */
 public abstract class StreamInput extends InputStream {
 
+    // required for backwards compatibility with objects that use older transport versions for persistent serialization
+    private static final TransportVersion V_8_7_0 = TransportVersion.fromId(8070099);
     private TransportVersion version = TransportVersion.current();
 
     /**
@@ -919,8 +921,12 @@ public abstract class StreamInput extends InputStream {
             case 6 -> readByteArray();
             case 7 -> readCollection(StreamInput::readGenericValue, ArrayList::new, Collections.emptyList());
             case 8 -> readArray();
-            case 9 -> readOrderedMap(StreamInput::readGenericValue, StreamInput::readGenericValue);
-            case 10 -> readMap(StreamInput::readGenericValue, StreamInput::readGenericValue);
+            case 9 -> getTransportVersion().onOrAfter(V_8_7_0)
+                ? readOrderedMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
+                : readOrderedMap(StreamInput::readString, StreamInput::readGenericValue);
+            case 10 -> getTransportVersion().onOrAfter(V_8_7_0)
+                ? readMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
+                : readMap(StreamInput::readGenericValue);
             case 11 -> readByte();
             case 12 -> readDate();
             case 13 ->

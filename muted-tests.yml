@@ -479,9 +479,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.TokenServiceTests
   method: testSupersedingTokenEncryption
   issue: https://github.com/elastic/elasticsearch/issues/139031
-- class: org.elasticsearch.repositories.s3.S3BlobStoreRepositoryTimeoutTests
-  method: testWriteTimeout
-  issue: https://github.com/elastic/elasticsearch/issues/139041
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/370_profile/dfs knn vector profiling collector name}
   issue: https://github.com/elastic/elasticsearch/issues/139065

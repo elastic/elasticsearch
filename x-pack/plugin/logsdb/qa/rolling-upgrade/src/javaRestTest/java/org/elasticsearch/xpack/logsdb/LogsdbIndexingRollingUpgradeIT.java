@@ -1,25 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
-
-package org.elasticsearch.upgrades;
-
-import com.carrotsearch.randomizedtesting.annotations.Name;
+package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.Version;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,16 +30,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.enableLogsdbByDefault;
-import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.getWriteBackingIndex;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
+public class LogsdbIndexingRollingUpgradeIT extends ESRestTestCase {
 
     static String BULK_ITEM_TEMPLATE =
         """
@@ -70,20 +69,37 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSe
             }
         }""";
 
-    public LogsdbIndexingRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
-        super(upgradedNodes);
+    private static final String USER = "admin-user";
+    private static final String PASS = "x-pack-test-password";
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = Clusters.oldVersionCluster(USER, PASS);
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     public void testIndexing() throws Exception {
+        for (Map.Entry<Object, Object> entry : System.getProperties().entrySet()) {
+            logger.info("system_property: {} / {}", entry.getKey(), entry.getValue());
+        }
+
         String dataStreamName = "logs-bwc-test";
-        if (isOldCluster()) {
-            startTrial();
-            enableLogsdbByDefault();
+        Instant time;
+        {
+            maybeEnableLogsdbByDefault();
+
             String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);
             createTemplate(dataStreamName, templateId, TEMPLATE);
 
-            Instant startTime = Instant.now().minusSeconds(60 * 60);
-            bulkIndex(dataStreamName, 4, 1024, startTime);
+            time = Instant.now().minusSeconds(60 * 60);
+            bulkIndex(dataStreamName, 4, 1024, time);
 
             String firstBackingIndex = getWriteBackingIndex(client(), dataStreamName, 0);
             var settings = (Map<?, ?>) getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
@@ -95,20 +111,16 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSe
             ensureGreen(dataStreamName);
             search(dataStreamName);
             query(dataStreamName);
-        } else if (isMixedCluster()) {
-            Instant startTime = Instant.now().minusSeconds(60 * 30);
-            bulkIndex(dataStreamName, 4, 1024, startTime);
-
-            ensureGreen(dataStreamName);
+        }
+        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
+        for (int i = 0; i < numNodes; i++) {
+            upgradeNode(i);
+            time = time.plusNanos(60 * 30);
+            bulkIndex(dataStreamName, 4, 1024, time);
             search(dataStreamName);
             query(dataStreamName);
-        } else if (isUpgradedCluster()) {
-            ensureGreen(dataStreamName);
-            Instant startTime = Instant.now();
-            bulkIndex(dataStreamName, 4, 1024, startTime);
-            search(dataStreamName);
-            query(dataStreamName);
-
+        }
+        {
             var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
             forceMergeRequest.addParameter("max_num_segments", "1");
             assertOK(client().performRequest(forceMergeRequest));
@@ -117,6 +129,16 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSe
             search(dataStreamName);
             query(dataStreamName);
         }
+    }
+
+    private void upgradeNode(int n) throws IOException {
+        closeClients();
+        var upgradeVersion = System.getProperty("tests.new_cluster_version") != null
+            ? Version.fromString(System.getProperty("tests.new_cluster_version"))
+            : Version.CURRENT;
+        logger.info("Upgrading node {} to version {}", n, upgradeVersion);
+        cluster.upgradeNodeToVersion(n, upgradeVersion);
+        initClient();
     }
 
     static void assertDataStream(String dataStreamName, String templateId) throws IOException {
@@ -255,18 +277,6 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSe
         assertThat(maxTx, notNullValue());
     }
 
-    protected static void startTrial() throws IOException {
-        Request startTrial = new Request("POST", "/_license/start_trial");
-        startTrial.addParameter("acknowledge", "true");
-        try {
-            assertOK(client().performRequest(startTrial));
-        } catch (ResponseException e) {
-            var responseBody = entityAsMap(e.getResponse());
-            String error = ObjectPath.evaluate(responseBody, "error_message");
-            assertThat(error, containsString("Trial was already activated."));
-        }
-    }
-
     static Map<String, Object> getIndexSettingsWithDefaults(String index) throws IOException {
         Request request = new Request("GET", "/" + index + "/_settings");
         request.addParameter("flat_settings", "true");
@@ -283,6 +293,37 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSe
 
     static String formatInstant(Instant instant) {
         return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
+    }
+
+    static String getWriteBackingIndex(final RestClient client, final String dataStreamName, int backingIndex) throws IOException {
+        final Request request = new Request("GET", "_data_stream/" + dataStreamName);
+        final List<?> dataStreams = (List<?>) entityAsMap(client.performRequest(request)).get("data_streams");
+        final Map<?, ?> dataStream = (Map<?, ?>) dataStreams.getFirst();
+        final List<?> backingIndices = (List<?>) dataStream.get("indices");
+        return (String) ((Map<?, ?>) backingIndices.get(backingIndex)).get("index_name");
+    }
+
+    static void maybeEnableLogsdbByDefault() throws IOException {
+        if (System.getProperty("tests.bwc.tag") != null) {
+            return;
+        }
+
+        var version = System.getProperty("tests.old_cluster_version") != null
+            ? Version.fromString(System.getProperty("tests.old_cluster_version"))
+            : Version.CURRENT;
+        if (version.onOrAfter(Version.fromString("9.0.0"))) {
+            return;
+        }
+
+        var request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+                "persistent": {
+                    "cluster.logsdb.enabled": true
+                }
+            }
+            """);
+        assertOK(client().performRequest(request));
     }
 
 }

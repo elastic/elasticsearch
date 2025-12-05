@@ -171,7 +171,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
 
         List<EsIndex> metricIndices = new ArrayList<>();
-        if (EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V7.isEnabled()) {
+        if (EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8.isEnabled()) {
             Map<String, EsField> expHistoMetricMapping = loadMapping("exp_histo_sample-mappings.json");
             metricIndices.add(
                 EsIndexGenerator.esIndex("exp_histo_sample", expHistoMetricMapping, Map.of("exp_histo_sample", IndexMode.TIME_SERIES))

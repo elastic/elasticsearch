@@ -93,21 +93,26 @@ public class InferenceQueryUtils {
                 inferenceIdOverride
             );
 
-            if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false
-                && queryRewriteContext.isCcsMinimizeRoundTrips() == false
-                && alwaysSkipRemotes == false) {
-
+            if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
                 ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> remoteInferenceInfoListener = refs
                     .acquire(remoteInferenceInfoSupplier::set);
-                getRemoteInferenceInfo(
-                    queryRewriteContext,
-                    fields,
-                    resolveWildcards,
-                    useDefaultFields,
-                    remoteInferenceInfoListener,
-                    query,
-                    inferenceIdOverride
-                );
+
+                if (alwaysSkipRemotes == false) {
+                    getRemoteInferenceInfo(
+                        queryRewriteContext,
+                        fields,
+                        resolveWildcards,
+                        useDefaultFields,
+                        remoteInferenceInfoListener,
+                        query,
+                        inferenceIdOverride
+                    );
+                } else {
+                    // Even if we are skipping remotes, we still need to collect the remote cluster transport versions
+                    // for downstream validation. This only requires opening a connection to the remote cluster,
+                    // which in most cases should already exist.
+                    getRemoteTransportVersion(queryRewriteContext, remoteInferenceInfoListener);
+                }
             }
         }
     }
@@ -222,14 +227,8 @@ public class InferenceQueryUtils {
         @Nullable FullyQualifiedInferenceId inferenceIdOverride
     ) {
         var remoteIndices = queryRewriteContext.getResolvedIndices().getRemoteClusterIndices();
-        GroupedActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> gal = new GroupedActionListener<>(
-            remoteIndices.size(),
-            remoteInferenceInfoListener.delegateFailureAndWrap((l, c) -> {
-                Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>> remoteInferenceInfoMap = new HashMap<>(c.size());
-                c.forEach(remoteInferenceInfoMap::putAll);
-                l.onResponse(remoteInferenceInfoMap);
-            })
-        );
+        GroupedActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> gal =
+            createRemoteInferenceInfoGroupedActionListener(remoteIndices.size(), remoteInferenceInfoListener);
 
         // When an inference ID override is set, inference is only performed on the local cluster. Set the query to null in this case
         // to disable remote inference result generation.
@@ -275,6 +274,36 @@ public class InferenceQueryUtils {
                         }
                     }));
                 });
+            });
+        }
+    }
+
+    private static void getRemoteTransportVersion(
+        QueryRewriteContext queryRewriteContext,
+        ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> remoteInferenceInfoListener
+    ) {
+        var remoteIndices = queryRewriteContext.getResolvedIndices().getRemoteClusterIndices();
+        GroupedActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> gal =
+            createRemoteInferenceInfoGroupedActionListener(remoteIndices.size(), remoteInferenceInfoListener);
+
+        for (var entry : remoteIndices.entrySet()) {
+            String clusterAlias = entry.getKey();
+
+            queryRewriteContext.registerRemoteAsyncAction(clusterAlias, (client, threadContext, listener) -> {
+                ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> wrappedListener = listener
+                    .delegateFailureAndWrap((l, m) -> {
+                        gal.onResponse(m);
+                        l.onResponse(null);
+                    });
+
+                client.getConnection(null, wrappedListener.delegateFailureAndWrap((l, c) -> {
+                    l.onResponse(
+                        Map.of(
+                            clusterAlias,
+                            Tuple.tuple(new GetInferenceFieldsAction.Response(Map.of(), Map.of()), c.getTransportVersion())
+                        )
+                    );
+                }));
             });
         }
     }
@@ -411,7 +440,7 @@ public class InferenceQueryUtils {
                 l.onResponse(null);
             });
 
-            GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> gal = createGroupedActionListener(
+            GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> gal = createLocalInferenceGroupedActionListener(
                 wrappedListener,
                 inferenceRequests.size()
             );
@@ -437,7 +466,7 @@ public class InferenceQueryUtils {
         });
     }
 
-    private static GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> createGroupedActionListener(
+    private static GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> createLocalInferenceGroupedActionListener(
         ActionListener<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapListener,
         int inferenceRequestCount
     ) {
@@ -445,6 +474,20 @@ public class InferenceQueryUtils {
             Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = new HashMap<>(responses.size());
             responses.forEach(r -> inferenceResultsMap.put(r.v1(), r.v2()));
             l.onResponse(inferenceResultsMap);
+        }));
+    }
+
+    private static
+        GroupedActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>>
+        createRemoteInferenceInfoGroupedActionListener(
+            int remoteClusterCount,
+            ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> remoteInferenceInfoListener
+        ) {
+
+        return new GroupedActionListener<>(remoteClusterCount, remoteInferenceInfoListener.delegateFailureAndWrap((l, c) -> {
+            Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>> remoteInferenceInfoMap = new HashMap<>(c.size());
+            c.forEach(remoteInferenceInfoMap::putAll);
+            l.onResponse(remoteInferenceInfoMap);
         }));
     }
 

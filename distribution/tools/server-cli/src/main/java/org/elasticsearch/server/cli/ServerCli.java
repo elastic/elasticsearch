@@ -119,6 +119,7 @@ class ServerCli extends EnvironmentAwareCommand {
         }
 
         // we are running in the foreground, so wait for the server to exit
+        System.gc();
         int exitCode = server.waitFor();
         onExit(exitCode);
     }

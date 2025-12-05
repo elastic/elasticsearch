@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class PromqlParserTests extends ESTestCase {
 
-    private static final EsqlParser parser = new EsqlParser();
+    private static final EsqlParser parser = EsqlParser.INSTANCE;
 
     @BeforeClass
     public static void checkPromqlEnabled() {
@@ -79,7 +79,7 @@ public class PromqlParserTests extends ESTestCase {
 
     public void testValidRangeQueryParams() {
         PromqlCommand promql = EsqlTestUtils.as(
-            parser.createStatement(
+            parser.parseQuery(
                 "PROMQL index=test start=?_tstart end=?_tend step=?_step (avg(foo))",
                 new QueryParams(
                     List.of(
@@ -256,14 +256,14 @@ public class PromqlParserTests extends ESTestCase {
     }
 
     public void assertExplain(String query, Class<? extends UnaryPlan> promqlCommandClass) {
-        var plan = parser.createStatement("EXPLAIN ( " + query + " )");
+        var plan = parser.parseQuery("EXPLAIN ( " + query + " )");
         Explain explain = plan.collect(Explain.class).getFirst();
         PromqlCommand promqlCommand = explain.query().collect(PromqlCommand.class).getFirst();
         assertThat(promqlCommand.promqlPlan(), instanceOf(promqlCommandClass));
     }
 
     private static PromqlCommand parse(String query) {
-        return as(parser.createStatement(query), PromqlCommand.class);
+        return as(parser.parseQuery(query), PromqlCommand.class);
     }
 
     @Override

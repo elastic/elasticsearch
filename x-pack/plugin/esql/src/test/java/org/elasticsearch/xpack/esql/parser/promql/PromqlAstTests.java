@@ -70,17 +70,17 @@ public class PromqlAstTests extends ESTestCase {
                 Literal now = new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME);
                 var plan = parser.createStatement(q, now, now, 0, 0);
                 log.trace("{}", plan);
-                EsqlParser esqlParser = new EsqlParser();
                 List.of("PROMQL index=test step=1m (%s)", "PROMQL index=test step=1m foo=(%s)", "PROMQL index=test step=1m %s", "PROMQL %s")
                     .forEach(pattern -> {
-                        LogicalPlan esqlPlan = esqlParser.createStatement(String.format(Locale.ROOT, pattern, q));
+                        var query = String.format(Locale.ROOT, pattern, q);
+                        LogicalPlan esqlPlan = EsqlParser.INSTANCE.parseQuery(query);
                         assertThat(esqlPlan.collect(PromqlCommand.class), hasSize(1));
 
-                        LogicalPlan explainPlan = esqlParser.createStatement("EXPLAIN (" + String.format(Locale.ROOT, pattern, q) + ")");
+                        LogicalPlan explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + ")");
                         Explain explain = explainPlan.collect(Explain.class).getFirst();
                         assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
 
-                        explainPlan = esqlParser.createStatement("EXPLAIN (" + String.format(Locale.ROOT, pattern, q) + " | LIMIT 1 )");
+                        explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + " | LIMIT 1 )");
                         explain = explainPlan.collect(Explain.class).getFirst();
                         assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
                     });

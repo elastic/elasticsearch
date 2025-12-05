@@ -17,7 +17,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
+import org.elasticsearch.xpack.inference.common.model.Truncation;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -57,12 +57,12 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
             VALID_INPUT_TYPE_VALUES,
             validationException
         );
-        CohereTruncation truncation = extractOptionalEnum(
+        Truncation truncation = extractOptionalEnum(
             map,
             TRUNCATE,
             ModelConfigurations.TASK_SETTINGS,
-            CohereTruncation::fromString,
-            CohereTruncation.ALL,
+            Truncation::fromString,
+            Truncation.ALL,
             validationException
         );
 
@@ -108,7 +108,7 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
         return inputTypeToUse;
     }
 
-    private static CohereTruncation getValidTruncation(
+    private static Truncation getValidTruncation(
         CohereEmbeddingsTaskSettings originalSettings,
         CohereEmbeddingsTaskSettings requestTaskSettings
     ) {
@@ -116,13 +116,13 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
     }
 
     private final InputType inputType;
-    private final CohereTruncation truncation;
+    private final Truncation truncation;
 
     public CohereEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalEnum(InputType.class), in.readOptionalEnum(CohereTruncation.class));
+        this(in.readOptionalEnum(InputType.class), in.readOptionalEnum(Truncation.class));
     }
 
-    public CohereEmbeddingsTaskSettings(@Nullable InputType inputType, @Nullable CohereTruncation truncation) {
+    public CohereEmbeddingsTaskSettings(@Nullable InputType inputType, @Nullable Truncation truncation) {
         validateInputType(inputType);
         this.inputType = inputType;
         this.truncation = truncation;
@@ -159,7 +159,7 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
         return inputType;
     }
 
-    public CohereTruncation getTruncation() {
+    public Truncation getTruncation() {
         return truncation;
     }
 

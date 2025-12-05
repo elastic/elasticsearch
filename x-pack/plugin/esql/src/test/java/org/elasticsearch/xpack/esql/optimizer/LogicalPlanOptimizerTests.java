@@ -13,12 +13,15 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -148,11 +151,13 @@ import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -207,6 +212,8 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAg
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAggsTests.aliased;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.DOWN;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
+import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
+import static org.elasticsearch.xpack.esql.session.EsqlSession.newMainPlan;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -223,7 +230,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+@TestLogging(value = "org.elasticsearch.xpack.esql.optimizer:TRACE", reason = "debug")
 public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
@@ -10169,5 +10176,82 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             var relation = as(aggregateInBranch.child(), EsRelation.class);
             assertThat(relation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("salary"));
         }
+    }
+
+    /*
+     * Optimized plan:
+     * Limit[1000[INTEGER],false,false]
+     * \_InlineJoin[LEFT,[],[]]
+     *   |_EsqlProject[[salary{f}#23, languages1{r}#7, languages{f}#21]]
+     *   | \_Eval[[MVAVG(languages{f}#21) AS languages1#7]]
+     *   |   \_EsRelation[employees][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     *   \_Project[[languages2{r}#14, avg{r}#17]]
+     *     \_Eval[[$$SUM$avg$0{r$}#31 / $$COUNT$avg$1{r$}#32 AS avg#17]]
+     *       \_Aggregate[[],[SUM(languages1{r}#7,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS languages2#14, SUM(salary{f}
+     * #23,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$avg$0#31, COUNT(salary{f}#23,true[BOOLEAN],PT0S[TIME_DURATION])
+     *  AS $$COUNT$avg$1#32]]
+     *         \_StubRelation[[salary{f}#23, languages1{r}#7, avg{r}#10, languages{f}#21]]
+     *
+     * Final plan execution:
+     * Limit[1000[INTEGER],false,false]
+     * \_Eval[[5.5[DOUBLE] AS languages2#14, 1[DOUBLE] AS avg#17]]
+     *   \_EsqlProject[[salary{f}#23, languages1{r}#7, languages{f}#21]]
+     *     \_Eval[[MVAVG(languages{f}#21) AS languages1#7]]
+     *       \_EsRelation[employees][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     */
+    public void testDoubleInlineStatsPrunning_With_MV_Functions() {
+        var query = """
+            FROM employees
+            | KEEP languages, salary
+            | INLINE STATS languages1 = MV_AVG(languages), avg = AVG(salary) BY languages
+            | INLINE STATS languages2 = SUM(languages1), avg = AVG(salary)
+            """;
+
+        var plan = optimizedPlan(query);
+        var subPlansResults = new HashSet<LocalRelation>();
+        var subPlans = InlineJoin.firstSubPlan(plan, subPlansResults);
+
+        var p = as(plan, Limit.class);
+        var join = as(p.child(), InlineJoin.class);
+        // Left
+        var leftProject = as(join.left(), EsqlProject.class);
+        assertMap(Expressions.names(leftProject.projections()), is(List.of("salary", "languages1", "languages")));
+        var leftEval = as(leftProject.child(), Eval.class);
+        var leftRelation = as(leftEval.child(), EsRelation.class);
+        // Right
+        var rightProject = as(join.right(), Project.class);
+        assertMap(Expressions.names(rightProject.projections()), is(List.of("languages2", "avg")));
+        var rightEval = as(rightProject.child(), Eval.class);
+        var aggregate = as(rightEval.child(), Aggregate.class);
+        assertMap(Expressions.names(aggregate.aggregates()), is(List.of("languages2", "$$SUM$avg$0", "$$COUNT$avg$1")));
+        var stub = as(aggregate.child(), StubRelation.class);
+
+        // simulate the result of the first sub-plan execution
+        // not important what the actual values are, just need to have something to feed into the second InlineJoin
+        List<Attribute> schema = rightProject.output(); // [avgByL{r}#5, languages{f}#20]
+        Block[] blocks = new Block[schema.size()];
+        blocks[0] = BlockUtils.constantBlock(
+            TestBlockFactory.getNonBreakingInstance(),
+            new Literal(Source.EMPTY, 5.5, DataType.DOUBLE).value(),
+            1
+        );
+        blocks[1] = BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), new Literal(Source.EMPTY, 1, INTEGER).value(), 1);
+        var resultWrapper = new LocalRelation(subPlans.stubReplacedSubPlan().source(), schema, LocalSupplier.of(new Page(blocks)));
+        subPlansResults.add(resultWrapper);
+        // this is Second InlineJoin stubReplacedSubPlan
+        var newMainPlan = newMainPlan(plan, subPlans, resultWrapper);
+        assertEquals(firstSubPlan(newMainPlan, subPlansResults), null);
+
+        p = as(newMainPlan, Limit.class);
+        var eval = as(p.child(), Eval.class);
+        assertMap(Expressions.names(eval.fields()), is(List.of("languages2", "avg")));
+        leftProject = as(eval.child(), EsqlProject.class);
+        assertMap(Expressions.names(leftProject.projections()), is(List.of("salary", "languages1", "languages")));
+        var mvAvgEval = as(leftProject.child(), Eval.class);
+        assertMap(Expressions.names(mvAvgEval.fields()), is(List.of("languages1")));
+        assertThat(mvAvgEval.fields().getFirst(), instanceOf(Alias.class));
+        var mvAvgAlias = mvAvgEval.fields().getFirst();
+        assertThat(mvAvgAlias.child(), instanceOf(MvAvg.class));
+        as(leftEval.child(), EsRelation.class);
     }
 }

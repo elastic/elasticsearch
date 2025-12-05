@@ -13,8 +13,12 @@ import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.junit.BeforeClass;
 
 import java.time.Duration;
@@ -28,6 +32,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PromqlParserTests extends ESTestCase {
@@ -37,6 +42,16 @@ public class PromqlParserTests extends ESTestCase {
     @BeforeClass
     public static void checkPromqlEnabled() {
         assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
+    }
+
+    public void testNoParenthesis() {
+        Stream.of(
+            parse("PROMQL index=test step=5m avg(foo)"),
+            parse("PROMQL index=test step=5m avg by (host) (foo)"),
+            parse("PROMQL index=test step=5m avg by (pod) (avg_over_time(network.bytes_in{pod=~\"host-0|host-1|host-2\"}[1h]))")
+        ).map(PromqlCommand::step).forEach(step -> {
+            assertThat(step.value(), equalTo(Duration.ofMinutes(5)));
+        });
     }
 
     public void testSpaceBetweenAssignParams() {
@@ -211,6 +226,29 @@ public class PromqlParserTests extends ESTestCase {
         List<UnresolvedRelation> unresolvedRelations = promqlCommand.collect(UnresolvedRelation.class);
         assertThat(unresolvedRelations, hasSize(1));
         assertThat(unresolvedRelations.getFirst().indexPattern().indexPattern(), equalTo("*:foo,foo"));
+    }
+
+    public void testExplain() {
+        assertExplain("""
+            PROMQL index=k8s step=5m ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
+            | LIMIT 1000
+            """, AcrossSeriesAggregate.class);
+        assertExplain("""
+            PROMQL index=k8s step=5m avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))
+            | LIMIT 1000
+            """, AcrossSeriesAggregate.class);
+        assertExplain(
+            "PROMQL index=k8s step=5m avg by (pod) (avg_over_time(network.bytes_in{pod=~\"host-0|host-1|host-2\"}[1h]))",
+            AcrossSeriesAggregate.class
+        );
+        assertExplain("PROMQL index=k8s step=5m foo", InstantSelector.class);
+    }
+
+    public void assertExplain(String query, Class<? extends UnaryPlan> promqlCommandClass) {
+        var plan = parser.createStatement("EXPLAIN ( " + query + " )");
+        Explain explain = plan.collect(Explain.class).getFirst();
+        PromqlCommand promqlCommand = explain.query().collect(PromqlCommand.class).getFirst();
+        assertThat(promqlCommand.promqlPlan(), instanceOf(promqlCommandClass));
     }
 
     private static PromqlCommand parse(String query) {

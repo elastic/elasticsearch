@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -24,7 +24,7 @@ import java.util.Objects;
 /**
  * Represents a single view definition, which is simply a name and a query string.
  */
-public final class View implements Writeable, ToXContentFragment {
+public final class View implements Writeable, ToXContentObject {
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField QUERY = new ParseField("query");
 
@@ -84,8 +84,10 @@ public final class View implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field(NAME.getPreferredName(), name);
         builder.field(QUERY.getPreferredName(), query);
+        builder.endObject();
         return builder;
     }
 

@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -48,12 +49,19 @@ public final class ViewMetadata extends AbstractNamedDiffable<Metadata.ProjectCu
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ViewMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "view_metadata",
-        false,
+        true,
         (args, ctx) -> new ViewMetadata((Map<String, View>) args[0])
     );
 
     static {
-        PARSER.declareObjectArrayOrNull(ConstructingObjectParser.constructorArg(), (p, c) -> View.fromXContent(p), VIEWS);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
+            Map<String, View> views = new HashMap<>();
+            while (p.nextToken() != XContentParser.Token.END_OBJECT) {
+                String name = p.currentName();
+                views.put(name, View.fromXContent(p));
+            }
+            return views;
+        }, VIEWS);
     }
 
     public static ViewMetadata fromXContent(XContentParser parser) throws IOException {
@@ -109,7 +117,7 @@ public final class ViewMetadata extends AbstractNamedDiffable<Metadata.ProjectCu
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.array(VIEWS.getPreferredName(), views.values().iterator());
+        return ChunkedToXContentHelper.xContentObjectFields(VIEWS.getPreferredName(), views);
     }
 
     public static class ViewIterator implements Iterator<ToXContent> {

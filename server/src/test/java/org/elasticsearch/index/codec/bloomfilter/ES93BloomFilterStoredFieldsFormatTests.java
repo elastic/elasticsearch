@@ -10,12 +10,14 @@
 package org.elasticsearch.index.codec.bloomfilter;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.StoredFieldsFormat;
+import org.apache.lucene.codecs.StoredFieldsReader;
+import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -29,14 +31,13 @@ import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.codecs.asserting.AssertingCodec;
-import org.apache.lucene.tests.index.BaseStoredFieldsFormatTestCase;
-import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -49,40 +50,21 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ES93BloomFilterStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase {
-
-    static {
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
-
-    @Override
-    protected Codec getCodec() {
-        return new AssertingCodec() {
-            @Override
-            public StoredFieldsFormat storedFieldsFormat() {
-                var bloomFilterSizeInKb = atLeast(2);
-                return new ES93BloomFilterStoredFieldsFormat(
-                    BigArrays.NON_RECYCLING_INSTANCE,
-                    "",
-                    TestUtil.getDefaultCodec().storedFieldsFormat(),
-                    ByteSizeValue.ofKb(bloomFilterSizeInKb),
-                    IdFieldMapper.NAME
-                );
-            }
-        };
-    }
-
-    @Override
-    protected void addRandomFields(Document doc) {
-
-    }
-
+public class ES93BloomFilterStoredFieldsFormatTests extends ESTestCase {
     public void testBloomFilterFieldIsNotStoredAndBloomFilterCanBeChecked() throws IOException {
         try (var directory = newDirectory()) {
             Analyzer analyzer = new MockAnalyzer(random());
             IndexWriterConfig conf = newIndexWriterConfig(analyzer);
-            conf.setCodec(getCodec());
+            var bloomFilterSizeInKb = atLeast(2);
+            conf.setCodec(
+                new TestCodec(
+                    new ES93BloomFilterStoredFieldsFormat(
+                        BigArrays.NON_RECYCLING_INSTANCE,
+                        ByteSizeValue.ofKb(bloomFilterSizeInKb),
+                        IdFieldMapper.NAME
+                    )
+                )
+            );
             conf.setMergePolicy(newLogMergePolicy());
             // We want to have at most 1 segment
             conf.setMaxBufferedDocs(200);
@@ -106,14 +88,11 @@ public class ES93BloomFilterStoredFieldsFormatTests extends BaseStoredFieldsForm
             Analyzer analyzer = new MockAnalyzer(random());
             IndexWriterConfig conf = newIndexWriterConfig(analyzer);
             var randomBloomFilterSizes = random().nextBoolean();
-            conf.setCodec(new AssertingCodec() {
-                @Override
-                public StoredFieldsFormat storedFieldsFormat() {
-                    var bloomFilterSizeInKb = atLeast(2);
-                    return new ES93BloomFilterStoredFieldsFormat(
+            var bloomFilterSizeInKb = atLeast(2);
+            conf.setCodec(
+                new TestCodec(
+                    new ES93BloomFilterStoredFieldsFormat(
                         BigArrays.NON_RECYCLING_INSTANCE,
-                        "",
-                        TestUtil.getDefaultCodec().storedFieldsFormat(),
                         ByteSizeValue.ofKb(bloomFilterSizeInKb),
                         IdFieldMapper.NAME
                     ) {
@@ -129,9 +108,10 @@ public class ES93BloomFilterStoredFieldsFormatTests extends BaseStoredFieldsForm
                             }
                             return super.getBloomFilterSizeInBits();
                         }
-                    };
-                }
-            });
+                    }
+
+                )
+            );
             conf.setMergePolicy(new FilterMergePolicy(newLogMergePolicy()) {
                 @Override
                 public boolean useCompoundFile(SegmentInfos infos, SegmentCommitInfo mergedInfo, MergeContext mergeContext) {
@@ -174,8 +154,7 @@ public class ES93BloomFilterStoredFieldsFormatTests extends BaseStoredFieldsForm
     private void assertBloomFilterTestsPositiveForExistingDocs(IndexWriter writer, List<BytesRef> indexedIds) throws IOException {
         try (var directoryReader = StandardDirectoryReader.open(writer)) {
             for (LeafReaderContext leaf : directoryReader.leaves()) {
-                try (ES93BloomFilterStoredFieldsFormat.BloomFilterProvider fieldReader = getBloomFilterProvider(leaf)) {
-                    var bloomFilter = fieldReader.getBloomFilter();
+                try (BloomFilter bloomFilter = getBloomFilter(leaf)) {
                     // the bloom filter reader is null only if the _id field is not stored during indexing
                     assertThat(bloomFilter, is(not(nullValue())));
 
@@ -201,20 +180,33 @@ public class ES93BloomFilterStoredFieldsFormatTests extends BaseStoredFieldsForm
         }
     }
 
-    private static BytesRef getBytesRefFromString(String random) {
-        return new BytesRef(random.getBytes(StandardCharsets.UTF_8));
+    private static BytesRef getBytesRefFromString(String string) {
+        return new BytesRef(string.getBytes(StandardCharsets.UTF_8));
     }
 
-    private ES93BloomFilterStoredFieldsFormat.BloomFilterProvider getBloomFilterProvider(LeafReaderContext leafReaderContext)
-        throws IOException {
+    private BloomFilter getBloomFilter(LeafReaderContext leafReaderContext) throws IOException {
         LeafReader reader = leafReaderContext.reader();
-        var fieldInfos = reader.getFieldInfos();
+        FieldInfos fieldInfos = reader.getFieldInfos();
         assertThat(reader, is(instanceOf(SegmentReader.class)));
         SegmentReader segmentReader = (SegmentReader) reader;
         SegmentInfo si = segmentReader.getSegmentInfo().info;
 
-        var storedFieldsReader = si.getCodec().storedFieldsFormat().fieldsReader(si.dir, si, fieldInfos, IOContext.DEFAULT);
-        assertThat(storedFieldsReader, is(instanceOf(ES93BloomFilterStoredFieldsFormat.BloomFilterProvider.class)));
-        return ((ES93BloomFilterStoredFieldsFormat.BloomFilterProvider) storedFieldsReader);
+        StoredFieldsReader storedFieldsReader = si.getCodec().storedFieldsFormat().fieldsReader(si.dir, si, fieldInfos, IOContext.DEFAULT);
+
+        assertThat(storedFieldsReader, is(instanceOf(BloomFilter.class)));
+        return (BloomFilter) storedFieldsReader;
+    }
+
+    static class TestCodec extends AssertingCodec {
+        private final StoredFieldsFormat storedFieldsFormat;
+
+        TestCodec(ES93BloomFilterStoredFieldsFormat bloomFilterStoredFieldsFormat) {
+            this.storedFieldsFormat = new TSDBStoredFieldsFormat(new Lucene90StoredFieldsFormat(), bloomFilterStoredFieldsFormat);
+        }
+
+        @Override
+        public StoredFieldsFormat storedFieldsFormat() {
+            return storedFieldsFormat;
+        }
     }
 }

@@ -103,6 +103,13 @@ public class SecurityMigrations {
         )
     );
 
+    /**
+     * @return The highest migration version that is currently defined
+     */
+    public static int highestMigrationVersion() {
+        return MIGRATIONS_BY_VERSION.lastKey();
+    }
+
     public static class RoleMetadataFlattenedMigration implements SecurityMigration {
 
         @Override

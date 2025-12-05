@@ -12,6 +12,16 @@
         "ef_construction": 100
       }
     },
+    "bfloat16_vector": {
+      "type": "dense_vector",
+      "similarity": "l2_norm",
+      "element_type": "bfloat16",
+      "index_options": {
+        "type": "hnsw",
+        "m": 16,
+        "ef_construction": 100
+      }
+    },
     "byte_vector": {
       "type": "dense_vector",
       "similarity": "l2_norm",

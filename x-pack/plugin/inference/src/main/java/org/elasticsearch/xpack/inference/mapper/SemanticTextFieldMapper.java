@@ -1048,6 +1048,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
                         MlDenseEmbeddingResults textEmbeddingResults = (MlDenseEmbeddingResults) inferenceResults;
                         float[] inference = textEmbeddingResults.getInferenceAsFloat();
+                        //TODO(mromaios): does this need changing for bfloat16
                         int dimensions = modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BIT
                             ? inference.length * Byte.SIZE // Bit vectors encode 8 dimensions into each byte value
                             : inference.length;

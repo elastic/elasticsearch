@@ -7,11 +7,13 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.FirstDocIdGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -21,16 +23,22 @@ import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.BytesRefLongBlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -213,7 +221,65 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             }
         } else {
             super.evaluateAggregator(aggregator, blocks, offset, selected, evaluationContext);
+            if (aggregator.aggregatorFunction() instanceof FirstDocIdGroupingAggregatorFunction) {
+                BytesRefBlock hash = (BytesRefBlock) blocks[0];
+                OrdinalBytesRefBlock tsid = hash.asOrdinals();
+                if (tsid != null) {
+                    try {
+                        blocks[0] = normalizeOrdinalsForTsId(tsid);
+                    } finally {
+                        hash.close();
+                    }
+                }
+            }
         }
+    }
+
+    /**
+     * Normalizes ordinals so that each unique tsid uses the first ordinal encountered for that tsid.
+     * Example:
+     * tsids:      [tsid-1, tsid-2, tsid-1, tsid-3, tsid-2]
+     * ordinals:   [1,      2,      5,      3,      7]
+     * new ordina: [1,      2,      1,      3,      2]
+     * sorted:     [1,      1,      2,      2,      3]
+     */
+    private OrdinalBytesRefBlock normalizeOrdinalsForTsId(OrdinalBytesRefBlock tsidBlock) {
+        BlockFactory blockFactory = driverContext.blockFactory();
+        IntBlock ordinalsBlock = tsidBlock.getOrdinalsBlock();
+        BytesRefVector dictionary = tsidBlock.getDictionaryVector();
+        int positionCount = ordinalsBlock.getPositionCount();
+
+        IntBlock newOrdinalsBlock = null;
+        BytesRef scratch = new BytesRef();
+        HashMap<Object, Integer> tsidToFirstOrdinal = new HashMap<>();
+        OrdinalBytesRefBlock result;
+
+        try (IntBlock.Builder ordinalsBuilder = blockFactory.newIntBlockBuilder(positionCount)) {
+            for (int pos = 0; pos < positionCount; pos++) {
+                if (ordinalsBlock.isNull(pos)) {
+                    ordinalsBuilder.appendNull();
+                    continue;
+                }
+
+                int firstValueIndex = ordinalsBlock.getFirstValueIndex(pos);
+                int originalOrdinal = ordinalsBlock.getInt(firstValueIndex);
+                dictionary.getBytesRef(originalOrdinal, scratch);
+                Object tsidValue = TimeSeriesIdFieldMapper.encodeTsid(scratch);
+                int normalizedOrdinal = tsidToFirstOrdinal.computeIfAbsent(tsidValue, k -> originalOrdinal);
+                ordinalsBuilder.appendInt(normalizedOrdinal);
+            }
+            newOrdinalsBlock = ordinalsBuilder.mvOrdering(ordinalsBlock.mvOrdering()).build();
+
+            result = new OrdinalBytesRefBlock(newOrdinalsBlock, dictionary);
+            dictionary.incRef();
+            newOrdinalsBlock = null;
+        } finally {
+            if (newOrdinalsBlock != null) {
+                newOrdinalsBlock.close();
+            }
+        }
+
+        return result;
     }
 
     private static IntVector selectedForValuesAggregator(BlockFactory blockFactory, IntVector selected, ExpandingGroups expandingGroups) {

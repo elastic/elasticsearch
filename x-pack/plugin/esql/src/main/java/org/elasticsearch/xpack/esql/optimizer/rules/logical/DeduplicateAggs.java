@@ -13,7 +13,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
  * becomes
  * stats a = min(x), c = count(*) by g | eval b = a, d = c | keep a, b, c, d, g
  */
-public final class DeduplicateAggs extends ReplaceAggregateAggExpressionWithEval {
+public final class DeduplicateAggs extends ReplaceAggregateAggExpressionWithEval implements OptimizerRules.CoordinatorOnly {
 
     public DeduplicateAggs() {
         super(false);

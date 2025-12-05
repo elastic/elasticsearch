@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
@@ -68,8 +69,11 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                 newRules.add(new LocalPropagateEmptyRelation());
             } else if (r instanceof ReplaceStatsFilteredAggWithEval) {
                 // skip it: once a fragment contains an Agg, this can no longer be pruned, which the rule can do
-            } else {
-                newRules.add(r);
+            } else if (r instanceof OptimizerRules.LocalAware<?> localAware) {
+                Rule<?, LogicalPlan> local = localAware.local();
+                if (local != null) {
+                    newRules.add(local);
+                }
             }
         }
 

@@ -258,8 +258,8 @@ public class PackageTests extends PackagingTestCase {
                 final String nodesStatsResponse = makeRequest("https://localhost:9200/_nodes/stats");
                 assertThat(nodesStatsResponse, containsString("\"adjusted_total_in_bytes\":891289600"));
 
-                // 40% of (850MB - 120MB overhead) = 40% of 730MB
-                assertThat(sh.run("ps auwwx").stdout(), containsString("-Xms292m -Xmx292m"));
+                // 40% of (850MB - 100MB overhead) = 40% of 750MB
+                assertThat(sh.run("ps auwwx").stdout(), containsString("-Xms300m -Xmx300m"));
 
                 stopElasticsearch();
             });

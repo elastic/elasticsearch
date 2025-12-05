@@ -507,8 +507,8 @@ public class ArchiveTests extends PackagingTestCase {
             final String nodesStatsResponse = makeRequest("https://localhost:9200/_nodes/stats");
             assertThat(nodesStatsResponse, containsString("\"adjusted_total_in_bytes\":891289600"));
             final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
-            // 40% of (850MB - 120MB overhead) = 40% of 730MB
-            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":306184192"));
+            // 40% of (850MB - 100MB overhead) = 40% of 750MB
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":314572800"));
 
             stopElasticsearch();
         } finally {

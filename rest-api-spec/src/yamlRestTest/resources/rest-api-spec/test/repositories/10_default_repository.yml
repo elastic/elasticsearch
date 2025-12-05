@@ -1,0 +1,186 @@
+---
+setup:
+  # Create two test repositories without verification
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_1
+        verify: false
+        body:
+          type: fs
+          settings:
+            location: "test_repo_1_loc"
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_2
+        verify: false
+        body:
+          type: fs
+          settings:
+            location: "test_repo_2_loc"
+
+---
+teardown:
+  # Clean up cluster settings
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: null
+
+  # Clean up repositories (if they still exist)
+  - do:
+      catch: missing
+      snapshot.delete_repository:
+        repository: test_repo_1
+
+  - do:
+      catch: missing
+      snapshot.delete_repository:
+        repository: test_repo_2
+
+---
+"Set and validate default repository":
+  # Set first repo as default
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: "test_repo_1"
+
+  - match: { persistent.repositories.default_repository: "test_repo_1" }
+
+  # Verify the setting is persisted
+  - do:
+      cluster.get_settings:
+        flat_settings: false
+
+  - match: { persistent.repositories.default_repository: "test_repo_1" }
+
+  # Clean up: clear the default setting
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: null
+
+---
+"Cannot delete default repository":
+  # Set first repo as default
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: "test_repo_1"
+
+  # Try to delete the default repository - should fail
+  - do:
+      catch: /cannot delete the default repository/
+      snapshot.delete_repository:
+        repository: test_repo_1
+
+  # Verify repo still exists
+  - do:
+      snapshot.get_repository:
+        repository: test_repo_1
+
+  - is_true: test_repo_1
+
+  # Clean up: clear the default setting
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: null
+
+---
+"Cannot set non-existent repository as default":
+  # Try to set a non-existent repository as default
+  - do:
+      catch: /Repository \[non_existent_repo\] is not registered/
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: "non_existent_repo"
+
+---
+"Change default repository and delete previous default":
+  # Set first repo as default
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: "test_repo_1"
+
+  # Change default to second repo
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: "test_repo_2"
+
+  - match: { persistent.repositories.default_repository: "test_repo_2" }
+
+  # Now we can delete first repo (no longer default)
+  - do:
+      snapshot.delete_repository:
+        repository: test_repo_1
+
+  - match: { acknowledged: true }
+
+  # Verify first repo is gone
+  - do:
+      catch: missing
+      snapshot.get_repository:
+        repository: test_repo_1
+
+  # Verify second repo still exists and is default
+  - do:
+      snapshot.get_repository:
+        repository: test_repo_2
+
+  - is_true: test_repo_2
+
+  - do:
+      cluster.get_settings: {}
+
+  - match: { persistent.repositories.default_repository: "test_repo_2" }
+
+  # Clean up: clear the default setting
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: null
+
+---
+"Clear default repository setting":
+  # Set a repository as default
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: "test_repo_1"
+
+  # Clear the default by setting to null
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: null
+
+  - match: { persistent: {} }
+
+  # Verify the setting is cleared
+  - do:
+      cluster.get_settings: {}
+
+  - is_false: persistent.repositories.default_repository
+
+  # Now we can delete the repository
+  - do:
+      snapshot.delete_repository:
+        repository: test_repo_1
+
+  - match: { acknowledged: true }
+

@@ -111,6 +111,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         Setting.Property.NodeScope
     );
 
+    /**
+     * Setting that specifies the default repository to use for snapshot and restore operations when no repository is explicitly
+     * specified. If not set, snapshot and restore operations will require an explicit repository name.
+     */
+    public static final Setting<String> DEFAULT_REPOSITORY_SETTING = Setting.simpleString(
+        "repositories.default_repository",
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final Map<String, Repository.Factory> typesRegistry;
     private final Map<String, Repository.Factory> internalTypesRegistry;
 
@@ -124,6 +134,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private final RepositoriesStatsArchive repositoriesStatsArchive;
 
     private final List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks;
+
+    private volatile String defaultRepository;
 
     @SuppressWarnings("this-escape")
     public RepositoriesService(
@@ -154,7 +166,61 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             threadPool.relativeTimeInMillisSupplier()
         );
         this.preRestoreChecks = preRestoreChecks;
+        this.defaultRepository = DEFAULT_REPOSITORY_SETTING.get(settings);
+        if (DiscoveryNode.isMasterNode(settings)) {
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(DEFAULT_REPOSITORY_SETTING, this::setDefaultRepository, this::validateDefaultRepository);
+        }
         snapshotMetrics.createSnapshotShardsInProgressMetric(this::getShardSnapshotsInProgress);
+    }
+
+    /**
+     * Gets the configured default repository.
+     *
+     * @return the default repository name, or an empty string if not configured
+     */
+    public String getDefaultRepository() {
+        return defaultRepository;
+    }
+
+    /**
+     * Sets the default repository value.
+     * This is called by the settings update consumer when the setting changes.
+     *
+     * @param repositoryName the new default repository name
+     */
+    private void setDefaultRepository(String repositoryName) {
+        this.defaultRepository = repositoryName;
+    }
+
+    /**
+     * Validates that the default repository exists and is registered.
+     * This validator is called when the default repository setting is updated.
+     * Empty strings are allowed to clear the default repository setting.
+     *
+     * @param repositoryName the repository name to validate
+     * @throws IllegalArgumentException if the repository name is not empty and the repository doesn't exist
+     */
+    private void validateDefaultRepository(String repositoryName) {
+        // Allow empty string to clear the setting
+        if (Strings.isEmpty(repositoryName)) {
+            logger.info("Default repository cleared");
+            return;
+        }
+
+        Repository repository = repositoryOrNull(ProjectId.DEFAULT, repositoryName);
+        if (repository == null) {
+            throw new IllegalArgumentException(
+                "Repository ["
+                    + repositoryName
+                    + "] is not registered. "
+                    + "Cannot set as default repository. Please register the repository first using PUT /_snapshot/"
+                    + repositoryName
+            );
+        }
+
+        // Repository exists, validation passed
+        logger.info("Default repository set to [{}]", repositoryName);
     }
 
     /**
@@ -568,6 +634,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
                     if (Regex.simpleMatch(request.name(), repositoryMetadata.name())) {
                         ensureRepositoryNotInUse(projectState, repositoryMetadata.name());
+                        ensureRepositoryNotDefault(currentState, repositoryMetadata.name());
                         ensureNoSearchableSnapshotsIndicesInUse(currentState, repositoryMetadata);
                         deletedRepositories.add(repositoryMetadata.name());
                         changed = true;
@@ -1132,6 +1199,24 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             if (repository.equals(entry.snapshot().getRepository())) {
                 throw newRepositoryConflictException(repository, "snapshot restore is in progress");
             }
+        }
+    }
+
+    /**
+     * Ensures that the repository being deleted is not currently set as the default repository.
+     *
+     * @param currentState the current cluster state
+     * @param repository the repository name to check
+     * @throws RepositoryException if the repository is the default repository
+     */
+    private static void ensureRepositoryNotDefault(ClusterState currentState, String repository) {
+        String defaultRepository = DEFAULT_REPOSITORY_SETTING.get(currentState.metadata().settings());
+        if (Strings.isEmpty(defaultRepository) == false && repository.equals(defaultRepository)) {
+            throw newRepositoryConflictException(
+                repository,
+                "cannot delete the default repository. Please change the default repository cluster setting "
+                    + "repositories.default_repository before deleting this repository."
+            );
         }
     }
 

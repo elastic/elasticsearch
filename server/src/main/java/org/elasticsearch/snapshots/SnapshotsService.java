@@ -199,21 +199,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         Setting.Property.Dynamic
     );
 
-    /**
-     * Setting that specifies the default repository to use for snapshot operations when no repository is explicitly specified.
-     * If not set, snapshot operations will require an explicit repository name.
-     */
-    public static final Setting<String> DEFAULT_SNAPSHOT_REPOSITORY_SETTING = Setting.simpleString(
-        "snapshot.default_repository",
-        "",
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic,
-        Setting.Property.ServerlessPublic
-    );
-
     private volatile int maxConcurrentOperations;
-
-    private volatile String defaultRepository;
 
     public SnapshotsService(
         Settings settings,
@@ -239,8 +225,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             maxConcurrentOperations = MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.get(settings);
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
-            defaultRepository = DEFAULT_SNAPSHOT_REPOSITORY_SETTING.get(settings);
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_SNAPSHOT_REPOSITORY_SETTING, s -> defaultRepository = s);
         }
         this.systemIndices = systemIndices;
         this.serializeProjectMetadata = serializeProjectMetadata;
@@ -253,15 +237,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         );
 
         this.shardSnapshotUpdateCompletionHandler = this::handleShardSnapshotUpdateCompletion;
-    }
-
-    /**
-     * Gets the configured default snapshot repository.
-     *
-     * @return the default repository name, or an empty string if not configured
-     */
-    public String getDefaultRepository() {
-        return defaultRepository;
     }
 
     /**

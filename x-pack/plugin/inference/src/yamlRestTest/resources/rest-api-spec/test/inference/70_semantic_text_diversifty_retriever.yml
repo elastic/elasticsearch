@@ -1,0 +1,127 @@
+setup:
+  - requires:
+      cluster_features: [ "retriever.result_diversification_mmr" ]
+      reason: "Added retriever for result diversification using MMR"
+
+  - requires:
+      test_runner_features:
+        - contains
+        - headers
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-result-diversification-index
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              textbody:
+                type: text
+              keywordfield:
+                type: keyword
+              textvector:
+                type: dense_vector
+                dims: 4
+
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: test-result-diversification-index
+        refresh: true
+        body: |
+          {"index":{}}
+          {"textbody": "first text", "textvector": [0.4, 0.2, 0.4, 0.4], "keywordfield": "test1"}
+          {"index":{}}
+          {"textbody": "second text", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2"}
+          {"index":{}}
+          {"textbody": "second text duplicate", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2_dup"}
+          {"index":{}}
+          {"textbody": "third text", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3"}
+          {"index":{}}
+          {"textbody": "third text duplicate", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3_dup"}
+          {"index":{}}
+          {"textbody": "fourth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test4"}
+          {"index":{}}
+          {"textbody": "fifth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test5"}
+          {"index":{}}
+          {"textbody": "sixth text", "textvector": [0.05, 0.05, 0.05, 0.05], "keywordfield": "test6"}
+          {"index":{}}
+          {"textbody": "seventh text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test7"}
+          {"index":{}}
+          {"textbody": "eighth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test8"}
+          {"index":{}}
+          {"textbody": "ninth text", "textvector": [0.05, 0.05, 0.05, 0.05], "keywordfield": "test9"}
+
+---
+"MMR diversification using a query_vector_builder":
+  - do:
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.3
+              query_vector_builder:
+                text_embedding:
+                  model_id: dense-inference-id
+                  model_text: test
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 10
+                  num_candidates: 10
+
+  - match: { hits.total.value: 10 }
+  - length: { hits.hits: 3 }
+
+---
+"Validate query_vector or query_vector_builder but not both":
+
+  - do:
+      catch: /\[diversify\] MMR result diversification can have one of \[query_vector\] or \[query_vector_builder\], but not both/
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.3
+              query_vector: [ 0.4, 0.2, 0.3, 0.3 ]
+              query_vector_builder:
+                text_embedding:
+                  model_id: dense-inference-id
+                  model_text: test
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 10
+                  num_candidates: 10
+
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }

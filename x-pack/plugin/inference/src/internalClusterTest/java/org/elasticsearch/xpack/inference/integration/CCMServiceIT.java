@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureFlag;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMModel;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -34,9 +35,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.AUTH_TASK_ACTION;
-import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.EMPTY_AUTH_RESPONSE;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.assertChatCompletionEndpointExists;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.getEisEndpoints;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.removeEisPreconfiguredEndpoints;
@@ -45,6 +44,7 @@ import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExe
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.waitForTask;
 import static org.elasticsearch.xpack.inference.integration.ModelRegistryIT.buildElserModelConfig;
 import static org.elasticsearch.xpack.inference.registry.ModelRegistryTests.assertStoreModel;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_EMPTY_RESPONSE;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
@@ -54,6 +54,7 @@ public class CCMServiceIT extends CCMSingleNodeIT {
 
     private static final MockWebServer webServer = new MockWebServer();
     private static String gatewayUrl;
+    private static String chatCompletionResponseBody;
 
     private AuthorizationTaskExecutor authorizationTaskExecutor;
     private ModelRegistry modelRegistry;
@@ -83,6 +84,9 @@ public class CCMServiceIT extends CCMSingleNodeIT {
 
         webServer.start();
         gatewayUrl = getUrl(webServer);
+        chatCompletionResponseBody = ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse(
+            gatewayUrl
+        ).responseJson();
     }
 
     @Before
@@ -157,7 +161,7 @@ public class CCMServiceIT extends CCMSingleNodeIT {
         assertThat(eisEndpoints, empty());
 
         webServer.clearRequests();
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionResponseBody));
         var listener = new TestPlainActionFuture<Void>();
         ccmService.get().storeConfiguration(new CCMModel(new SecureString(API_KEY.toCharArray())), listener);
         listener.actionGet(TimeValue.THIRTY_SECONDS);
@@ -192,7 +196,7 @@ public class CCMServiceIT extends CCMSingleNodeIT {
         waitForNoTask(AUTH_TASK_ACTION, admin());
 
         webServer.clearRequests();
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMPTY_AUTH_RESPONSE));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EIS_EMPTY_RESPONSE));
         var listener = new TestPlainActionFuture<Void>();
         ccmService.get().storeConfiguration(new CCMModel(new SecureString(API_KEY.toCharArray())), listener);
         listener.actionGet(TimeValue.THIRTY_SECONDS);

@@ -344,17 +344,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         } else {
             this.queryName = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
-        } else {
-            this.queryVectorBuilder = null;
-        }
+        this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
         this.querySupplier = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            this.similarity = in.readOptionalFloat();
-        } else {
-            this.similarity = null;
-        }
+        this.similarity = in.readOptionalFloat();
         if (in.getTransportVersion().onOrAfter(V_8_11_X)) {
             this.innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
         }
@@ -609,21 +601,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeOptionalString(queryName);
         }
-        if (out.getTransportVersion().before(TransportVersions.V_8_7_0) && queryVectorBuilder != null) {
-            throw new IllegalArgumentException(
-                format(
-                    "cannot serialize [%s] to older node of version [%s]",
-                    QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
-                    out.getTransportVersion()
-                )
-            );
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            out.writeOptionalNamedWriteable(queryVectorBuilder);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalFloat(similarity);
-        }
+        out.writeOptionalNamedWriteable(queryVectorBuilder);
+        out.writeOptionalFloat(similarity);
         if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
             out.writeOptionalWriteable(innerHitBuilder);
         }

@@ -1360,7 +1360,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             start = time;
             end = time;
-        } else if (step != null) {
+        } else if (step != null || start != null || end != null) {
             if (start != null || end != null) {
                 if (start == null || end == null) {
                     throw new ParsingException(
@@ -1379,7 +1379,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     );
                 }
             }
-            if (step.isPositive() == false) {
+            if (step == null) {
+                throw new ParsingException(source, "Parameter [{}] must be specified for a range query", STEP);
+            } else if (step.isPositive() == false) {
                 throw new ParsingException(
                     source,
                     "invalid parameter \"step\": zero or negative query resolution step widths are not accepted. "
@@ -1388,7 +1390,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 );
             }
         } else {
-            throw new ParsingException(source, "Parameter [{}] or [{}] is required", STEP, TIME);
+            start = Instant.now();
+            end = start;
         }
         return new PromqlParams(source, start, end, step, indexPattern);
     }

@@ -30,17 +30,21 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.Executor;
 
 public class TransportReshardSplitAction extends TransportAction<TransportReshardSplitAction.SplitRequest, ActionResponse> {
@@ -119,8 +123,15 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
     }
 
     private void handleStartSplitOnSource(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
+        assert task instanceof CancellableTask : "not cancellable";
         SubscribableListener.<Releasable>newForked(
-            l -> splitSourceService.setupTargetShard(request.shardId, request.sourcePrimaryTerm, request.targetPrimaryTerm, l)
+            l -> splitSourceService.setupTargetShard(
+                (CancellableTask) task,
+                request.shardId,
+                request.sourcePrimaryTerm,
+                request.targetPrimaryTerm,
+                l
+            )
         )
             .<ActionResponse>andThen(
                 // Finally, initiate handoff.
@@ -225,6 +236,16 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
 
         public DiscoveryNode sourceNode() {
             return sourceNode;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+        }
+
+        @Override
+        public String getDescription() {
+            return Strings.format("start-split-request-%d", shardId.id());
         }
     }
 }

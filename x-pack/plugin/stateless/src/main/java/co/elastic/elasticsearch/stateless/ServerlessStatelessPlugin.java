@@ -786,9 +786,18 @@ public class ServerlessStatelessPlugin extends Plugin
         );
         components.add(reshardIndexService);
         splitTargetService.set(new SplitTargetService(settings, client, clusterService, reshardIndexService));
+        var taskManager = services.taskManager();
         var splitSourceService = setAndGet(
             this.splitSourceService,
-            new SplitSourceService(client, clusterService, indicesService, commitService, objectStoreService, reshardIndexService)
+            new SplitSourceService(
+                client,
+                clusterService,
+                indicesService,
+                commitService,
+                objectStoreService,
+                reshardIndexService,
+                taskManager
+            )
         );
         components.add(splitSourceService);
 

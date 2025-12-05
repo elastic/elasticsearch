@@ -81,6 +81,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -1027,7 +1028,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             .addListener(listener);
     }
 
-    public void copyShard(ShardId source, ShardId destination, long primaryTerm) throws IOException {
+    public void copyShard(CancellableTask task, ShardId source, ShardId destination, long primaryTerm) throws IOException {
         // TODO
         // This implementation synchronously copies all files on a GENERIC thread pool for simplicity.
         // This method is called early in the resharding sequence and indexing is not blocked at this point
@@ -1049,6 +1050,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
             var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
             for (BlobMetadata blob : blobs.values()) {
+                // A new split request can cancel the ongoing copy
+                task.ensureNotCancelled();
                 // this may race with ongoing deletes as old commits become unreferenced. This is safe because we're
                 // already copying new commits, so we can swallow missing file exceptions here
                 try {

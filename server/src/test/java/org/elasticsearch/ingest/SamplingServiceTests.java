@@ -71,7 +71,7 @@ public class SamplingServiceTests extends ESTestCase {
             .putCustom(
                 SamplingMetadata.TYPE,
                 new SamplingMetadata(
-                    Map.of(indexName, new SamplingConfiguration(1.0, maxSize, ByteSizeValue.ofKb(100), TimeValue.timeValueDays(3), null))
+                    Map.of(indexName, new SamplingConfiguration(1.0, maxSize, ByteSizeValue.ofKb(500), TimeValue.timeValueDays(3), null))
                 )
             );
         projectMetadata = projectBuilder.build();

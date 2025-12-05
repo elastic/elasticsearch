@@ -21,6 +21,7 @@ package org.elasticsearch.index.codec.vectors.es93;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
+import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorEncoding;
@@ -63,6 +64,10 @@ abstract class OffHeapBFloat16VectorValues extends FloatVectorValues {
         this.flatVectorsScorer = flatVectorsScorer;
         bfloatBytes = new byte[dimension * BFloat16.BYTES];
         value = new float[dimension];
+
+        assert (this instanceof HasIndexSlice) == false
+            : "BFloat16 should not implement HasIndexSlice until a bfloat16 scorer is created,"
+                + " else Lucene99MemorySegmentFlatVectorsScorer will try to access 4-byte floats here";
     }
 
     @Override

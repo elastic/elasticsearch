@@ -14,11 +14,13 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openai.request.OpenAiUnifiedChatCompletionRequestEntity;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.xpack.inference.Utils.assertJsonEquals;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createCompletionModel;
@@ -67,4 +69,152 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestEntityTests exte
         assertJsonEquals(jsonString, expectedJson);
     }
 
+    public void testSerialization_NonStreaming_ForCompletion() throws IOException {
+        // Test non-streaming case (used for COMPLETION task type)
+        var unifiedChatInput = new UnifiedChatInput(List.of("What is 2+2?"), ROLE, false);
+        var model = ElasticInferenceServiceCompletionModelTests.createModel("http://eis-gateway.com", "my-model-id");
+        var entity = new ElasticInferenceServiceUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId());
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String jsonString = Strings.toString(builder);
+        String expectedJson = """
+            {
+                "messages": [
+                    {
+                        "content": "What is 2+2?",
+                        "role": "user"
+                    }
+                ],
+                "model": "my-model-id",
+                "n": 1,
+                "stream": false
+            }
+            """;
+        assertJsonEquals(jsonString, expectedJson);
+    }
+
+    public void testSerialization_MultipleInputs_NonStreaming() throws IOException {
+        // Test multiple inputs converted to messages (used for COMPLETION task type)
+        var unifiedChatInput = new UnifiedChatInput(List.of("What is 2+2?", "What is the capital of France?"), ROLE, false);
+        var model = ElasticInferenceServiceCompletionModelTests.createModel("http://eis-gateway.com", "my-model-id");
+        var entity = new ElasticInferenceServiceUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId());
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String jsonString = Strings.toString(builder);
+        String expectedJson = """
+            {
+                "messages": [
+                    {
+                        "content": "What is 2+2?",
+                        "role": "user"
+                    },
+                    {
+                        "content": "What is the capital of France?",
+                        "role": "user"
+                    }
+                ],
+                "model": "my-model-id",
+                "n": 1,
+                "stream": false
+            }
+            """;
+        assertJsonEquals(jsonString, expectedJson);
+    }
+
+    public void testSerialization_EmptyInput_NonStreaming() throws IOException {
+        var unifiedChatInput = new UnifiedChatInput(List.of(""), ROLE, false);
+        var model = ElasticInferenceServiceCompletionModelTests.createModel("http://eis-gateway.com", "my-model-id");
+        var entity = new ElasticInferenceServiceUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId());
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String jsonString = Strings.toString(builder);
+        String expectedJson = """
+            {
+                "messages": [
+                    {
+                        "content": "",
+                        "role": "user"
+                    }
+                ],
+                "model": "my-model-id",
+                "n": 1,
+                "stream": false
+            }
+            """;
+        assertJsonEquals(jsonString, expectedJson);
+    }
+
+    public void testSerialization_AlwaysSetsNToOne_NonStreaming() throws IOException {
+        // Verify n is always 1 regardless of number of inputs
+        var unifiedChatInput = new UnifiedChatInput(List.of("input1", "input2", "input3"), ROLE, false);
+        var model = ElasticInferenceServiceCompletionModelTests.createModel("http://eis-gateway.com", "my-model-id");
+        var entity = new ElasticInferenceServiceUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId());
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String jsonString = Strings.toString(builder);
+        String expectedJson = """
+            {
+                "messages": [
+                    {
+                        "content": "input1",
+                        "role": "user"
+                    },
+                    {
+                        "content": "input2",
+                        "role": "user"
+                    },
+                    {
+                        "content": "input3",
+                        "role": "user"
+                    }
+                ],
+                "model": "my-model-id",
+                "n": 1,
+                "stream": false
+            }
+            """;
+        assertJsonEquals(jsonString, expectedJson);
+    }
+
+    public void testSerialization_AllMessagesHaveUserRole_NonStreaming() throws IOException {
+        // Verify all messages have "user" role when converting from simple inputs
+        var unifiedChatInput = new UnifiedChatInput(List.of("first", "second", "third"), ROLE, false);
+        var model = ElasticInferenceServiceCompletionModelTests.createModel("http://eis-gateway.com", "test-model");
+        var entity = new ElasticInferenceServiceUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId());
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String jsonString = Strings.toString(builder);
+        String expectedJson = """
+            {
+                "messages": [
+                    {
+                        "content": "first",
+                        "role": "user"
+                    },
+                    {
+                        "content": "second",
+                        "role": "user"
+                    },
+                    {
+                        "content": "third",
+                        "role": "user"
+                    }
+                ],
+                "model": "test-model",
+                "n": 1,
+                "stream": false
+            }
+            """;
+        assertJsonEquals(jsonString, expectedJson);
+    }
 }

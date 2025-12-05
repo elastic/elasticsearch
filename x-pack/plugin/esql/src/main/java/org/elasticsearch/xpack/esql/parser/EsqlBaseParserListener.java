@@ -430,6 +430,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#stringOrParameter}.
+   * @param ctx the parse tree
+   */
+  void enterStringOrParameter(EsqlBaseParser.StringOrParameterContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#stringOrParameter}.
+   * @param ctx the parse tree
+   */
+  void exitStringOrParameter(EsqlBaseParser.StringOrParameterContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#limitCommand}.
    * @param ctx the parse tree
    */
@@ -1317,4 +1327,124 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitJoinCondition(EsqlBaseParser.JoinConditionContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#promqlCommand}.
+   * @param ctx the parse tree
+   */
+  void enterPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#promqlCommand}.
+   * @param ctx the parse tree
+   */
+  void exitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#valueName}.
+   * @param ctx the parse tree
+   */
+  void enterValueName(EsqlBaseParser.ValueNameContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#valueName}.
+   * @param ctx the parse tree
+   */
+  void exitValueName(EsqlBaseParser.ValueNameContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#promqlParam}.
+   * @param ctx the parse tree
+   */
+  void enterPromqlParam(EsqlBaseParser.PromqlParamContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#promqlParam}.
+   * @param ctx the parse tree
+   */
+  void exitPromqlParam(EsqlBaseParser.PromqlParamContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#promqlParamName}.
+   * @param ctx the parse tree
+   */
+  void enterPromqlParamName(EsqlBaseParser.PromqlParamNameContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#promqlParamName}.
+   * @param ctx the parse tree
+   */
+  void exitPromqlParamName(EsqlBaseParser.PromqlParamNameContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#promqlParamValue}.
+   * @param ctx the parse tree
+   */
+  void enterPromqlParamValue(EsqlBaseParser.PromqlParamValueContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#promqlParamValue}.
+   * @param ctx the parse tree
+   */
+  void exitPromqlParamValue(EsqlBaseParser.PromqlParamValueContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#promqlQueryContent}.
+   * @param ctx the parse tree
+   */
+  void enterPromqlQueryContent(EsqlBaseParser.PromqlQueryContentContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#promqlQueryContent}.
+   * @param ctx the parse tree
+   */
+  void exitPromqlQueryContent(EsqlBaseParser.PromqlQueryContentContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#promqlQueryPart}.
+   * @param ctx the parse tree
+   */
+  void enterPromqlQueryPart(EsqlBaseParser.PromqlQueryPartContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#promqlQueryPart}.
+   * @param ctx the parse tree
+   */
+  void exitPromqlQueryPart(EsqlBaseParser.PromqlQueryPartContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#promqlIndexPattern}.
+   * @param ctx the parse tree
+   */
+  void enterPromqlIndexPattern(EsqlBaseParser.PromqlIndexPatternContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#promqlIndexPattern}.
+   * @param ctx the parse tree
+   */
+  void exitPromqlIndexPattern(EsqlBaseParser.PromqlIndexPatternContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#promqlClusterString}.
+   * @param ctx the parse tree
+   */
+  void enterPromqlClusterString(EsqlBaseParser.PromqlClusterStringContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#promqlClusterString}.
+   * @param ctx the parse tree
+   */
+  void exitPromqlClusterString(EsqlBaseParser.PromqlClusterStringContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#promqlSelectorString}.
+   * @param ctx the parse tree
+   */
+  void enterPromqlSelectorString(EsqlBaseParser.PromqlSelectorStringContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#promqlSelectorString}.
+   * @param ctx the parse tree
+   */
+  void exitPromqlSelectorString(EsqlBaseParser.PromqlSelectorStringContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#promqlUnquotedIndexString}.
+   * @param ctx the parse tree
+   */
+  void enterPromqlUnquotedIndexString(EsqlBaseParser.PromqlUnquotedIndexStringContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#promqlUnquotedIndexString}.
+   * @param ctx the parse tree
+   */
+  void exitPromqlUnquotedIndexString(EsqlBaseParser.PromqlUnquotedIndexStringContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#promqlIndexString}.
+   * @param ctx the parse tree
+   */
+  void enterPromqlIndexString(EsqlBaseParser.PromqlIndexStringContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#promqlIndexString}.
+   * @param ctx the parse tree
+   */
+  void exitPromqlIndexString(EsqlBaseParser.PromqlIndexStringContext ctx);
 }

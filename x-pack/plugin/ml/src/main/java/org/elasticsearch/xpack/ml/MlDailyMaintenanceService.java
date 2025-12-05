@@ -16,6 +16,8 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -70,6 +72,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
@@ -103,6 +106,7 @@ public class MlDailyMaintenanceService implements Releasable {
     private final boolean isAnomalyDetectionEnabled;
     private final boolean isDataFrameAnalyticsEnabled;
     private final boolean isNlpEnabled;
+    private final boolean isIlmEnabled;
 
     private volatile Scheduler.Cancellable cancellable;
     private volatile float deleteExpiredDataRequestsPerSecond;
@@ -118,7 +122,8 @@ public class MlDailyMaintenanceService implements Releasable {
         IndexNameExpressionResolver expressionResolver,
         boolean isAnomalyDetectionEnabled,
         boolean isDataFrameAnalyticsEnabled,
-        boolean isNlpEnabled
+        boolean isNlpEnabled,
+        boolean isIlmEnabled
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.client = Objects.requireNonNull(client);
@@ -131,6 +136,7 @@ public class MlDailyMaintenanceService implements Releasable {
         this.isAnomalyDetectionEnabled = isAnomalyDetectionEnabled;
         this.isDataFrameAnalyticsEnabled = isDataFrameAnalyticsEnabled;
         this.isNlpEnabled = isNlpEnabled;
+        this.isIlmEnabled = isIlmEnabled;
     }
 
     public MlDailyMaintenanceService(
@@ -143,7 +149,8 @@ public class MlDailyMaintenanceService implements Releasable {
         IndexNameExpressionResolver expressionResolver,
         boolean isAnomalyDetectionEnabled,
         boolean isDataFrameAnalyticsEnabled,
-        boolean isNlpEnabled
+        boolean isNlpEnabled,
+        boolean isIlmEnabled
     ) {
         this(
             settings,
@@ -155,7 +162,8 @@ public class MlDailyMaintenanceService implements Releasable {
             expressionResolver,
             isAnomalyDetectionEnabled,
             isDataFrameAnalyticsEnabled,
-            isNlpEnabled
+            isNlpEnabled,
+            isIlmEnabled
         );
     }
 
@@ -253,41 +261,42 @@ public class MlDailyMaintenanceService implements Releasable {
     }
 
     private void triggerAnomalyDetectionMaintenance() {
-        // Step 5: Log any error that could have happened
-        ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(response -> {
-            if (response.isAcknowledged() == false) {
-                logger.warn("[ML] maintenance task: triggerRollResultsIndicesIfNecessaryTask failed");
-            } else {
-                logger.info("[ML] maintenance task: triggerRollResultsIndicesIfNecessaryTask succeeded");
-            }
-        }, e -> logger.warn("An error occurred during [ML] maintenance tasks execution ", e));
+        // The maintenance tasks are chained, where each subsequent task is executed regardless of whether the previous one
+        // succeeded or failed.
 
-        // Step 4: Roll over results indices if necessary
-        ActionListener<AcknowledgedResponse> rollResultsIndicesIfNecessaryListener = ActionListener.wrap(unused -> {
-            triggerRollResultsIndicesIfNecessaryTask(finalListener);
-        }, e -> {
-            // Note: Steps 1-4 are independent, so continue upon errors.
-            triggerRollResultsIndicesIfNecessaryTask(finalListener);
-        });
+        // Final step: Log completion
+        ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(
+            response -> logger.info("Completed [ML] maintenance tasks"),
+            e -> logger.warn("An error occurred during [ML] maintenance tasks execution", e)
+        );
+
+        // Step 5: Roll over state indices
+        Runnable rollStateIndices = () -> triggerRollStateIndicesIfNecessaryTask(finalListener);
+
+        // Step 4: Roll over results indices
+        Runnable rollResultsIndices = () -> triggerRollResultsIndicesIfNecessaryTask(
+            continueOnFailureListener("roll-state-indices", rollStateIndices)
+        );
 
         // Step 3: Delete expired data
-        ActionListener<AcknowledgedResponse> deleteJobsListener = ActionListener.wrap(unused -> {
-            triggerDeleteExpiredDataTask(rollResultsIndicesIfNecessaryListener);
-        }, e -> {
-            // Note: Steps 1-4 are independent, so continue upon errors.
-            triggerDeleteExpiredDataTask(rollResultsIndicesIfNecessaryListener);
-        });
+        Runnable deleteExpiredData = () -> triggerDeleteExpiredDataTask(
+            continueOnFailureListener("roll-results-indices", rollResultsIndices)
+        );
 
-        // Step 2: Reset jobs that are in resetting state without task
-        ActionListener<AcknowledgedResponse> resetJobsListener = ActionListener.wrap(unused -> {
-            triggerResetJobsInStateResetWithoutResetTask(deleteJobsListener);
-        }, e -> {
-            // Note: Steps 1-4 are independent, so continue upon errors.
-            triggerResetJobsInStateResetWithoutResetTask(deleteJobsListener);
-        });
+        // Step 2: Reset jobs that are in resetting state without a task
+        Runnable resetJobs = () -> triggerResetJobsInStateResetWithoutResetTask(
+            continueOnFailureListener("delete-expired-data", deleteExpiredData)
+        );
 
-        // Step 1: Delete jobs that are in deleting state without task
-        triggerDeleteJobsInStateDeletingWithoutDeletionTask(resetJobsListener);
+        // Step 1: Delete jobs that are in deleting state without a task
+        triggerDeleteJobsInStateDeletingWithoutDeletionTask(continueOnFailureListener("reset-jobs", resetJobs));
+    }
+
+    private ActionListener<AcknowledgedResponse> continueOnFailureListener(String nextTaskName, Runnable next) {
+        return ActionListener.wrap(response -> next.run(), e -> {
+            logger.warn(() -> "A maintenance task failed, but maintenance will continue. Triggering next task [" + nextTaskName + "].", e);
+            next.run();
+        });
     }
 
     private void triggerDataFrameAnalyticsMaintenance() {
@@ -321,7 +330,7 @@ public class MlDailyMaintenanceService implements Releasable {
         );
     }
 
-    private void rollAndUpdateAliases(ClusterState clusterState, String index, ActionListener<Boolean> listener) {
+    private void rollAndUpdateAliases(ClusterState clusterState, String index, List<String> allIndices, ActionListener<Boolean> listener) {
         OriginSettingClient originSettingClient = new OriginSettingClient(client, ML_ORIGIN);
 
         Tuple<String, String> newIndexNameAndRolloverAlias = MlIndexAndAlias.createRolloverAliasAndNewIndexName(index);
@@ -351,7 +360,11 @@ public class MlDailyMaintenanceService implements Releasable {
 
         // 3 Update aliases
         ActionListener<String> rolloverListener = ActionListener.wrap(newIndexNameResponse -> {
-            MlIndexAndAlias.addIndexAliasesRequests(aliasRequestBuilder, index, newIndexNameResponse, clusterState);
+            if (MlIndexAndAlias.isAnomaliesStateIndex(index)) {
+                MlIndexAndAlias.addStateIndexRolloverAliasActions(aliasRequestBuilder, newIndexNameResponse, clusterState, allIndices);
+            } else {
+                MlIndexAndAlias.addResultsIndexRolloverAliasActions(aliasRequestBuilder, newIndexNameResponse, clusterState, allIndices);
+            }
             // On success, the rollover alias may have been moved to the new index, so we attempt to remove it from there.
             // Note that the rollover request is considered "successful" even if it didn't occur due to a condition not being met
             // (no exception will be thrown). In which case the attempt to remove the alias here will fail with an
@@ -374,25 +387,22 @@ public class MlDailyMaintenanceService implements Releasable {
         MlIndexAndAlias.createAliasForRollover(originSettingClient, index, rolloverAlias, getIndicesAliasesListener);
     }
 
-    private String[] findIndicesNeedingRollover(ClusterState clusterState) {
-        // list all indices starting .ml-anomalies-
-        // this includes the shared index and all custom results indices
-        String[] indices = expressionResolver.concreteIndexNames(
-            clusterState,
-            IndicesOptions.lenientExpandOpenHidden(),
-            AnomalyDetectorsIndex.jobResultsIndexPattern()
-        );
-        logger.trace("triggerRollResultsIndicesIfNecessaryTask: indices found: {}", Arrays.toString(indices));
+    private String[] findIndicesMatchingPattern(ClusterState clusterState, String indexPattern) {
+        // list all indices matching the given index pattern
+        String[] indices = expressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpenHidden(), indexPattern);
+        if (logger.isTraceEnabled()) {
+            logger.trace("findIndicesMatchingPattern: indices found: {} matching pattern [{}]", Arrays.toString(indices), indexPattern);
+        }
         return indices;
     }
 
-    private void rolloverIndexSafely(ClusterState clusterState, String index, List<Exception> failures) {
+    private void rolloverIndexSafely(ClusterState clusterState, String index, List<String> allIndices, List<Exception> failures) {
         PlainActionFuture<Boolean> updated = new PlainActionFuture<>();
-        rollAndUpdateAliases(clusterState, index, updated);
+        rollAndUpdateAliases(clusterState, index, allIndices, updated);
         try {
             updated.actionGet();
         } catch (Exception ex) {
-            String message = Strings.format("Failed to rollover ML anomalies index [%s]: %s", index, ex.getMessage());
+            String message = Strings.format("Failed to rollover ML index [%s]: %s", index, ex.getMessage());
             logger.warn(message);
             if (ex instanceof ElasticsearchException elasticsearchException) {
                 failures.add(new ElasticsearchStatusException(message, elasticsearchException.status(), elasticsearchException));
@@ -413,13 +423,47 @@ public class MlDailyMaintenanceService implements Releasable {
         finalListener.onResponse(AcknowledgedResponse.FALSE);
     }
 
+    // Helper function to check for the "index.lifecycle.name" setting on an index
     // public for testing
-    public void triggerRollResultsIndicesIfNecessaryTask(ActionListener<AcknowledgedResponse> finalListener) {
-        logger.info("[ML] maintenance task: triggerRollResultsIndicesIfNecessaryTask");
+
+    /**
+     * Return {@code true} if the index has an ILM policy {@code false} otherwise.
+     * @param indexName The index name to check.
+     * @return {@code true} if the index has an ILM policy {@code false} otherwise.
+     */
+    public boolean hasIlm(String indexName) {
+        // If ILM is not enabled at all in the machine learning plugin then return false.
+        if (isIlmEnabled == false) {
+            return false;
+        }
+
+        GetIndexRequest request = new GetIndexRequest(TimeValue.THIRTY_SECONDS);
+        request.indices(indexName);
+        request.includeDefaults(true); // Request index settings, mappings and aliases
+
+        GetIndexResponse response = client.admin().indices().getIndex(request).actionGet();
+
+        Settings settings = response.getSettings().get(indexName);
+
+        if (settings != null) {
+            String ilmPolicyName = settings.get("index.lifecycle.name");
+            // If the setting is present and not empty, ILM is in force
+            return ilmPolicyName != null && ilmPolicyName.isEmpty() == false;
+        }
+
+        return false;
+    }
+
+    private void triggerRollIndicesIfNecessaryTask(
+        String taskName,
+        String indexPattern,
+        ActionListener<AcknowledgedResponse> finalListener
+    ) {
+        logger.info("[ML] maintenance task: [{}] for index pattern [{}]", taskName, indexPattern);
 
         ClusterState clusterState = clusterService.state();
 
-        String[] indices = findIndicesNeedingRollover(clusterState);
+        String[] indices = findIndicesMatchingPattern(clusterState, indexPattern);
         if (rolloverMaxSize == ByteSizeValue.MINUS_ONE || indices.length == 0) {
             // Early bath
             finalListener.onResponse(AcknowledgedResponse.TRUE);
@@ -428,11 +472,30 @@ public class MlDailyMaintenanceService implements Releasable {
 
         List<Exception> failures = new ArrayList<>();
 
+        // Filter out any indices that have an ILM policy to avoid a potential race when rolling indices.
         Arrays.stream(indices)
-            .filter(index -> MlIndexAndAlias.latestIndexMatchingBaseName(index, expressionResolver, clusterState).equals(index))
-            .forEach(index -> rolloverIndexSafely(clusterState, index, failures));
+            .filter(index -> hasIlm(index) == false)
+            .collect(Collectors.groupingBy(MlIndexAndAlias::baseIndexName))
+            .forEach((baseIndexName, indicesInGroup) -> {
+                rolloverIndexSafely(
+                    clusterState,
+                    MlIndexAndAlias.latestIndex(indicesInGroup.toArray(new String[0])),
+                    indicesInGroup,
+                    failures
+                );
+            });
 
         handleRolloverResults(indices, failures, finalListener);
+    }
+
+    // public for testing
+    public void triggerRollResultsIndicesIfNecessaryTask(ActionListener<AcknowledgedResponse> finalListener) {
+        triggerRollIndicesIfNecessaryTask("roll-results-indices", AnomalyDetectorsIndex.jobResultsIndexPattern(), finalListener);
+    }
+
+    // public for testing
+    public void triggerRollStateIndicesIfNecessaryTask(ActionListener<AcknowledgedResponse> finalListener) {
+        triggerRollIndicesIfNecessaryTask("roll-state-indices", AnomalyDetectorsIndex.jobStateIndexPattern(), finalListener);
     }
 
     private void triggerDeleteExpiredDataTask(ActionListener<AcknowledgedResponse> finalListener) {
@@ -550,6 +613,7 @@ public class MlDailyMaintenanceService implements Releasable {
             }
             chainTaskExecutor.execute(jobsActionListener);
         }, finalListener::onFailure);
+
         ActionListener<GetJobsAction.Response> getJobsActionListener = ActionListener.wrap(getJobsResponse -> {
             Set<String> jobsInState = getJobsResponse.getResponse().results().stream().filter(jobFilter).map(Job::getId).collect(toSet());
             if (jobsInState.isEmpty()) {
@@ -557,7 +621,6 @@ public class MlDailyMaintenanceService implements Releasable {
                 return;
             }
             jobsInStateHolder.set(jobsInState);
-
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
@@ -566,6 +629,7 @@ public class MlDailyMaintenanceService implements Releasable {
                 listTasksActionListener
             );
         }, finalListener::onFailure);
+
         executeAsyncWithOrigin(client, ML_ORIGIN, GetJobsAction.INSTANCE, new GetJobsAction.Request("*"), getJobsActionListener);
     }
 

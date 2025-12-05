@@ -45,6 +45,7 @@ import org.elasticsearch.transport.Transport;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -103,6 +104,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final int skippedCount;
     private final TransportVersion mintransportVersion;
     protected final SearchResponseMetrics searchResponseMetrics;
+    protected final Map<String, Object> searchRequestAttributes;
     protected long phaseStartTimeInNanos;
 
     // protected for tests
@@ -127,7 +129,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchPhaseResults<Result> resultConsumer,
         int maxConcurrentRequestsPerNode,
         SearchResponse.Clusters clusters,
-        SearchResponseMetrics searchResponseMetrics
+        SearchResponseMetrics searchResponseMetrics,
+        Map<String, Object> searchRequestAttributes
     ) {
         super(name);
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -171,6 +174,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         addReleasable(resultConsumer);
         this.clusters = clusters;
         this.searchResponseMetrics = searchResponseMetrics;
+        this.searchRequestAttributes = searchRequestAttributes;
     }
 
     protected void notifyListShards(
@@ -761,7 +765,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardResult(SearchPhaseResult)
      */
     private void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
-        searchResponseMetrics.recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos);
+        searchResponseMetrics.recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos, searchRequestAttributes);
         executeNextPhase(getName(), this::getNextPhase);
     }
 
@@ -785,6 +789,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     public SearchResponseMetrics getSearchResponseMetrics() {
         return searchResponseMetrics;
+    }
+
+    /**
+     * Returns search request attributes used to record attributes for search phase timings in an immutable map.
+     */
+    public Map<String, Object> getSearchRequestAttributes() {
+        return Collections.unmodifiableMap(searchRequestAttributes);
     }
 
     public final void execute(Runnable command) {
@@ -814,7 +825,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             shardIt.getClusterAlias(),
             shardIt.getSearchContextId(),
             shardIt.getSearchContextKeepAlive(),
-            shardIt.getReshardSplitShardCountSummary()
+            shardIt.getSplitShardCountSummary()
         );
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather

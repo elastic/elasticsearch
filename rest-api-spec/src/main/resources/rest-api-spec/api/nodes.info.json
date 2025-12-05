@@ -40,9 +40,12 @@
             "metric": {
               "type": "list",
               "options": [
+                "_all",
+                "_none",
                 "settings",
                 "os",
                 "process",
+                "remote_cluster_server",
                 "jvm",
                 "thread_pool",
                 "transport",
@@ -69,9 +72,12 @@
             "metric": {
               "type": "list",
               "options": [
+                "_all",
+                "_none",
                 "settings",
                 "os",
                 "process",
+                "remote_cluster_server",
                 "jvm",
                 "thread_pool",
                 "transport",
@@ -79,9 +85,7 @@
                 "plugins",
                 "ingest",
                 "indices",
-                "aggregations",
-                "_all",
-                "_none"
+                "aggregations"
               ],
               "description": "A comma-separated list of metrics you wish returned. Use `_all` to retrieve all metrics and `_none` to retrieve the node identity without any additional metrics."
             }

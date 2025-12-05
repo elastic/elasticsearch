@@ -12,6 +12,11 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
 
 /**
  * The SplitShardCountSummary has been added to accommodate in-place index resharding.
@@ -84,7 +89,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingState;
  * will be treated as a Summary mismatch on the source shard node.
  */
 
-public class SplitShardCountSummary {
+public class SplitShardCountSummary implements Writeable {
     public static final SplitShardCountSummary UNSET = new SplitShardCountSummary(0);
 
     /**
@@ -161,13 +166,20 @@ public class SplitShardCountSummary {
 
     /**
      * Construct a SplitShardCountSummary from an integer
-     * Used for deserialization.
+     * Used for deserialization in versions that use int instead of vInt for serialization.
      */
     public static SplitShardCountSummary fromInt(int payload) {
         return new SplitShardCountSummary(payload);
     }
 
     private final int shardCountSummary;
+
+    /**
+     * Deserialize a SplitShardCountSummary using a canonical vInt-based serialization protocol.
+     */
+    public SplitShardCountSummary(StreamInput in) throws IOException {
+        this.shardCountSummary = in.readVInt();
+    }
 
     /**
      * Return an integer representation of this summary
@@ -187,6 +199,14 @@ public class SplitShardCountSummary {
     // visible for testing
     SplitShardCountSummary(int shardCountSummary) {
         this.shardCountSummary = shardCountSummary;
+    }
+
+    /**
+     * Serializes a SplitShardCountSummary using a canonical vInt-based serialization protocol.
+     */
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(shardCountSummary);
     }
 
     @Override

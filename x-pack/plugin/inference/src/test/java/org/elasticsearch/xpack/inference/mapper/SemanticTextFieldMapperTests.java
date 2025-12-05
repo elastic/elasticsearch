@@ -442,19 +442,17 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             if (taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.SPARSE_EMBEDDING) {
                 continue;
             }
-            Exception e = expectThrows(
-                MapperParsingException.class,
-                () -> createMapperService(
-                    fieldMapping(
-                        b -> b.field("type", "semantic_text")
-                            .field(INFERENCE_ID_FIELD, "test1")
-                            .startObject("model_settings")
-                            .field("task_type", taskType)
-                            .endObject()
-                    ),
-                    useLegacyFormat
-                )
-            );
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                b.field("type", "semantic_text")
+                    .field(INFERENCE_ID_FIELD, "test1")
+                    .startObject("model_settings")
+                    .field("task_type", taskType);
+                if (taskType == TaskType.EMBEDDING) {
+                    // These fields are required in order to create MinimalServiceSettings for the EMBEDDING task
+                    b.field("service", "myService").field("dimensions", 128).field("similarity", "cosine").field("element_type", "float");
+                }
+                b.endObject();
+            }), useLegacyFormat));
             assertThat(e.getMessage(), containsString("Wrong [task_type], expected text_embedding or sparse_embedding"));
         }
     }
@@ -1593,6 +1591,22 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             )
         );
         assertMapperService.accept(byteMapperService, DenseVectorFieldMapper.ElementType.BYTE);
+
+        var e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapperServiceForFieldWithModelSettings(
+                fieldName,
+                inferenceId,
+                new MinimalServiceSettings(
+                    "my-service",
+                    TaskType.TEXT_EMBEDDING,
+                    1024,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.BFLOAT16
+                )
+            )
+        );
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
     }
 
     public void testSettingAndUpdatingChunkingSettings() throws IOException {
@@ -1850,7 +1864,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         // These are the default index options for dense_vector fields, and used for semantic_text fields incompatible with BBQ.
         int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
         int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-        return new DenseVectorFieldMapper.Int8HnswIndexOptions(m, efConstruction, null, null);
+        return new DenseVectorFieldMapper.Int8HnswIndexOptions(m, efConstruction, null, false, null);
     }
 
     private static SemanticTextIndexOptions defaultDenseVectorSemanticIndexOptions() {
@@ -1861,7 +1875,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
         int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
         DenseVectorFieldMapper.RescoreVector rescoreVector = new DenseVectorFieldMapper.RescoreVector(DEFAULT_RESCORE_OVERSAMPLE);
-        return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, rescoreVector);
+        return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, false, rescoreVector);
     }
 
     private static SemanticTextIndexOptions defaultBbqHnswSemanticTextIndexOptions() {
@@ -1950,7 +1964,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             null,
             new SemanticTextIndexOptions(
                 SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-                new DenseVectorFieldMapper.Int4HnswIndexOptions(25, 100, null, null)
+                new DenseVectorFieldMapper.Int4HnswIndexOptions(25, 100, null, false, null)
             )
         );
 
@@ -2070,7 +2084,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             null,
             new SemanticTextIndexOptions(
                 SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-                new DenseVectorFieldMapper.Int4HnswIndexOptions(20, 90, 0.4f, null)
+                new DenseVectorFieldMapper.Int4HnswIndexOptions(20, 90, 0.4f, false, null)
             )
         );
 
@@ -2097,7 +2111,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             null,
             new SemanticTextIndexOptions(
                 SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-                new DenseVectorFieldMapper.Int4HnswIndexOptions(16, 100, 0f, null)
+                new DenseVectorFieldMapper.Int4HnswIndexOptions(16, 100, 0f, false, null)
             )
         );
 
@@ -2373,5 +2387,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

@@ -1,6 +1,0 @@
-pr: 137375
-summary: Allow opting out of force-merging on a cloned index in ILM's searchable snapshot
-  action
-area: ILM+SLM
-type: enhancement
-issues: []

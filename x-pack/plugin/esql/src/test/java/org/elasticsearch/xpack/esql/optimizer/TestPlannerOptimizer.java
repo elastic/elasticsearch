@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -59,8 +61,12 @@ public class TestPlannerOptimizer {
     }
 
     public PhysicalPlan plan(String query, SearchStats stats, Analyzer analyzer) {
-        var physical = optimizedPlan(physicalPlan(query, analyzer), stats);
-        return physical;
+        return plan(query, stats, analyzer, null);
+    }
+
+    public PhysicalPlan plan(String query, SearchStats stats, Analyzer analyzer, @Nullable QueryBuilder esFilter) {
+        PhysicalPlan plan = PlannerUtils.integrateEsFilterIntoFragment(physicalPlan(query, analyzer), esFilter);
+        return optimizedPlan(plan, stats);
     }
 
     public PhysicalPlan plan(String query, SearchStats stats, EsqlFlags esqlFlags) {

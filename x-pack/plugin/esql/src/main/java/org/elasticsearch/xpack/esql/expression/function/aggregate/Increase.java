@@ -111,10 +111,12 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
     @Override
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
+        final DataType tsType = timestamp().dataType();
+        final boolean isDateNanos = tsType == DataType.DATE_NANOS;
         return switch (type) {
-            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(false);
-            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(false);
-            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false);
+            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
+            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
+            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
@@ -126,7 +128,7 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
 
     @Override
     public String toString() {
-        return "increase(" + field() + ")";
+        return "increase(" + field() + ", " + timestamp() + ")";
     }
 
     @Override

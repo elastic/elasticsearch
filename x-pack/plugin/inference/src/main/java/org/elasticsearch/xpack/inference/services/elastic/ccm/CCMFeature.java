@@ -17,13 +17,13 @@ public class CCMFeature {
         RestStatus.FORBIDDEN
     );
 
-    private final boolean allowConfiguringCcm;
+    private final boolean isCcmSupportedEnvironment;
 
     public CCMFeature(Settings settings) {
-        allowConfiguringCcm = CCMSettings.ALLOW_CONFIGURING_CCM.get(settings);
+        isCcmSupportedEnvironment = CCMSettings.CCM_SUPPORTED_ENVIRONMENT.get(settings);
     }
 
-    public boolean allowConfiguringCcm() {
-        return allowConfiguringCcm && CCMFeatureFlag.FEATURE_FLAG.isEnabled();
+    public boolean isCcmSupportedEnvironment() {
+        return isCcmSupportedEnvironment && CCMFeatureFlag.FEATURE_FLAG.isEnabled();
     }
 }

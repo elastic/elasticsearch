@@ -32,6 +32,10 @@ public class PercentileErrorTests extends ErrorsForCasesWithoutExamplesTestCase 
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> "numeric except unsigned_long"));
+        return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> switch (p) {
+            case 0 -> "exponential_histogram or numeric except unsigned_long";
+            case 1 -> "numeric except unsigned_long";
+            default -> throw new IllegalStateException("Unexpected argument index " + p);
+        }));
     }
 }

@@ -110,10 +110,12 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
     @Override
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
+        final DataType tsType = timestamp().dataType();
+        final boolean isDateNanos = tsType == DataType.DATE_NANOS;
         return switch (type) {
-            case LONG -> new IrateLongAggregatorFunctionSupplier(true);
-            case INTEGER -> new IrateIntAggregatorFunctionSupplier(true);
-            case DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(true);
+            case LONG -> new IrateLongAggregatorFunctionSupplier(true, isDateNanos);
+            case INTEGER -> new IrateIntAggregatorFunctionSupplier(true, isDateNanos);
+            case DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(true, isDateNanos);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
@@ -125,7 +127,7 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
 
     @Override
     public String toString() {
-        return "idelta(" + field() + ")";
+        return "idelta(" + field() + ", " + timestamp() + ")";
     }
 
     @Override

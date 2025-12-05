@@ -187,6 +187,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -525,9 +526,13 @@ public class IndicesService extends AbstractLifecycleComponent
         for (final IndexService indexService : indicesService) {
             for (final IndexShard indexShard : indexService) {
                 // get the shared ram for this shard id (or zero if there's nothing in the map)
-                long sharedRam = shardIdToSharedRam.getOrDefault(indexShard.shardId(), 0L);
                 try {
-                    final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags, sharedRam);
+                    final IndexShardStats indexShardStats = indicesService.indexShardStats(
+                        indicesService,
+                        indexShard,
+                        flags,
+                        () -> shardIdToSharedRam.getOrDefault(indexShard.shardId(), 0L)
+                    );
                     if (indexShardStats == null) {
                         continue;
                     }
@@ -548,7 +553,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndicesService indicesService,
         final IndexShard indexShard,
         final CommonStatsFlags flags,
-        final long precomputedSharedRam
+        final Supplier<Long> precomputedSharedRam
     ) {
         if (indexShard.routingEntry() == null) {
             return null;

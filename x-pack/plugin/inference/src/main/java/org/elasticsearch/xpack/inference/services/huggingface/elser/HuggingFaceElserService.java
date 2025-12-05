@@ -19,6 +19,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SettingsConfiguration;
@@ -116,7 +117,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         // TODO chunking sparse embeddings not implemented
         doInfer(
             model,
-            new EmbeddingsInput(inputs.stream().map(ChunkInferenceInput::input).toList(), inputType),
+            new EmbeddingsInput(() -> inputs.stream().map(ChunkInferenceInput::input).toList(), inputType),
             taskSettings,
             timeout,
             inferListener
@@ -128,7 +129,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         InferenceServiceResults inferenceResults
     ) {
         if (inferenceResults instanceof DenseEmbeddingFloatResults denseEmbeddingResults) {
-            validateInputSizeAgainstEmbeddings(ChunkInferenceInput.inputs(inputs), denseEmbeddingResults.embeddings().size());
+            validateInputSizeAgainstEmbeddings(ChunkInferenceInput.inputs(inputs).size(), denseEmbeddingResults.embeddings().size());
 
             var results = new ArrayList<ChunkedInference>(inputs.size());
 
@@ -138,7 +139,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
                         List.of(
                             new EmbeddingResults.Chunk(
                                 denseEmbeddingResults.embeddings().get(i),
-                                new ChunkedInference.TextOffset(0, inputs.get(i).input().length())
+                                new ChunkedInference.TextOffset(0, inputs.get(i).input().textValue().length())
                             )
                         )
                     )
@@ -147,7 +148,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
             return results;
         } else if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
             var inputsAsList = ChunkInferenceInput.inputs(inputs);
-            return ChunkedInferenceEmbedding.listOf(inputsAsList, sparseEmbeddingResults);
+            return ChunkedInferenceEmbedding.listOf(InferenceStringGroup.toInferenceStringList(inputsAsList), sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
             return List.of(new ChunkedInferenceError(error.getException()));
         } else {

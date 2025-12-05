@@ -57,13 +57,15 @@ public final class ShardSearchPhaseAPMMetrics implements SearchOperationListener
     }
 
     @Override
-    public void onCanMatchPhase(long tookInNanos) {
-        recordPhaseLatency(canMatchPhaseMetric, tookInNanos);
+    public void onCanMatchPhase(Map<String, Object> searchRequestAttributes, long tookInNanos) {
+        canMatchPhaseMetric.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos), searchRequestAttributes);
     }
 
     @Override
     public void onDfsPhase(SearchContext searchContext, long tookInNanos) {
-        recordPhaseLatency(dfsPhaseMetric, tookInNanos);
+        SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
+        Long timeRangeFilterFromMillis = searchExecutionContext.getTimeRangeFilterFromMillis();
+        recordPhaseLatency(dfsPhaseMetric, tookInNanos, searchContext.request(), timeRangeFilterFromMillis);
     }
 
     @Override
@@ -78,10 +80,6 @@ public final class ShardSearchPhaseAPMMetrics implements SearchOperationListener
         SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
         Long timeRangeFilterFromMillis = searchExecutionContext.getTimeRangeFilterFromMillis();
         recordPhaseLatency(fetchPhaseMetric, tookInNanos, searchContext.request(), timeRangeFilterFromMillis);
-    }
-
-    private static void recordPhaseLatency(LongHistogram histogramMetric, long tookInNanos) {
-        histogramMetric.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos));
     }
 
     private static void recordPhaseLatency(

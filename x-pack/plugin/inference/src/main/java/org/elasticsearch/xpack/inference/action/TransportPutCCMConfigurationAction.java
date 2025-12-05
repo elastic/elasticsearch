@@ -70,7 +70,7 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
         ClusterState state,
         ActionListener<CCMEnabledActionResponse> listener
     ) {
-        if (ccmFeature.allowConfiguringCcm() == false) {
+        if (ccmFeature.isCcmSupportedEnvironment() == false) {
             listener.onFailure(CCM_FORBIDDEN_EXCEPTION);
             return;
         }

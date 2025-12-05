@@ -586,7 +586,15 @@ public class SearchPhaseControllerTests extends ESTestCase {
     private static SearchRequest randomSearchRequest() {
         return randomBoolean()
             ? new SearchRequest()
-            : SearchRequest.subSearchRequest(new TaskId("n", 1), new SearchRequest(), Strings.EMPTY_ARRAY, "remote", 0, randomBoolean());
+            : SearchRequest.subSearchRequest(
+                new TaskId("n", 1),
+                new SearchRequest(),
+                Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
+                "remote",
+                0,
+                randomBoolean()
+            );
     }
 
     public void testConsumer() throws Exception {

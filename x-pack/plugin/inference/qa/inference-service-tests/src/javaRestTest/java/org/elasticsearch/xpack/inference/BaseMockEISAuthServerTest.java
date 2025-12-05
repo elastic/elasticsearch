@@ -17,7 +17,6 @@ import org.elasticsearch.test.RetryRule;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -25,6 +24,8 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.getModel;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings.CCM_SUPPORTED_ENVIRONMENT;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.ELSER_V2_ENDPOINT_ID;
 
 public class BaseMockEISAuthServerTest extends ESRestTestCase {
 
@@ -46,6 +47,9 @@ public class BaseMockEISAuthServerTest extends ESRestTestCase {
         // calls which would result in a test failure because the webserver is only expecting a single request
         // So to ensure we avoid that all together, this flag indicates that we'll only perform a single authorization request
         .setting("xpack.inference.elastic.periodic_authorization_enabled", "false")
+        // Setting to false so that the CCM logic will be skipped when running the tests, the authorization logic skip trying to determine
+        // if CCM is enabled
+        .setting(CCM_SUPPORTED_ENVIRONMENT.getKey(), "false")
         // This plugin is located in the inference/qa/test-service-plugin package, look for TestInferenceServicePlugin
         .plugin("inference-service-test")
         .user("x_pack_rest_user", "x-pack-test-password")
@@ -89,6 +93,6 @@ public class BaseMockEISAuthServerTest extends ESRestTestCase {
         // available
         // Technically this only needs to be done before the suite runs but the underlying client is created in @Before and not statically
         // for the suite
-        assertBusy(() -> getModel(InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2));
+        assertBusy(() -> getModel(ELSER_V2_ENDPOINT_ID));
     }
 }

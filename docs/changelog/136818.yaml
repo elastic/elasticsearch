@@ -1,6 +1,0 @@
-pr: 136818
-summary: "ESQL: Fix lookup join filter pushdown to use semantic equality"
-area: ES|QL
-type: bug
-issues:
-  - 136599

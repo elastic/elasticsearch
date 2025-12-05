@@ -35,7 +35,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
-import org.elasticsearch.search.crossproject.CrossProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.transport.LinkedProjectConfig;
@@ -59,7 +58,6 @@ import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.BiPredicate;
 
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.isNoneExpression;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
@@ -77,14 +75,14 @@ class IndicesAndAliasesResolver {
         Settings settings,
         LinkedProjectConfigService linkedProjectConfigService,
         IndexNameExpressionResolver resolver,
-        CrossProjectModeDecider crossProjectModeDecider
+        CrossProjectModeDecider crossProjectModeDecider,
+        ProjectRoutingResolver crossProjectRoutingResolver
     ) {
         this.nameExpressionResolver = resolver;
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
         this.remoteClusterResolver = new RemoteClusterResolver(settings, linkedProjectConfigService);
         this.crossProjectModeDecider = crossProjectModeDecider;
-        // TODO: This should be injected when we have the implementation provided from the serverless side
-        this.crossProjectRoutingResolver = new CrossProjectRoutingResolver();
+        this.crossProjectRoutingResolver = crossProjectRoutingResolver;
     }
 
     /**
@@ -168,7 +166,8 @@ class IndicesAndAliasesResolver {
     }
 
     boolean resolvesCrossProject(TransportRequest request) {
-        return request instanceof IndicesRequest.Replaceable replaceable && crossProjectModeDecider.resolvesCrossProject(replaceable);
+        return request instanceof IndicesRequest.CrossProjectCandidate crossProjectCandidate
+            && crossProjectModeDecider.resolvesCrossProject(crossProjectCandidate);
     }
 
     private static boolean requiresWildcardExpansion(IndicesRequest indicesRequest) {
@@ -399,7 +398,8 @@ class IndicesAndAliasesResolver {
                         final var rewritten = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
                             indexExpression,
                             resolvedProjects.originProjectAlias(),
-                            resolvedProjects.allProjectAliases()
+                            resolvedProjects.allProjectAliases(),
+                            replaceable.getProjectRouting()
                         );
                         remoteIndices = rewritten.remoteExpressions();
                         if (resolvedProjects.originProject() == null || rewritten.localExpression() == null) {
@@ -448,7 +448,8 @@ class IndicesAndAliasesResolver {
                         authorizedIndices::all,
                         authorizedIndices::check,
                         resolvedProjects,
-                        indicesRequest.includeDataStreams()
+                        indicesRequest.includeDataStreams(),
+                        replaceable.getProjectRouting()
                     );
                     setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
@@ -549,7 +550,7 @@ class IndicesAndAliasesResolver {
         if (replaceable.getResolvedIndexExpressions() == null) {
             replaceable.setResolvedIndexExpressions(resolved);
         } else {
-            // see https://github.com/elastic/elasticsearch/issues/135799
+            // see https://github.com/elastic/elasticsearch/issues/135799 and ES-4376
             String message = "resolved index expressions are already set to ["
                 + replaceable.getResolvedIndexExpressions()
                 + "] and should not be set again. Attempted to set to new expressions ["
@@ -559,7 +560,8 @@ class IndicesAndAliasesResolver {
                 + "]";
             logger.debug(message);
             // we are excepting `*,-*` below since we've observed this already -- keeping this assertion to catch other cases
-            assert replaceable.indices() == null || isNoneExpression(replaceable.indices()) : message;
+            // If more exceptions are found, we can add a comment to above linked issue and relax this check further
+            // assert replaceable.indices() == null || isNoneExpression(replaceable.indices()) : message;
         }
     }
 

@@ -1537,13 +1537,25 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterPromqlParamContent(EsqlBaseParser.PromqlParamContentContext ctx) { }
+  @Override public void enterPromqlParamName(EsqlBaseParser.PromqlParamNameContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitPromqlParamContent(EsqlBaseParser.PromqlParamContentContext ctx) { }
+  @Override public void exitPromqlParamName(EsqlBaseParser.PromqlParamNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPromqlParamValue(EsqlBaseParser.PromqlParamValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPromqlParamValue(EsqlBaseParser.PromqlParamValueContext ctx) { }
   /**
    * {@inheritDoc}
    *

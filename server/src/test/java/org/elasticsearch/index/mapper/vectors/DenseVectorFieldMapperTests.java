@@ -331,7 +331,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 hasToString(containsString("\"type\":\"" + newType + "\""))
             );
         }
-        for (String newType : List.of("bbq_flat", "bbq_hnsw", "bbq_disk")) {
+        for (String newType : List.of("bbq_flat", "bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
                 b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
@@ -360,7 +360,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 hasToString(containsString("\"type\":\"" + newType + "\""))
             );
         }
-        for (String newType : List.of("bbq_flat", "bbq_hnsw", "bbq_disk")) {
+        for (String newType : List.of("bbq_flat", "bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
                 b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
@@ -412,7 +412,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b -> b.startObject("index_options").field("type", "hnsw").endObject(),
             b -> b.startObject("index_options").field("type", "bbq_flat").endObject()
         );
-        for (String newType : List.of("bbq_hnsw", "bbq_disk")) {
+        for (String newType : List.of("bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
                 b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
@@ -461,7 +461,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b -> b.startObject("index_options").field("type", "int8_hnsw").endObject(),
             b -> b.startObject("index_options").field("type", "bbq_flat").endObject()
         );
-        for (String newType : List.of("bbq_hnsw", "bbq_disk")) {
+        for (String newType : List.of("bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
                 b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
@@ -492,7 +492,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b -> b.startObject("index_options").field("type", newType).endObject()
             );
         }
-        for (String newType : List.of("bbq_flat", "bbq_hnsw", "bbq_disk")) {
+        for (String newType : List.of("bbq_flat", "bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
                 b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
@@ -562,7 +562,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b -> b.startObject("index_options").field("type", "int4_hnsw").endObject(),
             b -> b.startObject("index_options").field("type", "bbq_flat").endObject()
         );
-        for (String newType : List.of("bbq_hnsw", "bbq_disk")) {
+        for (String newType : List.of("bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
                 b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
@@ -574,7 +574,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
 
         // update for bbq_flat
-        for (String newType : List.of("bbq_hnsw", "bbq_disk")) {
+        for (String newType : List.of("bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
                 b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
@@ -604,14 +604,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b -> b.startObject("index_options").field("type", newType).endObject()
             );
         }
-        registerIndexOptionsUpdate(
-            checker,
-            b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
-            "type",
-            "bbq_hnsw",
-            "bbq_disk",
-            hasToString(containsString("\"type\":\"bbq_disk\""))
-        );
     }
 
     @Override

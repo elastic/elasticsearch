@@ -15,7 +15,6 @@ import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -53,9 +52,6 @@ public class Segment implements Writeable {
         version = Lucene.parseVersionLenient(in.readOptionalString(), null);
         compound = in.readOptionalBoolean();
         mergeId = in.readOptionalString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readLong(); // memoryInBytes
-        }
         if (in.readBoolean()) {
             readRamTree(in);
         }
@@ -160,10 +156,6 @@ public class Segment implements Writeable {
         out.writeOptionalString(version.toString());
         out.writeOptionalBoolean(compound);
         out.writeOptionalString(mergeId);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeLong(0); // memoryInBytes
-        }
-
         out.writeBoolean(false);
         writeSegmentSort(out, segmentSort);
         boolean hasAttributes = attributes != null;

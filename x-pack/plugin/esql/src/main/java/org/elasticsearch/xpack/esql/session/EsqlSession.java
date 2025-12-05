@@ -66,10 +66,8 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -97,7 +95,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
@@ -192,7 +189,7 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
-        EsqlStatement statement = parse(request.query(), request.params());
+        EsqlStatement statement = parse(request);
         Configuration configuration = new Configuration(
             request.timeZone() == null
                 ? statement.setting(QuerySettings.TIME_ZONE)
@@ -472,14 +469,13 @@ public class EsqlSession {
         }
     }
 
-    private EsqlStatement parse(String query, QueryParams params) {
-        var parsed = new EsqlParser().createQuery(query, params, planTelemetry);
-        if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug("Parsed logical plan:\n{}", parsed.plan());
-            LOGGER.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
-        }
-        QuerySettings.validate(parsed, SettingsValidationContext.from(remoteClusterService));
-        return parsed;
+    private EsqlStatement parse(EsqlQueryRequest request) {
+        return EsqlParser.INSTANCE.parse(
+            request.query(),
+            request.params(),
+            SettingsValidationContext.from(remoteClusterService),
+            planTelemetry
+        );
     }
 
     /**

@@ -1,0 +1,6 @@
+pr: 138776
+summary: "[Inference API] Support chunking settings for sparse embeddings in custom\
+  \ service"
+area: Machine Learning
+type: bug
+issues: []

@@ -37,6 +37,7 @@ public class MachineDependentHeap {
     protected static final long GB = 1024L * 1024L * 1024L; // 1GB
     protected static final long MAX_HEAP_SIZE = GB * 31; // 31GB
     protected static final long MIN_HEAP_SIZE = 1024 * 1024 * 128; // 128MB
+    protected static final long SERVER_CLI_OVERHEAD = 81 * 1024L * 1024L;
 
     private static final FeatureFlag NEW_ML_MEMORY_COMPUTATION_FEATURE_FLAG = new FeatureFlag("new_ml_memory_computation");
 
@@ -70,7 +71,7 @@ public class MachineDependentHeap {
         }
 
         List<DiscoveryNodeRole> roles = NodeRoleSettings.NODE_ROLES_SETTING.get(nodeSettings);
-        long availableSystemMemory = systemMemoryInfo.availableSystemMemory();
+        long availableSystemMemory = max(systemMemoryInfo.availableSystemMemory() - SERVER_CLI_OVERHEAD, MIN_HEAP_SIZE);
         MachineNodeRole nodeRole = mapNodeRole(roles);
         return options(getHeapSizeMb(nodeSettings, nodeRole, availableSystemMemory));
     }

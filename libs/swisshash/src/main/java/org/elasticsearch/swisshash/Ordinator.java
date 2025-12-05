@@ -49,7 +49,7 @@ public abstract class Ordinator {
     ) {
         this.breaker = Objects.requireNonNull(breaker);
         this.idSpace = Objects.requireNonNull(idSpace);
-        this.recycler = recycler == null?  PageCacheRecycler.NON_RECYCLING_INSTANCE : recycler;
+        this.recycler = recycler == null ? PageCacheRecycler.NON_RECYCLING_INSTANCE : recycler;
 
         this.capacity = initialCapacity;
         this.mask = capacity - 1;

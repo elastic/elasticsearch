@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -133,7 +132,6 @@ public class OrdinatorBytesTests extends ESTestCase {
                 assertThat(leftOrd.size(), equalTo(0));
                 assertThat(rightOrd.size(), equalTo(0));
 
-
                 for (int i = 0; i < count; i++) {
                     // Add to left
                     int idLeft = leftOrd.add(left[i]);
@@ -168,9 +166,9 @@ public class OrdinatorBytesTests extends ESTestCase {
         // We don't easily know BytesRefArray usage here, but we can constrain the breaker enough to fail.
         long breakAt = (expectedIdPageCount) * PageCacheRecycler.PAGE_SIZE_IN_BYTES;
         if (expectedGrowCount == 0) {
-             // Tiny/Small cases might fit or be tight.
-             // Reduce slightly to force break if we allocate anything extra.
-             breakAt = Math.max(1, breakAt - 100);
+            // Tiny/Small cases might fit or be tight.
+            // Reduce slightly to force break if we allocate anything extra.
+            breakAt = Math.max(1, breakAt - 100);
         }
 
         // Note: BigArrays also uses the breaker.
@@ -192,7 +190,7 @@ public class OrdinatorBytesTests extends ESTestCase {
         Ordinator.Status status = ord.status();
 
         if (expectedGrowCount == 0) {
-             // In small core, capacity is fixed.
+            // In small core, capacity is fixed.
             assertThat(status.growCount(), equalTo(0));
             assertThat(status.capacity(), equalTo(OrdinatorBytes.INITIAL_CAPACITY));
         } else {

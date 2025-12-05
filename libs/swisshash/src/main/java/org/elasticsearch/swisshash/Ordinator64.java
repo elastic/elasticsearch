@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.simdvec.ESVectorUtil;
-import org.elasticsearch.simdvec.VectorByteUtils;
+import org.elasticsearch.simdvec.VectorComparisonUtils;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -53,7 +53,9 @@ import java.util.Arrays;
  * </p>
  */
 public class Ordinator64 extends Ordinator implements Releasable {
-    private static final VectorByteUtils VECTOR_UTILS = ESVectorUtil.getVectorByteUtils();
+    private static final VectorComparisonUtils VECTOR_UTILS = ESVectorUtil.getVectorComparisonUtils();
+
+    private static final int BYTE_VECTOR_LANES = VECTOR_UTILS.byteVectorLanes();
 
     private static final int PAGE_SHIFT = 14;
 
@@ -403,7 +405,7 @@ public class Ordinator64 extends Ordinator implements Releasable {
         private int insertProbes;
 
         BigCore() {
-            int controlLength = capacity + VECTOR_UTILS.vectorLength();
+            int controlLength = capacity + BYTE_VECTOR_LANES;
             breaker.addEstimateBytesAndMaybeBreak(controlLength, "ordinator");
             toClose.add(() -> breaker.addWithoutBreaking(-controlLength));
             controlData = new byte[controlLength];
@@ -461,7 +463,7 @@ public class Ordinator64 extends Ordinator implements Releasable {
                 // TODO the double checking could be vectorized for some key types. Longs, probably.
 
                 int first;
-                while ((first = VectorByteUtils.firstSet(candidateMatches)) != -1) {
+                while ((first = VectorComparisonUtils.firstSet(candidateMatches)) != -1) {
                     int checkSlot = slot(slot + first);
 
                     if (key(checkSlot) == key) {
@@ -471,11 +473,11 @@ public class Ordinator64 extends Ordinator implements Releasable {
                     candidateMatches &= ~(1L << first);
                 }
 
-                if (VectorByteUtils.anyTrue(controlMatches(slot, CONTROL_EMPTY))) {
+                if (VectorComparisonUtils.anyTrue(controlMatches(slot, CONTROL_EMPTY))) {
                     return -1;
                 }
 
-                slotIncrement += VECTOR_UTILS.vectorLength();
+                slotIncrement += BYTE_VECTOR_LANES;
                 slot = slot(slot + slotIncrement);
             }
         }
@@ -508,8 +510,8 @@ public class Ordinator64 extends Ordinator implements Releasable {
             int slot = slot(hash);
             while (true) {
                 long empty = controlMatches(slot, CONTROL_EMPTY);
-                if (VectorByteUtils.anyTrue(empty)) {
-                    slot = slot(slot + VectorByteUtils.firstSet(empty));
+                if (VectorComparisonUtils.anyTrue(empty)) {
+                    slot = slot(slot + VectorComparisonUtils.firstSet(empty));
                     int keyOffset = keyOffset(slot);
                     int idOffset = idOffset(slot);
 
@@ -520,11 +522,11 @@ public class Ordinator64 extends Ordinator implements Releasable {
                      * Mirror the first VECTOR_UTILS.vectorLength() bytes to the end of the array. All
                      * other positions are just written twice.
                      */
-                    controlData[((slot - VECTOR_UTILS.vectorLength()) & mask) + VECTOR_UTILS.vectorLength()] = control;
+                    controlData[((slot - BYTE_VECTOR_LANES) & mask) + BYTE_VECTOR_LANES] = control;
                     return;
                 }
 
-                slotIncrement += VECTOR_UTILS.vectorLength();
+                slotIncrement += BYTE_VECTOR_LANES;
                 slot = slot(slot + slotIncrement);
                 insertProbes++;
             }
@@ -573,7 +575,7 @@ public class Ordinator64 extends Ordinator implements Releasable {
             while (slot < oldCapacity) {
                 long empty = controlMatches(slot, CONTROL_EMPTY);
                 // TODO iterate like in find - it's faster.
-                for (int i = 0; i < VECTOR_UTILS.vectorLength() && slot + i < oldCapacity; i++) {
+                for (int i = 0; i < BYTE_VECTOR_LANES && slot + i < oldCapacity; i++) {
                     if ((empty & (1L << i)) != 0L) {
                         slot++;
                         continue;

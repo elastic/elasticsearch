@@ -463,7 +463,7 @@ public class IndexNameExpressionResolver {
      * Validates the requested expression by performing the following checks:
      * - Ensure it's not empty
      * - Ensure it doesn't start with `_`
-     * - Ensure it's not a remote expression unless the allow unavailable targets is enabled.
+     * - Ensure it's not a remote expression unless remotes are allowed by the context.
      */
     private static void validateResourceExpression(Context context, String current, String[] expressions) {
         if (Strings.isEmpty(current)) {

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
-import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -70,7 +69,6 @@ record TimeSeriesFields(String[] metricFields, String[] dimensionFields, String[
         final MappingLookup lookup = mapperService.mappingLookup();
         final MappedFieldType fieldType = lookup.getFieldType(field);
         return fieldType != null
-            && fieldType.typeName().equals(FieldAliasMapper.CONTENT_TYPE) == false
             && (timestampField.equals(field) == false)
             && (fieldType.isAggregatable())
             && (fieldType.isDimension() == false)

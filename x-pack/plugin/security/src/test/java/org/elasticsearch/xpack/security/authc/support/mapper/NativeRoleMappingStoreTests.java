@@ -400,7 +400,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
     private SecurityIndexManager.IndexState indexState(boolean isUpToDate, ClusterHealthStatus healthStatus) {
         return this.securityIndex.new IndexState(
             Metadata.DEFAULT_PROJECT_ID, SecurityIndexManager.ProjectStatus.PROJECT_AVAILABLE, Instant.now(), isUpToDate, true, true, true,
-            true, null, null, null, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, "my_uuid", Set.of()
+            true, null, false, null, null, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, "my_uuid", Set.of()
         );
     }
 

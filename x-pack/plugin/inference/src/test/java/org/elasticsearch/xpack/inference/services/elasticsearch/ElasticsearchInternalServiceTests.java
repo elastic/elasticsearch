@@ -108,6 +108,7 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.NAME;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -1360,6 +1361,23 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
         latch.await();
         assertTrue("Listener not called with results", gotResults.get());
+    }
+
+    public void testChunkInfer_noInputs() throws IOException {
+        var model = new MultilingualE5SmallModel(
+            "foo",
+            TaskType.TEXT_EMBEDDING,
+            "e5",
+            new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform", null),
+            null
+        );
+        try (var service = createService(mock(Client.class))) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(model, null, List.of(), Map.of(), InputType.SEARCH, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var results = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+            assertThat(results, empty());
+        }
     }
 
     public void testParsePersistedConfig_Rerank() {

@@ -787,11 +787,12 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             )
         );
 
-        Map<String, Object> result = runEsql("FROM test* | SORT file.raw | LIMIT 2");
+        // Added the _index column to make sure no sneaky indices are added (see https://github.com/elastic/elasticsearch/issues/138294).
+        Map<String, Object> result = runEsql("FROM test* METADATA _index | SORT file.raw | LIMIT 2");
         assertResultMap(
             result,
-            List.of(unsupportedColumnInfo("file", "keyword", "object"), columnInfo("file.raw", "keyword")),
-            List.of(matchesList().item(null).item("o2"), matchesList().item(null).item(null))
+            List.of(unsupportedColumnInfo("file", "keyword", "object"), columnInfo("file.raw", "keyword"), columnInfo("_index", "keyword")),
+            List.of(matchesList().item(null).item("o2").item("test2"), matchesList().item(null).item(null).item("test1"))
         );
     }
 

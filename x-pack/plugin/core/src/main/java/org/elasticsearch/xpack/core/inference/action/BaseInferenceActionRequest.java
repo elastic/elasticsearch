@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,14 +35,7 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
 
     public BaseInferenceActionRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            this.hasBeenRerouted = in.readBoolean();
-        } else {
-            // For backwards compatibility, we treat all inference requests coming from ES nodes having
-            // a version pre-node-local-rate-limiting as already rerouted to maintain pre-node-local-rate-limiting behavior.
-            this.hasBeenRerouted = true;
-        }
-
+        this.hasBeenRerouted = in.readBoolean();
         if (in.getTransportVersion().supports(INFERENCE_CONTEXT)) {
             this.context = new InferenceContext(in);
         } else {
@@ -72,10 +64,7 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeBoolean(hasBeenRerouted);
-        }
-
+        out.writeBoolean(hasBeenRerouted);
         if (out.getTransportVersion().supports(INFERENCE_CONTEXT)) {
             context.writeTo(out);
         }

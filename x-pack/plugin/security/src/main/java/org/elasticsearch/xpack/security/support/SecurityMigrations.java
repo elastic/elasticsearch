@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -89,35 +90,48 @@ public class SecurityMigrations {
         int minMappingVersion();
     }
 
-    public static final Integer ROLE_METADATA_FLATTENED_MIGRATION_VERSION = 1;
     public static final Integer CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION = 2;
+    public static final Integer ROLE_METADATA_FLATTENED_MIGRATION_VERSION = 3;
     private static final Logger logger = LogManager.getLogger(SecurityMigration.class);
 
     public static final TreeMap<Integer, SecurityMigration> MIGRATIONS_BY_VERSION = new TreeMap<>(
         Map.of(
-            ROLE_METADATA_FLATTENED_MIGRATION_VERSION,
-            new RoleMetadataFlattenedMigration(),
             CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION,
-            new CleanupRoleMappingDuplicatesMigration()
+            new CleanupRoleMappingDuplicatesMigration(),
+            ROLE_METADATA_FLATTENED_MIGRATION_VERSION,
+            new RoleMetadataFlattenedMigration()
         )
     );
 
+    /**
+     * @return The highest migration version that is currently defined
+     */
+    public static int highestMigrationVersion() {
+        return MIGRATIONS_BY_VERSION.lastKey();
+    }
+
     public static class RoleMetadataFlattenedMigration implements SecurityMigration {
+
         @Override
         public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
             BoolQueryBuilder filterQuery = new BoolQueryBuilder().filter(QueryBuilders.termQuery("type", "role"))
                 .mustNot(QueryBuilders.existsQuery("metadata_flattened"));
+
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(filterQuery).size(0).trackTotalHits(true);
             SearchRequest countRequest = new SearchRequest(indexManager.forCurrentProject().getConcreteIndexName());
             countRequest.source(searchSourceBuilder);
 
             client.search(countRequest, ActionListener.wrap(response -> {
-                // If there are no roles, skip migration
-                if (response.getHits().getTotalHits().value() > 0) {
-                    logger.info("Preparing to migrate [" + response.getHits().getTotalHits().value() + "] roles");
-                    updateRolesByQuery(indexManager, client, filterQuery, listener);
+                if (response.isTimedOut() == false && response.getFailedShards() == 0) {
+                    // If there are no roles, skip migration
+                    if (response.getHits().getTotalHits() != null && response.getHits().getTotalHits().value() > 0) {
+                        logger.info("Preparing to migrate [{}] roles", response.getHits().getTotalHits().value());
+                        updateRolesByQuery(indexManager, client, filterQuery, listener);
+                    } else {
+                        listener.onResponse(null);
+                    }
                 } else {
-                    listener.onResponse(null);
+                    listener.onFailure(new ElasticsearchException("metadata_flattened migration SearchRequest failed"));
                 }
             }, listener::onFailure));
         }
@@ -129,15 +143,60 @@ public class SecurityMigrations {
             ActionListener<Void> listener
         ) {
             UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest(indexManager.forCurrentProject().getConcreteIndexName());
+
             updateByQueryRequest.setQuery(filterQuery);
-            updateByQueryRequest.setScript(
-                new Script(ScriptType.INLINE, "painless", "ctx._source.metadata_flattened = ctx._source.metadata", Collections.emptyMap())
-            );
+            updateByQueryRequest.setAbortOnVersionConflict(false);
+            updateByQueryRequest.setScript(new Script(ScriptType.INLINE, "painless", """
+                if (ctx._source.metadata != null && ctx._source.metadata instanceof Map && !ctx._source.metadata.isEmpty()) {
+                    ctx._source.metadata_flattened = ctx._source.metadata;
+                } else {
+                    ctx.op = 'noop';
+                }
+                """, Collections.emptyMap()));
+
             client.admin()
                 .cluster()
                 .execute(UpdateByQueryAction.INSTANCE, updateByQueryRequest, ActionListener.wrap(bulkByScrollResponse -> {
-                    logger.info("Migrated [" + bulkByScrollResponse.getTotal() + "] roles");
-                    listener.onResponse(null);
+                    logger.debug(
+                        "metadata_flattened update-by-query completed: total=[{}], updated=[{}], conflicts=[{}], failures=[{}], "
+                            + "searchFailures=[{}], noops=[{}], timedOut=[{}]",
+                        bulkByScrollResponse.getTotal(),
+                        bulkByScrollResponse.getUpdated(),
+                        bulkByScrollResponse.getVersionConflicts(),
+                        bulkByScrollResponse.getBulkFailures().size(),
+                        bulkByScrollResponse.getSearchFailures().size(),
+                        bulkByScrollResponse.getNoops(),
+                        bulkByScrollResponse.isTimedOut()
+                    );
+                    if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
+                        listener.onFailure(
+                            new ElasticsearchException(
+                                "metadata_flattened migration update-by-query failed with bulk update failures [{}]",
+                                bulkByScrollResponse.getBulkFailures()
+                            )
+                        );
+                    } else if (bulkByScrollResponse.getSearchFailures().isEmpty() == false) {
+                        listener.onFailure(
+                            new ElasticsearchException(
+                                "metadata_flattened migration update-by-query failed with search failures [{}]",
+                                bulkByScrollResponse.getSearchFailures()
+                            )
+                        );
+                    } else if (bulkByScrollResponse.isTimedOut()) {
+                        listener.onFailure(
+                            new ElasticsearchException(
+                                "metadata_flattened migration update-by-query failed with timeout after [{}] seconds",
+                                bulkByScrollResponse.getTook().seconds()
+                            )
+                        );
+                    } else if (bulkByScrollResponse.getVersionConflicts() > 0) {
+                        listener.onFailure(
+                            new ElasticsearchException("metadata_flattened migration update-by-query failed with version conflicts")
+                        );
+                    } else {
+                        logger.info("metadata_flattened migration updated [{}] roles", bulkByScrollResponse.getUpdated());
+                        listener.onResponse(null);
+                    }
                 }, listener::onFailure));
         }
 

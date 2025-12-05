@@ -100,11 +100,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             this.indices = shardIds.stream().map(ShardId::getIndexName).distinct().toArray(String[]::new);
             this.indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_18_0)) {
-            this.runNodeLevelReduction = in.readBoolean();
-        } else {
-            this.runNodeLevelReduction = false;
-        }
+        this.runNodeLevelReduction = in.readBoolean();
     }
 
     @Override
@@ -122,9 +118,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             out.writeStringArray(indices);
             indicesOptions.writeIndicesOptions(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_18_0)) {
-            out.writeBoolean(runNodeLevelReduction);
-        }
+        out.writeBoolean(runNodeLevelReduction);
     }
 
     @Override

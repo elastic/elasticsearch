@@ -12,7 +12,6 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -200,9 +199,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         final int rank;
         rank = in.readVInt();
         final Text id = in.readOptionalText();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readOptionalText();
-        }
         final NestedIdentity nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
         final long version = in.readLong();
         final long seqNo = in.readZLong();
@@ -302,9 +298,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         out.writeFloat(score);
         out.writeVInt(rank);
         out.writeOptionalText(id);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalText(SINGLE_MAPPING_TYPE);
-        }
         out.writeOptionalWriteable(nestedIdentity);
         out.writeLong(version);
         out.writeZLong(seqNo);

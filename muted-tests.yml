@@ -479,9 +479,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.TokenServiceTests
   method: testSupersedingTokenEncryption
   issue: https://github.com/elastic/elasticsearch/issues/139031
-- class: org.elasticsearch.repositories.s3.S3BlobStoreRepositoryTimeoutTests
-  method: testWriteTimeout
-  issue: https://github.com/elastic/elasticsearch/issues/139041
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/370_profile/dfs knn vector profiling collector name}
   issue: https://github.com/elastic/elasticsearch/issues/139065
@@ -491,6 +488,24 @@ tests:
 - class: org.elasticsearch.simdvec.Int7SQVectorScorerFactoryTests
   method: testBulk
   issue: https://github.com/elastic/elasticsearch/issues/139079
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  method: testIndexSortForNumericTypes {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/139127
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  method: testIndexSortForNumericTypes {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/139128
+- class: org.elasticsearch.xpack.search.AsyncSearchConcurrentStatusIT
+  method: testConcurrentStatusFetchWhileTaskCloses
+  issue: https://github.com/elastic/elasticsearch/issues/138543
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/130_knn_query_nested_search/nested kNN search pre-filtered on alias with filter on top level fields}
+  issue: https://github.com/elastic/elasticsearch/issues/139131
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/139152
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingStandardSource
+  issue: https://github.com/elastic/elasticsearch/issues/139153
 
 # Examples:
 #

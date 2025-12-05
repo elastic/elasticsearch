@@ -86,11 +86,11 @@ public class CrossProjectIndexResolutionValidator {
             return null;
         }
 
-        Map<String, ElasticsearchException> remoteAuthorizationExceptions = null;
+        Map<String, ElasticsearchSecurityException> remoteAuthorizationExceptions = null;
         Map<String, List<String>> remoteUnauthorizedIndices = null;
-        ElasticsearchException localAuthorizationException = null;
+        ElasticsearchSecurityException localAuthorizationException = null;
         List<String> localUnauthorizedIndices = null;
-        ElasticsearchException notFoundException = null;
+        IndexNotFoundException notFoundException = null;
 
         final boolean hasProjectRouting = Strings.isEmpty(projectRouting) == false;
         logger.debug(
@@ -115,14 +115,14 @@ public class CrossProjectIndexResolutionValidator {
 
             if (isQualifiedExpression) {
                 if (localException != null) {
-                    if (localException instanceof ElasticsearchSecurityException) {
+                    if (localException instanceof ElasticsearchSecurityException securityException) {
                         if (localAuthorizationException == null) {
-                            localAuthorizationException = localException;
+                            localAuthorizationException = securityException;
                             localUnauthorizedIndices = new ArrayList<>();
                         }
                         localUnauthorizedIndices.add(originalExpression);
                     } else {
-                        notFoundException = localException;
+                        notFoundException = (IndexNotFoundException) localException;
                     }
                 }
                 // qualified linked project expression
@@ -139,21 +139,15 @@ public class CrossProjectIndexResolutionValidator {
                         indicesOptions
                     );
                     if (remoteException != null) {
-                        if (remoteException instanceof ElasticsearchSecurityException) {
+                        if (remoteException instanceof ElasticsearchSecurityException securityException) {
                             if (remoteAuthorizationExceptions == null) {
                                 remoteAuthorizationExceptions = new HashMap<>();
                                 remoteUnauthorizedIndices = new HashMap<>();
                             }
-                            remoteAuthorizationExceptions.putIfAbsent(projectAlias, remoteException);
-                            remoteUnauthorizedIndices.compute(projectAlias, (k, v) -> {
-                                if (v == null) {
-                                    v = new ArrayList<>();
-                                }
-                                v.add(remoteExpression);
-                                return v;
-                            });
+                            remoteAuthorizationExceptions.putIfAbsent(projectAlias, securityException);
+                            remoteUnauthorizedIndices.computeIfAbsent(projectAlias, k -> new ArrayList<>()).add(remoteExpression);
                         } else {
-                            if (notFoundException == null) notFoundException = remoteException;
+                            if (notFoundException == null) notFoundException = (IndexNotFoundException) remoteException;
                         }
                     }
                 }
@@ -180,36 +174,34 @@ public class CrossProjectIndexResolutionValidator {
                     if (remoteException == null) {
                         // found flat expression somewhere
                         foundFlat = true;
+                        if (remoteAuthorizationExceptions != null) {
+                            remoteAuthorizationExceptions.clear();
+                            remoteUnauthorizedIndices.clear();
+                        }
                         break;
                     }
-                    if (false == isUnauthorized && remoteException instanceof ElasticsearchSecurityException) {
+                    if (false == isUnauthorized && remoteException instanceof ElasticsearchSecurityException securityException) {
                         isUnauthorized = true;
                         if (remoteAuthorizationExceptions == null) {
                             remoteAuthorizationExceptions = new HashMap<>();
                             remoteUnauthorizedIndices = new HashMap<>();
                         }
-                        remoteAuthorizationExceptions.putIfAbsent(projectAlias, remoteException);
-                        remoteUnauthorizedIndices.compute(projectAlias, (k, v) -> {
-                            if (v == null) {
-                                v = new ArrayList<>();
-                            }
-                            v.add(resource);
-                            return v;
-                        });
+                        remoteAuthorizationExceptions.putIfAbsent(projectAlias, securityException);
+                        remoteUnauthorizedIndices.computeIfAbsent(projectAlias, k -> new ArrayList<>()).add(resource);
                     }
                 }
                 if (foundFlat) {
                     continue;
                 }
-                if (isUnauthorized) {
+                if (isUnauthorized && localException instanceof ElasticsearchSecurityException securityException) {
                     if (localAuthorizationException == null) {
-                        localAuthorizationException = localException;
+                        localAuthorizationException = securityException;
                         localUnauthorizedIndices = new ArrayList<>();
                     }
                     localUnauthorizedIndices.add(originalExpression);
-                    continue;
+                } else {
+                    notFoundException = new IndexNotFoundException(originalExpression);
                 }
-                notFoundException = new IndexNotFoundException(originalExpression);
             }
         }
 

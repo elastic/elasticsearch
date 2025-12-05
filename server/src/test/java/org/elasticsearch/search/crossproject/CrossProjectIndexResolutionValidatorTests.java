@@ -25,6 +25,9 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
@@ -703,6 +706,55 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
         assertThat(e.getMessage(), containsString("no such index [P1:logs*]"));
+    }
+
+    public void testFlatExpressionWithMultipleRemotesPartiallyUnauthorizedStrictIgnoreUnavailable() {
+        var local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("logs"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
+                    ),
+                    Set.of("P1:logs", "P2:logs")
+                )
+            )
+        );
+        var remote = Map.of(
+            "P1",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "logs",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of("logs"),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
+                            new ElasticsearchSecurityException("Unauthorized for -*")
+                        ),
+                        Set.of()
+                    )
+                )
+            ),
+            "P2",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "logs",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of("logs"),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), null, local, remote);
+        assertThat(e, is(nullValue()));
     }
 
     private IndicesOptions getStrictAllowNoIndices() {

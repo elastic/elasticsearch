@@ -14,7 +14,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.vectors.DenseVector;
@@ -72,10 +71,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<Object[]> params = new ArrayList<>();
-        ElementType[] elementTypes = ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()
-            ? ElementType.values()
-            : new ElementType[] { ElementType.BYTE, ElementType.FLOAT, ElementType.BIT };
-        for (ElementType elementType : elementTypes) {
+        for (ElementType elementType : ElementType.values()) {
             // Test all similarities
             for (DenseVectorFieldMapper.VectorSimilarity similarity : DenseVectorFieldMapper.VectorSimilarity.values()) {
                 if (elementType == ElementType.BIT && similarity != DenseVectorFieldMapper.VectorSimilarity.L2_NORM) {

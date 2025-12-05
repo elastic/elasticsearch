@@ -57,7 +57,7 @@ if "%SMART_RETRIES%"=="true" (
                 )
 
                 REM Validate using PowerShell (more reliable)
-                powershell -NoProfile -Command "exit -not ('%BUILD_SCAN_ID%' -match '^[a-zA-Z0-9_-]+$')"
+                powershell -NoProfile -Command "exit -not ('%BUILD_SCAN_ID%' -match '^[a-zA-Z0-9_\-]+$')"
                 if errorlevel 1 (
                   echo Smart Retry Configuration Issue
                   echo Invalid build scan ID format: !BUILD_SCAN_ID!

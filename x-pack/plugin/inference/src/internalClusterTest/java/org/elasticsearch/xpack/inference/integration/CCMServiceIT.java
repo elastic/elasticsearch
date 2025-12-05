@@ -127,20 +127,14 @@ public class CCMServiceIT extends CCMSingleNodeIT {
     }
 
     public void testIsEnabled_ReturnsFalse_WhenNoCCMConfigurationStored() {
-        var listener = new PlainActionFuture<Boolean>();
-        ccmService.get().isEnabled(listener);
-
-        assertFalse(listener.actionGet(TimeValue.THIRTY_SECONDS));
+        assertCCMDisabled();
     }
 
     public void testIsEnabled_ReturnsFalse_WhenCCMConfigurationRemoved() {
         assertStoreCCMConfiguration();
         disableCCM();
 
-        var listener = new PlainActionFuture<Boolean>();
-        ccmService.get().isEnabled(listener);
-
-        assertFalse(listener.actionGet(TimeValue.THIRTY_SECONDS));
+        assertCCMDisabled();
     }
 
     public void testIsEnabled_ReturnsTrue_WhenCCMConfigurationIsPresent() {

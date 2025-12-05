@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.InferenceFeatures.INFERENCE_CCM_ENABLEMENT_SERVICE;
+import static org.elasticsearch.xpack.inference.action.CCMActionUtils.isClusterUpgradedToSupportEnablementService;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature.CCM_FORBIDDEN_EXCEPTION;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature.CCM_UNSUPPORTED_UNTIL_UPGRADED_EXCEPTION;
 
@@ -81,8 +81,7 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
             return;
         }
 
-        if (state.clusterRecovered() == false
-            || featureService.clusterHasFeature(clusterService.state(), INFERENCE_CCM_ENABLEMENT_SERVICE) == false) {
+        if (isClusterUpgradedToSupportEnablementService(state, featureService) == false) {
             listener.onFailure(CCM_UNSUPPORTED_UNTIL_UPGRADED_EXCEPTION);
             return;
         }

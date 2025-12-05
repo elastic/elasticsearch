@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -44,7 +45,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.InferenceFeatures.INFERENCE_CCM_ENABLEMENT_SERVICE;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature.CCM_UNSUPPORTED_UNTIL_UPGRADED_EXCEPTION;
 
 /**
@@ -58,9 +58,7 @@ import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature.
 public class CCMEnablementService {
 
     private static final String TASK_QUEUE_NAME = "inference-ccm-enabled-management";
-    private static final TransportVersion ML_INFERENCE_CCM_ENABLEMENT_SERVICE = TransportVersion.fromName(
-        "ml_inference_ccm_enablement_service"
-    );
+    private static final TransportVersion INFERENCE_CCM_ENABLEMENT_SERVICE = TransportVersion.fromName("inference_ccm_enablement_service");
 
     private final MasterServiceTaskQueue<MetadataTask> taskQueue;
     private final FeatureService featureService;
@@ -87,7 +85,7 @@ public class CCMEnablementService {
     private boolean isClusterStateReady() {
         return clusterService.state() != null
             && clusterService.state().clusterRecovered()
-            && featureService.clusterHasFeature(clusterService.state(), INFERENCE_CCM_ENABLEMENT_SERVICE);
+            && featureService.clusterHasFeature(clusterService.state(), InferenceFeatures.INFERENCE_CCM_ENABLEMENT_SERVICE);
     }
 
     /**
@@ -108,7 +106,7 @@ public class CCMEnablementService {
         var clusterStateListener = listener.delegateResponse((delegate, e) -> {
             delegate.onFailure(
                 new ElasticsearchStatusException(
-                    Strings.format("Failed to set CCM cluster state to enabled: [%s]", enabled),
+                    Strings.format("Failed to set Cloud Connected Mode cluster state to enabled: [%s]", enabled),
                     RestStatus.INTERNAL_SERVER_ERROR,
                     e
                 )
@@ -190,7 +188,7 @@ public class CCMEnablementService {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return ML_INFERENCE_CCM_ENABLEMENT_SERVICE;
+            return INFERENCE_CCM_ENABLEMENT_SERVICE;
         }
 
         @Override

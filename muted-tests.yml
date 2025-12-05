@@ -500,6 +500,9 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchConcurrentStatusIT
   method: testConcurrentStatusFetchWhileTaskCloses
   issue: https://github.com/elastic/elasticsearch/issues/138543
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/130_knn_query_nested_search/nested kNN search pre-filtered on alias with filter on top level fields}
+  issue: https://github.com/elastic/elasticsearch/issues/139131
 
 # Examples:
 #

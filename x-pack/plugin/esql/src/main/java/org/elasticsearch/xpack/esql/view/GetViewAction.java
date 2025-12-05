@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.cluster.metadata.View;
-import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
@@ -94,7 +93,7 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            var v = ChunkedToXContentHelper.array("views", new ViewMetadata.ViewIterator(views));
+            var v = ChunkedToXContentHelper.array("views", views.iterator());
             while (v.hasNext()) {
                 v.next().toXContent(builder, params);
             }

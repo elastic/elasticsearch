@@ -64,6 +64,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             10,
             0,
             getRandomQueryVector(),
+            null,
             0.3f
         );
         var validationZeroSize = retrieverWithZeroSize.validate(source, null, false, false);
@@ -80,6 +81,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             10,
             -1,
             getRandomQueryVector(),
+            null,
             0.3f
         );
         var validationNegativeSize = retrieverWithNegativeSize.validate(source, null, false, false);
@@ -96,6 +98,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             10,
             20,
             getRandomQueryVector(),
+            null,
             0.3f
         );
         var validationSize = retrieverWithLargeSize.validate(source, null, false, false);
@@ -116,6 +119,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             rankWindowSize,
             size,
             getRandomQueryVector(),
+            null,
             2.0f
         );
         var validationLambda = retrieverHighLambda.validate(source, null, false, false);
@@ -132,6 +136,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             rankWindowSize,
             size,
             getRandomQueryVector(),
+            null,
             -0.1f
         );
         validationLambda = retrieverLowLambda.validate(source, null, false, false);
@@ -148,6 +153,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             rankWindowSize,
             size,
             getRandomQueryVector(),
+            null,
             null
         );
         validationLambda = retrieverNullLambda.validate(source, null, false, false);
@@ -203,6 +209,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             10,
             3,
             new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
+            null,
             0.3f
         );
 
@@ -227,6 +234,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             10,
             3,
             new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
+            null,
             0.3f
         );
 
@@ -262,6 +270,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             10,
             3,
             new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
+            null,
             0.3f
         );
 
@@ -384,6 +393,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             rankWindowSize,
             size,
             queryVector,
+            null,
             lambda
         );
     }

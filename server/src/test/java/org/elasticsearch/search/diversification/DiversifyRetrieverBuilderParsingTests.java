@@ -15,6 +15,8 @@ import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
+import org.elasticsearch.search.vectors.QueryVectorBuilder;
+import org.elasticsearch.search.vectors.TestQueryVectorBuilderPlugin;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
@@ -47,6 +49,9 @@ public class DiversifyRetrieverBuilderParsingTests extends AbstractXContentTestC
         int rankWindowSize = randomIntBetween(1, 20);
         Integer size = randomBoolean() ? null : randomIntBetween(1, 20);
         VectorData queryVector = randomBoolean() ? getRandomQueryVector() : null;
+        QueryVectorBuilder queryVectorBuilder = randomBoolean() && queryVector == null
+            ? new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(getRandomFloatQueryVector())
+            : null;
         Float lambda = randomBoolean() ? randomFloatBetween(0.0f, 1.0f, true) : null;
         CompoundRetrieverBuilder.RetrieverSource innerRetriever = new CompoundRetrieverBuilder.RetrieverSource(
             TestRetrieverBuilder.createRandomTestRetrieverBuilder(),
@@ -59,6 +64,7 @@ public class DiversifyRetrieverBuilderParsingTests extends AbstractXContentTestC
             rankWindowSize,
             size,
             queryVector,
+            queryVectorBuilder,
             lambda
         );
     }
@@ -92,11 +98,7 @@ public class DiversifyRetrieverBuilderParsingTests extends AbstractXContentTestC
 
     private VectorData getRandomQueryVector() {
         if (randomBoolean()) {
-            float[] queryVector = new float[randomIntBetween(5, 256)];
-            for (int i = 0; i < queryVector.length; i++) {
-                queryVector[i] = randomFloatBetween(0.0f, 1.0f, true);
-            }
-            return new VectorData(queryVector);
+            return new VectorData(getRandomFloatQueryVector());
         }
 
         byte[] queryVector = new byte[randomIntBetween(5, 256)];
@@ -104,5 +106,13 @@ public class DiversifyRetrieverBuilderParsingTests extends AbstractXContentTestC
             queryVector[i] = randomByte();
         }
         return new VectorData(queryVector);
+    }
+
+    private float[] getRandomFloatQueryVector() {
+        float[] queryVector = new float[randomIntBetween(5, 256)];
+        for (int i = 0; i < queryVector.length; i++) {
+            queryVector[i] = randomFloatBetween(0.0f, 1.0f, true);
+        }
+        return queryVector;
     }
 }

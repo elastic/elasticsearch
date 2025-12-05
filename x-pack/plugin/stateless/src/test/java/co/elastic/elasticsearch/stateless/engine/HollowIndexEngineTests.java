@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.commits.ShardLocalReadersTracker;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
+import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
 
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
@@ -104,6 +105,7 @@ public class HollowIndexEngineTests extends EngineTestCase {
             hollowShardsService,
             mock(SharedBlobCacheWarmingService.class),
             RefreshThrottler.Noop::new,
+            mock(ReshardIndexService.class),
             (g) -> Set.of(),
             DocumentParsingProvider.EMPTY_INSTANCE,
             new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP),

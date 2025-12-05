@@ -1404,6 +1404,7 @@ public class ServerlessStatelessPlugin extends Plugin
         HollowShardsService hollowShardsService,
         SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
         RefreshThrottler.Factory refreshThrottlerFactory,
+        ReshardIndexService reshardIndexService,
         DocumentParsingProvider documentParsingProvider,
         IndexEngine.EngineMetrics engineMetrics
     ) {
@@ -1415,6 +1416,7 @@ public class ServerlessStatelessPlugin extends Plugin
             hollowShardsService,
             sharedBlobCacheWarmingService,
             refreshThrottlerFactory,
+            reshardIndexService,
             statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
             documentParsingProvider,
             engineMetrics,
@@ -1566,6 +1568,7 @@ public class ServerlessStatelessPlugin extends Plugin
                     hollowShardsService.get(),
                     sharedBlobCacheWarmingService.get(),
                     refreshThrottlingService.get().createRefreshThrottlerFactory(indexSettings),
+                    reshardIndexService.get(),
                     documentParsingProvider.get(),
                     new IndexEngine.EngineMetrics(translogReplicatorMetrics.get(), newConfig.getMergeMetrics(), hollowShardMetrics.get())
                 );

@@ -41,6 +41,7 @@ import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -230,6 +231,15 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         return commitService;
     }
 
+    protected static ReshardIndexService mockReshardIndexService() {
+        ReshardIndexService reshardIndexService = mock(ReshardIndexService.class);
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Void>>getArgument(1).onResponse(null);
+            return Void.TYPE;
+        }).when(reshardIndexService).maybeAwaitSplit(any(), any());
+        return reshardIndexService;
+    }
+
     protected IndexEngine newIndexEngine(
         final EngineConfig indexConfig,
         final TranslogReplicator translogReplicator,
@@ -267,6 +277,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             hollowShardsService,
             sharedBlobCacheWarmingService,
             RefreshThrottler.Noop::new,
+            mockReshardIndexService(),
             commitService.getCommitBCCResolverForShard(indexConfig.getShardId()),
             documentParsingProvider,
             engineMetrics,

@@ -447,12 +447,6 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
                 .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF)
         );
 
-        // Transition of target shards to SPLIT state is blocked, all targets are in HANDOFF state.
-        // Refresh includes target shards, search only uses the source shard.
-        var handoffRefresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
-        assertEquals(multiple, handoffRefresh.getTotalShards());
-        assertEquals(multiple, handoffRefresh.getSuccessfulShards());
-
         long handoffSearchExpected = totalNumberOfDocumentsInIndex;
         var handoffSearchAssertion = new SearchAssertion() {
             @Override
@@ -468,33 +462,39 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         };
         assertSearch(searchCoordinator, indexName, handoffSearchAssertion, useEsql);
 
-        // indexing new data and searching for it works
+        // we can still index between handoff and split but refresh is blocked, so we
+        // won't see the results reflected in search yet
         final int handoffIndexedDocuments = randomIntBetween(10, 20);
         indexDocs(indexName, handoffIndexedDocuments);
         totalNumberOfDocumentsInIndex += handoffIndexedDocuments;
 
-        client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
+        // Refresh should block on the target shard until SPLIT is complete. Start a request now and verify
+        // that it doesn't complete until then.
+        final var refresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).execute();
+        final var refreshThread = new Thread(() -> {
+            refresh.actionGet();
+            var split = getSplit(searchCoordinator, index);
+            assertTrue(
+                "Unexpected split state " + split,
+                split.targetStates().allMatch(IndexReshardingState.Split.TargetShardState.SPLIT::equals)
+            );
+        });
+        refreshThread.start();
 
-        // TODO this is a gap - we can write to target shards and refresh them but we won't see our writes
-        // because only the source shard is used for search.
-        // Refresh block on target shard will solve this.
-        long handoffNewDocsTotalDocuments = totalNumberOfDocumentsInIndex;
+        final long handoffNewDocsTotalDocuments = totalNumberOfDocumentsInIndex - handoffIndexedDocuments;
         var handoffNewDocsSearchAssertion = new SearchAssertion() {
             @Override
             public void assertEsql(long documentCount) {
-                assertTrue(
-                    "Lost documents during reshard",
-                    documentCount >= handoffNewDocsTotalDocuments - handoffIndexedDocuments && documentCount <= handoffNewDocsTotalDocuments
-                );
+                assertEquals("Unexpected document count during split", handoffNewDocsTotalDocuments, documentCount);
             }
 
             @Override
             public void assertSearch(SearchResponse response) {
                 assertEquals(1, response.getTotalShards());
-                assertTrue(
-                    "Lost documents during reshard",
-                    response.getHits().getTotalHits().value() >= handoffNewDocsTotalDocuments - handoffIndexedDocuments
-                        && response.getHits().getTotalHits().value() <= handoffNewDocsTotalDocuments
+                assertEquals(
+                    "Unexpected document count during split",
+                    response.getHits().getTotalHits().value(),
+                    handoffNewDocsTotalDocuments
                 );
             }
         };
@@ -512,6 +512,24 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
                 .targetStates()
                 .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.SPLIT)
         );
+
+        // refresh that was blocked earlier should now complete
+        refreshThread.join(SAFE_AWAIT_TIMEOUT.millis());
+        // and we should see the documents indexed during handoff now
+        long postSplitTotdalDocs = totalNumberOfDocumentsInIndex;
+        var postSplitTotalDocsAssertion = new SearchAssertion() {
+            @Override
+            public void assertEsql(long documentCount) {
+                assertEquals("Unexpected document count during split", postSplitTotdalDocs, documentCount);
+            }
+
+            @Override
+            public void assertSearch(SearchResponse response) {
+                assertEquals(2, response.getTotalShards());
+                assertEquals("Unexpected document count during split", postSplitTotdalDocs, response.getHits().getTotalHits().value());
+            }
+        };
+        assertSearch(searchCoordinator, indexName, postSplitTotalDocsAssertion, useEsql);
 
         // Transition of target shards to DONE state is blocked, all targets are in SPLIT state.
         // Refresh includes target shards, search includes target shards.
@@ -2574,6 +2592,19 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
 
     private static void assertShardDocCountEquals(IndicesStatsResponse statsResponse, ShardId shard, long expectedCount) {
         assertThat(shard + " has unexpected number of documents", getIndexCount(statsResponse, shard.id()), equalTo(expectedCount));
+    }
+
+    private static IndexReshardingState.Split getSplit(String nodeName, Index index) {
+        final var reshardingMetadata = client(nodeName).admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .getMetadata()
+            .indexMetadata(index)
+            .getReshardingMetadata();
+
+        return reshardingMetadata != null ? reshardingMetadata.getSplit() : null;
     }
 
     private static IndexMetadata indexMetadata(ClusterState state, Index index) {

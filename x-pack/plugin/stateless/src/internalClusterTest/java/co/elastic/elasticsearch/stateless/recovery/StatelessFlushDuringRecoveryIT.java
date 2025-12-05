@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
+import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
 
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -156,6 +157,7 @@ public class StatelessFlushDuringRecoveryIT extends AbstractServerlessStatelessP
             HollowShardsService hollowShardsService,
             SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
             RefreshThrottler.Factory refreshThrottlerFactory,
+            ReshardIndexService reshardIndexService,
             DocumentParsingProvider documentParsingProvider,
             IndexEngine.EngineMetrics engineMetrics
         ) {
@@ -167,6 +169,7 @@ public class StatelessFlushDuringRecoveryIT extends AbstractServerlessStatelessP
                 hollowShardsService,
                 sharedBlobCacheWarmingService,
                 refreshThrottlerFactory,
+                reshardIndexService,
                 statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
                 documentParsingProvider,
                 engineMetrics,

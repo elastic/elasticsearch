@@ -34,6 +34,7 @@ import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
+import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -271,6 +272,7 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
             HollowShardsService hollowShardsService,
             SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
             RefreshThrottler.Factory refreshThrottlerFactory,
+            ReshardIndexService reshardIndexService,
             DocumentParsingProvider documentParsingProvider,
             IndexEngine.EngineMetrics engineMetrics
         ) {
@@ -290,6 +292,7 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
                 hollowShardsService,
                 sharedBlobCacheWarmingService,
                 refreshThrottlerFactory,
+                reshardIndexService,
                 documentParsingProvider,
                 engineMetrics
             );

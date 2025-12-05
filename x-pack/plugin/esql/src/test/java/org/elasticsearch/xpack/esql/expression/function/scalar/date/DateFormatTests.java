@@ -81,7 +81,7 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             "DateFormatMillisConstantEvaluator[val=Attribute[channel=0], "
-                + "formatter=format[strict_date_optional_time] zone[Z] locale[en_US]]",
+                + "formatter=format[strict_date_optional_time] locale[en_US]]",
             TestCaseSupplier.dateCases(Instant.parse("1900-01-01T00:00:00.00Z"), Instant.parse("9999-12-31T00:00:00.00Z")),
             DataType.KEYWORD,
             (value) -> new BytesRef(EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER.formatMillis(((Instant) value).toEpochMilli())),
@@ -90,7 +90,7 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             "DateFormatNanosConstantEvaluator[val=Attribute[channel=0], "
-                + "formatter=format[strict_date_optional_time] zone[Z] locale[en_US]]",
+                + "formatter=format[strict_date_optional_time] locale[en_US]]",
             TestCaseSupplier.dateNanosCases(),
             DataType.KEYWORD,
             (value) -> new BytesRef(EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER.formatNanos(DateUtils.toLong((Instant) value))),
@@ -176,9 +176,7 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
                 List.of(DataType.DATETIME),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(dateMillis, DataType.DATETIME, "date")),
-                    "DateFormatMillisConstantEvaluator[val=Attribute[channel=0], formatter=format[strict_date_optional_time] zone["
-                        + zoneId
-                        + "] locale["
+                    "DateFormatMillisConstantEvaluator[val=Attribute[channel=0], formatter=format[strict_date_optional_time] locale["
                         + locale
                         + "]]",
                     DataType.KEYWORD,
@@ -190,9 +188,7 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
                 List.of(DataType.DATE_NANOS),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(dateMillis), DataType.DATE_NANOS, "date")),
-                    "DateFormatNanosConstantEvaluator[val=Attribute[channel=0], formatter=format[strict_date_optional_time] zone["
-                        + zoneId
-                        + "] locale["
+                    "DateFormatNanosConstantEvaluator[val=Attribute[channel=0], formatter=format[strict_date_optional_time] locale["
                         + locale
                         + "]]",
                     DataType.KEYWORD,

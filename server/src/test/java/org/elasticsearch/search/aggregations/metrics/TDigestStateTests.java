@@ -9,22 +9,12 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
@@ -175,47 +165,6 @@ public class TDigestStateTests extends ESTestCase {
             assertNotEquals(fast, accurate);
             assertNotEquals(anotherFast, anotherAccurate);
         }
-    }
-
-    private TDigestState writeToAndReadFrom(TDigestState state, TransportVersion version) throws IOException {
-        BytesRef serializedAggs = serialize(state, version);
-        try (
-            StreamInput in = new NamedWriteableAwareStreamInput(
-                StreamInput.wrap(serializedAggs.bytes),
-                new NamedWriteableRegistry(Collections.emptyList())
-            )
-        ) {
-            in.setTransportVersion(version);
-            return TDigestState.read(breaker(), in);
-
-        }
-    }
-
-    private static BytesRef serialize(TDigestState state, TransportVersion version) throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(version);
-            TDigestState.write(state, out);
-            return out.bytes().toBytesRef();
-        }
-    }
-
-    public void testSerialization() throws IOException {
-        // Past default was the accuracy-optimized version.
-        TDigestState state = TDigestState.create(breaker(), 100);
-        TDigestState backwardsCompatible = TDigestState.createOptimizedForAccuracy(breaker(), 100);
-        for (int i = 0; i < 1000; i++) {
-            state.add(i);
-            backwardsCompatible.add(i);
-        }
-
-        TDigestState serialized = writeToAndReadFrom(state, TransportVersions.V_8_9_X);
-        assertEquals(serialized, state);
-
-        TDigestState serializedBackwardsCompatible = writeToAndReadFrom(state, TransportVersions.V_8_8_1);
-        assertNotEquals(serializedBackwardsCompatible, state);
-        assertEquals(serializedBackwardsCompatible, backwardsCompatible);
-
-        Releasables.close(state, backwardsCompatible, serialized, serializedBackwardsCompatible);
     }
 
     private CircuitBreaker breaker() {

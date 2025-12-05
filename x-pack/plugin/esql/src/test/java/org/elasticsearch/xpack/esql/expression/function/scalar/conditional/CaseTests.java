@@ -61,7 +61,6 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             DataType.GEOHASH,
             DataType.GEOTILE,
             DataType.GEOHEX,
-            DataType.EXPONENTIAL_HISTOGRAM,
             DataType.NULL
         ).collect(Collectors.toList());
         if (Build.current().isSnapshot()) {

@@ -46,7 +46,7 @@ public abstract class ResultDiversificationContext {
     }
 
     public VectorData getQueryVector() {
-        return queryVector.get();
+        return queryVector == null ? null : queryVector.get();
     }
 
     public VectorData getFieldVector(int rank) {

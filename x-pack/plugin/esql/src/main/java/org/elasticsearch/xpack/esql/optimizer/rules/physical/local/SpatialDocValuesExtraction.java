@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -137,6 +138,9 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                     exec = fieldExtractExec.withDocValuesAttributes(docValuesAttributes);
                 }
             }
+            if (exec instanceof TopNExec topNExec) {
+                exec = topNExec.withDocValuesAttributes(new HashSet<>(foundAttributes));
+            }
             return exec;
         });
     }
@@ -170,6 +174,12 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                             foundAttributes.add(fieldAttribute);
                         }
                     });
+                }
+            });
+            exec.output().forEach(attribute -> {
+                if (attribute instanceof FieldAttribute fieldAttribute) {
+                    // Any field that will be returned to the coordinator cannot be loaded from doc-values
+                    foundAttributes.remove(fieldAttribute);
                 }
             });
         }

@@ -63,6 +63,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
@@ -139,6 +140,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -478,7 +480,8 @@ public class LocalExecutionPlanner {
         TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
         List<Layout.ChannelSet> inverse = source.layout.inverse();
         for (int channel = 0; channel < inverse.size(); channel++) {
-            elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type());
+            var fieldExtractPreference = fieldExtractPreference(topNExec, inverse.get(channel).nameIds());
+            elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type(), fieldExtractPreference);
             encoders[channel] = switch (inverse.get(channel).type()) {
                 case IP -> TopNEncoder.IP;
                 case TEXT, KEYWORD -> TopNEncoder.UTF8;
@@ -519,6 +522,20 @@ public class LocalExecutionPlanner {
             new TopNOperatorFactory(limit, asList(elementTypes), asList(encoders), orders, context.pageSize(topNExec, rowSize)),
             source.layout
         );
+    }
+
+    private static MappedFieldType.FieldExtractPreference fieldExtractPreference(TopNExec topNExec, Set<NameId> nameIds) {
+        MappedFieldType.FieldExtractPreference fieldExtractPreference = MappedFieldType.FieldExtractPreference.NONE;
+        // See if any of the NameIds is marked as having been loaded with doc-values preferences, which will affect the ElementType chosen.
+        for (NameId nameId : nameIds) {
+            for (Attribute withDocValues : topNExec.docValuesAttributes()) {
+                if (nameId.equals(withDocValues.id())) {
+                    fieldExtractPreference = MappedFieldType.FieldExtractPreference.DOC_VALUES;
+                    break;
+                }
+            }
+        }
+        return fieldExtractPreference;
     }
 
     private PhysicalOperation planEval(EvalExec eval, LocalExecutionPlannerContext context) {

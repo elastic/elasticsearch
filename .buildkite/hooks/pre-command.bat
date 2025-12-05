@@ -56,8 +56,8 @@ if "%SMART_RETRIES%"=="true" (
                   for %%j in ("!url:/s/=" "!") do set BUILD_SCAN_ID=%%~nxj
                 )
 
-                REM Validate build scan ID format (alphanumeric, dash, underscore only)
-                echo !BUILD_SCAN_ID! | findstr /R "^[a-zA-Z0-9_-][a-zA-Z0-9_-]*$" >nul
+                REM Validate using PowerShell (more reliable)
+                powershell -NoProfile -Command "exit -not ('%BUILD_SCAN_ID%' -match '^[a-zA-Z0-9_-]+$')"
                 if errorlevel 1 (
                   echo Smart Retry Configuration Issue
                   echo Invalid build scan ID format: !BUILD_SCAN_ID!

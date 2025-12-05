@@ -34,7 +34,6 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -250,8 +249,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         int positionCount = ordinalsBlock.getPositionCount();
 
         IntBlock newOrdinalsBlock = null;
-        BytesRef scratch = new BytesRef();
-        HashMap<Object, Integer> tsidToFirstOrdinal = new HashMap<>();
+        HashMap<BytesRef, Integer> tsidToFirstOrdinal = new HashMap<>();
         OrdinalBytesRefBlock result;
 
         try (IntBlock.Builder ordinalsBuilder = blockFactory.newIntBlockBuilder(positionCount)) {
@@ -263,9 +261,10 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
                 int firstValueIndex = ordinalsBlock.getFirstValueIndex(pos);
                 int originalOrdinal = ordinalsBlock.getInt(firstValueIndex);
-                dictionary.getBytesRef(originalOrdinal, scratch);
-                Object tsidValue = TimeSeriesIdFieldMapper.encodeTsid(scratch);
-                int normalizedOrdinal = tsidToFirstOrdinal.computeIfAbsent(tsidValue, k -> originalOrdinal);
+
+                BytesRef tsIdKey = dictionary.getBytesRef(originalOrdinal, new BytesRef());
+                int normalizedOrdinal = tsidToFirstOrdinal.computeIfAbsent(tsIdKey, k -> originalOrdinal);
+
                 ordinalsBuilder.appendInt(normalizedOrdinal);
             }
             newOrdinalsBlock = ordinalsBuilder.build();

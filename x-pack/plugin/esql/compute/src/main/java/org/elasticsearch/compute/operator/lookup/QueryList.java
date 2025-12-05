@@ -80,14 +80,6 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
     }
 
     /**
-     * Returns the field name for this query list, or null if no field is associated.
-     */
-    @Nullable
-    public String getFieldName() {
-        return field != null ? field.name() : null;
-    }
-
-    /**
      * Returns a copy of this query list that only returns queries for single-valued positions.
      * That is, it returns `null` queries for either multivalued or null positions.
      * <p>

@@ -10,14 +10,12 @@ package org.elasticsearch.xpack.esql.enrich;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
@@ -40,11 +38,7 @@ import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION;
 import static org.elasticsearch.xpack.esql.enrich.AbstractLookupService.termQueryList;
@@ -63,8 +57,10 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
  * 2. Expression-based join: The join conditions are based on a complex expression that can involve multiple fields and operators.
  */
 public class ExpressionQueryList implements LookupEnrichQueryGenerator {
-    private final QuerySources querySources;
+    private final List<QueryList> queryLists;
+    private final List<Query> lucenePushableFilters = new ArrayList<>();
     private final SearchExecutionContext context;
+    private final AliasFilter aliasFilter;
     private final LucenePushdownPredicates lucenePushdownPredicates;
 
     private ExpressionQueryList(
@@ -74,16 +70,13 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         ClusterService clusterService,
         AliasFilter aliasFilter
     ) {
+        this.queryLists = new ArrayList<>(queryLists);
         this.context = context;
-        this.querySources = new QuerySources(context, aliasFilter);
+        this.aliasFilter = aliasFilter;
         this.lucenePushdownPredicates = LucenePushdownPredicates.from(
             SearchContextStats.from(List.of(context)),
             new EsqlFlags(clusterService.getClusterSettings())
         );
-        // Initialize with existing queryLists
-        for (QueryList queryList : queryLists) {
-            this.querySources.addQueryList(queryList, queryList.getFieldName());
-        }
         buildPreJoinFilter(rightPreJoinPlan, clusterService);
     }
 
@@ -176,10 +169,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                 } catch (IOException e) {
                     throw new UncheckedIOException("Error while rewriting query for Lucene pushable filter", e);
                 }
-                // Extract all field names from the filter expression for tracking
-                List<String> fieldNames = new ArrayList<>();
-                filter.forEachDown(Attribute.class, attr -> fieldNames.add(attr.name()));
-                querySources.addLucenePushableFilter(queryBuilder, fieldNames);
+                addToLucenePushableFilters(queryBuilder);
                 return true;
             }
         }
@@ -215,25 +205,38 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                 // TermQuery is faster than BinaryComparisonQueryList, as it does less work per row
                 // so here we reuse the existing logic from field based join to build a termQueryList for Equals
                 if (binaryComparison instanceof Equals) {
-                    QueryList termQueryForEquals = termQueryList(rightFieldType, context, querySources.getAliasFilter(), block, dataType)
-                        .onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
-                    querySources.addQueryList(termQueryForEquals, rightAttribute.name());
-                } else {
-                    QueryList binaryQueryList = new BinaryComparisonQueryList(
-                        rightFieldType,
-                        context,
-                        block,
-                        binaryComparison,
-                        clusterService,
-                        querySources.getAliasFilter(),
-                        warnings
+                    QueryList termQueryForEquals = termQueryList(rightFieldType, context, aliasFilter, block, dataType).onlySingleValues(
+                        warnings,
+                        "LOOKUP JOIN encountered multi-value"
                     );
-                    querySources.addQueryList(binaryQueryList, rightAttribute.name());
+                    queryLists.add(termQueryForEquals);
+                } else {
+                    queryLists.add(
+                        new BinaryComparisonQueryList(
+                            rightFieldType,
+                            context,
+                            block,
+                            binaryComparison,
+                            clusterService,
+                            aliasFilter,
+                            warnings
+                        )
+                    );
                 }
                 return true;
             }
         }
         return false;
+    }
+
+    private void addToLucenePushableFilters(QueryBuilder query) {
+        try {
+            if (query != null) {
+                lucenePushableFilters.add(query.toQuery(context));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Error while building query for Lucene pushable filter", e);
+        }
     }
 
     private void buildPreJoinFilter(PhysicalPlan rightPreJoinPlan, ClusterService clusterService) {
@@ -242,11 +245,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             for (Expression filter : candidateRightHandFilters) {
                 if (filter instanceof TranslationAware translationAware) {
                     if (TranslationAware.Translatable.YES.equals(translationAware.translatable(lucenePushdownPredicates))) {
-                        QueryBuilder queryBuilder = translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder();
-                        // Extract all field names from the filter expression for tracking
-                        List<String> fieldNames = new ArrayList<>();
-                        filter.forEachDown(Attribute.class, attr -> fieldNames.add(attr.name()));
-                        querySources.addLucenePushableFilter(queryBuilder, fieldNames);
+                        addToLucenePushableFilters(translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder());
                     }
                 }
                 // If the filter is not translatable we will not apply it for now
@@ -272,7 +271,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     @Override
     public Query getQuery(int position) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        for (QueryList queryList : querySources.getQueryLists()) {
+        for (QueryList queryList : queryLists) {
             Query q = queryList.getQuery(position);
             if (q == null) {
                 // if any of the matchFields are null, it means there is no match for this position
@@ -282,7 +281,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             builder.add(q, BooleanClause.Occur.FILTER);
         }
         // also attach the pre-join filter if it exists
-        for (Query preJoinFilter : querySources.getLucenePushableFilters()) {
+        for (Query preJoinFilter : lucenePushableFilters) {
             builder.add(preJoinFilter, BooleanClause.Occur.FILTER);
         }
         return builder.build();
@@ -296,8 +295,8 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      */
     @Override
     public int getPositionCount() {
-        int positionCount = querySources.getQueryLists().get(0).getPositionCount();
-        for (QueryList queryList : querySources.getQueryLists()) {
+        int positionCount = queryLists.get(0).getPositionCount();
+        for (QueryList queryList : queryLists) {
             if (queryList.getPositionCount() != positionCount) {
                 throw new IllegalArgumentException(
                     "All QueryLists must have the same position count, expected: "
@@ -308,97 +307,5 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             }
         }
         return positionCount;
-    }
-
-    @Override
-    public Set<String> fieldsWithMultipleQueries() {
-        return querySources.getFieldsWithMultipleQueries();
-    }
-
-    /**
-     * Manages query sources (QueryLists, Lucene pushable filters, and AliasFilter) and tracks field occurrences.
-     */
-    private static class QuerySources {
-        private final List<QueryList> queryLists = new ArrayList<>();
-        private final List<Query> lucenePushableFilters = new ArrayList<>();
-        private final AliasFilter aliasFilter;
-        private final Map<String, Integer> fieldCount = new HashMap<>();
-        private final SearchExecutionContext context;
-
-        QuerySources(SearchExecutionContext context, AliasFilter aliasFilter) {
-            this.context = context;
-            this.aliasFilter = aliasFilter;
-            // Extract fields from aliasFilter query if present
-            if (aliasFilter != null && aliasFilter != AliasFilter.EMPTY && aliasFilter.getQueryBuilder() != null) {
-                try {
-                    Query aliasQuery = aliasFilter.getQueryBuilder().toQuery(context);
-                    extractFieldsFromQuery(aliasQuery, fieldCount);
-                } catch (IOException e) {
-                    throw new UncheckedIOException("Error while converting alias filter to query", e);
-                }
-            }
-        }
-
-        void addQueryList(QueryList queryList, @Nullable String fieldName) {
-            queryLists.add(queryList);
-            if (fieldName != null) {
-                fieldCount.merge(fieldName, 1, Integer::sum);
-            }
-        }
-
-        void addLucenePushableFilter(QueryBuilder queryBuilder, List<String> fieldNames) {
-            try {
-                if (queryBuilder != null) {
-                    Query luceneQuery = queryBuilder.toQuery(context);
-                    if (luceneQuery != null) {
-                        lucenePushableFilters.add(luceneQuery);
-                        // Track all specified field names from the expression
-                        for (String fieldName : fieldNames) {
-                            fieldCount.merge(fieldName, 1, Integer::sum);
-                        }
-                    }
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException("Error while converting query builder to query", e);
-            }
-        }
-
-        Set<String> getFieldsWithMultipleQueries() {
-            // Compute fields that appear more than once on demand
-            return fieldCount.entrySet()
-                .stream()
-                .filter(entry -> entry.getValue() > 1)
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toSet());
-        }
-
-        List<QueryList> getQueryLists() {
-            return queryLists;
-        }
-
-        List<Query> getLucenePushableFilters() {
-            return lucenePushableFilters;
-        }
-
-        AliasFilter getAliasFilter() {
-            return aliasFilter;
-        }
-
-        /**
-         * Extracts field names from a Lucene Query and adds them to the field count map.
-         */
-        private static void extractFieldsFromQuery(Query query, Map<String, Integer> fieldCount) {
-            if (query == null) {
-                return;
-            }
-            QueryVisitor visitor = new QueryVisitor() {
-                @Override
-                public boolean acceptField(String field) {
-                    fieldCount.merge(field, 1, Integer::sum);
-                    return true;
-                }
-            };
-            query.visit(visitor);
-        }
     }
 }

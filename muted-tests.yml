@@ -503,6 +503,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/139152
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingStandardSource
+  issue: https://github.com/elastic/elasticsearch/issues/139153
 
 # Examples:
 #

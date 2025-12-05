@@ -584,6 +584,43 @@ public class EsqlSession {
                 LOGGER.debug("No more clusters to search, ending analysis stage");
                 throw new NoClustersToSearchException();
             }
+            // Check if a subquery need to be pruned. If some but not all the subqueries has invalid index resolution,
+            // try to prune it by setting IndexResolution to EMPTY_SUBQUERY. Analyzer.PruneEmptyUnionAllBranch will
+            // take care of removing the subquery during analysis.
+            // If all subqueries have invalid index resolution, we should fail in Analyzer's verifier.
+            if (r.indexResolution.isEmpty() == false // it is not a row
+                && r.indexResolution.size() > 1 // there is a subquery
+                && executionInfo.isCrossClusterSearch()) {
+                Collection<IndexResolution> indexResolutions = r.indexResolution.values();
+                boolean hasInvalid = indexResolutions.stream().anyMatch(ir -> ir.isValid() == false);
+                boolean hasValid = indexResolutions.stream().anyMatch(IndexResolution::isValid);
+                // Only if there is partial invalid index resolutions in subqueries
+                if (hasInvalid && hasValid) {
+                    // iterate the index resolution and replace it with EMPTY_SUBQUERY if the index resolution is invalid
+                    r.indexResolution.forEach((indexPattern, indexResolution) -> {
+                        if (indexResolution.isValid() == false) {
+                            LOGGER.debug("Index pattern [{}] does not match valid indices, pruning the subquery", indexPattern);
+                            r.withIndices(indexPattern, IndexResolution.EMPTY_SUBQUERY);
+                        }
+                    });
+                    // check if there is a cluster that does not have any valid index resolution, if so mark it as skipped
+                    executionInfo.getRunningClusterAliases().forEach(clusterAlias -> {
+                        boolean clusterHasValidIndex = r.indexResolution.values()
+                            .stream()
+                            .anyMatch(ir -> ir.isValid() && ir.get().originalIndices().get(clusterAlias) != null);
+                        if (clusterHasValidIndex == false) {
+                            String errorMsg = "no valid indices found in any subquery {}";
+                            LOGGER.debug(errorMsg, EsqlCCSUtils.inClusterName(clusterAlias));
+                            EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
+                                executionInfo,
+                                clusterAlias,
+                                EsqlExecutionInfo.Cluster.Status.SKIPPED,
+                                new VerificationException(errorMsg, EsqlCCSUtils.inClusterName(clusterAlias))
+                            );
+                        }
+                    });
+                }
+            }
             return r;
         })
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))

@@ -48,9 +48,9 @@ public class PlanTelemetry {
 
     public void function(Function function) {
         if (function instanceof UnresolvedFunction uf) {
-            add(functions, uf.functionName());
+            function(uf.name());
         } else {
-            add(functions, functionRegistry.snapshotRegistry().functionName(function.getClass()));
+            function(functionRegistry.snapshotRegistry().functionName(function.getClass()));
         }
     }
 

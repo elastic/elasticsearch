@@ -11,6 +11,7 @@ package org.elasticsearch.test.fixtures.testcontainers;
 
 import org.elasticsearch.test.fixtures.CacheableTestFixture;
 import org.junit.Assume;
+import org.junit.AssumptionViolatedException;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
@@ -72,6 +73,8 @@ public class DockerEnvironmentAwareTestContainer extends GenericContainer<Docker
                 try {
                     start();
                     statement.evaluate();
+                } catch (AssumptionViolatedException e) {
+                    throw e;
                 } catch (Throwable e) {
                     throw new RuntimeException(e);
                 } finally {

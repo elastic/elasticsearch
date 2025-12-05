@@ -276,7 +276,9 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             return;
         }
 
-        var version = Version.fromString(System.getProperty("tests.old_cluster_version"));
+        var version = System.getProperty("tests.old_cluster_version") != null
+            ? Version.fromString(System.getProperty("tests.old_cluster_version"))
+            : Version.CURRENT;
         if (version.onOrAfter(Version.fromString("9.0.0"))) {
             return;
         }

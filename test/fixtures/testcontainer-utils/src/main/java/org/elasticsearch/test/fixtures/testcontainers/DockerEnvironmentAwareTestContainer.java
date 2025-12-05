@@ -49,7 +49,7 @@ public class DockerEnvironmentAwareTestContainer extends GenericContainer<Docker
     /**
      * see <a href="https://github.com/elastic/elasticsearch/issues/102532">https://github.com/elastic/elasticsearch/issues/102532</a>
      * */
-    private static boolean isDockerAvailable() {
+    public static boolean isDockerAvailable() {
         try {
             LOGGER.info("Probing docker environment...");
             DockerClientFactory.instance().client();

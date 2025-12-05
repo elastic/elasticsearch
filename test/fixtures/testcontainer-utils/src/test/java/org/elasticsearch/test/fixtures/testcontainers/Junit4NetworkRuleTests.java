@@ -9,6 +9,8 @@
 
 package org.elasticsearch.test.fixtures.testcontainers;
 
+import org.junit.Assume;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
@@ -21,6 +23,11 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class Junit4NetworkRuleTests {
+
+    @BeforeClass
+    public static void checkDockerAvailable() {
+        Assume.assumeTrue("Docker is not available", DockerEnvironmentAwareTestContainer.isDockerAvailable());
+    }
 
     @Test
     public void testNetworkLifecycle() throws Throwable {

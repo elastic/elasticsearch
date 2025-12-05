@@ -49,6 +49,13 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
             {
               %s
               "properties": {
+                "@timestamp": {
+                  "type": "date"
+                },
+                "timestamp": {
+                  "path": "@timestamp",
+                  "type": "alias"
+                },
                 "attributes": {
                   "type": "passthrough",
                   "priority": 10,
@@ -92,6 +99,13 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         String mapping = """
             {
               "properties": {
+                "@timestamp": {
+                  "type": "date"
+                },
+                "timestamp": {
+                  "path": "@timestamp",
+                  "type": "alias"
+                },
                 "attributes.os.name": {
                   "type": "keyword",
                   "time_series_dimension": true

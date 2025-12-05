@@ -116,3 +116,21 @@ ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power
 snippets:keyword
 [All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of, ring that rules them all - which has fallen into the hands of the hobbit\, Bilbo Baggins.]
 ;
+
+topSnippetsWithNullField
+required_capability: top_snippets_function
+
+FROM employees 
+| EVAL snippets = TOP_SNIPPETS(null, "foobar")
+| KEEP snippets
+| LIMIT 5
+;
+
+snippets:keyword
+null
+null
+null
+null
+null
+;
+

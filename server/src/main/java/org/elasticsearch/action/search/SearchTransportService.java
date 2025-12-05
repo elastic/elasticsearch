@@ -547,22 +547,14 @@ public class SearchTransportService {
 
                 // CHUNKED PATH
                 final FetchPhaseResponseChunk.Writer writer = new FetchPhaseResponseChunk.Writer() {
-                    final Transport.Connection conn = transportService.getConnection(
-                        fetchSearchReq.getCoordinatingNode()
-                    );
+                    final Transport.Connection conn = transportService.getConnection(fetchSearchReq.getCoordinatingNode());
 
                     @Override
-                    public void writeResponseChunk(
-                        FetchPhaseResponseChunk responseChunk,
-                        ActionListener<Void> listener
-                    ) {
+                    public void writeResponseChunk(FetchPhaseResponseChunk responseChunk, ActionListener<Void> listener) {
                         transportService.sendChildRequest(
                             conn,
                             TransportFetchPhaseResponseChunkAction.TYPE.name(),
-                            new TransportFetchPhaseResponseChunkAction.Request(
-                                fetchSearchReq.getCoordinatingTaskId(),
-                                responseChunk
-                            ),
+                            new TransportFetchPhaseResponseChunkAction.Request(fetchSearchReq.getCoordinatingTaskId(), responseChunk),
                             task,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
@@ -575,19 +567,10 @@ public class SearchTransportService {
                 };
 
                 // Execute with chunked writer
-                searchService.executeFetchPhase(
-                    request,
-                    (SearchShardTask) task,
-                    writer,
-                    new ChannelActionListener<>(channel)
-                );
+                searchService.executeFetchPhase(request, (SearchShardTask) task, writer, new ChannelActionListener<>(channel));
             } else {
                 // Normal path
-                searchService.executeFetchPhase(
-                    request,
-                    (SearchShardTask) task,
-                    new ChannelActionListener<>(channel)
-                );
+                searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
             }
         };
 

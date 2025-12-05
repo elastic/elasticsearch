@@ -271,6 +271,9 @@ public class RankFeaturePhase extends SearchPhase {
     }
 
     void moveToNextPhase(SearchPhaseResults<SearchPhaseResult> phaseResults, SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {
-        context.executeNextPhase(NAME, () -> new FetchSearchPhase(phaseResults, aggregatedDfs, context, reducedQueryPhase, fetchCoordinationAction));
+        context.executeNextPhase(
+            NAME,
+            () -> new FetchSearchPhase(phaseResults, aggregatedDfs, context, reducedQueryPhase, fetchCoordinationAction)
+        );
     }
 }

@@ -123,9 +123,13 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         return this.rankDocs;
     }
 
-    public DiscoveryNode getCoordinatingNode() { return coordinatingNode; }
+    public DiscoveryNode getCoordinatingNode() {
+        return coordinatingNode;
+    }
 
-    public long getCoordinatingTaskId() { return coordinatingTaskId; }
+    public long getCoordinatingTaskId() {
+        return coordinatingTaskId;
+    }
 
     public void setCoordinatingNode(DiscoveryNode coordinatingNode) {
         this.coordinatingNode = coordinatingNode;

@@ -70,8 +70,8 @@ public final class ActiveFetchPhaseTasks {
      * @return the response stream with an incremented reference count
      * @throws ResourceNotFoundException if the task is not registered or has already completed
      */
-    public FetchPhaseResponseStream acquireResponseStream(long coordinatingTaskId,  int shardId) {
-        final var outerRequest  = tasks.get(new ResponseStreamKey(coordinatingTaskId, shardId));
+    public FetchPhaseResponseStream acquireResponseStream(long coordinatingTaskId, int shardId) {
+        final var outerRequest = tasks.get(new ResponseStreamKey(coordinatingTaskId, shardId));
         if (outerRequest == null || outerRequest.tryIncRef() == false) {
             throw new ResourceNotFoundException("fetch task [" + coordinatingTaskId + "] not found");
         }

@@ -90,10 +90,7 @@ public final class FetchPhase {
         }
 
         if (docIdsToLoad == null || docIdsToLoad.length == 0) {
-            SearchHits emptyHits = SearchHits.empty(
-                context.queryResult().getTotalHits(),
-                context.queryResult().getMaxScore()
-            );
+            SearchHits emptyHits = SearchHits.empty(context.queryResult().getTotalHits(), context.queryResult().getMaxScore());
             context.fetchResult().shardResult(emptyHits, null);
 
             // If chunking, send START_RESPONSE to signal no hits
@@ -114,8 +111,8 @@ public final class FetchPhase {
 
         final Profiler profiler = context.getProfilers() == null
             || (context.request().source() != null && context.request().source().rankBuilder() != null)
-            ? Profiler.NOOP
-            : Profilers.startProfilingFetchPhase();
+                ? Profiler.NOOP
+                : Profilers.startProfilingFetchPhase();
 
         SearchHits hits = null;
         try {
@@ -337,7 +334,7 @@ public final class FetchPhase {
                 context.request().allowPartialSearchResults(),
                 context.queryResult(),
                 writer,
-               5 // TODO set a proper number
+                5 // TODO set a proper number
             );
 
             if (context.isCancelled()) {

@@ -148,13 +148,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         ActiveFetchPhaseTasks activeFetchPhaseTasks,
         CircuitBreakerService circuitBreakerService
     ) {
-        super(
-            TYPE.name(),
-            transportService,
-            actionFilters,
-            Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(TYPE.name(), transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.activeFetchPhaseTasks = activeFetchPhaseTasks;
         this.circuitBreakerService = circuitBreakerService;
@@ -180,30 +174,27 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         Releasable registration = activeFetchPhaseTasks.registerResponseBuilder(coordinatingTaskId, shardId, responseStream);
 
         // Listener that builds final result from accumulated chunks
-        ActionListener<FetchSearchResult> childListener = ActionListener.wrap(
-            dataNodeResult -> {
-                try {
-                    ShardSearchContextId ctxId = dataNodeResult.getContextId();
-                    SearchShardTarget shardTarget = dataNodeResult.getSearchShardTarget();
-                    ProfileResult profileResult = dataNodeResult.profileResult();
-                    FetchSearchResult finalResult = responseStream.buildFinalResult(ctxId, shardTarget, profileResult);
-                    listener.onResponse(new Response(finalResult));
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                } finally {
-                    registration.close();
-                    responseStream.decRef();
-                }
-            },
-            e -> {
-                try {
-                    listener.onFailure(e);
-                } finally {
-                    registration.close();
-                    responseStream.decRef();
-                }
+        ActionListener<FetchSearchResult> childListener = ActionListener.wrap(dataNodeResult -> {
+            try {
+                ShardSearchContextId ctxId = dataNodeResult.getContextId();
+                SearchShardTarget shardTarget = dataNodeResult.getSearchShardTarget();
+                ProfileResult profileResult = dataNodeResult.profileResult();
+                FetchSearchResult finalResult = responseStream.buildFinalResult(ctxId, shardTarget, profileResult);
+                listener.onResponse(new Response(finalResult));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            } finally {
+                registration.close();
+                responseStream.decRef();
             }
-        );
+        }, e -> {
+            try {
+                listener.onFailure(e);
+            } finally {
+                registration.close();
+                responseStream.decRef();
+            }
+        });
 
         // Forward request to data node using the existing FETCH_ID_ACTION_NAME
         transportService.sendChildRequest(
@@ -212,11 +203,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
             fetchReq,
             task,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(
-                childListener,
-                FetchSearchResult::new,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
-            )
+            new ActionListenerResponseHandler<>(childListener, FetchSearchResult::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
         );
     }
 }

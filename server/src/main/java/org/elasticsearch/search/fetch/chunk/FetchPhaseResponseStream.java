@@ -82,7 +82,7 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
                 throw new IllegalStateException("response already started for shard " + shardIndex);
             }
             responseStarted = true;
-            if(logger.isTraceEnabled()) {
+            if (logger.isTraceEnabled()) {
                 logger.debug("Started response stream for shard [{}], expecting [{}] docs", shardIndex, expectedDocs);
             }
         }
@@ -177,10 +177,8 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
      * @param profileResult the profile result from the data node (may be null)
      * @return a complete {@link FetchSearchResult} containing all accumulated hits
      */
-    FetchSearchResult buildFinalResult(ShardSearchContextId ctxId,
-                                       SearchShardTarget shardTarget,
-                                       @Nullable ProfileResult profileResult) {
-        if(logger.isTraceEnabled()) {
+    FetchSearchResult buildFinalResult(ShardSearchContextId ctxId, SearchShardTarget shardTarget, @Nullable ProfileResult profileResult) {
+        if (logger.isTraceEnabled()) {
             logger.debug("Building final result for shard [{}] with [{}] hits", shardIndex, hits.size());
         }
 

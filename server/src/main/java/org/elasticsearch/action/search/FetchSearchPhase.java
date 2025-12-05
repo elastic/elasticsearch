@@ -20,11 +20,11 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -277,18 +277,10 @@ class FetchSearchPhase extends SearchPhase {
             fetchCoordinationAction.execute(
                 context.getTask(),
                 new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, targetNode),
-                ActionListener.wrap(
-                    response -> listener.onResponse(response.getResult()),
-                    listener::onFailure
-                )
+                ActionListener.wrap(response -> listener.onResponse(response.getResult()), listener::onFailure)
             );
         } else {
-            context.getSearchTransport().sendExecuteFetch(
-                connection,
-                shardFetchRequest,
-                context.getTask(),
-                listener
-            );
+            context.getSearchTransport().sendExecuteFetch(connection, shardFetchRequest, context.getTask(), listener);
         }
     }
 

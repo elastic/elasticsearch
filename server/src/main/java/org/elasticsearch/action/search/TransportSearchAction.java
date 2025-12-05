@@ -2008,7 +2008,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             try {
                 final AbstractSearchAsyncAction<?> searchPhase;
                 if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
-                    searchPhase = new SearchDfsQueryThenFetchAsyncAction    (
+                    searchPhase = new SearchDfsQueryThenFetchAsyncAction(
                         logger,
                         namedWriteableRegistry,
                         searchTransportService,

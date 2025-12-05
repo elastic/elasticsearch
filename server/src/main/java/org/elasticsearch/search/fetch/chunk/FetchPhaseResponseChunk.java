@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.ShardSearchContextId;
 
 import java.io.IOException;
 
@@ -65,15 +64,7 @@ public record FetchPhaseResponseChunk(
      * @throws IOException if deserialization fails
      */
     public FetchPhaseResponseChunk(StreamInput in) throws IOException {
-        this(
-            in.readVLong(),
-            in.readEnum(Type.class),
-            in.readVInt(),
-            readOptionalHits(in),
-            in.readVInt(),
-            in.readVInt(),
-            in.readVInt()
-        );
+        this(in.readVLong(), in.readEnum(Type.class), in.readVInt(), readOptionalHits(in), in.readVInt(), in.readVInt(), in.readVInt());
     }
 
     private static SearchHits readOptionalHits(StreamInput in) throws IOException {

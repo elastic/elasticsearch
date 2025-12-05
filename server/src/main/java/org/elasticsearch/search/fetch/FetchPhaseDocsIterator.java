@@ -203,14 +203,7 @@ abstract class FetchPhaseDocsIterator {
 
             // Send final partial chunk if streaming is enabled and buffer has remaining hits
             if (streamingEnabled && chunkBuffer.isEmpty() == false) {
-                sendChunk(
-                    chunkWriter,
-                    chunkBuffer,
-                    shardIndex,
-                    docs.length - chunkBuffer.size(),
-                    docIds.length,
-                    Float.NaN
-                );
+                sendChunk(chunkWriter, chunkBuffer, shardIndex, docs.length - chunkBuffer.size(), docIds.length, Float.NaN);
                 chunkBuffer.clear();
             }
 
@@ -256,11 +249,7 @@ abstract class FetchPhaseDocsIterator {
 
         SearchHits chunkHits = null;
         try {
-             chunkHits = new SearchHits(
-                hitsArray,
-                new TotalHits(hitsArray.length, TotalHits.Relation.EQUAL_TO),
-                maxScore
-            );
+            chunkHits = new SearchHits(hitsArray, new TotalHits(hitsArray.length, TotalHits.Relation.EQUAL_TO), maxScore);
 
             FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(
                 System.currentTimeMillis(),

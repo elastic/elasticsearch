@@ -1005,10 +1005,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return QueryFetchSearchResult.of(context.queryResult(), context.fetchResult());
     }
 
-    public void executeFetchPhase(ShardFetchRequest request,
-                                  CancellableTask task,
-                                  FetchPhaseResponseChunk.Writer writer,
-                                  ActionListener<FetchSearchResult> listener) {
+    public void executeFetchPhase(
+        ShardFetchRequest request,
+        CancellableTask task,
+        FetchPhaseResponseChunk.Writer writer,
+        ActionListener<FetchSearchResult> listener
+    ) {
 
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
@@ -1027,7 +1029,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     var opsListener = searchContext.indexShard().getSearchOperationListener();
                     opsListener.onPreFetchPhase(searchContext);
                     try {
-                        fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks(),/* memoryChecker */ null, writer);
+                        fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks(), /* memoryChecker */ null, writer);
                         if (readerContext.singleSession()) {
                             freeReaderContext(request.contextId());
                         }
@@ -1047,7 +1049,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // we handle the failure in the failure listener below
                     throw e;
                 }
-            },  wrapFailureListener(listener, readerContext, markAsUsed));
+            }, wrapFailureListener(listener, readerContext, markAsUsed));
         }));
     }
 

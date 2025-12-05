@@ -49,7 +49,6 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
 
     private final ActiveFetchPhaseTasks activeFetchPhaseTasks;
 
-
     /**
      * Creates a new chunk receiver action.
      *

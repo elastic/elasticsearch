@@ -52,7 +52,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<DiversifyRetrieverBuilder> {
 
-    public static final Float DEFAULT_LAMBDA_VALUE = 0.7f;
     public static final int DEFAULT_SIZE_VALUE = 10;
 
     public static final NodeFeature RETRIEVER_RESULT_DIVERSIFICATION_MMR_FEATURE = new NodeFeature("retriever.result_diversification_mmr");
@@ -136,7 +135,6 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     private final QueryVectorBuilder queryVectorBuilder;
     private final Float lambda;
     private final Integer size;
-    private ResultDiversificationContext diversificationContext = null;
 
     DiversifyRetrieverBuilder(
         RetrieverSource innerRetriever,
@@ -149,27 +147,6 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         @Nullable Float lambda
     ) {
         super(List.of(innerRetriever), rankWindowSize);
-        this.diversificationType = diversificationType;
-        this.diversificationField = diversificationField;
-        this.queryVector = queryVector != null ? () -> queryVector : null;
-        this.queryVectorBuilder = queryVectorBuilder;
-        this.lambda = lambda;
-        this.size = size == null ? Math.min(DEFAULT_SIZE_VALUE, rankWindowSize) : size;
-    }
-
-    DiversifyRetrieverBuilder(
-        List<RetrieverSource> innerRetrievers,
-        ResultDiversificationType diversificationType,
-        String diversificationField,
-        int rankWindowSize,
-        @Nullable Integer size,
-        @Nullable VectorData queryVector,
-        @Nullable QueryVectorBuilder queryVectorBuilder,
-        @Nullable Float lambda
-    ) {
-        super(innerRetrievers, rankWindowSize);
-        assert innerRetrievers.size() == 1 : "ResultDiversificationRetrieverBuilder must have a single child retriever";
-
         this.diversificationType = diversificationType;
         this.diversificationField = diversificationField;
         this.queryVector = queryVector != null ? () -> queryVector : null;
@@ -288,10 +265,10 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     @Override
     protected RetrieverBuilder doRewrite(QueryRewriteContext ctx) {
         if (queryVectorBuilder != null) {
-            SetOnce<float[]> toSet = new SetOnce<>();
+            SetOnce<VectorData> toSet = new SetOnce<>();
             ctx.registerAsyncAction((c, l) -> {
                 queryVectorBuilder.buildVector(c, l.delegateFailureAndWrap((ll, v) -> {
-                    toSet.set(v);
+                    toSet.set(v == null ? null : new VectorData(v));
                     if (v == null) {
                         ll.onFailure(
                             new IllegalArgumentException(
@@ -314,23 +291,10 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 diversificationField,
                 rankWindowSize,
                 size,
-                () -> new VectorData(toSet.get()),
+                () -> toSet.get(),
                 null,
                 lambda
             );
-        }
-
-        if (diversificationType.equals(ResultDiversificationType.MMR)) {
-            // field vectors will be filled in during the combine
-            diversificationContext = new MMRResultDiversificationContext(
-                diversificationField,
-                lambda,
-                size == null ? DEFAULT_SIZE_VALUE : size,
-                queryVector
-            );
-        } else {
-            // should not happen
-            throw new IllegalArgumentException("Unknown diversification type [" + diversificationType + "]");
         }
 
         return this;
@@ -366,13 +330,6 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     @Override
     protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
-        if (diversificationContext == null) {
-            throw new ElasticsearchStatusException(
-                "diversificationContext is not set. \"doRewrite\" should have been called beforehand.",
-                RestStatus.INTERNAL_SERVER_ERROR
-            );
-        }
-
         if (rankResults.isEmpty()) {
             return new RankDoc[0];
         }
@@ -386,6 +343,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             // might happen in the case where we have no results
             return new RankDoc[0];
         }
+
+        ResultDiversificationContext diversificationContext = getResultDiversificationContext();
 
         // gather and set the query vectors
         // and create our intermediate results set
@@ -427,6 +386,15 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         } catch (IOException e) {
             throw new ElasticsearchStatusException("Result diversification failed", RestStatus.INTERNAL_SERVER_ERROR, e);
         }
+    }
+
+    private ResultDiversificationContext getResultDiversificationContext() {
+        if (diversificationType.equals(ResultDiversificationType.MMR)) {
+            return new MMRResultDiversificationContext(diversificationField, lambda, size == null ? DEFAULT_SIZE_VALUE : size, queryVector);
+        }
+
+        // should not happen
+        throw new IllegalArgumentException("Unknown diversification type [" + diversificationType + "]");
     }
 
     private void extractFieldVectorData(int docId, Object fieldValue, Map<Integer, VectorData> fieldVectors) {
@@ -540,6 +508,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             && this.diversificationType.equals(other.diversificationType)
             && this.diversificationField.equals(other.diversificationField)
             && Objects.equals(this.lambda, other.lambda)
-            && Objects.equals(this.queryVector, other.queryVector);
+            && ((queryVector == null && other.queryVector == null)
+                || (queryVector != null && other.queryVector != null && Objects.equals(queryVector.get(), other.queryVector.get())))
+            && Objects.equals(this.queryVectorBuilder, other.queryVectorBuilder);
     }
 }

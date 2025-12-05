@@ -15,8 +15,6 @@ import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
-import org.elasticsearch.search.vectors.QueryVectorBuilder;
-import org.elasticsearch.search.vectors.TestQueryVectorBuilderPlugin;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
@@ -49,9 +47,6 @@ public class DiversifyRetrieverBuilderParsingTests extends AbstractXContentTestC
         int rankWindowSize = randomIntBetween(1, 20);
         Integer size = randomBoolean() ? null : randomIntBetween(1, 20);
         VectorData queryVector = randomBoolean() ? getRandomQueryVector() : null;
-        QueryVectorBuilder queryVectorBuilder = randomBoolean() && queryVector == null
-            ? new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(getRandomFloatQueryVector())
-            : null;
         Float lambda = randomBoolean() ? randomFloatBetween(0.0f, 1.0f, true) : null;
         CompoundRetrieverBuilder.RetrieverSource innerRetriever = new CompoundRetrieverBuilder.RetrieverSource(
             TestRetrieverBuilder.createRandomTestRetrieverBuilder(),
@@ -64,7 +59,7 @@ public class DiversifyRetrieverBuilderParsingTests extends AbstractXContentTestC
             rankWindowSize,
             size,
             queryVector,
-            queryVectorBuilder,
+            null,
             lambda
         );
     }

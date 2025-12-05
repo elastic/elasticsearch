@@ -66,7 +66,8 @@ public class MetricValidator {
     static final Predicate<String> METRIC_SKIP_VALIDATION = Regex.simpleMatcher(
         "es.thread_pool.searchable_snapshots_cache_fetch_async.*",
         "es.thread_pool.searchable_snapshots_cache_prewarming.*",
-        "es.thread_pool.security-crypto.*"
+        "es.thread_pool.security-crypto.*",
+        "es.thread_pool.security-token-key.*"
     );
 
     /**

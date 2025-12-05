@@ -167,10 +167,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         );
         this.preRestoreChecks = preRestoreChecks;
         this.defaultRepository = DEFAULT_REPOSITORY_SETTING.get(settings);
-        if (DiscoveryNode.isMasterNode(settings)) {
-            clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(DEFAULT_REPOSITORY_SETTING, this::setDefaultRepository, this::validateDefaultRepository);
-        }
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DEFAULT_REPOSITORY_SETTING, this::setDefaultRepository, this::validateDefaultRepository);
         snapshotMetrics.createSnapshotShardsInProgressMetric(this::getShardSnapshotsInProgress);
     }
 

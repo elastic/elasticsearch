@@ -35,13 +35,14 @@ public record FieldDataContext(
 
     /**
      * A context to use when runtime fields are not available
-     *
+     * <p>
      * Used for validating index sorts, eager global ordinal loading, etc
      *
-     * @param reason the reason that runtime fields are not supported
+     * @param indexName
+     * @param reason    the reason that runtime fields are not supported
      */
-    public static FieldDataContext noRuntimeFields(String reason) {
-        return new FieldDataContext("", null, () -> {
+    public static FieldDataContext noRuntimeFields(String indexName, String reason) {
+        return new FieldDataContext(indexName, null, () -> {
             throw new UnsupportedOperationException("Runtime fields not supported for [" + reason + "]");
         }, Set::of, MappedFieldType.FielddataOperation.SEARCH);
     }

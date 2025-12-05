@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
@@ -128,11 +129,28 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         downsampleAndAssert(dataStreamName, mapping, sourceSupplier, randomSamplingMethod());
     }
 
-    public void testLastValueMode() throws Exception {
+    public void testLastValueMethod() throws Exception {
+        downsampleWithSamplingMethod(DownsampleConfig.SamplingMethod.LAST_VALUE);
+    }
+
+    public void testAggregateMethod() throws Exception {
+        downsampleWithSamplingMethod(DownsampleConfig.SamplingMethod.AGGREGATE);
+    }
+
+    private void downsampleWithSamplingMethod(DownsampleConfig.SamplingMethod method) throws Exception {
+        // TODO: remove when FeatureFlag is removed and add minimum required version to yaml spec
+        assumeTrue("Only when exponential_histogram feature flag is enabled", Build.current().isSnapshot());
         String dataStreamName = "metrics-foo";
         String mapping = """
             {
               "properties": {
+                "@timestamp": {
+                  "type": "date"
+                },
+                "timestamp": {
+                  "path": "@timestamp",
+                  "type": "alias"
+                },
                 "attributes": {
                   "type": "passthrough",
                   "priority": 10,
@@ -147,6 +165,25 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 "metrics.cpu_usage": {
                   "type": "double",
                   "time_series_metric": "gauge"
+                },
+                "metrics.latency": {
+                  "type": "exponential_histogram",
+                  "time_series_metric": "histogram"
+                },
+                "my_labels": {
+                  "properties": {
+                    "my_histogram": {
+                      "type": "histogram"
+                    },
+                    "my_aggregate": {
+                      "type": "aggregate_metric_double",
+                      "metrics": [ "min", "max", "sum", "value_count" ],
+                      "default_metric": "max"
+                    },
+                    "my_exponential_histogram": {
+                      "type": "exponential_histogram"
+                    }
+                  }
                 }
               }
             }
@@ -157,18 +194,70 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         Supplier<XContentBuilder> sourceSupplier = () -> {
             String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
             try {
+                int maxHistogramSize = randomIntBetween(2, 10);
                 return XContentFactory.jsonBuilder()
                     .startObject()
                     .field("@timestamp", ts)
                     .field("attributes.host.name", randomFrom("host1", "host2", "host3"))
                     .field("attributes.os.name", randomFrom("linux", "windows", "macos"))
                     .field("metrics.cpu_usage", randomDouble())
+
+                    .startObject("metrics.latency")
+                    .field("scale", 0)
+                    .field("sum", -3775.0)
+                    .field("min", -100.0)
+                    .field("max", 50.0)
+                    .startObject("zero")
+                    .field("count", 1)
+                    .field("threshold", 1.0E-4)
+                    .endObject()
+                    .startObject("positive")
+                    .array("indices", new int[] { -1, 0, 1, 2, 3, 4, 5 })
+                    .array("counts", new int[] { 1, 1, 2, 4, 8, 16, 18 })
+                    .endObject()
+                    .startObject("negative")
+                    .array("indices", new int[] { -1, 0, 1, 2, 3, 4, 5, 6 })
+                    .array("counts", new int[] { 1, 1, 2, 4, 8, 16, 32, 36 })
+                    .endObject()
+                    .endObject()
+
+                    .startObject("my_labels.my_histogram")
+                    .array("values", randomHistogramValues(maxHistogramSize))
+                    .array("counts", randomHistogramValueCounts(maxHistogramSize))
+                    .endObject()
+
+                    .startObject("my_labels.my_aggregate")
+                    .field("min", randomFloatBetween(0.0f, 10.0f, true))
+                    .field("max", randomFloatBetween(10.0f, 20.0f, true))
+                    .field("sum", randomFloatBetween(20.0f, 30.0f, true))
+                    .field("value_count", randomIntBetween(1, 10))
+                    .endObject()
+
+                    .startObject("my_labels.my_exponential_histogram")
+                    .field("scale", 0)
+                    .field("sum", -3775.0)
+                    .field("min", -100.0)
+                    .field("max", 50.0)
+                    .startObject("zero")
+                    .field("count", 1)
+                    .field("threshold", 1.0E-4)
+                    .endObject()
+                    .startObject("positive")
+                    .array("indices", new int[] { -1, 0, 1, 2, 3, 4, 5 })
+                    .array("counts", new int[] { 1, 1, 2, 4, 8, 16, 18 })
+                    .endObject()
+                    .startObject("negative")
+                    .array("indices", new int[] { -1, 0, 1, 2, 3, 4, 5, 6 })
+                    .array("counts", new int[] { 1, 1, 2, 4, 8, 16, 32, 36 })
+                    .endObject()
+                    .endObject()
+
                     .endObject();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         };
-        downsampleAndAssert(dataStreamName, mapping, sourceSupplier, DownsampleConfig.SamplingMethod.LAST_VALUE);
+        downsampleAndAssert(dataStreamName, mapping, sourceSupplier, method);
     }
 
     /**
@@ -535,5 +624,22 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
 
     private EsqlQueryResponse esqlCommand(String command) throws IOException {
         return client().execute(EsqlQueryAction.INSTANCE, new EsqlQueryRequest().query(command)).actionGet(30, TimeUnit.SECONDS);
+    }
+
+    private static double[] randomHistogramValues(int size) {
+        final double[] array = new double[size];
+        double minHistogramValue = randomDoubleBetween(0.0, 0.1, true);
+        for (int i = 0; i < array.length; i++) {
+            array[i] = minHistogramValue += randomDoubleBetween(0.0, 0.5, true);
+        }
+        return array;
+    }
+
+    private static int[] randomHistogramValueCounts(int size) {
+        final int[] array = new int[size];
+        for (int i = 0; i < array.length; i++) {
+            array[i] = randomIntBetween(1, 100);
+        }
+        return array;
     }
 }

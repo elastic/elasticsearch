@@ -64,7 +64,7 @@ public class AzureOpenAiEmbeddingsRequestManager extends AzureOpenAiRequestManag
         ActionListener<InferenceServiceResults> listener
     ) {
         EmbeddingsInput input = inferenceInputs.castTo(EmbeddingsInput.class);
-        List<String> docsInput = input.getInputs();
+        List<String> docsInput = input.getTextInputs();
         InputType inputType = input.getInputType();
 
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());

@@ -48,6 +48,7 @@ dependencies {
   api(project(':x-pack:plugin:esql'))
   api(project(':x-pack:plugin:esql:compute'))
   api(project(':x-pack:plugin:mapper-exponential-histogram'))
+  api(project(':x-pack:plugin:logsdb'))
   implementation project(path: ':libs:native')
   implementation project(path: ':libs:simdvec')
   implementation project(path: ':libs:swisshash')

@@ -63,3 +63,6 @@ supports the following time series aggregation functions:
 
 :::{include} ../_snippets/functions/layout/sum_over_time.md
 :::
+
+:::{include} ../_snippets/functions/layout/deriv.md
+:::

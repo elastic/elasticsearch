@@ -107,10 +107,12 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
     @Override
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
+        final DataType tsType = timestamp().dataType();
+        final boolean isDateNanos = tsType == DataType.DATE_NANOS;
         return switch (type) {
-            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier(false);
-            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier(false);
-            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(false);
+            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier(false, isDateNanos);
+            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier(false, isDateNanos);
+            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(false, isDateNanos);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
@@ -122,7 +124,7 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     public String toString() {
-        return "irate(" + field() + ")";
+        return "irate(" + field() + ", " + timestamp() + ")";
     }
 
     @Override

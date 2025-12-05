@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.time.ZoneId;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
@@ -35,17 +36,21 @@ public final class DateDiffConstantNanosMillisEvaluator implements EvalOperator.
 
   private final EvalOperator.ExpressionEvaluator endTimestampMillis;
 
+  private final ZoneId zoneId;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public DateDiffConstantNanosMillisEvaluator(Source source, DateDiff.Part datePartFieldUnit,
       EvalOperator.ExpressionEvaluator startTimestampNanos,
-      EvalOperator.ExpressionEvaluator endTimestampMillis, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator endTimestampMillis, ZoneId zoneId,
+      DriverContext driverContext) {
     this.source = source;
     this.datePartFieldUnit = datePartFieldUnit;
     this.startTimestampNanos = startTimestampNanos;
     this.endTimestampMillis = endTimestampMillis;
+    this.zoneId = zoneId;
     this.driverContext = driverContext;
   }
 
@@ -103,7 +108,7 @@ public final class DateDiffConstantNanosMillisEvaluator implements EvalOperator.
         long startTimestampNanos = startTimestampNanosBlock.getLong(startTimestampNanosBlock.getFirstValueIndex(p));
         long endTimestampMillis = endTimestampMillisBlock.getLong(endTimestampMillisBlock.getFirstValueIndex(p));
         try {
-          result.appendInt(DateDiff.processNanosMillis(this.datePartFieldUnit, startTimestampNanos, endTimestampMillis));
+          result.appendInt(DateDiff.processNanosMillis(this.datePartFieldUnit, startTimestampNanos, endTimestampMillis, this.zoneId));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -120,7 +125,7 @@ public final class DateDiffConstantNanosMillisEvaluator implements EvalOperator.
         long startTimestampNanos = startTimestampNanosVector.getLong(p);
         long endTimestampMillis = endTimestampMillisVector.getLong(p);
         try {
-          result.appendInt(DateDiff.processNanosMillis(this.datePartFieldUnit, startTimestampNanos, endTimestampMillis));
+          result.appendInt(DateDiff.processNanosMillis(this.datePartFieldUnit, startTimestampNanos, endTimestampMillis, this.zoneId));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -132,7 +137,7 @@ public final class DateDiffConstantNanosMillisEvaluator implements EvalOperator.
 
   @Override
   public String toString() {
-    return "DateDiffConstantNanosMillisEvaluator[" + "datePartFieldUnit=" + datePartFieldUnit + ", startTimestampNanos=" + startTimestampNanos + ", endTimestampMillis=" + endTimestampMillis + "]";
+    return "DateDiffConstantNanosMillisEvaluator[" + "datePartFieldUnit=" + datePartFieldUnit + ", startTimestampNanos=" + startTimestampNanos + ", endTimestampMillis=" + endTimestampMillis + ", zoneId=" + zoneId + "]";
   }
 
   @Override
@@ -161,23 +166,26 @@ public final class DateDiffConstantNanosMillisEvaluator implements EvalOperator.
 
     private final EvalOperator.ExpressionEvaluator.Factory endTimestampMillis;
 
+    private final ZoneId zoneId;
+
     public Factory(Source source, DateDiff.Part datePartFieldUnit,
         EvalOperator.ExpressionEvaluator.Factory startTimestampNanos,
-        EvalOperator.ExpressionEvaluator.Factory endTimestampMillis) {
+        EvalOperator.ExpressionEvaluator.Factory endTimestampMillis, ZoneId zoneId) {
       this.source = source;
       this.datePartFieldUnit = datePartFieldUnit;
       this.startTimestampNanos = startTimestampNanos;
       this.endTimestampMillis = endTimestampMillis;
+      this.zoneId = zoneId;
     }
 
     @Override
     public DateDiffConstantNanosMillisEvaluator get(DriverContext context) {
-      return new DateDiffConstantNanosMillisEvaluator(source, datePartFieldUnit, startTimestampNanos.get(context), endTimestampMillis.get(context), context);
+      return new DateDiffConstantNanosMillisEvaluator(source, datePartFieldUnit, startTimestampNanos.get(context), endTimestampMillis.get(context), zoneId, context);
     }
 
     @Override
     public String toString() {
-      return "DateDiffConstantNanosMillisEvaluator[" + "datePartFieldUnit=" + datePartFieldUnit + ", startTimestampNanos=" + startTimestampNanos + ", endTimestampMillis=" + endTimestampMillis + "]";
+      return "DateDiffConstantNanosMillisEvaluator[" + "datePartFieldUnit=" + datePartFieldUnit + ", startTimestampNanos=" + startTimestampNanos + ", endTimestampMillis=" + endTimestampMillis + ", zoneId=" + zoneId + "]";
     }
   }
 }

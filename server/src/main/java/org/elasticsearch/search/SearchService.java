@@ -19,13 +19,13 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.CanMatchNodeResponse;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
+import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
@@ -52,11 +52,11 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -603,12 +603,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ThreadPool threadPool,
         Lifecycle lifecycle
     ) {
-        final boolean header;
-        if (version.supports(TransportVersions.V_8_18_0) && threadPool.getThreadContext() != null) {
-            header = getErrorTraceHeader(threadPool);
-        } else {
-            header = true;
-        }
+        final boolean header = threadPool.getThreadContext() == null || getErrorTraceHeader(threadPool);
         return listener.delegateResponse((l, e) -> {
             org.apache.logging.log4j.util.Supplier<String> messageSupplier = () -> format(
                 "[%s]%s: failed to execute search request for task [%d]",
@@ -638,11 +633,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         });
     }
 
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     private static boolean getErrorTraceHeader(ThreadPool threadPool) {
-        return Boolean.parseBoolean(threadPool.getThreadContext().getHeaderOrDefault("error_trace", "false"));
+        return Booleans.parseBoolean(threadPool.getThreadContext().getHeaderOrDefault("error_trace", "false"));
     }
 
     public void executeDfsPhase(ShardSearchRequest request, SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
@@ -1271,7 +1263,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // calculated from the ids of the underlying segments of an index commit
                 final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
                 final IndexShard shard = indexService.getShard(request.shardId().id());
-                final Engine.SearcherSupplier searcherSupplier = shard.acquireSearcherSupplier();
+                final Engine.SearcherSupplier searcherSupplier = shard.acquireExternalSearcherSupplier(request.getSplitShardCountSummary());
                 if (contextId.sameSearcherIdsAs(searcherSupplier.getSearcherId()) == false) {
                     searcherSupplier.close();
                     throw e;
@@ -1295,7 +1287,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
-        return createAndPutReaderContext(request, indexService, shard, shard.acquireSearcherSupplier(), keepAliveInMillis);
+        return createAndPutReaderContext(
+            request,
+            indexService,
+            shard,
+            shard.acquireExternalSearcherSupplier(request.getSplitShardCountSummary()),
+            keepAliveInMillis
+        );
     }
 
     final ReaderContext createAndPutReaderContext(
@@ -1447,10 +1445,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard indexShard = indexService.getShard(request.shardId().getId());
-        final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
+        final Engine.SearcherSupplier reader = indexShard.acquireExternalSearcherSupplier(request.getSplitShardCountSummary());
         final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet(), reader.getSearcherId());
         try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true)) {
-            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, ResultsType.NONE);
+            // Use ResultsType.QUERY so that the created search context can execute queries correctly.
+            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, ResultsType.QUERY);
             searchContext.addReleasable(readerContext.markAsUsed(0L));
             return searchContext;
         }
@@ -1982,6 +1981,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void canMatch(CanMatchNodeRequest request, ActionListener<CanMatchNodeResponse> listener) {
         var shardLevelRequests = request.getShardLevelRequests();
         final List<CanMatchNodeResponse.ResponseOrFailure> responses = new ArrayList<>(shardLevelRequests.size());
+        Map<String, Object> searchRequestAttributes = null;
         for (var shardLevelRequest : shardLevelRequests) {
             long shardCanMatchStartTimeInNanos = System.nanoTime();
             ShardSearchRequest shardSearchRequest = request.createShardSearchRequest(shardLevelRequest);
@@ -1992,7 +1992,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 CanMatchContext canMatchContext = createCanMatchContext(shardSearchRequest);
                 CanMatchShardResponse canMatchShardResponse = canMatch(canMatchContext, true);
                 responses.add(new CanMatchNodeResponse.ResponseOrFailure(canMatchShardResponse));
-                indexShard.getSearchOperationListener().onCanMatchPhase(System.nanoTime() - shardCanMatchStartTimeInNanos);
+
+                if (searchRequestAttributes == null) {
+                    // All of the shards in the request are for the same search, so the attributes will be the same for all shards.
+                    searchRequestAttributes = SearchRequestAttributesExtractor.extractAttributes(
+                        shardSearchRequest,
+                        canMatchContext.getTimeRangeFilterFromMillis(),
+                        shardSearchRequest.nowInMillis()
+                    );
+                }
+
+                indexShard.getSearchOperationListener()
+                    .onCanMatchPhase(searchRequestAttributes, System.nanoTime() - shardCanMatchStartTimeInNanos);
             } catch (Exception e) {
                 responses.add(new CanMatchNodeResponse.ResponseOrFailure(e));
             }

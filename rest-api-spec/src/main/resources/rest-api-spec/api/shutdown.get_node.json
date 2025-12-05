@@ -29,8 +29,8 @@
           ],
           "parts": {
             "node_id": {
-              "type": "string",
-              "description": "Which node for which to retrieve the shutdown status"
+              "type": "list",
+              "description": "Comma-separated list of nodes for which to retrieve the shutdown status"
             }
           }
         }

@@ -6,6 +6,10 @@
     },
     "stability": "experimental",
     "visibility": "public",
+    "deprecated": {
+      "version": "8.11.0",
+      "description": "Rollup APIs are deprecated, use downsampling with time series data stream instead"
+    },
     "headers": {
       "accept": [
         "application/json"

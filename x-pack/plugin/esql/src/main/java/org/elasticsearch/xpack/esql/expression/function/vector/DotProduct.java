@@ -47,6 +47,11 @@ public class DotProduct extends VectorSimilarityFunction {
         public BlockLoaderFunctionConfig.Function function() {
             return BlockLoaderFunctionConfig.Function.V_DOT_PRODUCT;
         }
+
+        @Override
+        public String toString() {
+            return "V_DOT_PRODUCT";
+        }
     };
 
     @FunctionInfo(

@@ -144,6 +144,11 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     }
 
     @Override
+    public boolean isFoldable() {
+        return prompt.foldable();
+    }
+
+    @Override
     public void postAnalysisVerification(Failures failures) {
         if (prompt.resolved() && DataType.isString(prompt.dataType()) == false) {
             failures.add(fail(prompt, "prompt must be of type [{}] but is [{}]", TEXT.typeName(), prompt.dataType().typeName()));

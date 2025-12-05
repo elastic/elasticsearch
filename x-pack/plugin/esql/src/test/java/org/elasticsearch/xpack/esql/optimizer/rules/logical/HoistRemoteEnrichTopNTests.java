@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -126,7 +127,7 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
             "mapping-hosts.json"
         );
         var mapping = loadMapping("mapping-host_inventory.json");
-        EsIndex inventory = new EsIndex("host_inventory", mapping, Map.of("host_inventory", IndexMode.STANDARD));
+        EsIndex inventory = EsIndexGenerator.esIndex("host_inventory", mapping, Map.of("host_inventory", IndexMode.STANDARD));
         var analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
@@ -251,7 +252,7 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
         assertFalse(topn.local());
         Order topNOrder = topn.order().get(1);
         NamedExpression expr = as(topNOrder.child(), NamedExpression.class);
-        assertThat(expr.name(), startsWith("$$order_by$1$0"));
+        assertThat(expr.name(), startsWith("$$order_by$1$"));
         var enrich = as(topn.child(), Enrich.class);
         assertThat(enrich.mode(), is(Enrich.Mode.REMOTE));
         var innerTopN = as(enrich.child(), TopN.class);

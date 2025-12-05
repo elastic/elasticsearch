@@ -38,6 +38,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -299,6 +300,43 @@ public class RestoreServiceTests extends ESTestCase {
             exception.getMessage(),
             equalTo("[" + projectId + ":name:name/uuid] cannot restore global state since the snapshot was created without global state")
         );
+    }
+
+    public void testSafeRenameIndex() {
+        // Test normal rename
+        String result = RestoreService.safeRenameIndex("test-index", "test", "prod");
+        assertEquals("prod-index", result);
+
+        // Test pattern that creates too-long name (255×255 case)
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> RestoreService.safeRenameIndex("b".repeat(255), "b", "aa")
+        );
+        assertThat(e.getMessage(), containsString("exceed"));
+
+        // Test back-reference
+        result = RestoreService.safeRenameIndex("test-123", "(test)-(\\d+)", "$1_$2");
+        assertEquals("test_123", result);
+
+        // Test back-reference that would be too long
+        e = expectThrows(IllegalArgumentException.class, () -> RestoreService.safeRenameIndex("a".repeat(200), "(a+)", "$1$1"));
+        assertThat(e.getMessage(), containsString("exceed"));
+
+        // Test no match - returns original
+        result = RestoreService.safeRenameIndex("test", "xyz", "replacement");
+        assertEquals("test", result);
+
+        // Test exactly at limit (255 chars)
+        result = RestoreService.safeRenameIndex("b".repeat(255), "b+", "a".repeat(255));
+        assertEquals("a".repeat(255), result);
+
+        // Test empty replacement
+        result = RestoreService.safeRenameIndex("test-index", "test-", "");
+        assertEquals("index", result);
+
+        // Test multiple matches accumulating
+        result = RestoreService.safeRenameIndex("a-b-c", "-", "_");
+        assertEquals("a_b_c", result);
     }
 
     private static SnapshotInfo createSnapshotInfo(Snapshot snapshot, Boolean includeGlobalState) {

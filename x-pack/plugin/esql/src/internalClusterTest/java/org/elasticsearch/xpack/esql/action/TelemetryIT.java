@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -309,10 +310,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
     }
 
     private static EsqlQueryRequest executeQuery(String query) {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query(query);
-        request.pragmas(randomPragmas());
-        return request;
+        return syncEsqlQueryRequest(query).pragmas(randomPragmas());
     }
 
     private static void loadData(String nodeName) {

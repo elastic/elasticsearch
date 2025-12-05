@@ -1,0 +1,5 @@
+pr: 138464
+summary: Always prefer YES over NOT_PREFERRED when allocating unassigned shards
+area: Allocation
+type: bug
+issues: []

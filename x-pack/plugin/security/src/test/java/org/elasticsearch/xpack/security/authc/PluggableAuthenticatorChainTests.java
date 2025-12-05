@@ -6,11 +6,18 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -18,11 +25,13 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.CustomAuthenticator;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -87,13 +96,15 @@ public class PluggableAuthenticatorChainTests extends ESTestCase {
     public class TokenAAuthenticator implements CustomAuthenticator {
 
         private final String id;
+        private boolean succeed;
 
         public TokenAAuthenticator() {
-            id = "1";
+            this("1", true);
         }
 
-        public TokenAAuthenticator(String id) {
+        public TokenAAuthenticator(String id, boolean succeed) {
             this.id = id;
+            this.succeed = succeed;
         }
 
         @Override
@@ -109,9 +120,13 @@ public class PluggableAuthenticatorChainTests extends ESTestCase {
         @Override
         public void authenticate(@Nullable AuthenticationToken token, ActionListener<AuthenticationResult<Authentication>> listener) {
             if (token instanceof TestTokenA testToken) {
-                User user = new User("token-a-auth-user-" + id + "-" + testToken.getValue());
-                Authentication auth = AuthenticationTestHelper.builder().user(user).build(false);
-                listener.onResponse(AuthenticationResult.success(auth));
+                if (succeed) {
+                    User user = new User("token-a-auth-user-" + id + "-" + testToken.getValue());
+                    Authentication auth = AuthenticationTestHelper.builder().user(user).build(false);
+                    listener.onResponse(AuthenticationResult.success(auth));
+                } else {
+                    listener.onResponse(AuthenticationResult.terminate("token-a-fail-" + id + "-" + testToken.getValue()));
+                }
             } else {
                 listener.onResponse(AuthenticationResult.notHandled());
             }
@@ -243,7 +258,7 @@ public class PluggableAuthenticatorChainTests extends ESTestCase {
     public void testAuthenticateWhenTokenSupportedByBothAuthenticatorsInChain() throws Exception {
 
         PluggableAuthenticatorChain chain = new PluggableAuthenticatorChain(
-            List.of(new TokenAAuthenticator("foo"), new TokenAAuthenticator("bar"))
+            List.of(new TokenAAuthenticator("foo", true), new TokenAAuthenticator("bar", true))
         );
         TestTokenA testToken = new TestTokenA("test-value");
 
@@ -286,7 +301,7 @@ public class PluggableAuthenticatorChainTests extends ESTestCase {
     public void testAuthenticateWhenTokenSupportedByNoAuthenticatorsInChain() throws Exception {
 
         PluggableAuthenticatorChain chain = new PluggableAuthenticatorChain(
-            List.of(new TokenAAuthenticator("foo"), new TokenAAuthenticator("bar"))
+            List.of(new TokenAAuthenticator("foo", true), new TokenAAuthenticator("bar", true))
         );
         AuthenticationToken unknownToken = new AuthenticationToken() {
             @Override
@@ -338,7 +353,37 @@ public class PluggableAuthenticatorChainTests extends ESTestCase {
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
     }
 
+    public void testAuthenticationTermination() throws Exception {
+        final PluggableAuthenticatorChain chain = new PluggableAuthenticatorChain(List.of(new TokenAAuthenticator("terminate", false)));
+        final TestTokenA token = new TestTokenA("err");
+        final Authenticator.Context context = createContext();
+        context.addAuthenticationToken(token);
+
+        Loggers.setLevel(LogManager.getLogger(PluggableAuthenticatorChain.class), Level.DEBUG);
+        try (MockLog mockLog = MockLog.capture(PluggableAuthenticatorChain.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "debug-auth-failure",
+                    PluggableAuthenticatorChain.class.getName(),
+                    Level.DEBUG,
+                    "Authentication of token [user-err] was terminated: token-a-fail-terminate-err (caused by: null)"
+                )
+            );
+
+            final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
+            chain.authenticate(context, future);
+            mockLog.assertAllExpectationsMatched();
+
+            final ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class, () -> future.actionGet());
+            assertThat(ex, throwableWithMessage("mock-request-failure"));
+            assertThat(ex.status(), equalTo(RestStatus.UNAUTHORIZED));
+        }
+    }
+
     private Authenticator.Context createContext() {
-        return new Authenticator.Context(threadContext, null, null, true, null);
+        final var request = Mockito.mock(AuthenticationService.AuditableRequest.class);
+        Mockito.when(request.authenticationFailed(Mockito.any(AuthenticationToken.class)))
+            .thenAnswer(inv -> new ElasticsearchSecurityException("mock-request-failure", RestStatus.UNAUTHORIZED));
+        return new Authenticator.Context(threadContext, request, null, true, null);
     }
 }

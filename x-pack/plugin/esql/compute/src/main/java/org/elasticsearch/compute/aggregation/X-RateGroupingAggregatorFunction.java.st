@@ -39,8 +39,11 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
         // Overriding constructor to support isRateOverTime flag
         private final boolean isRateOverTime;
 
-        public FunctionSupplier(boolean isRateOverTime) {
+        public FunctionSupplier(boolean isRateOverTime, boolean isDateNanos) {
             this.isRateOverTime = isRateOverTime;
+            if (isDateNanos) {
+                throw new IllegalArgumentException("Nanos date type is not yet supported for rate aggregation");
+            }
         }
 
         @Override
@@ -575,8 +578,8 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
                 for (int i = 1; i < intervals.length; i++) {
                     Interval next = intervals[i - 1]; // reversed
                     Interval prev = intervals[i];
-                    if (prev.v2 > next.v2) {
-                        state.resets += prev.v2;
+                    if (prev.v1 > next.v2) {
+                        state.resets += prev.v1;
                     }
                 }
                 final double rate;

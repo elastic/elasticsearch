@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.FixForMultiProject;
@@ -77,6 +78,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -199,7 +201,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                     null,
                     null,
                     null,
-                    Map.of()
+                    Map.of(),
+                    false
                 )
                 : new ClusterStatsResponse(
                     System.currentTimeMillis(),
@@ -211,7 +214,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                     additionalStats.analysisStats(),
                     VersionStats.of(clusterService.state().metadata(), responses),
                     additionalStats.clusterSnapshotStats(),
-                    additionalStats.getRemoteStats()
+                    additionalStats.getRemoteStats(),
+                    request.isCPS()
                 )
         ).addListener(listener);
     }
@@ -260,12 +264,13 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false,
             false
         );
-        Map<ShardId, Long> shardIdToSharedRam = IndicesQueryCache.getSharedRamSizeForAllShards(indicesService);
+        Supplier<Map<ShardId, Long>> shardIdToSharedRam = CachedSupplier.wrap(
+            () -> IndicesQueryCache.getSharedRamSizeForAllShards(indicesService)
+        );
         List<ShardStats> shardsStats = new ArrayList<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 // get the shared ram for this shard id (or zero if there's nothing in the map)
-                long sharedRam = shardIdToSharedRam.getOrDefault(indexShard.shardId(), 0L);
                 cancellableTask.ensureNotCancelled();
                 if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
                     // only report on fully started shards
@@ -286,7 +291,12 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                         new ShardStats(
                             indexShard.routingEntry(),
                             indexShard.shardPath(),
-                            CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS, sharedRam),
+                            CommonStats.getShardLevelStats(
+                                indicesService.getIndicesQueryCache(),
+                                indexShard,
+                                SHARD_STATS_FLAGS,
+                                () -> shardIdToSharedRam.get().getOrDefault(indexShard.shardId(), 0L)
+                            ),
                             commitStats,
                             seqNoStats,
                             retentionLeaseStats,
@@ -445,7 +455,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     }
 
     private boolean doRemotes(ClusterStatsRequest request) {
-        return SearchService.CCS_COLLECT_TELEMETRY.get(settings) && request.doRemotes();
+        return SearchService.CCS_COLLECT_TELEMETRY.get(settings) && request.doRemotes() && request.isCPS() == false;
     }
 
     private class RemoteStatsFanout extends CancellableFanOut<String, RemoteClusterStatsResponse, Map<String, RemoteClusterStats>> {

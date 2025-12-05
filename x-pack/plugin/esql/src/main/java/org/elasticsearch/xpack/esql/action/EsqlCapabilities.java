@@ -1627,6 +1627,13 @@ public class EsqlCapabilities {
         INLINE_STATS_DOUBLE_RELEASE_FIX(INLINESTATS_V11.enabled),
 
         /**
+         * Fix for ClassCastException in STATS
+         * https://github.com/elastic/elasticsearch/issues/133992
+         * https://github.com/elastic/elasticsearch/issues/136598
+         */
+        FIX_STATS_CLASSCAST_EXCEPTION,
+
+        /**
          * Fix attribute equality to respect the name id of the attribute.
          */
         ATTRIBUTE_EQUALS_RESPECTS_NAME_ID,

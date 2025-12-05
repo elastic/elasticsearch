@@ -11,11 +11,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -24,15 +27,27 @@ import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 public class MockInferenceClient extends NoOpClient {
     private final MockInferenceGenerator inferenceGenerator;
+    private final Map<String, MockInferenceRemoteClusterClient> remoteClusterClients;
 
-    protected MockInferenceClient(ThreadPool threadPool, Map<String, MinimalServiceSettings> inferenceEndpoints) {
+    public MockInferenceClient(ThreadPool threadPool, Map<String, MinimalServiceSettings> inferenceEndpoints) {
+        this(threadPool, inferenceEndpoints, Map.of());
+    }
+
+    public MockInferenceClient(
+        ThreadPool threadPool,
+        Map<String, MinimalServiceSettings> inferenceEndpoints,
+        Map<String, MockInferenceRemoteClusterClient.RemoteClusterConfig> remoteClusterConfigs
+    ) {
         super(threadPool);
         this.inferenceGenerator = new MockInferenceGenerator(inferenceEndpoints);
+        this.remoteClusterClients = generateRemoteClusterClients(remoteClusterConfigs);
     }
 
     @Override
@@ -77,5 +92,31 @@ public class MockInferenceClient extends NoOpClient {
         } else {
             super.doExecute(action, request, listener);
         }
+    }
+
+    @Override
+    public RemoteClusterClient getRemoteClusterClient(
+        String clusterAlias,
+        Executor responseExecutor,
+        RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+    ) {
+        RemoteClusterClient remoteClusterClient = remoteClusterClients.get(clusterAlias);
+        if (remoteClusterClient == null) {
+            throw new NoSuchRemoteClusterException(clusterAlias);
+        }
+
+        return remoteClusterClient;
+    }
+
+    private static Map<String, MockInferenceRemoteClusterClient> generateRemoteClusterClients(
+        Map<String, MockInferenceRemoteClusterClient.RemoteClusterConfig> remoteClusterConfigs
+    ) {
+        Map<String, MockInferenceRemoteClusterClient> remoteClusterClients = new HashMap<>();
+        remoteClusterConfigs.forEach((clusterAlias, remoteClusterConfig) -> {
+            MockInferenceRemoteClusterClient remoteClusterClient = new MockInferenceRemoteClusterClient(remoteClusterConfig);
+            remoteClusterClients.put(clusterAlias, remoteClusterClient);
+        });
+
+        return remoteClusterClients;
     }
 }

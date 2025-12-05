@@ -70,7 +70,7 @@ public class PromqlAstTests extends ESTestCase {
                 Literal now = new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME);
                 var plan = parser.createStatement(q, now, now, 0, 0);
                 log.trace("{}", plan);
-                List.of("PROMQL index=test step=1m (%s)", "PROMQL index=test step=1m foo=(%s)", "PROMQL index=test step=1m %s")
+                List.of("PROMQL index=test step=1m (%s)", "PROMQL index=test step=1m foo=(%s)", "PROMQL index=test step=1m %s", "PROMQL %s")
                     .forEach(pattern -> {
                         var query = String.format(Locale.ROOT, pattern, q);
                         LogicalPlan esqlPlan = EsqlParser.INSTANCE.parseQuery(query);

@@ -1023,8 +1023,8 @@ public class DockerTests extends PackagingTestCase {
     public void test150MachineDependentHeap() throws Exception {
         final List<String> xArgs = machineDependentHeapTest("1536m", List.of());
 
-        // This is roughly 0.5 * 1536
-        assertThat(xArgs, hasItems("-Xms768m", "-Xmx768m"));
+        // This is roughly 0.5 * (1536 - 81) where 81 MB is the server-cli overhead
+        assertThat(xArgs, hasItems("-Xms727m", "-Xmx727m"));
     }
 
     /**
@@ -1039,8 +1039,8 @@ public class DockerTests extends PackagingTestCase {
             List.of("-Des.total_memory_bytes=799014912")
         );
 
-        // This is roughly 0.4 * 762, in particular it's NOT 0.4 * 942
-        assertThat(xArgs, hasItems("-Xms304m", "-Xmx304m"));
+        // This is roughly 0.4 * (762 - 81) where 81 MB is the server-cli overhead
+        assertThat(xArgs, hasItems("-Xms272m", "-Xmx272m"));
     }
 
     private List<String> machineDependentHeapTest(final String containerMemory, final List<String> extraJvmOptions) throws Exception {

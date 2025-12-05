@@ -59,7 +59,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
     )
     public DateFormat(
         Source source,
-        @Param(optional = true, name = "dateFormat", type = { "keyword", "text", "date", "date_nanos" }, description = """
+        @Param(optional = true, name = "dateFormat", type = { "keyword", "text" }, description = """
             Date format (optional).  If no format is specified, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used.
             If `null`, the function returns `null`.""") Expression format,
         @Param(

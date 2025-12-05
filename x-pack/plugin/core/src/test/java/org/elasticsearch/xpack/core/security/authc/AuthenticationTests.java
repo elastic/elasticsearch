@@ -66,9 +66,10 @@ public class AuthenticationTests extends ESTestCase {
     public static final TransportVersion[] AUTHENTICATION_TRANSPORT_VERSIONS = {
         VERSION_7_0_0,
         Authentication.VERSION_SYNTHETIC_ROLE_NAMES,
-        VERSION_API_KEY_ROLES_AS_BYTES,
+        Authentication.VERSION_API_KEY_ROLES_AS_BYTES,
         Authentication.VERSION_REALM_DOMAINS,
         Authentication.VERSION_METADATA_BEYOND_GENERIC_MAP,
+        Authentication.VERSION_CROSS_CLUSTER_ACCESS,
         TransportVersion.current() };
 
     public void testIsFailedRunAs() {
@@ -873,12 +874,8 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata() throws IOException {
-        final TransportVersion crossClusterAccessRealmVersion = Authentication.VERSION_CROSS_CLUSTER_ACCESS;
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            crossClusterAccessRealmVersion,
-            TransportVersion.current()
-        );
+        randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
+        final TransportVersion version = randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
         final Authentication innerAuthentication = AuthenticationTestHelper.builder().transportVersion(version).build();
         final Authentication authentication = AuthenticationTestHelper.builder()
             .crossClusterAccess(
@@ -886,11 +883,7 @@ public class AuthenticationTests extends ESTestCase {
                 new CrossClusterAccessSubjectInfo(innerAuthentication, RoleDescriptorsIntersection.EMPTY)
             )
             .build();
-        final TransportVersion maybeOldVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            crossClusterAccessRealmVersion,
-            version
-        );
+        final TransportVersion maybeOldVersion = randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
 
         final Authentication actual = authentication.maybeRewriteForOlderVersion(maybeOldVersion);
 

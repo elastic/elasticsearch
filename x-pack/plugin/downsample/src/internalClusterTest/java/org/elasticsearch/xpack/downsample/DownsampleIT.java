@@ -106,6 +106,84 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         assertDownsampleIndexFieldsAndDimensions(sourceIndex, targetIndex, downsampleConfig);
     }
 
+    public void testDownsamplingPassthroughMetrics() throws Exception {
+        String dataStreamName = "metrics-foo";
+        String mapping = """
+            {
+              "properties": {
+                "attributes.os.name": {
+                  "type": "keyword",
+                  "time_series_dimension": true
+                },
+                "metrics": {
+                  "type": "passthrough",
+                  "priority": 10,
+                  "properties": {
+                    "cpu_usage": {
+                        "type": "double",
+                        "time_series_metric": "counter"
+                    }
+                  }
+                }
+              }
+            }
+            """;
+
+        // Create data stream by indexing documents
+        final Instant now = Instant.now();
+        Supplier<XContentBuilder> sourceSupplier = () -> {
+            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
+            try {
+                return XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("@timestamp", ts)
+                    .field("attributes.os.name", randomFrom("linux", "windows", "macos"))
+                    .field("metrics.cpu_usage", randomDouble())
+                    .field("metrics.memory_usage", randomDouble())
+                    .endObject();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+        // Set up template
+        putTSDBIndexTemplate("my-template", List.of(dataStreamName), null, mapping, null, null);
+
+        // Create data stream by indexing documents
+        bulkIndex(dataStreamName, sourceSupplier, 100);
+        // Rollover to ensure the index we will downsample is not the write index
+        assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)));
+        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String sourceIndex = backingIndices.get(0);
+        String interval = "5m";
+        String targetIndex = "downsample-" + interval + "-" + sourceIndex;
+        // Set the source index to read-only state
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(sourceIndex)
+                .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build())
+        );
+
+        DownsampleConfig downsampleConfig = new DownsampleConfig(new DateHistogramInterval(interval));
+        assertAcked(
+            client().execute(
+                DownsampleAction.INSTANCE,
+                new DownsampleAction.Request(TEST_REQUEST_TIMEOUT, sourceIndex, targetIndex, TIMEOUT, downsampleConfig)
+            )
+        );
+
+        // Wait for downsampling to complete
+        SubscribableListener<Void> listener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
+            final var indexMetadata = clusterState.metadata().index(targetIndex);
+            if (indexMetadata == null) {
+                return false;
+            }
+            var downsampleStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(indexMetadata.getSettings());
+            return downsampleStatus == IndexMetadata.DownsampleTaskStatus.SUCCESS;
+        });
+        safeAwait(listener);
+
+        assertDownsampleIndexFieldsAndDimensions(sourceIndex, targetIndex, downsampleConfig);
+    }
+
     private String generateForceMergeMetadata() {
         return switch (randomIntBetween(0, 4)) {
             case 0 -> "\"_meta\": { \"downsample.forcemerge.enabled\": false},";

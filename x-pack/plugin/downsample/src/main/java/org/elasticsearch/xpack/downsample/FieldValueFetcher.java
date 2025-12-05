@@ -101,7 +101,7 @@ class FieldValueFetcher {
                     }
                 }
             } else {
-                if (context.fieldExistsInIndex(fieldType.name())) {
+                if (context.fieldExistsInIndex(field)) {
                     final IndexFieldData<?> fieldData;
                     if (fieldType instanceof FlattenedFieldMapper.RootFlattenedFieldType flattenedFieldType) {
                         var keyedFieldType = flattenedFieldType.getKeyedFieldType();

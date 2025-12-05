@@ -488,6 +488,9 @@ tests:
 - class: org.elasticsearch.simdvec.Int7SQVectorScorerFactoryTests
   method: testBulk
   issue: https://github.com/elastic/elasticsearch/issues/139079
+- class: org.elasticsearch.TransportVersionTests
+  method: testVersionComparison
+  issue: https://github.com/elastic/elasticsearch/issues/139122
 
 # Examples:
 #

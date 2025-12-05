@@ -92,6 +92,10 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelHelper;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
@@ -113,6 +117,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
@@ -751,7 +756,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
             var destinationShardId = new ShardId(sourceShardId.getIndex(), node1.shardId.getId() + 1);
 
-            objectStoreService.copyShard(sourceShardId, destinationShardId, primaryTerm);
+            var task = new CancellableTask(0, "test", "test", "test", TaskId.EMPTY_TASK_ID, Map.of());
+            objectStoreService.copyShard(task, sourceShardId, destinationShardId, primaryTerm);
 
             // Shards should now have the same data, let's read from destination shard.
             var dir = SearchDirectory.unwrapDirectory(node2.searchStore.directory());
@@ -772,6 +778,76 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 // See implementation of generateIndexCommits().
                 assertEquals(commitCount, indexSearcher.search(new TermQuery(new Term("field0", "term")), 100).totalHits.value());
             }
+        }
+    }
+
+    public void testCopyShardCancel() throws IOException {
+        var primaryTerm = randomLongBetween(1, 42);
+        var commitCount = between(2, 5);
+        var blobsToCopyBeforeCancel = between(1, commitCount - 1);
+        var blobCopyCount = new AtomicInteger(0);
+        var task = new CancellableTask(0, "test", "test", "test", TaskId.EMPTY_TASK_ID, Map.of());
+
+        var node = new FakeStatelessNode(
+            this::newEnvironment,
+            this::newNodeEnvironment,
+            xContentRegistry(),
+            primaryTerm,
+            TestProjectResolvers.allProjects()
+        ) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    // the wait on commitCloseLatch below assumes every commit is released immediately, not true when delayed.
+                    .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
+                    .build();
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public void copyBlob(
+                        OperationPurpose purpose,
+                        BlobContainer sourceBlobContainer,
+                        String sourceBlobName,
+                        String blobName,
+                        long blobSize
+                    ) throws IOException {
+                        var blobsCopied = blobCopyCount.incrementAndGet();
+                        if (blobsCopied == blobsToCopyBeforeCancel) {
+                            // cancel task, no more blobs should be copied from here on
+                            TaskCancelHelper.cancel(task, "cancel copy");
+                        } else if (blobsCopied > blobsToCopyBeforeCancel) {
+                            fail("Cancelled copy task but copy still ongoing");
+                        }
+                    }
+                };
+            }
+        };
+
+        try (node) {
+            ShardId sourceShardId = node.shardId;
+            ObjectStoreService objectStoreService = node.objectStoreService;
+            var commitCloseLatch = new CountDownLatch(commitCount);
+            var commits = node.generateIndexCommits(commitCount, randomBoolean(), false, ignored -> commitCloseLatch.countDown());
+            for (var indexCommit : commits) {
+                node.commitService.onCommitCreation(indexCommit);
+            }
+            safeAwait(commitCloseLatch);
+
+            var destinationShardId = new ShardId(sourceShardId.getIndex(), node.shardId.getId() + 1);
+            assertThrows(
+                TaskCancelledException.class,
+                () -> objectStoreService.copyShard(task, sourceShardId, destinationShardId, primaryTerm)
+            );
         }
     }
 

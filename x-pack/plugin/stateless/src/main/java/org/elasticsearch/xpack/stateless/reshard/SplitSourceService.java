@@ -43,6 +43,8 @@ import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskManager;
 
 import java.util.Locale;
 import java.util.Optional;
@@ -60,9 +62,10 @@ public class SplitSourceService {
     private final StatelessCommitService commitService;
     private final ObjectStoreService objectStoreService;
     private final ReshardIndexService reshardIndexService;
+    private final TaskManager taskManager;
 
-    // Tracks ongoing split request, value is target primary term, which is used to reject stale split requests
-    private final ConcurrentHashMap<IndexShard, Long> onGoingSplits = new ConcurrentHashMap<>();
+    // Tracks ongoing split request, target primary term used to reject stale split request or cancel ongoing request task
+    private final ConcurrentHashMap<IndexShard, SplitRequestState> onGoingSplits = new ConcurrentHashMap<>();
     // Tracks observers that move source shard to DONE
     private final ConcurrentHashMap<IndexShard, Split> splitCleanup = new ConcurrentHashMap<>();
 
@@ -76,7 +79,8 @@ public class SplitSourceService {
         IndicesService indicesService,
         StatelessCommitService commitService,
         ObjectStoreService objectStoreService,
-        ReshardIndexService reshardIndexService
+        ReshardIndexService reshardIndexService,
+        TaskManager taskManager
     ) {
         this.client = client;
         this.clusterService = clusterService;
@@ -84,6 +88,7 @@ public class SplitSourceService {
         this.commitService = commitService;
         this.objectStoreService = objectStoreService;
         this.reshardIndexService = reshardIndexService;
+        this.taskManager = taskManager;
     }
 
     /**
@@ -99,6 +104,7 @@ public class SplitSourceService {
      * <p>
      * This function also registers a cluster state observer to trigger cleaning up the local shard when all
      * targets have advanced to split, if one isn't already registered.
+     * @param task the task associated with the split request
      * @param targetShardId the id of the target shard to populate
      * @param sourcePrimaryTerm the primary term of the source shard seen by the target when it requested population
      * @param targetPrimaryTerm the primary term of the target shard when it requested population
@@ -108,6 +114,7 @@ public class SplitSourceService {
      *     them into the listener's failure handler.
      */
     public void setupTargetShard(
+        CancellableTask task,
         ShardId targetShardId,
         long sourcePrimaryTerm,
         long targetPrimaryTerm,
@@ -222,11 +229,14 @@ public class SplitSourceService {
             setupSourceShardCleanup(sourceShard);
         }
 
-        // TODO: check against target primary term of ongoing split
-        if (onGoingSplits.putIfAbsent(sourceShard, targetPrimaryTerm) != null) {
+        var currentSplit = onGoingSplits.putIfAbsent(sourceShard, new SplitRequestState(targetPrimaryTerm, task));
+        if (currentSplit != null) {
             // The source shard is currently handling a split request. This can occur if the target shard failed and is recovering or was
             // relocated. The new target shard instance will repeatedly fail recovery until the current split request completes.
-            // TODO: explore cancelling current split request if new request has a higher targetPrimaryTerm
+            if (targetPrimaryTerm >= currentSplit.targetPrimaryTerm) {
+                // Cancel current split request as it is likely stale
+                taskManager.cancelTaskAndDescendants(task, "stale split request", false, ActionListener.noop());
+            }
             String message = String.format(
                 Locale.ROOT,
                 "Split [%s -> %s]. Source shard is already setting up target shard. Failing the request.",
@@ -242,7 +252,7 @@ public class SplitSourceService {
         SubscribableListener.<Releasable>newForked(l -> sourceShard.acquirePrimaryOperationPermit(l, clusterService.threadPool().generic()))
             .<Releasable>andThen((l, permit) -> {
                 try (Releasable ignore = permit) {
-                    objectStoreService.copyShard(sourceShardId, targetShardId, sourcePrimaryTerm);
+                    objectStoreService.copyShard(task, sourceShardId, targetShardId, sourcePrimaryTerm);
                 }
                 prepareForHandoff(l, sourceShard, targetShardId);
             })
@@ -558,6 +568,9 @@ public class SplitSourceService {
             .map(IndexReshardingMetadata::getSplit)
             .orElse(null);
     }
+
+    // State of split request being processed
+    private record SplitRequestState(long targetPrimaryTerm, CancellableTask task) {}
 
     // Holds resources needed to manage an ongoing split
     private static class Split {

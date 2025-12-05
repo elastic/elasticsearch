@@ -711,6 +711,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final String dateInterval = config.getInterval().toString();
         final String timezone = config.getTimeZone();
         Map<String, Object> downsampledMapping = new HashMap<>();
+        // Copy top-level configuration, for example, runtime fields, dynamic templates etc
         for (Map.Entry<String, Object> entry : sourceIndexMappings.entrySet()) {
             if (entry.getKey().equals(PROPERTIES) == false) {
                 downsampledMapping.put(entry.getKey(), entry.getValue());

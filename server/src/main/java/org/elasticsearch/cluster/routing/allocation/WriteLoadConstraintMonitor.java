@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -54,8 +55,7 @@ public class WriteLoadConstraintMonitor {
     private final Map<String, Long> hotspotNodeStartTimes = new HashMap<>();
     private long hotspotNodeStartTimesLastTerm = -1L;
 
-    private volatile long hotspotNodesCount = 0; // metrics source of hotspotting node count
-    private volatile boolean hotspotNodesCountUpdatedSinceLastRead = false; // turns off metrics when not master/onNewInfo isn't called
+    private final AtomicLong hotspotNodesCount = new AtomicLong(-1L); // metrics source of hotspotting node count
     private final DoubleHistogram hotspotDurationHistogram;
 
     protected WriteLoadConstraintMonitor(
@@ -149,8 +149,7 @@ public class WriteLoadConstraintMonitor {
             assert hotspotDuration >= 0 : "hotspot duration should always be non-negative";
             hotspotDurationHistogram.record(hotspotDuration / 1000.0);
         }
-        hotspotNodesCount = hotspotNodeStartTimes.size();
-        hotspotNodesCountUpdatedSinceLastRead = true;
+        hotspotNodesCount.set(hotspotNodeStartTimes.size());
 
         if (writeNodeIdsExceedingQueueLatencyThreshold.isEmpty()) {
             logger.trace("No hot-spotting write nodes detected");
@@ -200,8 +199,7 @@ public class WriteLoadConstraintMonitor {
             for (String nodeId : newHotspotNodes) {
                 hotspotNodeStartTimes.put(nodeId, currentTimeMillis);
             }
-            hotspotNodesCount = hotspotNodeStartTimes.size();
-            hotspotNodesCountUpdatedSinceLastRead = true;
+            hotspotNodesCount.set(hotspotNodeStartTimes.size());
         } else {
             logger.debug(
                 "Not calling reroute because we called reroute [{}] ago and there are no new hot spots",
@@ -211,9 +209,9 @@ public class WriteLoadConstraintMonitor {
     }
 
     private List<LongWithAttributes> getHotspotNodesCount() {
-        if (hotspotNodesCountUpdatedSinceLastRead) {
-            hotspotNodesCountUpdatedSinceLastRead = false;
-            return List.of(new LongWithAttributes(hotspotNodesCount));
+        long hotspotCount = hotspotNodesCount.getAndSet(-1L);
+        if (hotspotCount >= 0) {
+            return List.of(new LongWithAttributes(hotspotCount));
         } else {
             return List.of();
         }

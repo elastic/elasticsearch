@@ -268,7 +268,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 int normalizedOrdinal = tsidToFirstOrdinal.computeIfAbsent(tsidValue, k -> originalOrdinal);
                 ordinalsBuilder.appendInt(normalizedOrdinal);
             }
-            newOrdinalsBlock = ordinalsBuilder.mvOrdering(ordinalsBlock.mvOrdering()).build();
+            newOrdinalsBlock = ordinalsBuilder.build();
 
             result = new OrdinalBytesRefBlock(newOrdinalsBlock, dictionary);
             dictionary.incRef();

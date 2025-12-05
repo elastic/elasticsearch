@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils.randomQueryRuleset;
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CRITERIA_METADATA_VALUES_TRANSPORT_VERSION;
 
 public class GetQueryRulesetActionResponseBWCSerializingTests extends AbstractBWCSerializationTestCase<GetQueryRulesetAction.Response> {
     public QueryRuleset queryRuleset;
@@ -49,7 +48,7 @@ public class GetQueryRulesetActionResponseBWCSerializingTests extends AbstractBW
 
     @Override
     protected GetQueryRulesetAction.Response mutateInstanceForVersion(GetQueryRulesetAction.Response instance, TransportVersion version) {
-        if (version.before(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
+        if (version.before(TransportVersions.V_8_10_X)) {
             List<QueryRule> rules = new ArrayList<>();
             for (QueryRule rule : instance.queryRuleset().rules()) {
                 List<QueryRuleCriteria> newCriteria = new ArrayList<>();

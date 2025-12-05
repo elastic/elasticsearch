@@ -53,8 +53,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  */
 public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>, ToXContentObject {
 
-    // Versions over the wire
-    public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersions.V_8_10_X;
     public static final TransportVersion ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM = TransportVersion.fromName("add_sample_method_downsample_dlm");
     public static final String EFFECTIVE_RETENTION_REST_API_CAPABILITY = "data_stream_lifecycle_effective_retention";
 
@@ -344,7 +342,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         } else {
             writeLegacyOptionalValue(dataRetention, out, StreamOutput::writeTimeValue);
         }
-        if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
                 out.writeOptionalCollection(downsamplingRounds);
             } else {
@@ -366,7 +364,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         } else {
             dataRetention = readLegacyOptionalValue(in, StreamInput::readTimeValue);
         }
-        if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
                 downsamplingRounds = in.readOptionalCollectionAsList(DownsamplingRound::read);
             } else {
@@ -706,7 +704,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             } else {
                 writeLegacyValue(out, dataRetention, StreamOutput::writeTimeValue);
             }
-            if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
                 if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
                     ResettableValue.write(out, downsamplingRounds, StreamOutput::writeCollection);
                 } else {
@@ -767,7 +765,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             } else {
                 dataRetention = readLegacyValues(in, StreamInput::readTimeValue);
             }
-            if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
                 if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
                     downsamplingRounds = ResettableValue.read(in, i -> i.readCollectionAsList(DownsamplingRound::read));
                 } else {

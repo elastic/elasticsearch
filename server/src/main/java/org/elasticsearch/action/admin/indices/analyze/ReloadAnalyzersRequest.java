@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,8 +24,6 @@ import java.util.Objects;
 public class ReloadAnalyzersRequest extends BroadcastRequest<ReloadAnalyzersRequest> {
     private final String resource;
     private final boolean preview;
-
-    private static final TransportVersion PREVIEW_OPTION_TRANSPORT_VERSION = TransportVersions.V_8_10_X;
 
     /**
      * Constructs a request for reloading index search analyzers
@@ -44,14 +41,14 @@ public class ReloadAnalyzersRequest extends BroadcastRequest<ReloadAnalyzersRequ
     public ReloadAnalyzersRequest(StreamInput in) throws IOException {
         super(in);
         this.resource = in.readOptionalString();
-        this.preview = in.getTransportVersion().onOrAfter(PREVIEW_OPTION_TRANSPORT_VERSION) && in.readBoolean();
+        this.preview = in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X) && in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(resource);
-        if (out.getTransportVersion().onOrAfter(PREVIEW_OPTION_TRANSPORT_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             out.writeBoolean(preview);
         }
     }

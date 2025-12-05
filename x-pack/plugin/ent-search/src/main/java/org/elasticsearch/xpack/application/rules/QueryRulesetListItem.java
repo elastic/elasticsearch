@@ -27,8 +27,6 @@ import java.util.Objects;
  */
 public class QueryRulesetListItem implements Writeable, ToXContentObject {
 
-    public static final TransportVersion EXPANDED_RULESET_COUNT_TRANSPORT_VERSION = TransportVersions.V_8_10_X;
-
     public static final ParseField RULESET_ID_FIELD = new ParseField("ruleset_id");
     public static final ParseField RULE_TOTAL_COUNT_FIELD = new ParseField("rule_total_count");
     public static final ParseField RULE_CRITERIA_TYPE_COUNTS_FIELD = new ParseField("rule_criteria_types_counts");
@@ -62,7 +60,7 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
     public QueryRulesetListItem(StreamInput in) throws IOException {
         this.rulesetId = in.readString();
         this.ruleTotalCount = in.readInt();
-        if (in.getTransportVersion().onOrAfter(EXPANDED_RULESET_COUNT_TRANSPORT_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             this.criteriaTypeToCountMap = in.readMap(m -> in.readEnum(QueryRuleCriteriaType.class), StreamInput::readInt);
         } else {
             this.criteriaTypeToCountMap = Map.of();
@@ -98,7 +96,7 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(rulesetId);
         out.writeInt(ruleTotalCount);
-        if (out.getTransportVersion().onOrAfter(EXPANDED_RULESET_COUNT_TRANSPORT_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             out.writeMap(criteriaTypeToCountMap, StreamOutput::writeEnum, StreamOutput::writeInt);
         }
         TransportVersion streamTransportVersion = out.getTransportVersion();

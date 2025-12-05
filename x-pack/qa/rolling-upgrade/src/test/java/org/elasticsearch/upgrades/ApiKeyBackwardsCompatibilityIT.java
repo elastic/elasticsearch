@@ -10,6 +10,7 @@ package org.elasticsearch.upgrades;
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -19,7 +20,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -38,7 +38,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomApplicationPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRemoteClusterPermissions;
@@ -89,8 +88,8 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testCreatingAndUpdatingApiKeys() throws Exception {
         assumeTrue(
             "The remote_indices for API Keys are not supported before transport version "
-                + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY,
-            minimumTransportVersion().before(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
+                + TransportVersions.V_8_10_X,
+            minimumTransportVersion().before(TransportVersions.V_8_10_X)
         );
         switch (CLUSTER_TYPE) {
             case OLD -> {
@@ -163,7 +162,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                         e.getMessage(),
                         containsString(
                             "all nodes must have version ["
-                                + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
+                                + TransportVersions.V_8_10_X.toReleaseVersion()
                                 + "] or higher to support remote indices privileges for API keys"
                         )
                     );
@@ -175,7 +174,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                         e.getMessage(),
                         containsString(
                             "all nodes must have version ["
-                                + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
+                                + TransportVersions.V_8_10_X.toReleaseVersion()
                                 + "] or higher to support remote indices privileges for API keys"
                         )
                     );
@@ -393,7 +392,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             assertTrue(nodeIsCurrent);
             return true;
         }
-        return testNodeInfo.transportVersion().onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
+        return testNodeInfo.transportVersion().onOrAfter(TransportVersions.V_8_10_X);
     }
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeRemoteDescriptors) {

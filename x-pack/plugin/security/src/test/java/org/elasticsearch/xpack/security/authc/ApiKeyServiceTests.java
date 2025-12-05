@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -169,7 +170,6 @@ import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_TYPE_KEY;
@@ -2979,58 +2979,6 @@ public class ApiKeyServiceTests extends ESTestCase {
             () -> ApiKeyService.getApiKeyMetadata(authentication)
         );
         assertThat(e.getMessage(), containsString("authentication realm must be [_es_api_key]"));
-    }
-
-    public void testMaybeRemoveRemoteClusterPrivilegesWithUnsupportedVersion() {
-        final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
-        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
-            randomList(2, 5, () -> RoleDescriptorTestHelper.builder().allowRemoteClusters(true).build())
-        );
-
-        // Selecting random unsupported version.
-        final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY,
-            TransportVersionUtils.getPreviousVersion(ROLE_REMOTE_CLUSTER_PRIVS)
-        );
-
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(userRoleDescriptors, minTransportVersion, apiKeyId);
-        assertThat(result.stream().anyMatch(RoleDescriptor::hasRemoteClusterPermissions), equalTo(false));
-        assertThat(result.size(), equalTo(userRoleDescriptors.size()));
-
-        // Roles for which warning headers are added.
-        final List<String> userRoleNamesWithRemoteClusterPrivileges = userRoleDescriptors.stream()
-            .filter(RoleDescriptor::hasRemoteClusterPermissions)
-            .map(RoleDescriptor::getName)
-            .sorted()
-            .toList();
-
-        if (false == userRoleNamesWithRemoteClusterPrivileges.isEmpty()) {
-            assertWarnings(
-                "Removed API key's remote cluster privileges from role(s) "
-                    + userRoleNamesWithRemoteClusterPrivileges
-                    + ". Remote cluster privileges are not supported by all nodes in the cluster."
-            );
-        }
-    }
-
-    public void testMaybeRemoveRemotePrivilegesWithSupportedVersion() {
-        final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
-        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
-            randomList(1, 3, ApiKeyServiceTests::randomRoleDescriptorWithRemotePrivileges)
-        );
-
-        // Selecting random supported version.
-        final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            ROLE_REMOTE_CLUSTER_PRIVS,
-            TransportVersion.current()
-        );
-
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(userRoleDescriptors, minTransportVersion, apiKeyId);
-
-        // User roles should be unchanged.
-        assertThat(result, equalTo(userRoleDescriptors));
     }
 
     public void testBuildDelimitedStringWithLimit() {

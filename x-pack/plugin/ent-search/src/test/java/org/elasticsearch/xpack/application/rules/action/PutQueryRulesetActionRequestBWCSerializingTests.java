@@ -21,8 +21,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CRITERIA_METADATA_VALUES_TRANSPORT_VERSION;
-
 public class PutQueryRulesetActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<PutQueryRulesetAction.Request> {
 
     private QueryRuleset queryRulesSet;
@@ -53,7 +51,7 @@ public class PutQueryRulesetActionRequestBWCSerializingTests extends AbstractBWC
     @Override
     protected PutQueryRulesetAction.Request mutateInstanceForVersion(PutQueryRulesetAction.Request instance, TransportVersion version) {
 
-        if (version.before(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
+        if (version.before(TransportVersions.V_8_10_X)) {
             List<QueryRule> rules = new ArrayList<>();
             for (QueryRule rule : instance.queryRuleset().rules()) {
                 List<QueryRuleCriteria> newCriteria = new ArrayList<>();

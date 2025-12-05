@@ -717,9 +717,10 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                         .endObject()
                         .endObject()
                 )
-                .setSettings(indexSettingsNoReplicas(numShards)
-                    .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                    .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true))
+                .setSettings(
+                    indexSettingsNoReplicas(numShards).put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                        .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
+                )
         );
         ensureGreen(indexName);
 

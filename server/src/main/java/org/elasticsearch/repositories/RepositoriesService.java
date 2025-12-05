@@ -117,7 +117,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      */
     public static final Setting<String> DEFAULT_REPOSITORY_SETTING = Setting.simpleString(
         "repositories.default_repository",
-        Setting.Property.NodeScope,
+        Setting.Property.ClusterScope,
         Setting.Property.Dynamic
     );
 

@@ -200,6 +200,7 @@ public class IndexVersions {
     public static final IndexVersion STANDARD_INDEXES_USE_SKIPPERS = def(9_049_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion NESTED_PATH_LIMIT = def(9_050_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion GENERIC_DENSE_VECTOR_FORMAT = def(9_051_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion SKIPPER_DEFAULTS_ONLY_ON_TSDB = def(9_052_0_00, Version.LUCENE_10_3_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

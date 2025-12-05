@@ -73,8 +73,8 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     public String visitPromqlClusterString(EsqlBaseParser.PromqlClusterStringContext ctx) {
         if (ctx == null) {
             return null;
-        } else if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
-            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
+        } else if (ctx.UNQUOTED_IDENTIFIER() != null) {
+            return ctx.UNQUOTED_IDENTIFIER().getText();
         } else {
             return ctx.UNQUOTED_SOURCE().getText();
         }
@@ -93,8 +93,8 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     public String visitPromqlIndexString(EsqlBaseParser.PromqlIndexStringContext ctx) {
         if (ctx.UNQUOTED_SOURCE() != null) {
             return ctx.UNQUOTED_SOURCE().getText();
-        } else if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
-            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
+        } else if (ctx.UNQUOTED_IDENTIFIER() != null) {
+            return ctx.UNQUOTED_IDENTIFIER().getText();
         } else {
             return unquote(ctx.QUOTED_STRING().getText());
         }
@@ -113,8 +113,8 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     public String visitPromqlSelectorString(EsqlBaseParser.PromqlSelectorStringContext ctx) {
         if (ctx == null) {
             return null;
-        } else if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
-            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
+        } else if (ctx.UNQUOTED_IDENTIFIER() != null) {
+            return ctx.UNQUOTED_IDENTIFIER().getText();
         } else {
             return ctx.UNQUOTED_SOURCE().getText();
         }

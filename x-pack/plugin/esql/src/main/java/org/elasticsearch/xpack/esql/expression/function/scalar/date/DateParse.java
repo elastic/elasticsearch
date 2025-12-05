@@ -80,8 +80,7 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
             If `null`, the function returns `null`.""", optional = true) Expression first,
         @Param(
             name = "dateString",
-            // "object" as it may receive there the map params if the first param isn't present
-            type = { "keyword", "text", "object" },
+            type = { "keyword", "text" },
             description = "Date expression as a string. If `null` or an empty string, the function returns `null`."
         ) Expression second,
         @MapParam(

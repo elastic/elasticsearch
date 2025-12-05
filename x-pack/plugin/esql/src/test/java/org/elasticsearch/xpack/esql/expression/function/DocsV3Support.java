@@ -1174,6 +1174,36 @@ public abstract class DocsV3Support {
         writeToTempSnippetsDir("types", rendered);
     }
 
+    /**
+     * Gets the index of the first signature provided within the function parameters,
+     * taking into consideration initial optional parameters.
+     * <p>
+     *     Used for functions like DATE_PARSE, with an optional parameter at the start.
+     * </p>
+     */
+    public static int getFirstParametersIndexForSignature(List<EsqlFunctionRegistry.ArgSignature> args, TypeSignature sig) {
+        int initialProvidedParamIndex = 0;
+
+        // For functions like DATE_PARSE, with an optional parameter at the start, detect if it's being used or not
+        // At least 1 missing parameter, with the first parameter being optional
+        if (args.size() >= 2 && args.size() > sig.argTypes().size() && args.get(0).optional) {
+            assert args.get(1).optional == false : "This function isn't prepared to handle +1 optional parameters at the beginning";
+            long optionalParameters = args.stream().filter(EsqlFunctionRegistry.ArgSignature::optional).count();
+            if (
+            // If no optional parameter is being provided, we know the first one is missing
+            (args.size() - optionalParameters == sig.argTypes().size()) ||
+            // If there are at least 2 params, ensure the second one matches the second function parameter.
+            // If it doesn't match, it means the optional isn't filled.
+            // This doesn't work for multiple initial optional parameters
+                (sig.argTypes().size() >= 2
+                    && Arrays.stream(args.get(1).type()).noneMatch(type -> sig.argTypes().get(1).dataType().typeName().equals(type)))) {
+                initialProvidedParamIndex++;
+            }
+        }
+
+        return initialProvidedParamIndex;
+    }
+
     private static String getTypeRow(
         List<EsqlFunctionRegistry.ArgSignature> args,
         TypeSignature sig,
@@ -1181,11 +1211,16 @@ public abstract class DocsV3Support {
         boolean showResultColumn
     ) {
         StringBuilder b = new StringBuilder("| ");
+
+        int initialProvidedParamIndex = getFirstParametersIndexForSignature(args, sig);
+        for (int i = 0; i < initialProvidedParamIndex; i++) {
+            b.append("| ");
+        }
+
         for (int i = 0; i < sig.argTypes().size(); i++) {
             Param param = sig.argTypes().get(i);
-            EsqlFunctionRegistry.ArgSignature argSignature = args.get(i);
-            // Remove the "OBJECT" check when the type is usable in ESQL
-            if (argSignature.mapArg() || param.dataType().equals(DataType.OBJECT)) {
+            EsqlFunctionRegistry.ArgSignature argSignature = args.get(initialProvidedParamIndex + i);
+            if (argSignature.mapArg()) {
                 b.append("named parameters");
             } else {
                 b.append(param.dataType().esNameIfPossible());
@@ -1195,7 +1230,7 @@ public abstract class DocsV3Support {
             }
             b.append(" | ");
         }
-        b.append("| ".repeat(argNames.size() - sig.argTypes().size()));
+        b.append("| ".repeat(argNames.size() - sig.argTypes().size() - initialProvidedParamIndex));
         if (showResultColumn) {
             b.append(sig.returnType().esNameIfPossible());
             b.append(" |");

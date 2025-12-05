@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.role;
 
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -140,11 +141,23 @@ public class RoleDescriptorRequestValidator {
                 validationException
             );
         }
-        if (indexNameExpression != null && indexNameExpression.startsWith("/") == false && indexNameExpression.contains(",")) {
-            validationException = addValidationError(
-                "commas [,] are not allowed in the index name expression [" + indexNameExpression + "]",
-                validationException
-            );
+        if (indexNameExpression != null) {
+            if (indexNameExpression.startsWith("/")) {
+                if (indexNameExpression.length() == 1 || indexNameExpression.endsWith("/") == false) {
+                    return addValidationError("invalid regular expression pattern [" + indexNameExpression + "]", validationException);
+                }
+                String regex = indexNameExpression.substring(1, indexNameExpression.length() - 1);
+                try {
+                    new RegExp(regex);
+                } catch (IllegalArgumentException e) {
+                    return addValidationError("invalid regular expression pattern [" + indexNameExpression + "]", validationException);
+                }
+            } else if (indexNameExpression.contains(",")) {
+                validationException = addValidationError(
+                    "commas [,] are not allowed in the index name expression [" + indexNameExpression + "]",
+                    validationException
+                );
+            }
         }
         return validationException;
     }

@@ -43,7 +43,7 @@ public class MetricValidator {
 
     private static final Pattern METRIC_PATTERN = Pattern.compile(
         Strings.format(
-            "es(\\.[a-z][a-z0-9_]{0,%d}){2,%d}\\.(%s)",
+            "es(\\.[a-z][a-z0-9_]{0,%d}){1,%d}\\.(%s)",
             MAX_SEGMENT_LENGTH - 1,
             MAX_SEGMENTS - 2,
             String.join("|", METRIC_SUFFIXES)

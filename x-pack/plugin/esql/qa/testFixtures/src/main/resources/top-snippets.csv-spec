@@ -26,6 +26,7 @@ book_no:keyword | title:text                                            | snippe
 
 topSnippetsWithOptions
 required_capability: top_snippets_function
+required_capability: match_function
 
 // tag::top-snippets-with-options[]
 FROM books
@@ -44,6 +45,7 @@ book_no:keyword | title:text                                                    
 
 topSnippetsWithOptionsMvExpand
 required_capability: top_snippets_function
+required_capability: match_function
 
 FROM books
 | WHERE MATCH(title, "Return")
@@ -63,6 +65,7 @@ book_no:keyword | title:text                                                    
 
 topSnippetsWithConcatenatedField
 required_capability: top_snippets_function
+required_capability: match_function
 
 FROM books
 | WHERE MATCH(title, "Return")
@@ -111,5 +114,5 @@ ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power
 ;
 
 snippets:keyword
-[All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of, ring that rules them all - which has fallen into the hands of the hobbit, Bilbo Baggins.]
+[All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of, ring that rules them all - which has fallen into the hands of the hobbit\, Bilbo Baggins.]
 ;

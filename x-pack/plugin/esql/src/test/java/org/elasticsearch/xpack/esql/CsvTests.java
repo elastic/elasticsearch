@@ -367,10 +367,6 @@ public class CsvTests extends ESTestCase {
                 "can't use PromQL in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V5.capabilityName())
             );
-            assumeFalse(
-                "CSV tests cannot currently handle TOP_SNIPPETS function",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TOP_SNIPPETS_FUNCTION.capabilityName())
-            );
 
             if (Build.current().isSnapshot()) {
                 assertThat(

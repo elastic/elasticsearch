@@ -8,11 +8,10 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tdigest.parsing.TDigestParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -42,6 +41,11 @@ public class TDigestHolder {
         this.max = max;
         this.sum = sum;
         this.valueCount = valueCount;
+    }
+
+    // TODO: Probably TDigestHolder and ParsedTDigest should be the same object
+    public TDigestHolder(TDigestParser.ParsedTDigest parsed) throws IOException {
+        this(parsed.centroids(), parsed.counts(), parsed.min(), parsed.max(), parsed.sum(), parsed.count());
     }
 
     public TDigestHolder(List<Double> centroids, List<Long> counts, double min, double max, double sum, long valueCount)

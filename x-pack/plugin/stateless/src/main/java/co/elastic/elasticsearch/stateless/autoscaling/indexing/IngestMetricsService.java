@@ -55,6 +55,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.STATELESS_SHARD_ROLES;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.shuttingDownIndexingNodes;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.ADJUSTED;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.SINGLE;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.UNADJUSTED;
@@ -164,7 +165,7 @@ public class IngestMetricsService implements ClusterStateListener {
     ) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.memoryMetricsService = memoryMetricsService;
-        this.nodeIngestionLoadTracker = new NodeIngestionLoadTracker(clusterSettings, relativeTimeInNanosSupplier);
+        this.nodeIngestionLoadTracker = new NodeIngestionLoadTracker(clusterSettings, relativeTimeInNanosSupplier, meterRegistry);
         clusterSettings.initializeAndWatch(
             HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING,
             value -> this.highIngestionLoadWeightDuringScaling = value
@@ -225,10 +226,6 @@ public class IngestMetricsService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.nodesDelta().hasChanges() == false) {
-            return;
-        }
-
         if (event.localNodeMaster() == false || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             nodeIngestionLoadTracker.currentNodeNoLongerMaster();
             initialized = false;
@@ -257,6 +254,16 @@ public class IngestMetricsService implements ClusterStateListener {
                 }
             }
         }
+
+        int nodesShuttingDownPreviously = shuttingDownIndexingNodes(event.previousState());
+        int nodesShuttingDownNow = shuttingDownIndexingNodes(event.state());
+        // We can only detect the start of a scaling event (nodes shutting down) here based on addition of shutdown markers.
+        // We treat that as the starting point, and consider it ongoing until there are no more shutting down nodes.
+        // The scaling event can lead to a master change and the new master sees only the state with the shutdown markers.
+        final boolean nodeBecameMaster = event.nodesDelta().masterNodeChanged();
+        if (nodesShuttingDownNow > 0 && (nodesShuttingDownPreviously == 0 || nodeBecameMaster)) {
+            nodeIngestionLoadTracker.scalingEventStarted();
+        }
     }
 
     void trackNodeIngestLoad(ClusterState state, String nodeId, String nodeName, long metricSeqNo, NodeIngestionLoad newIngestLoad) {
@@ -269,10 +276,17 @@ public class IngestMetricsService implements ClusterStateListener {
         @Nullable // if not using desired-balance allocator
         DesiredBalanceMetrics.AllocationStats allocationStats
     ) {
-        final List<NodeIngestLoadSnapshot> ingestLoads = nodeIngestionLoadTracker.getIngestLoadSnapshots(clusterState);
+        final var rawAndAdjustedIngestLoads = nodeIngestionLoadTracker.getIngestLoadSnapshots(clusterState);
+        // If there has been an adjustment by the nodeIngestionLoadTracker, use it as the base for the next adjustments.
+        final List<NodeIngestLoadSnapshot> ingestLoads = rawAndAdjustedIngestLoads.adjusted == null
+            ? rawAndAdjustedIngestLoads.raw
+            : rawAndAdjustedIngestLoads.adjusted;
         final var adjustedIngestLoads = maybeAdjustIngestLoadsAndQuality(clusterState, ingestLoads, allocationStats);
         lastNodeIngestLoadSnapshotsRef.set(
-            new RawAndAdjustedNodeIngestLoadSnapshots(ingestLoads, adjustedIngestLoads == ingestLoads ? null : adjustedIngestLoads)
+            new RawAndAdjustedNodeIngestLoadSnapshots(
+                rawAndAdjustedIngestLoads.raw,
+                adjustedIngestLoads == rawAndAdjustedIngestLoads.raw ? null : adjustedIngestLoads
+            )
         );
         final IndexTierMetrics indexTierMetrics = new IndexTierMetrics(
             adjustedIngestLoads,
@@ -477,5 +491,10 @@ public class IngestMetricsService implements ClusterStateListener {
     // Package-private for testing
     Map<String, NodeIngestionLoadTracker.Entry> getNodesIngestLoad() {
         return Map.copyOf(nodeIngestionLoadTracker.getCurrentNodesIngestLoad());
+    }
+
+    // Used in tests only
+    NodeIngestionLoadTracker getNodeIngestionLoadTracker() {
+        return nodeIngestionLoadTracker;
     }
 }

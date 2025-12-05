@@ -49,7 +49,7 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
 
     private int saturatedCount = 0;
 
-    public AdaptiveHnswQueueSaturationCollector(
+    private AdaptiveHnswQueueSaturationCollector(
         KnnCollector delegate,
         float discoveryRateSmoothing,
         float thresholdLooseness,
@@ -100,8 +100,8 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
         double variance = (samples > 1) ? (m2 / (samples - 1)) : 0.0;
         double stddev = Math.sqrt(variance);
 
+        // update adaptive threshold and patience
         double adaptiveThreshold = mean + thresholdLooseness * stddev;
-
         double adaptivePatience = patienceScaling / (1.0 + stddev);
 
         if (smoothedDiscoveryRate < adaptiveThreshold) {

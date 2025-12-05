@@ -485,9 +485,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.highlight/50_synthetic_source/text multi unified from vectors}
   issue: https://github.com/elastic/elasticsearch/issues/139066
-- class: org.elasticsearch.simdvec.Int7SQVectorScorerFactoryTests
-  method: testBulk
-  issue: https://github.com/elastic/elasticsearch/issues/139079
 
 # Examples:
 #

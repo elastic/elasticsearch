@@ -106,14 +106,6 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             )
         );
 
-        // TODO: Investigate how to fix this test case
-        // Query an inference field on a remote cluster
-        // assertSearchResponse(
-        // new KnnVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, new TextEmbeddingQueryVectorBuilder(null, "a"), 10, 100, 10f, null),
-        // List.of(new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)),
-        // List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)))
-        // );
-
         // Check that omitting the inference ID when querying a remote dense vector field leads to the expected partial failure
         assertSearchResponse(
             new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, new TextEmbeddingQueryVectorBuilder(null, "c"), 10, 100, 10f, null),

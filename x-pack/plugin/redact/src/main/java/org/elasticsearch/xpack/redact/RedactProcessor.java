@@ -278,8 +278,8 @@ public class RedactProcessor extends AbstractProcessor {
             assert patternName != null;
 
             int number = 0;
-            int matchOffset = offset + region.beg[number];
-            int matchEnd = offset + region.end[number];
+            int matchOffset = offset + region.getBeg(number);
+            int matchEnd = offset + region.getEnd(number);
             replacementPositions.add(new Replacement(matchOffset, matchEnd, patternName));
         }
 

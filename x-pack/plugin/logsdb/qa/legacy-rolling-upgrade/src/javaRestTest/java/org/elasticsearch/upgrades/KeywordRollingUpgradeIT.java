@@ -19,11 +19,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.upgrades.AbstractStringTypeRollingUpgradeIT.assertDataStream;
 import static org.elasticsearch.upgrades.AbstractStringTypeRollingUpgradeIT.createTemplate;
 import static org.elasticsearch.upgrades.AbstractStringTypeRollingUpgradeIT.formatInstant;
 import static org.elasticsearch.upgrades.AbstractStringTypeRollingUpgradeIT.getIndexSettingsWithDefaults;
 import static org.elasticsearch.upgrades.AbstractStringTypeRollingUpgradeIT.startTrial;
-import static org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT.assertDataStream;
 import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.enableLogsdbByDefault;
 import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.getWriteBackingIndex;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -83,7 +83,7 @@ public class KeywordRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityT
             createTemplate(DATA_STREAM_NAME, templateId, TEMPLATE);
 
             // when - index a document
-            indexDocument(FIELD_VALUES_1);
+            indexDocuments(FIELD_VALUES_1);
 
             // then - verify that logsdb and synthetic source are enabled before proceeding futher
             String firstBackingIndex = getWriteBackingIndex(client(), DATA_STREAM_NAME, 0);
@@ -100,7 +100,7 @@ public class KeywordRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityT
             // given - implicitly start from the leftover state after upgrading the cluster
 
             // when - index a new document
-            indexDocument(FIELD_VALUES_2);
+            indexDocuments(FIELD_VALUES_2);
 
             // then - query the result, expect to find all new values, as well as values from before the cluster was upgraded
             List<String> allValues = new ArrayList<>(FIELD_VALUES_1);
@@ -112,9 +112,9 @@ public class KeywordRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityT
     }
 
     /**
-     * Create an arbitrary document containing the given values.
-     */
-    private void indexDocument(List<String> values) throws Exception {
+    * Create an arbitrary document containing the given values.
+    */
+    private void indexDocuments(List<String> values) throws Exception {
         var request = new Request("POST", "/" + DATA_STREAM_NAME + "/_bulk");
         StringBuilder requestBody = new StringBuilder();
 
@@ -142,8 +142,8 @@ public class KeywordRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityT
         Request searchRequest = new Request("GET", "/" + DATA_STREAM_NAME + "/_search");
         searchRequest.setJsonEntity("""
             {
-              "query": { "match_all": {} },
-              "size": 100
+            "query": { "match_all": {} },
+            "size": 100
             }
             """);
 

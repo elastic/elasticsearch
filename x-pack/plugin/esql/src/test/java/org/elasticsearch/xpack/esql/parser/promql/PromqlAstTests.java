@@ -71,7 +71,7 @@ public class PromqlAstTests extends ESTestCase {
                 var plan = parser.createStatement(q, now, now, 0, 0);
                 log.trace("{}", plan);
                 EsqlParser esqlParser = new EsqlParser();
-                List.of("PROMQL index=test step=1m (%s)", "PROMQL index=test step=1m foo=(%s)", "PROMQL index=test step=1m %s")
+                List.of("PROMQL index=test step=1m (%s)", "PROMQL index=test step=1m foo=(%s)", "PROMQL index=test step=1m %s", "PROMQL %s")
                     .forEach(pattern -> {
                         LogicalPlan esqlPlan = esqlParser.createStatement(String.format(Locale.ROOT, pattern, q));
                         assertThat(esqlPlan.collect(PromqlCommand.class), hasSize(1));

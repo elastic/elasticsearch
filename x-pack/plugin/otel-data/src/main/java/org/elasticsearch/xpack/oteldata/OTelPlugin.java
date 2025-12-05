@@ -45,9 +45,15 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<Boolean> USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE = Setting.boolSetting(
-        "xpack.otel_data.use_exponential_histogram_field_type",
-        false,
+    public enum HistogramMappingSettingValues {
+        HISTOGRAM,
+        EXPONENTIAL_HISTOGRAM
+    };
+
+    public static final Setting<HistogramMappingSettingValues> USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE = Setting.enumSetting(
+        HistogramMappingSettingValues.class,
+        "xpack.otel_data.histogram_field_type",
+        HistogramMappingSettingValues.HISTOGRAM,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

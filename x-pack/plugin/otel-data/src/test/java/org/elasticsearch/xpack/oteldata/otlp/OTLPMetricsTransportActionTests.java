@@ -63,9 +63,8 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
 
         ClusterService clusterService = mock(ClusterService.class);
         // setup clusterService.getClusterSettings() to return an empty ClusterSettings
-        when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(Settings.EMPTY, Set.of(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE))
-        );
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         action = new OTLPMetricsTransportAction(
             mock(TransportService.class),

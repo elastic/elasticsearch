@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.KeyValue;
 
+import org.elasticsearch.xpack.oteldata.OTelPlugin;
+
 import java.util.List;
 
 /**
@@ -34,12 +36,11 @@ public record MappingHints(HistogramMapping histogramMapping, boolean docCount) 
     public static MappingHints DEFAULT_TDIGEST = new MappingHints(HistogramMapping.TDIGEST, false);
     public static MappingHints DEFAULT_EXPONENTIAL_HISTOGRAM = new MappingHints(HistogramMapping.EXPONENTIAL_HISTOGRAM, false);
 
-    public static MappingHints fromSettings(boolean useExponentialHistogramType) {
-        if (useExponentialHistogramType) {
-            return DEFAULT_EXPONENTIAL_HISTOGRAM;
-        } else {
-            return DEFAULT_TDIGEST;
-        }
+    public static MappingHints fromSettings(OTelPlugin.HistogramMappingSettingValues histogramSetting) {
+        return switch (histogramSetting) {
+            case HISTOGRAM -> DEFAULT_TDIGEST;
+            case EXPONENTIAL_HISTOGRAM -> DEFAULT_EXPONENTIAL_HISTOGRAM;
+        };
     }
 
     public MappingHints withConfigFromAttributes(List<KeyValue> attributes) {

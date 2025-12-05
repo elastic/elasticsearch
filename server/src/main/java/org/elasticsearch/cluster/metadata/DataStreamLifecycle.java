@@ -339,13 +339,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                out.writeOptionalTimeValue(dataRetention);
-            } else {
-                writeLegacyOptionalValue(dataRetention, out, StreamOutput::writeTimeValue);
-            }
-
+        if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+            out.writeOptionalTimeValue(dataRetention);
+        } else {
+            writeLegacyOptionalValue(dataRetention, out, StreamOutput::writeTimeValue);
         }
         if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
             if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
@@ -364,14 +361,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     public DataStreamLifecycle(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                dataRetention = in.readOptionalTimeValue();
-            } else {
-                dataRetention = readLegacyOptionalValue(in, StreamInput::readTimeValue);
-            }
+        if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+            dataRetention = in.readOptionalTimeValue();
         } else {
-            dataRetention = null;
+            dataRetention = readLegacyOptionalValue(in, StreamInput::readTimeValue);
         }
         if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
             if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
@@ -708,12 +701,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             // The order of the fields is like this for bwc reasons
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                    ResettableValue.write(out, dataRetention, StreamOutput::writeTimeValue);
-                } else {
-                    writeLegacyValue(out, dataRetention, StreamOutput::writeTimeValue);
-                }
+            if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                ResettableValue.write(out, dataRetention, StreamOutput::writeTimeValue);
+            } else {
+                writeLegacyValue(out, dataRetention, StreamOutput::writeTimeValue);
             }
             if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
                 if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
@@ -771,12 +762,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             ResettableValue<List<DownsamplingRound>> downsamplingRounds = ResettableValue.undefined();
 
             // The order of the fields is like this for bwc reasons
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                    dataRetention = ResettableValue.read(in, StreamInput::readTimeValue);
-                } else {
-                    dataRetention = readLegacyValues(in, StreamInput::readTimeValue);
-                }
+            if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                dataRetention = ResettableValue.read(in, StreamInput::readTimeValue);
+            } else {
+                dataRetention = readLegacyValues(in, StreamInput::readTimeValue);
             }
             if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
                 if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {

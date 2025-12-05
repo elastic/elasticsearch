@@ -8,9 +8,14 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tdigest.parsing.TDigestParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -25,8 +30,17 @@ import java.util.Objects;
  * {@link org.elasticsearch.search.aggregations.metrics.TDigestState} in classic aggregations, which we are not using directly because
  * the serialization format is pretty bad for ESQL's use case (specifically, encoding the near-constant compression and merge strategy
  * data inline as opposed to in a dedicated column isn't great).
+ *
+ * This is writable to support ESQL literals of this type, even though those should not exist.  Literal support, and thus a writeable
+ * object here, are required for ESQL testing.  See for example ShowExecSerializationTest.
  */
-public class TDigestHolder {
+public class TDigestHolder implements GenericNamedWriteable {
+
+    private static final TransportVersion ESQL_SERIALIZEABLE_TDIGEST = TransportVersion.fromName("esql_serializeable_tdigest");
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(GenericNamedWriteable.class,
+    "TDigestHolder",
+    TDigestHolder::new);
 
     private final double min;
     private final double max;
@@ -51,6 +65,14 @@ public class TDigestHolder {
     public TDigestHolder(List<Double> centroids, List<Long> counts, double min, double max, double sum, long valueCount)
         throws IOException {
         this(encodeCentroidsAndCounts(centroids, counts), min, max, sum, valueCount);
+    }
+
+    public TDigestHolder(StreamInput in) throws IOException {
+        this.encodedDigest = in.readBytesRef();
+        this.min = in.readDouble();
+        this.max = in.readDouble();
+        this.sum = in.readDouble();
+        this.valueCount = in.readVLong();
     }
 
     @Override
@@ -154,4 +176,22 @@ public class TDigestHolder {
         }
     }
 
+    @Override
+    public String getWriteableName() {
+        return "TDigestHolder";
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return ESQL_SERIALIZEABLE_TDIGEST;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeBytesRef(encodedDigest);
+        out.writeDouble(min);
+        out.writeDouble(max);
+        out.writeDouble(sum);
+        out.writeVLong(valueCount);
+    }
 }

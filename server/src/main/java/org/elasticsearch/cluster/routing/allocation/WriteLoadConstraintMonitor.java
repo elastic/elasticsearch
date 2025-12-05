@@ -132,24 +132,8 @@ public class WriteLoadConstraintMonitor {
             }
         }
 
-        // reset hotspotNodeStartTimes if the term has changed
-        if (state.term() != hotspotNodeStartTimesLastTerm) {
-            hotspotNodeStartTimesLastTerm = state.term();
-            hotspotNodeStartTimes.clear();
-        }
-
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
-        Set<String> lastHotspotNodes = hotspotNodeStartTimes.keySet();
-        Set<String> staleHotspotNodes = Sets.difference(lastHotspotNodes, writeNodeIdsExceedingQueueLatencyThreshold);
-
-        for (String nodeId : staleHotspotNodes) {
-            assert hotspotNodeStartTimes.containsKey(nodeId) : "Map should contain key from its own subset";
-            long hotspotStartTime = hotspotNodeStartTimes.remove(nodeId);
-            long hotspotDuration = currentTimeMillis - hotspotStartTime;
-            assert hotspotDuration >= 0 : "hotspot duration should always be non-negative";
-            hotspotDurationHistogram.record(hotspotDuration / 1000.0);
-        }
-        hotspotNodesCount.set(hotspotNodeStartTimes.size());
+        Set<String> lastHotspotNodes = recordHotspotDurations(state, writeNodeIdsExceedingQueueLatencyThreshold, currentTimeMillis);
 
         if (writeNodeIdsExceedingQueueLatencyThreshold.isEmpty()) {
             logger.trace("No hot-spotting write nodes detected");
@@ -210,6 +194,28 @@ public class WriteLoadConstraintMonitor {
             hotspotNodeStartTimes.put(nodeId, startTimestamp);
         }
         hotspotNodesCount.set(hotspotNodeStartTimes.size());
+    }
+
+    private Set<String> recordHotspotDurations(ClusterState state, Set<String> currentHotspotNodes, long hotspotEndTime) {
+        // reset hotspotNodeStartTimes if the term has changed
+        if (state.term() != hotspotNodeStartTimesLastTerm || state.nodes().isLocalNodeElectedMaster() == false) {
+            hotspotNodeStartTimesLastTerm = state.term();
+            hotspotNodeStartTimes.clear();
+        }
+
+        Set<String> lastHotspotNodes = hotspotNodeStartTimes.keySet();
+        Set<String> staleHotspotNodes = Sets.difference(lastHotspotNodes, currentHotspotNodes);
+
+        for (String nodeId : staleHotspotNodes) {
+            assert hotspotNodeStartTimes.containsKey(nodeId) : "Map should contain key from its own subset";
+            long hotspotStartTime = hotspotNodeStartTimes.remove(nodeId);
+            long hotspotDuration = hotspotEndTime - hotspotStartTime;
+            assert hotspotDuration >= 0 : "hotspot duration should always be non-negative";
+            hotspotDurationHistogram.record(hotspotDuration / 1000.0);
+        }
+        hotspotNodesCount.set(hotspotNodeStartTimes.size());
+
+        return lastHotspotNodes;
     }
 
     private List<LongWithAttributes> getHotspotNodesCount() {

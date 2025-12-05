@@ -42,6 +42,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.action.TransportPutCCMConfigurationAction.FAILED_VALIDATION_MESSAGE;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature.CCM_FORBIDDEN_EXCEPTION;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -54,17 +55,6 @@ import static org.mockito.Mockito.when;
 public class TransportPutCCMConfigurationActionTests extends ESTestCase {
 
     private static final SecureString API_KEY = new SecureString("secret".toCharArray());
-
-    public static final String AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE = """
-        {
-            "models": [
-                {
-                  "model_name": "rainbow-sprinkles",
-                  "task_types": ["chat"]
-                }
-            ]
-        }
-        """;
 
     public static final String ERROR_MESSAGE = "error occurred";
     public static final String ERROR_RESPONSE = Strings.format("""
@@ -141,7 +131,9 @@ public class TransportPutCCMConfigurationActionTests extends ESTestCase {
 
     public void testSuccessfulValidation() {
         when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(true);
-        webServer.enqueue(new MockResponse().setResponseCode(RestStatus.OK.getStatus()).setBody(AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE));
+
+        var rainbowSprinklesResponseBody = getEisRainbowSprinklesAuthorizationResponse("url").responseJson();
+        webServer.enqueue(new MockResponse().setResponseCode(RestStatus.OK.getStatus()).setBody(rainbowSprinklesResponseBody));
 
         var listener = new TestPlainActionFuture<CCMEnabledActionResponse>();
         action.masterOperation(

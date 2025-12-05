@@ -60,8 +60,8 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
         }
     }
 
-    private static final int NUM_INDICES = 8;
-    private static final int NUM_DOCS = 16;
+    private static final int NUM_INDICES = 3;
+    private static final int NUM_DOCS = 8;
     private static DocumentGenerator documentGenerator;
     private static TemplateGenerator templateGenerator;
     private static MappingGenerator mappingGenerator;

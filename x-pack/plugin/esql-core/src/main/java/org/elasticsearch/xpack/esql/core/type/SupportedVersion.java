@@ -17,6 +17,10 @@ public interface SupportedVersion {
         return supportedOn(TransportVersion.current(), Build.current().isSnapshot());
     }
 
+    default boolean underConstruction() {
+        return false;
+    }
+
     SupportedVersion SUPPORTED_ON_ALL_NODES = new SupportedVersion() {
         @Override
         public boolean supportedOn(TransportVersion version, boolean currentBuildIsSnapshot) {
@@ -37,47 +41,55 @@ public interface SupportedVersion {
      *     <li>
      *         Not tested by {@code ErrorsForCasesWithoutExamplesTestCase} subclasses.
      *         When a function supports a type it includes a test case in its subclass
-     *         of {@code AbstractFunctionTestCase}. If a function does not support.
+     *         of {@code AbstractFunctionTestCase}. If a function does not support
      *         them like {@code TO_STRING} then the tests won't notice. See class javadoc
      *         for instructions on adding new types, but that usually involves adding support
      *         for that type to a handful of functions. Once you've done that you should be
-     *         able to remove your new type from UNDER_CONSTRUCTION and update a few error
-     *         messages.
+     *         able to turn your new type from under construction into released and update
+     *         a few error messages.
      *     </li>
      * </ul>
      * <p>
-     *     Snapshot builds treat these as always supported so that we can write tests before actually
-     *     turning on the support for the type. Mixed/multi cluster tests with older nodes have to be
-     *     skipped based on capabilites, as always.
+     *     Snapshot builds treat these as supported starting from the version they were created on,
+     *     so that we can write tests before actually turning on the support for the type.
+     *     Mixed/multi cluster tests with older nodes should be skipped based on SNAPSHOT-only
+     *     capabilites, as always.
      */
     // We used to have a feature-flag based override, so that in-development types could be
     // turned on for testing in release builds. If needed, it's fine to bring this back, but we
     // need to make sure that other checks for types being under construction are also overridden.
-    // Check usage of this constant to be sure.
-    SupportedVersion UNDER_CONSTRUCTION = new SupportedVersion() {
-        @Override
-        public boolean supportedOn(TransportVersion version, boolean currentBuildIsSnapshot) {
-            return currentBuildIsSnapshot;
-        }
+    // Check usage of this method to be sure.
+    static SupportedVersion underConstruction(TransportVersion createdVersion) {
+        return new SupportedVersion() {
+            @Override
+            public boolean supportedOn(TransportVersion version, boolean currentBuildIsSnapshot) {
+                return currentBuildIsSnapshot && version.supports(createdVersion);
+            }
 
-        @Override
-        public String toString() {
-            return "UnderConstruction";
-        }
-    };
+            @Override
+            public String toString() {
+                return "UnderConstruction";
+            }
+
+            @Override
+            public boolean underConstruction() {
+                return true;
+            }
+        };
+    }
 
     /**
      * Types that are supported starting with the given version.
      * <p>
-     *     Snapshot builds treat these as always supported, so that any existing tests using them
-     *     continue to work. Otherwise, we'd have to update bwc tests to skip older versions based
-     *     on a capability check, which can be error-prone and risks turning off an unrelated bwc test.
+     * Snapshot builds treat these as supported from their created version onward, so that any existing tests
+     * using them should continue to work.
      */
-    static SupportedVersion supportedSince(TransportVersion supportedVersion) {
+    static SupportedVersion supportedSince(TransportVersion createdVersion, TransportVersion supportedVersion) {
+        assert supportedVersion.onOrAfter(createdVersion) : "support for a type cannot be enabled before its initial creation";
         return new SupportedVersion() {
             @Override
             public boolean supportedOn(TransportVersion version, boolean currentBuildIsSnapshot) {
-                return version.supports(supportedVersion) || currentBuildIsSnapshot;
+                return currentBuildIsSnapshot ? version.supports(createdVersion) : version.supports(supportedVersion);
             }
 
             @Override

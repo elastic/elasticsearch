@@ -157,13 +157,13 @@ public class KeywordRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityT
         assertThat(totalCount, equalTo(expectedValues.size()));
 
         List<String> values = ((List<Map<String, Object>>) ObjectPath.evaluate(responseMap, "hits.hits")).stream()
-                .map(map -> (Map<String, Object>) map.get("_source"))
-                .map(source -> {
-                    assertThat(source.get("message"), notNullValue());
-                    // The value of FIELD_NAME is now a single String, not a List<String>
-                    return (String) source.get("message");
-                })
-                .toList();
+            .map(map -> (Map<String, Object>) map.get("_source"))
+            .map(source -> {
+                assertThat(source.get("message"), notNullValue());
+                // The value of FIELD_NAME is now a single String, not a List<String>
+                return (String) source.get("message");
+            })
+            .toList();
 
         assertThat(values, containsInAnyOrder(expectedValues.toArray()));
     }

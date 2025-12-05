@@ -31,7 +31,6 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -78,6 +77,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         initial,
         reconnect
     }
+
+    private static final String metricLabelPrefix = "es_linked_project";
+    static final String linkedProjectIdLabel = metricLabelPrefix + ".linked_project_id";
+    static final String linkedProjectAliasLabel = metricLabelPrefix + ".linked_project_alias";
+    static final String connectionAtemptLabel = metricLabelPrefix + ".attempt";
 
     private final int maxPendingConnectionListeners;
 
@@ -238,13 +242,17 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         } else {
             logger.warn(msgSupplier, e);
             if (connectionAttemptFailures != null) {
-                final var attributesMap = new HashMap<String, Object>();
-                attributesMap.put("linked_project_id", linkedProjectId.toString());
-                attributesMap.put("linked_project_alias", clusterAlias);
-                attributesMap.put("attempt", (isInitialAttempt ? ConnectionAttempt.initial : ConnectionAttempt.reconnect).toString());
-                attributesMap.put("strategy", strategyType().toString());
-                addStrategySpecificConnectionErrorMetricAttributes(attributesMap);
-                connectionAttemptFailures.incrementBy(1, attributesMap);
+                connectionAttemptFailures.incrementBy(
+                    1,
+                    Map.of(
+                        linkedProjectIdLabel,
+                        linkedProjectId.toString(),
+                        linkedProjectAliasLabel,
+                        clusterAlias,
+                        connectionAtemptLabel,
+                        (isInitialAttempt ? ConnectionAttempt.initial : ConnectionAttempt.reconnect).toString()
+                    )
+                );
             }
         }
     }
@@ -258,11 +266,6 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected abstract boolean strategyMustBeRebuilt(LinkedProjectConfig config);
 
     protected abstract ConnectionStrategy strategyType();
-
-    /**
-     * Add strategy-specific attributes for a new connection error metric record.  The default implementation is a no-op.
-     */
-    protected void addStrategySpecificConnectionErrorMetricAttributes(Map<String, Object> attributesMap) {}
 
     @Override
     public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {

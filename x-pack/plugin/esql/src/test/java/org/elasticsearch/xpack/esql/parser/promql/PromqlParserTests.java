@@ -13,12 +13,17 @@ import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.junit.BeforeClass;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -27,7 +32,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PromqlParserTests extends ESTestCase {
@@ -39,19 +47,29 @@ public class PromqlParserTests extends ESTestCase {
         assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
     }
 
+    public void testNoParenthesis() {
+        Stream.of(
+            parse("PROMQL index=test step=5m avg(foo)"),
+            parse("PROMQL index=test step=5m avg by (host) (foo)"),
+            parse("PROMQL index=test step=5m avg by (pod) (avg_over_time(network.bytes_in{pod=~\"host-0|host-1|host-2\"}[1h]))")
+        ).map(PromqlCommand::step).forEach(step -> {
+            assertThat(step.value(), equalTo(Duration.ofMinutes(5)));
+        });
+    }
+
     public void testSpaceBetweenAssignParams() {
         Stream.of(
-            parse("PROMQL test step=5m (avg(foo))"),
-            parse("PROMQL test step= 5m (avg(foo))"),
-            parse("PROMQL test step =5m (avg(foo))"),
-            parse("PROMQL test step = 5m (avg(foo))")
+            parse("PROMQL index=test step=5m (avg(foo))"),
+            parse("PROMQL index=test step= 5m (avg(foo))"),
+            parse("PROMQL index=test step =5m (avg(foo))"),
+            parse("PROMQL index=test step = 5m (avg(foo))")
         ).map(PromqlCommand::step).forEach(step -> {
             assertThat(step.value(), equalTo(Duration.ofMinutes(5)));
         });
     }
 
     public void testValidRangeQuery() {
-        PromqlCommand promql = parse("PROMQL test start=\"2025-10-31T00:00:00Z\" end=\"2025-10-31T01:00:00Z\" step=1m (avg(foo))");
+        PromqlCommand promql = parse("PROMQL index=test start=\"2025-10-31T00:00:00Z\" end=\"2025-10-31T01:00:00Z\" step=1m (avg(foo))");
         assertThat(promql.start().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z").toEpochMilli()));
         assertThat(promql.end().value(), equalTo(Instant.parse("2025-10-31T01:00:00Z").toEpochMilli()));
         assertThat(promql.step().value(), equalTo(Duration.ofMinutes(1)));
@@ -62,7 +80,7 @@ public class PromqlParserTests extends ESTestCase {
     public void testValidRangeQueryParams() {
         PromqlCommand promql = EsqlTestUtils.as(
             parser.createStatement(
-                "PROMQL test start=?_tstart end=?_tend step=?_step (avg(foo))",
+                "PROMQL index=test start=?_tstart end=?_tend step=?_step (avg(foo))",
                 new QueryParams(
                     List.of(
                         paramAsConstant("_tstart", "2025-10-31T00:00:00Z"),
@@ -81,7 +99,7 @@ public class PromqlParserTests extends ESTestCase {
     }
 
     public void testValidRangeQueryOnlyStep() {
-        PromqlCommand promql = parse("PROMQL test `step`=\"1\" (avg(foo))");
+        PromqlCommand promql = parse("PROMQL index=test `step`=\"1\" (avg(foo))");
         assertThat(promql.start().value(), nullValue());
         assertThat(promql.end().value(), nullValue());
         assertThat(promql.step().value(), equalTo(Duration.ofSeconds(1)));
@@ -90,7 +108,7 @@ public class PromqlParserTests extends ESTestCase {
     }
 
     public void testValidInstantQuery() {
-        PromqlCommand promql = parse("PROMQL test time=\"2025-10-31T00:00:00Z\" (avg(foo))");
+        PromqlCommand promql = parse("PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))");
         assertThat(promql.start().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z").toEpochMilli()));
         assertThat(promql.end().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z").toEpochMilli()));
         assertThat(promql.step().value(), nullValue());
@@ -99,17 +117,25 @@ public class PromqlParserTests extends ESTestCase {
     }
 
     public void testValidRangeQueryInvalidQuotedIdentifierValue() {
-        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL test step=`1m` (avg(foo))"));
-        assertThat(e.getMessage(), containsString("1:18: Parameter value [`1m`] must not be a quoted identifier"));
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=`1m` (avg(foo))"));
+        assertThat(e.getMessage(), containsString("1:24: Parameter value [`1m`] must not be a quoted identifier"));
     }
 
-    // TODO nicer error messages for missing params
     public void testMissingParams() {
-        assertThrows(ParsingException.class, () -> parse("PROMQL test (avg(foo))"));
+        Stream.of(
+            parse("PROMQL foo / bar"),
+            parse("PROMQL avg(foo)"),
+            parse("PROMQL foo{host=\"host-1\"}"),
+            parse("PROMQL avg by (host) (foo)"),
+            parse("PROMQL avg by (pod) (avg_over_time(network.bytes_in{pod=~\"host-0|host-1|host-2\"}[1h]))")
+        ).forEach(cmd -> {
+            assertThat((Long) cmd.start().value(), greaterThan(Instant.now().minus(1, ChronoUnit.MINUTES).toEpochMilli()));
+            assertThat((Long) cmd.start().value(), lessThanOrEqualTo(Instant.now().toEpochMilli()));
+        });
     }
 
     public void testZeroStep() {
-        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL test step=0 (avg(foo))"));
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=0 (avg(foo))"));
         assertThat(
             e.getMessage(),
             containsString(
@@ -120,7 +146,7 @@ public class PromqlParserTests extends ESTestCase {
     }
 
     public void testNegativeStep() {
-        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL test step=\"-1\" (avg(foo))"));
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=\"-1\" (avg(foo))"));
         assertThat(
             e.getMessage(),
             containsString("invalid parameter \"step\": zero or negative query resolution step widths are not accepted")
@@ -130,14 +156,14 @@ public class PromqlParserTests extends ESTestCase {
     public void testEndBeforeStart() {
         ParsingException e = assertThrows(
             ParsingException.class,
-            () -> parse("PROMQL test start=\"2025-10-31T01:00:00Z\" end=\"2025-10-31T00:00:00Z\" step=1m (avg(foo))")
+            () -> parse("PROMQL index=test start=\"2025-10-31T01:00:00Z\" end=\"2025-10-31T00:00:00Z\" step=1m (avg(foo))")
         );
         assertThat(e.getMessage(), containsString("1:1: invalid parameter \"end\": end timestamp must not be before start time"));
     }
 
     public void testInstantAndRangeParams() {
         ParsingException e = assertThrows(ParsingException.class, () -> parse("""
-            PROMQL test start="2025-10-31T00:00:00Z" end="2025-10-31T01:00:00Z" step=1m time="2025-10-31T00:00:00Z" (
+            PROMQL index=test start="2025-10-31T00:00:00Z" end="2025-10-31T01:00:00Z" step=1m time="2025-10-31T00:00:00Z" (
                  avg(foo)
                )"""));
         assertThat(
@@ -147,32 +173,32 @@ public class PromqlParserTests extends ESTestCase {
     }
 
     public void testDuplicateParameter() {
-        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL test step=1 step=2 (avg(foo))"));
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=1 step=2 (avg(foo))"));
         assertThat(e.getMessage(), containsString("[step] already specified"));
     }
 
     public void testUnknownParameter() {
-        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL test stp=1 (avg(foo))"));
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test stp=1 (avg(foo))"));
         assertThat(e.getMessage(), containsString("Unknown parameter [stp], did you mean [step]?"));
     }
 
     public void testUnknownParameterNoSuggestion() {
-        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL test foo=1 (avg(foo))"));
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test foo=1 (avg(foo))"));
         assertThat(e.getMessage(), containsString("Unknown parameter [foo]"));
     }
 
     public void testInvalidDateFormat() {
         ParsingException e = assertThrows(
             ParsingException.class,
-            () -> parse("PROMQL test start=\"not-a-date\" end=\"2025-10-31T01:00:00Z\" step=1m (avg(foo))")
+            () -> parse("PROMQL index=test start=\"not-a-date\" end=\"2025-10-31T01:00:00Z\" step=1m (avg(foo))")
         );
-        assertThat(e.getMessage(), containsString("1:19: Invalid date format [not-a-date]"));
+        assertThat(e.getMessage(), containsString("1:25: Invalid date format [not-a-date]"));
     }
 
     public void testOnlyStartSpecified() {
         ParsingException e = assertThrows(
             ParsingException.class,
-            () -> parse("PROMQL test start=\"2025-10-31T00:00:00Z\" step=1m (avg(foo))")
+            () -> parse("PROMQL index=test start=\"2025-10-31T00:00:00Z\" step=1m (avg(foo))")
         );
         assertThat(
             e.getMessage(),
@@ -183,7 +209,7 @@ public class PromqlParserTests extends ESTestCase {
     public void testOnlyEndSpecified() {
         ParsingException e = assertThrows(
             ParsingException.class,
-            () -> parse("PROMQL test end=\"2025-10-31T01:00:00Z\" step=1m (avg(foo))")
+            () -> parse("PROMQL index=test end=\"2025-10-31T01:00:00Z\" step=1m (avg(foo))")
         );
         assertThat(
             e.getMessage(),
@@ -194,23 +220,46 @@ public class PromqlParserTests extends ESTestCase {
     public void testRangeQueryMissingStep() {
         ParsingException e = assertThrows(
             ParsingException.class,
-            () -> parse("PROMQL test start=\"2025-10-31T00:00:00Z\" end=\"2025-10-31T01:00:00Z\" (avg(foo))")
+            () -> parse("PROMQL index=test start=\"2025-10-31T00:00:00Z\" end=\"2025-10-31T01:00:00Z\" (avg(foo))")
         );
-        assertThat(e.getMessage(), containsString("Parameter [step] or [time] is required"));
+        assertThat(e.getMessage(), containsString("Parameter [step] must be specified for a range query"));
     }
 
     public void testParseMultipleIndices() {
-        PromqlCommand promqlCommand = parse("PROMQL foo, bar step=5m (avg(foo))");
+        PromqlCommand promqlCommand = parse("PROMQL index=foo, bar step=5m (avg(foo))");
         List<UnresolvedRelation> unresolvedRelations = promqlCommand.collect(UnresolvedRelation.class);
         assertThat(unresolvedRelations, hasSize(1));
         assertThat(unresolvedRelations.getFirst().indexPattern().indexPattern(), equalTo("foo,bar"));
     }
 
     public void testParseRemoteIndices() {
-        PromqlCommand promqlCommand = parse("PROMQL *:foo,foo step=5m (avg(foo))");
+        PromqlCommand promqlCommand = parse("PROMQL index=*:foo,foo step=5m (avg(foo))");
         List<UnresolvedRelation> unresolvedRelations = promqlCommand.collect(UnresolvedRelation.class);
         assertThat(unresolvedRelations, hasSize(1));
         assertThat(unresolvedRelations.getFirst().indexPattern().indexPattern(), equalTo("*:foo,foo"));
+    }
+
+    public void testExplain() {
+        assertExplain("""
+            PROMQL index=k8s step=5m ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
+            | LIMIT 1000
+            """, AcrossSeriesAggregate.class);
+        assertExplain("""
+            PROMQL index=k8s step=5m avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))
+            | LIMIT 1000
+            """, AcrossSeriesAggregate.class);
+        assertExplain(
+            "PROMQL index=k8s step=5m avg by (pod) (avg_over_time(network.bytes_in{pod=~\"host-0|host-1|host-2\"}[1h]))",
+            AcrossSeriesAggregate.class
+        );
+        assertExplain("PROMQL index=k8s step=5m foo", InstantSelector.class);
+    }
+
+    public void assertExplain(String query, Class<? extends UnaryPlan> promqlCommandClass) {
+        var plan = parser.createStatement("EXPLAIN ( " + query + " )");
+        Explain explain = plan.collect(Explain.class).getFirst();
+        PromqlCommand promqlCommand = explain.query().collect(PromqlCommand.class).getFirst();
+        assertThat(promqlCommand.promqlPlan(), instanceOf(promqlCommandClass));
     }
 
     private static PromqlCommand parse(String query) {

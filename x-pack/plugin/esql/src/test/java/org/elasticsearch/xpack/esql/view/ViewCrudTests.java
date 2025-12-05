@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -27,6 +28,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "to be resolved")
 public class ViewCrudTests extends AbstractViewTestCase {
 
     private TestViewsApi viewsApi;

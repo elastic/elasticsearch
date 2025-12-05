@@ -13,7 +13,7 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlFeatures.ESQL_VIEWS_FEATUR
 
 public class ViewRestTests extends AbstractViewTestCase {
 
-    public void testSnapshot() throws Exception {
+    public void testSnapshot() {
         assumeTrue("Skipping test because we're not in a SNAPSHOT build", ESQL_VIEWS_FEATURE_FLAG.isEnabled());
         GetViewAction.Request request = new GetViewAction.Request(TimeValue.timeValueMinutes(1));
         TestResponseCapture<GetViewAction.Response> responseCapture = new TestResponseCapture<>();

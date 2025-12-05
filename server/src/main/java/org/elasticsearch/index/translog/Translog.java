@@ -16,7 +16,6 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -1370,9 +1369,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public void writeBody(final StreamOutput out) throws IOException {
-            final int format = out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
-                ? out.getTransportVersion().supports(REORDERED_TRANSLOG_OPERATIONS) ? SERIALIZATION_FORMAT : FORMAT_NO_DOC_TYPE
-                : FORMAT_NO_VERSION_TYPE;
+            final int format = out.getTransportVersion().supports(REORDERED_TRANSLOG_OPERATIONS)
+                ? SERIALIZATION_FORMAT
+                : FORMAT_NO_DOC_TYPE;
             if (format < FORMAT_REORDERED) {
                 out.writeVInt(format);
                 out.writeString(Uid.decodeId(uid.bytes, uid.offset, uid.length));
@@ -1572,9 +1571,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public void writeBody(final StreamOutput out) throws IOException {
-            final int format = out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
-                ? out.getTransportVersion().supports(REORDERED_TRANSLOG_OPERATIONS) ? SERIALIZATION_FORMAT : FORMAT_NO_DOC_TYPE
-                : FORMAT_NO_VERSION_TYPE;
+            final int format = out.getTransportVersion().supports(REORDERED_TRANSLOG_OPERATIONS)
+                ? SERIALIZATION_FORMAT
+                : FORMAT_NO_DOC_TYPE;
             if (format < FORMAT_REORDERED) {
                 out.writeVInt(format);
                 if (format < FORMAT_NO_DOC_TYPE) {

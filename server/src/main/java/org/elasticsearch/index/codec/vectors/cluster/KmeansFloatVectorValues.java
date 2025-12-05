@@ -43,7 +43,7 @@ public final class KmeansFloatVectorValues extends FloatVectorValues {
 
     /**
      * Builds an instance from off-heap data structures. Vectors are expected to be written as
-     * little endian floats one after the other.Docs are expected to be written as little endian ints
+     * little endian floats one after the other. Docs are expected to be written as little endian ints
      * one after the other.
      */
     public static KmeansFloatVectorValues build(IndexInput vectors, IndexInput docs, int numVectors, int dims) throws IOException {

@@ -24,13 +24,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URLDecoder;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static fixture.gcs.MockGcsBlobStore.failAndThrow;
@@ -153,22 +154,24 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 }
 
             } else if (Regex.simpleMatch("POST /batch/storage/v1", request)) {
-                // Batch https://cloud.google.com/storage/docs/json_api/v1/how-tos/batch
-                final String uri = "/storage/v1/b/" + bucket + "/o/";
-                final StringBuilder batch = new StringBuilder();
-                for (String line : Streams.readAllLines(requestBody.streamInput())) {
-                    if (line.isEmpty() || line.startsWith("--") || line.toLowerCase(Locale.ROOT).startsWith("content")) {
-                        batch.append(line).append("\r\n");
-                    } else if (line.startsWith("DELETE")) {
-                        final String name = line.substring(line.indexOf(uri) + uri.length(), line.lastIndexOf(" HTTP"));
-                        if (Strings.hasText(name)) {
-                            mockGcsBlobStore.deleteBlob(URLDecoder.decode(name, UTF_8));
-                            batch.append("HTTP/1.1 204 NO_CONTENT").append("\r\n");
-                            batch.append("\r\n");
-                        }
-                    }
+                // https://docs.cloud.google.com/storage/docs/batch#http
+                final var boundary = MultipartContent.Reader.getBoundary(exchange);
+                final var batchReader = MultipartContent.Reader.readStream(boundary, requestBody.streamInput());
+                final var responseStream = new ByteArrayOutputStream();
+                final var batchWriter = new MultipartContent.Writer(boundary, responseStream);
+                while (batchReader.hasNext()) {
+                    final var batchItem = batchReader.next();
+                    final var contentId = batchItem.headers().get("content-id");
+                    // only deletes are supported in batch
+                    final var objectName = parseBatchItemDeleteObject(bucket, batchItem.content());
+                    mockGcsBlobStore.deleteBlob(objectName);
+                    final var responsePartContent = "HTTP/1.1 204 No Content\r\n\r\n";
+                    final var responsePartHeaders = Map.of("content-type", "application/http", "content-id", "response-" + contentId);
+                    batchWriter.write(MultipartContent.Part.of(responsePartHeaders, responsePartContent));
                 }
-                byte[] response = batch.toString().getBytes(UTF_8);
+                batchWriter.end();
+
+                byte[] response = responseStream.toByteArray();
                 exchange.getResponseHeaders().add("Content-Type", exchange.getRequestHeaders().getFirst("Content-Type"));
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
@@ -253,6 +256,32 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBytes.length());
             responseBytes.writeTo(exchange.getResponseBody());
         }
+    }
+
+    // Example of DELETE batch item status line
+    // DELETE http://127.0.0.1:49177/storage/v1/b/bucket/o/test/tests-vQzflxz2Swa_bhmlM6gtyA/data-5odMgVMYTbKAI6DxS0qi-A.dat HTTP/1.1";
+    static final Pattern BATCH_ITEM_HTTP_LINE = Pattern.compile(
+        "(?<method>\\w+) (.+)/storage/v1/b/(?<bucket>.+)/o/(?<object>.+) HTTP/1\\.1"
+    );
+
+    static String parseBatchItemDeleteObject(String bucket, BytesReference bytes) {
+        final var s = bytes.utf8ToString();
+        return s.lines().findFirst().map(line -> {
+            var matcher = BATCH_ITEM_HTTP_LINE.matcher(line);
+            if (matcher.find() == false) {
+                throw new IllegalStateException("Cannot parse batch item HTTP line: " + line);
+            }
+            var method = matcher.group("method");
+            if (method.equals("DELETE") == false) {
+                throw new IllegalStateException("Expected DELETE item, found " + line);
+            }
+            var _bucket = matcher.group("bucket");
+            if (bucket.equals(_bucket) == false) {
+                throw new IllegalStateException("Bucket does not match expected: " + bucket + ", got: " + _bucket);
+            }
+            return URLDecoder.decode(matcher.group("object"), UTF_8);
+
+        }).orElseThrow();
     }
 
     record ListBlobsResponse(String bucket, MockGcsBlobStore.PageOfBlobs pageOfBlobs) implements ToXContent {

@@ -23,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
+import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -171,6 +172,11 @@ public class Netty4HttpRequest implements HttpRequest {
     @Override
     public Exception getInboundException() {
         return inboundException;
+    }
+
+    @Override
+    public void releaseRequestScopedResources() {
+        HttpHeadersAuthenticatorUtils.releaseSecureReleasables(this);
     }
 
     public io.netty.handler.codec.http.HttpRequest getNettyRequest() {

@@ -1,0 +1,6 @@
+pr: 138961
+summary: Add `index.mapping.nested_parents.limit` and raise nested fields limit to
+  100
+area: Mapping
+type: enhancement
+issues: []

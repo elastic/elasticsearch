@@ -295,17 +295,13 @@ public class OsStats implements Writeable, ToXContentFragment {
                 total = 0;
             }
             this.total = total;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                long adjustedTotal = in.readLong();
-                assert adjustedTotal >= 0 : "expected adjusted total memory to be positive, got: " + adjustedTotal;
-                if (adjustedTotal < 0) {
-                    logger.error("negative adjusted total memory [{}] deserialized in memory stats", adjustedTotal);
-                    adjustedTotal = 0;
-                }
-                this.adjustedTotal = adjustedTotal;
-            } else {
-                this.adjustedTotal = total;
+            long adjustedTotal = in.readLong();
+            assert adjustedTotal >= 0 : "expected adjusted total memory to be positive, got: " + adjustedTotal;
+            if (adjustedTotal < 0) {
+                logger.error("negative adjusted total memory [{}] deserialized in memory stats", adjustedTotal);
+                adjustedTotal = 0;
             }
+            this.adjustedTotal = adjustedTotal;
             long free = in.readLong();
             assert free >= 0 : "expected free memory to be positive, got: " + free;
             if (free < 0) {
@@ -318,9 +314,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(total);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                out.writeLong(adjustedTotal);
-            }
+            out.writeLong(adjustedTotal);
             out.writeLong(free);
         }
 

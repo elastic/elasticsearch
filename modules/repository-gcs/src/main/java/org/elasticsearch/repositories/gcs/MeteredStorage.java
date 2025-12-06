@@ -82,6 +82,10 @@ public class MeteredStorage {
         return statsCollector.collectIOSupplier(purpose, GET, () -> storage.get(blobId));
     }
 
+    public void deleteBlob(BlobId blobId) throws IOException {
+        storage.delete(blobId);
+    }
+
     public void meteredCreate(
         OperationPurpose purpose,
         BlobInfo blobInfo,

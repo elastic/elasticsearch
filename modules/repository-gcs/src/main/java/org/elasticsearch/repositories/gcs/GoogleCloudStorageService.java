@@ -116,6 +116,10 @@ public class GoogleCloudStorageService {
         return clientsManager.client(projectId, clientName, repositoryName, statsCollector);
     }
 
+    GoogleCloudStorageClientSettings clientSettings(@Nullable ProjectId projectId, final String clientName) {
+        return clientsManager.clientSettings(projectId, clientName);
+    }
+
     /**
      * Close the repository client associated with the given project and repository.
      *
@@ -198,7 +202,10 @@ public class GoogleCloudStorageService {
                 return Strings.hasLength(gcsClientSettings.getApplicationName())
                     ? Map.of("user-agent", gcsClientSettings.getApplicationName())
                     : Map.of();
-            });
+            })
+            .setRetrySettings(
+                ServiceOptions.getDefaultRetrySettings().toBuilder().setMaxAttempts(gcsClientSettings.getMaxRetries() + 1).build()
+            );
         if (Strings.hasLength(gcsClientSettings.getHost())) {
             storageOptionsBuilder.setHost(gcsClientSettings.getHost());
         }
@@ -412,6 +419,14 @@ public class GoogleCloudStorageService {
             }
         }
 
+        GoogleCloudStorageClientSettings clientSettings(ProjectId projectId, String clientName) {
+            if (projectId == null || ProjectId.DEFAULT.equals(projectId)) {
+                return clusterClientsHolder.clientSettings(clientName);
+            } else {
+                return getClientsHolderSafe(projectId).clientSettings(clientName);
+            }
+        }
+
         void closeRepositoryClients(ProjectId projectId, String repositoryName) {
             if (projectId == null || ProjectId.DEFAULT.equals(projectId)) {
                 clusterClientsHolder.closeRepositoryClients(repositoryName);
@@ -491,19 +506,25 @@ public class GoogleCloudStorageService {
                     return existing;
                 }
 
-                final GoogleCloudStorageClientSettings settings = allClientSettings().get(clientName);
-
-                if (settings == null) {
-                    throw new IllegalArgumentException(
-                        "Unknown client name [" + clientName + "]. Existing client configs: " + allClientSettings().keySet()
-                    );
-                }
+                final GoogleCloudStorageClientSettings settings = clientSettings(clientName);
 
                 logger.debug(() -> format("creating GCS client with client_name [%s], endpoint [%s]", clientName, settings.getHost()));
                 final MeteredStorage storage = createClient(settings, statsCollector);
                 clientCache = Maps.copyMapWithAddedEntry(clientCache, repositoryName, storage);
                 return storage;
             }
+        }
+
+        public GoogleCloudStorageClientSettings clientSettings(String clientName) {
+            final GoogleCloudStorageClientSettings settings = allClientSettings().get(clientName);
+
+            if (settings == null) {
+                throw new IllegalArgumentException(
+                    "Unknown client name [" + clientName + "]. Existing client configs: " + allClientSettings().keySet()
+                );
+            }
+
+            return settings;
         }
 
         synchronized void closeRepositoryClients(String repositoryName) {

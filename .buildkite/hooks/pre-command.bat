@@ -93,12 +93,14 @@ if "%SMART_RETRIES%"=="true" (
 
                     REM Create Buildkite annotation for visibility
                     (
-                      echo Rerunning failed build job [!ORIGIN_JOB_NAME!](!BUILD_SCAN_URL!^)
+                      echo Rerunning failed build job [!ORIGIN_JOB_NAME!]^(!BUILD_SCAN_URL!^)
                       echo.
                       echo **Gradle Tasks with Failures:** !FILTERED_WORK_UNITS!
                       echo.
                       echo This retry will skip test tasks that had no failures in the previous run.
-                    ) | buildkite-agent annotate --style info --context "smart-retry-!BUILDKITE_JOB_ID!"
+                    ) > .smart-retry-annotation.txt
+                    buildkite-agent annotate --style info --context "smart-retry-!BUILDKITE_JOB_ID!" < .smart-retry-annotation.txt
+                    del .smart-retry-annotation.txt 2>nul
                   ) else (
                     echo Smart Retry API Error
                     echo Failed to fetch failed tests from Develocity API

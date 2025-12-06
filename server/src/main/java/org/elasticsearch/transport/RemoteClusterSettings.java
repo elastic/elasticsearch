@@ -200,9 +200,16 @@ public class RemoteClusterSettings {
             Settings settings,
             ProxyLinkedProjectConfigBuilder builder
         ) {
-            return builder.proxyAddress(PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
-                .maxNumConnections(REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings))
-                .serverName(SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(settings));
+            final var proxyAddress = PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            if (proxyAddress != null && proxyAddress.isEmpty() == false) {
+                builder.proxyAddress(proxyAddress);
+            }
+            final var serverName = SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            if (serverName != null && serverName.isEmpty() == false) {
+                builder.serverName(serverName);
+            }
+            builder.maxNumConnections(REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings));
+            return builder;
         }
     }
 
@@ -285,10 +292,17 @@ public class RemoteClusterSettings {
             Settings settings,
             SniffLinkedProjectConfigBuilder builder
         ) {
-            return builder.nodePredicate(getNodePredicate(settings))
-                .seedNodes(REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings))
-                .proxyAddress(REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings))
-                .maxNumConnections(REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings));
+            builder.nodePredicate(getNodePredicate(settings));
+            final var seedNodes = REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            if (seedNodes != null && seedNodes.isEmpty() == false) {
+                builder.seedNodes(seedNodes);
+            }
+            final var proxyAddress = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            if (proxyAddress != null && proxyAddress.isEmpty() == false) {
+                builder.proxyAddress(proxyAddress);
+            }
+            builder.maxNumConnections(REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings));
+            return builder;
         }
 
         public static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())

@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -203,11 +204,8 @@ public sealed interface LinkedProjectConfig {
         }
 
         public B proxyAddress(String proxyAddress) {
-            // TODO: Eliminate leniency here allowing an empty proxy address, ES-12737.
-            if (Strings.hasLength(proxyAddress)) {
-                RemoteConnectionStrategy.parsePort(proxyAddress);
-            }
-            this.proxyAddress = proxyAddress;
+            this.proxyAddress = requireNonEmpty(proxyAddress, "proxyAddress");
+            RemoteConnectionStrategy.parsePort(proxyAddress);
             return concreteBuilder;
         }
 
@@ -238,6 +236,13 @@ public sealed interface LinkedProjectConfig {
             }
             return value;
         }
+
+        protected static <T> Collection<T> requireNonEmpty(Collection<T> value, String name) {
+            if (Objects.requireNonNull(value).isEmpty()) {
+                throw new IllegalArgumentException("[" + name + "] cannot be empty");
+            }
+            return value;
+        }
     }
 
     class ProxyLinkedProjectConfigBuilder extends Builder<ProxyLinkedProjectConfigBuilder> {
@@ -252,7 +257,7 @@ public sealed interface LinkedProjectConfig {
         }
 
         public ProxyLinkedProjectConfigBuilder serverName(String serverName) {
-            this.serverName = serverName;
+            this.serverName = requireNonEmpty(serverName, "serverName");
             return this;
         }
 
@@ -299,8 +304,7 @@ public sealed interface LinkedProjectConfig {
         }
 
         public SniffLinkedProjectConfigBuilder seedNodes(List<String> seedNodes) {
-            // TODO: Eliminate leniency here allowing an empty set of seed nodes, ES-12737.
-            Objects.requireNonNull(seedNodes).forEach(RemoteConnectionStrategy::parsePort);
+            requireNonEmpty(seedNodes, "seedNodes").forEach(RemoteConnectionStrategy::parsePort);
             this.seedNodes = seedNodes;
             return this;
         }

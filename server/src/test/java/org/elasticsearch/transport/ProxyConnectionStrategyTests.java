@@ -775,9 +775,15 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         String proxyAddress,
         String proxyServerName
     ) {
-        return new LinkedProjectConfig.ProxyLinkedProjectConfigBuilder(linkedProjectAlias).maxNumConnections(maxNumConnections)
-            .proxyAddress(proxyAddress)
-            .serverName(proxyServerName)
-            .build();
+        final var builder = new LinkedProjectConfig.ProxyLinkedProjectConfigBuilder(linkedProjectAlias).maxNumConnections(
+            maxNumConnections
+        );
+        if (proxyAddress != null && proxyAddress.isEmpty() == false) {
+            builder.proxyAddress(proxyAddress);
+        }
+        if (proxyServerName != null && proxyServerName.isEmpty() == false) {
+            builder.serverName(proxyServerName);
+        }
+        return builder.build();
     }
 }

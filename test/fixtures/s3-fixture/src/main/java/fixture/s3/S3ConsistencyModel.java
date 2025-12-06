@@ -9,6 +9,8 @@
 
 package fixture.s3;
 
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+
 /**
  * AWS S3 has weaker consistency for its multipart upload APIs than initially claimed (see support cases 10837136441 and 176070774900712)
  * but strong consistency of conditional writes based on the {@code If-Match} and {@code If-None-Match} headers. Other object storage
@@ -42,5 +44,9 @@ public enum S3ConsistencyModel {
 
     public boolean hasConditionalWrites() {
         return conditionalWrites;
+    }
+
+    public static S3ConsistencyModel randomConsistencyModel() {
+        return randomFrom(values());
     }
 }

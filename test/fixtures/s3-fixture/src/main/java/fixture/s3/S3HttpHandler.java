@@ -69,19 +69,21 @@ public class S3HttpHandler implements HttpHandler {
     private final String bucket;
     private final String basePath;
     private final String bucketAndBasePath;
+    private final S3ConsistencyModel consistencyModel;
 
     private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, MultipartUpload> uploads = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, AtomicInteger> completingUploads = new ConcurrentHashMap<>();
 
-    public S3HttpHandler(final String bucket) {
-        this(bucket, null);
+    public S3HttpHandler(final String bucket, S3ConsistencyModel consistencyModel) {
+        this(bucket, null, consistencyModel);
     }
 
-    public S3HttpHandler(final String bucket, @Nullable final String basePath) {
+    public S3HttpHandler(final String bucket, @Nullable final String basePath, S3ConsistencyModel consistencyModel) {
         this.bucket = Objects.requireNonNull(bucket);
         this.basePath = Objects.requireNonNullElse(basePath, "");
         this.bucketAndBasePath = bucket + (Strings.hasText(basePath) ? "/" + basePath : "");
+        this.consistencyModel = consistencyModel;
     }
 
     /**
@@ -247,7 +249,7 @@ public class S3HttpHandler implements HttpHandler {
 
             } else if (request.isAbortMultipartUploadRequest()) {
                 final var uploadId = request.getQueryParamOnce("uploadId");
-                if (consistencyModel().hasStrongMultipartUploads() == false && completingUploads.containsKey(uploadId)) {
+                if (consistencyModel.hasStrongMultipartUploads() == false && completingUploads.containsKey(uploadId)) {
                     // See AWS support case 176070774900712: aborts may sometimes return early if complete is already in progress
                     exchange.sendResponseHeaders(RestStatus.NO_CONTENT.getStatus(), -1);
                 } else {
@@ -430,7 +432,7 @@ public class S3HttpHandler implements HttpHandler {
      * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html#conditional-error-response">AWS docs</a>
      */
     private RestStatus updateBlobContents(HttpExchange exchange, String path, BytesReference newContents) {
-        if (consistencyModel().hasConditionalWrites()) {
+        if (consistencyModel.hasConditionalWrites()) {
             if (isProtectOverwrite(exchange)) {
                 return blobs.putIfAbsent(path, newContents) == null
                     ? RestStatus.OK
@@ -711,10 +713,6 @@ public class S3HttpHandler implements HttpHandler {
                 return uploadCount;
             }
         });
-    }
-
-    protected S3ConsistencyModel consistencyModel() {
-        return S3ConsistencyModel.AWS_DEFAULT;
     }
 
     public S3Request parseRequest(HttpExchange exchange) {

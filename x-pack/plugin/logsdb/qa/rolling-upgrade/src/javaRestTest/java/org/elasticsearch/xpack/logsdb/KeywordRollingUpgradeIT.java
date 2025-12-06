@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.upgrades;
+package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -19,18 +19,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.upgrades.AbstractStringTypeRollingUpgradeIT.assertDataStream;
-import static org.elasticsearch.upgrades.AbstractStringTypeRollingUpgradeIT.createTemplate;
-import static org.elasticsearch.upgrades.AbstractStringTypeRollingUpgradeIT.formatInstant;
-import static org.elasticsearch.upgrades.AbstractStringTypeRollingUpgradeIT.getIndexSettingsWithDefaults;
-import static org.elasticsearch.upgrades.AbstractStringTypeRollingUpgradeIT.startTrial;
-import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.enableLogsdbByDefault;
-import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.getWriteBackingIndex;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class KeywordRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
+public class KeywordRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCase {
 
     private static final String DATA_STREAM_NAME = "logs-bwc-test";
 
@@ -70,45 +63,44 @@ public class KeywordRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityT
             }
         }""";
 
-    public KeywordRollingUpgradeIT(int upgradedNodes) {
-        super(upgradedNodes);
+    public void testIndexingWithIgnoreAbove() throws Exception {
+        beforeUpgrade();
+        upgradeNodes();
+        afterUpgrade();
     }
 
-    public void testIndexingWithIgnoreAbove() throws Exception {
-        if (isOldCluster()) {
-            // given - enable logsdb, create a template + index
-            startTrial();
-            enableLogsdbByDefault();
-            String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);
-            createTemplate(DATA_STREAM_NAME, templateId, TEMPLATE);
+    private void beforeUpgrade() throws Exception {
+        // given - enable logsdb, create a template + index
+        LogsdbIndexingRollingUpgradeIT.maybeEnableLogsdbByDefault();
+        String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);
+        LogsdbIndexingRollingUpgradeIT.createTemplate(DATA_STREAM_NAME, templateId, TEMPLATE);
 
-            // when - index a document
-            indexDocuments(FIELD_VALUES_1);
+        // when - index a document
+        indexDocuments(FIELD_VALUES_1);
 
-            // then - verify that logsdb and synthetic source are enabled before proceeding futher
-            String firstBackingIndex = getWriteBackingIndex(client(), DATA_STREAM_NAME, 0);
-            var settings = (Map<?, ?>) getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
-            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
-            assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
+        // then - verify that logsdb and synthetic source are enabled before proceeding futher
+        String firstBackingIndex = LogsdbIndexingRollingUpgradeIT.getWriteBackingIndex(client(), DATA_STREAM_NAME, 0);
+        var settings = (Map<?, ?>) LogsdbIndexingRollingUpgradeIT.getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
+        assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
+        assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
 
-            assertDataStream(DATA_STREAM_NAME, templateId);
-            ensureGreen(DATA_STREAM_NAME);
+        LogsdbIndexingRollingUpgradeIT.assertDataStream(DATA_STREAM_NAME, templateId);
+        ensureGreen(DATA_STREAM_NAME);
 
-            // then - perform a search, expect all values to be in the response
-            search(FIELD_VALUES_1);
-        } else if (isUpgradedCluster()) {
-            // given - implicitly start from the leftover state after upgrading the cluster
+        // then - perform a search, expect all values to be in the response
+        search(FIELD_VALUES_1);
+    }
 
-            // when - index a new document
-            indexDocuments(FIELD_VALUES_2);
+    private void afterUpgrade() throws Exception {
+        // given - implicitly start from the leftover state after upgrading the cluster
 
-            // then - query the result, expect to find all new values, as well as values from before the cluster was upgraded
-            List<String> allValues = new ArrayList<>(FIELD_VALUES_1);
-            allValues.addAll(FIELD_VALUES_2);
-            search(allValues);
-        } else {
-            // skip - the cluster is upgrading, we don't really need to do anything here
-        }
+        // when - index a new document
+        indexDocuments(FIELD_VALUES_2);
+
+        // then - query the result, expect to find all new values, as well as values from before the cluster was upgraded
+        List<String> allValues = new ArrayList<>(FIELD_VALUES_1);
+        allValues.addAll(FIELD_VALUES_2);
+        search(allValues);
     }
 
     /**
@@ -123,7 +115,9 @@ public class KeywordRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityT
         for (String value : values) {
             requestBody.append("{\"create\": {}}");
             requestBody.append('\n');
-            requestBody.append(ITEM_TEMPLATE.replace("$now", formatInstant(startTime)).replace("$message", value));
+            requestBody.append(
+                ITEM_TEMPLATE.replace("$now", LogsdbIndexingRollingUpgradeIT.formatInstant(startTime)).replace("$message", value)
+            );
             requestBody.append('\n');
 
             startTime = startTime.plusMillis(1);
@@ -166,6 +160,13 @@ public class KeywordRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityT
             .toList();
 
         assertThat(values, containsInAnyOrder(expectedValues.toArray()));
+    }
+
+    private void upgradeNodes() throws IOException {
+        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
+        for (int i = 0; i < numNodes; i++) {
+            upgradeNode(i);
+        }
     }
 
 }

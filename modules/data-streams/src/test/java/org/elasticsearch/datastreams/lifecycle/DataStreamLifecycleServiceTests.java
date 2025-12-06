@@ -33,6 +33,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -356,7 +357,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         clusterState = ClusterState.builder(clusterState).putProjectMetadata(builder).build();
 
         dataStreamLifecycleService.run(clusterState);
-        // There should be two client requests: one rollover, and one to update the merge policy settings. N.B. The merge policy settings
+        // There should be two client requests: one rollover, and one to update the merge policy settings. One of the non-write indices is
+        // still within the time bounds to be written to, so it is not force merged. N.B. The merge policy settings
         // will always be updated before the force merge is done, see testMergePolicySettingsAreConfiguredBeforeForcemerge.
         assertThat(clientSeenRequests.size(), is(2));
         assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
@@ -959,12 +961,14 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         };
         final var projectId = randomProjectIdOrDefault();
         String targetIndex = randomAlphaOfLength(20);
-        DataStreamLifecycleService.UpdateForceMergeCompleteTask task = new DataStreamLifecycleService.UpdateForceMergeCompleteTask(
-            listener,
-            projectId,
-            targetIndex,
-            threadPool
-        );
+        DataStreamLifecycleService.UpdateDataStreamLifecycleCustomMetadataTask task =
+            new DataStreamLifecycleService.UpdateDataStreamLifecycleCustomMetadataTask(
+                listener,
+                projectId,
+                targetIndex,
+                FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY,
+                Long.toString(threadPool.absoluteTimeInMillis())
+            );
         {
             Exception exception = new RuntimeException("task failed");
             task.onFailure(exception);
@@ -1246,7 +1250,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         Set<Index> affectedIndices = dataStreamLifecycleService.maybeExecuteDownsampling(
             clusterService.state().projectState(projectId),
             dataStream,
-            List.of(firstGenIndex)
+            Set.of()
         );
 
         assertThat(affectedIndices, is(Set.of(firstGenIndex)));
@@ -1275,7 +1279,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         affectedIndices = dataStreamLifecycleService.maybeExecuteDownsampling(
             clusterService.state().projectState(projectId),
             dataStream,
-            List.of(firstGenIndex)
+            Set.of()
         );
         assertThat(affectedIndices, is(Set.of(firstGenIndex)));
         assertThat(clientSeenRequests.size(), is(2));
@@ -1310,7 +1314,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         affectedIndices = dataStreamLifecycleService.maybeExecuteDownsampling(
             clusterService.state().projectState(projectId),
             dataStream,
-            List.of(firstGenIndex)
+            Set.of()
         );
         assertThat(affectedIndices, is(Set.of(firstGenIndex)));
         // still only 2 witnessed requests, nothing extra
@@ -1343,7 +1347,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         affectedIndices = dataStreamLifecycleService.maybeExecuteDownsampling(
             clusterService.state().projectState(projectId),
             dataStream,
-            List.of(firstGenIndex)
+            Set.of()
         );
         assertThat(affectedIndices, is(Set.of(firstGenIndex)));
         assertBusy(() -> {
@@ -1417,7 +1421,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         final var projectState = clusterService.state().projectState(projectId);
         Index firstGenIndex = projectState.metadata().index(firstGenIndexName).getIndex();
-        dataStreamLifecycleService.maybeExecuteDownsampling(projectState, dataStream, List.of(firstGenIndex));
+        dataStreamLifecycleService.maybeExecuteDownsampling(projectState, dataStream, Set.of());
 
         assertThat(clientSeenRequests.size(), is(0));
         ErrorEntry error = dataStreamLifecycleService.getErrorStore().getError(projectId, firstGenIndexName);
@@ -1442,16 +1446,20 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2), Tuple.tuple(start3, end3))
         );
-        final var project = clusterState.metadata().getProject(projectId);
-        DataStream dataStream = project.dataStreams().get(dataStreamName);
-
+        final ProjectState project = clusterState.projectState(projectId);
+        DataStream dataStream = project.metadata().dataStreams().get(dataStreamName);
+        dataStream = dataStream.copy()
+            .setName(dataStreamName)
+            .setGeneration(dataStream.getGeneration() + 1)
+            .setLifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build())
+            .build();
         {
-            // test for an index for which `now` is outside its time bounds
-            Index firstGenIndex = dataStream.getIndices().get(0);
+            // test for an index for which `now` is outside its time bounds by excluding the two that are not
             Set<Index> indices = DataStreamLifecycleService.timeSeriesIndicesStillWithinTimeBounds(
                 // the end_time for the first generation has lapsed
                 project,
-                List.of(firstGenIndex),
+                dataStream,
+                Set.of(dataStream.getIndices().get(1), dataStream.getIndices().get(2)),
                 currentTime::toEpochMilli
             );
             assertThat(indices.size(), is(0));
@@ -1461,7 +1469,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             Set<Index> indices = DataStreamLifecycleService.timeSeriesIndicesStillWithinTimeBounds(
                 // the end_time for the first generation has lapsed, but the other 2 generations are still within bounds
                 project,
-                dataStream.getIndices(),
+                dataStream,
+                Set.of(),
                 currentTime::toEpochMilli
             );
             assertThat(indices.size(), is(2));
@@ -1469,16 +1478,33 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         }
 
         {
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(project.metadata());
             // non time_series indices are not within time bounds (they don't have any)
-            IndexMetadata indexMeta = IndexMetadata.builder(randomAlphaOfLengthBetween(10, 30))
-                .settings(indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current()))
+            for (Index index : dataStream.getIndices()) {
+                IndexMetadata indexMeta = IndexMetadata.builder(index.getName())
+                    .settings(
+                        indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+                            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+                    )
+                    .build();
+                projectMetadataBuilder.put(indexMeta, true);
+            }
+
+            List<Index> standardIndices = dataStream.getIndices()
+                .stream()
+                .map(index -> new Index(index.getName(), index.getUUID()))
+                .toList();
+            ProjectState newProject = project.updateProject(projectMetadataBuilder.build());
+            dataStream = dataStream.copy()
+                .setName(dataStreamName)
+                .setGeneration(dataStream.getGeneration() + 1)
+                .setBackingIndices(DataStream.DataStreamIndices.backingIndicesBuilder(standardIndices).build())
+                .setIndexMode(IndexMode.STANDARD)
                 .build();
-
-            ProjectMetadata newProject = ProjectMetadata.builder(project).put(indexMeta, true).build();
-
             Set<Index> indices = DataStreamLifecycleService.timeSeriesIndicesStillWithinTimeBounds(
                 newProject,
-                List.of(indexMeta.getIndex()),
+                dataStream,
+                Set.of(),
                 currentTime::toEpochMilli
             );
             assertThat(indices.size(), is(0));
@@ -1593,38 +1619,26 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final var projectId = randomProjectIdOrDefault();
         ClusterState state = downsampleSetup(projectId, dataStreamName, SUCCESS);
-        final var project = state.metadata().getProject(projectId);
-        DataStream dataStream = project.dataStreams().get(dataStreamName);
+        final var project = state.projectState(projectId);
+        DataStream dataStream = project.metadata().dataStreams().get(dataStreamName);
         String firstGenIndexName = dataStream.getIndices().getFirst().getName();
         TimeValue dataRetention = dataStream.getDataLifecycle().dataRetention();
 
         // Executing the method to be tested:
-        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(
-            project,
-            dataStream,
-            dataRetention,
-            null,
-            Set.of()
-        );
-        assertThat(indicesToBeRemoved, contains(project.index(firstGenIndexName).getIndex()));
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(project, dataStream, Set.of());
+        assertThat(indicesToBeRemoved, contains(project.metadata().index(firstGenIndexName).getIndex()));
     }
 
     public void testMaybeExecuteRetentionDownsampledIndexInProgress() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final var projectId = randomProjectIdOrDefault();
         ClusterState state = downsampleSetup(projectId, dataStreamName, STARTED);
-        final var project = state.metadata().getProject(projectId);
-        DataStream dataStream = project.dataStreams().get(dataStreamName);
+        final var project = state.projectState(projectId);
+        DataStream dataStream = project.metadata().dataStreams().get(dataStreamName);
         TimeValue dataRetention = dataStream.getDataLifecycle().dataRetention();
 
         // Executing the method to be tested:
-        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(
-            project,
-            dataStream,
-            dataRetention,
-            null,
-            Set.of()
-        );
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(project, dataStream, Set.of());
         assertThat(indicesToBeRemoved, empty());
     }
 
@@ -1632,20 +1646,14 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final var projectId = randomProjectIdOrDefault();
         ClusterState state = downsampleSetup(projectId, dataStreamName, UNKNOWN);
-        final var project = state.metadata().getProject(projectId);
-        DataStream dataStream = project.dataStreams().get(dataStreamName);
+        final var project = state.projectState(projectId);
+        DataStream dataStream = project.metadata().dataStreams().get(dataStreamName);
         String firstGenIndexName = dataStream.getIndices().getFirst().getName();
         TimeValue dataRetention = dataStream.getDataLifecycle().dataRetention();
 
         // Executing the method to be tested:
-        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(
-            project,
-            dataStream,
-            dataRetention,
-            null,
-            Set.of()
-        );
-        assertThat(indicesToBeRemoved, contains(project.index(firstGenIndexName).getIndex()));
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(project, dataStream, Set.of());
+        assertThat(indicesToBeRemoved, contains(project.metadata().index(firstGenIndexName).getIndex()));
     }
 
     private ClusterState downsampleSetup(ProjectId projectId, String dataStreamName, IndexMetadata.DownsampleTaskStatus status) {

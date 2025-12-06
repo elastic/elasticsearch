@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.datastreams;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
@@ -47,6 +49,7 @@ import org.elasticsearch.datastreams.action.TransportModifyDataStreamsAction;
 import org.elasticsearch.datastreams.action.TransportPromoteDataStreamAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamMappingsAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamSettingsAction;
+import org.elasticsearch.datastreams.lifecycle.AdditionalDataStreamLifecycleActions;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
@@ -86,6 +89,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -102,7 +106,9 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 
-public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlugin {
+public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlugin, ExtensiblePlugin {
+
+    private static final Logger logger = LogManager.getLogger(DataStreamsPlugin.class);
 
     public static final Setting<TimeValue> TIME_SERIES_POLL_INTERVAL = Setting.timeSetting(
         "time_series.poll_interval",
@@ -153,6 +159,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
     private final SetOnce<DataStreamLifecycleHealthInfoPublisher> dataStreamLifecycleErrorsPublisher = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthIndicatorService> dataStreamLifecycleHealthIndicatorService = new SetOnce<>();
     private final Settings settings;
+    private AdditionalDataStreamLifecycleActions additionalDataStreamLifecycleActions;
 
     public DataStreamsPlugin(Settings settings) {
         this.settings = settings;
@@ -220,7 +227,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
                 errorStoreInitialisationService.get(),
                 services.allocationService(),
                 dataStreamLifecycleErrorsPublisher.get(),
-                services.dataStreamGlobalRetentionSettings()
+                services.dataStreamGlobalRetentionSettings(),
+                additionalDataStreamLifecycleActions
             )
         );
         dataLifecycleInitialisationService.get().init();
@@ -313,5 +321,23 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
     @Override
     public Collection<HealthIndicatorService> getHealthIndicatorServices() {
         return List.of(dataStreamLifecycleHealthIndicatorService.get());
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        List<AdditionalDataStreamLifecycleActions> dataStreamLifecycleActions = loader.loadExtensions(
+            AdditionalDataStreamLifecycleActions.class
+        );
+        if (dataStreamLifecycleActions.size() > 1) {
+            throw new IllegalStateException(
+                "Only one AdditionalDataStreamLifecycleActions implementation is allowed, found: "
+                    + dataStreamLifecycleActions.stream().map(o -> o.getClass().getSimpleName()).toList()
+            );
+        }
+        if (dataStreamLifecycleActions.isEmpty()) {
+            logger.warn("No AdditionalDataStreamLifecycleActions implementation found");
+        } else {
+            this.additionalDataStreamLifecycleActions = dataStreamLifecycleActions.getFirst();
+        }
     }
 }

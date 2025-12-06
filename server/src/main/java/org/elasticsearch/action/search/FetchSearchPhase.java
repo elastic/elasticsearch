@@ -10,6 +10,8 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
@@ -18,6 +20,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
@@ -44,12 +47,14 @@ class FetchSearchPhase extends SearchPhase {
     @Nullable
     private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
     private final SearchPhaseController.ReducedQueryPhase reducedQueryPhase;
+    private final TransportFetchPhaseCoordinationAction fetchCoordinationAction;
 
     FetchSearchPhase(
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
         AggregatedDfs aggregatedDfs,
         AbstractSearchAsyncAction<?> context,
-        @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase
+        @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
+        TransportFetchPhaseCoordinationAction fetchCoordinationAction
     ) {
         super(NAME);
         if (context.getNumShards() != resultConsumer.getNumShards()) {
@@ -67,6 +72,7 @@ class FetchSearchPhase extends SearchPhase {
         this.progressListener = context.getTask().getProgressListener();
         this.reducedQueryPhase = reducedQueryPhase;
         this.resultConsumer = reducedQueryPhase == null ? resultConsumer : null;
+        this.fetchCoordinationAction = fetchCoordinationAction;
     }
 
     // protected for tests
@@ -98,7 +104,7 @@ class FetchSearchPhase extends SearchPhase {
         final int numShards = context.getNumShards();
         // Usually when there is a single shard, we force the search type QUERY_THEN_FETCH. But when there's kNN, we might
         // still use DFS_QUERY_THEN_FETCH, which does not perform the "query and fetch" optimization during the query phase.
-        final boolean queryAndFetchOptimization = numShards == 1
+        boolean queryAndFetchOptimization = numShards == 1
             && context.getRequest().hasKnnSearch() == false
             && reducedQueryPhase.queryPhaseRankCoordinatorContext() == null
             && (context.getRequest().source() == null || context.getRequest().source().rankBuilder() == null);
@@ -212,6 +218,8 @@ class FetchSearchPhase extends SearchPhase {
         final ShardSearchContextId contextId = shardPhaseResult.queryResult() != null
             ? shardPhaseResult.queryResult().getContextId()
             : shardPhaseResult.rankFeatureResult().getContextId();
+
+        // Create the listener that handles the fetch result
         var listener = new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
             @Override
             public void innerOnResponse(FetchSearchResult result) {
@@ -237,6 +245,8 @@ class FetchSearchPhase extends SearchPhase {
                 }
             }
         };
+
+        // Get connection to the target node
         final Transport.Connection connection;
         try {
             connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
@@ -244,22 +254,38 @@ class FetchSearchPhase extends SearchPhase {
             listener.onFailure(e);
             return;
         }
-        context.getSearchTransport()
-            .sendExecuteFetch(
-                connection,
-                new ShardFetchSearchRequest(
-                    context.getOriginalIndices(shardPhaseResult.getShardIndex()),
-                    contextId,
-                    shardPhaseResult.getShardSearchRequest(),
-                    entry,
-                    rankDocs,
-                    lastEmittedDocForShard,
-                    shardPhaseResult.getRescoreDocIds(),
-                    aggregatedDfs
-                ),
+
+        // Create the fetch request
+        final ShardFetchSearchRequest shardFetchRequest = new ShardFetchSearchRequest(
+            context.getOriginalIndices(shardPhaseResult.getShardIndex()),
+            contextId,
+            shardPhaseResult.getShardSearchRequest(),
+            entry,
+            rankDocs,
+            lastEmittedDocForShard,
+            shardPhaseResult.getRescoreDocIds(),
+            aggregatedDfs
+        );
+
+        if (shouldUseChunking(entry)) {
+            shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
+            shardFetchRequest.setCoordinatingTaskId(context.getTask().getId());
+
+            DiscoveryNode targetNode = connection.getNode();
+
+            // Execute via coordination action
+            fetchCoordinationAction.execute(
                 context.getTask(),
-                listener
+                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, targetNode),
+                ActionListener.wrap(response -> listener.onResponse(response.getResult()), listener::onFailure)
             );
+        } else {
+            context.getSearchTransport().sendExecuteFetch(connection, shardFetchRequest, context.getTask(), listener);
+        }
+    }
+
+    private boolean shouldUseChunking(List<Integer> docIds) {
+        return docIds != null && docIds.size() > 10; // TODO set it properly
     }
 
     private void moveToNextPhase(

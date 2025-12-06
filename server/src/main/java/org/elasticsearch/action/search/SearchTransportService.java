@@ -39,6 +39,8 @@ import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -540,8 +542,38 @@ public class SearchTransportService {
             namedWriteableRegistry
         );
 
-        final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> searchService
-            .executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
+        final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> {
+            if (request instanceof ShardFetchSearchRequest fetchSearchReq && fetchSearchReq.getCoordinatingNode() != null) {
+
+                // CHUNKED PATH
+                final FetchPhaseResponseChunk.Writer writer = new FetchPhaseResponseChunk.Writer() {
+                    final Transport.Connection conn = transportService.getConnection(fetchSearchReq.getCoordinatingNode());
+
+                    @Override
+                    public void writeResponseChunk(FetchPhaseResponseChunk responseChunk, ActionListener<Void> listener) {
+                        transportService.sendChildRequest(
+                            conn,
+                            TransportFetchPhaseResponseChunkAction.TYPE.name(),
+                            new TransportFetchPhaseResponseChunkAction.Request(fetchSearchReq.getCoordinatingTaskId(), responseChunk),
+                            task,
+                            TransportRequestOptions.EMPTY,
+                            new ActionListenerResponseHandler<>(
+                                listener.map(ignored -> null),
+                                in -> ActionResponse.Empty.INSTANCE,
+                                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                            )
+                        );
+                    }
+                };
+
+                // Execute with chunked writer
+                searchService.executeFetchPhase(request, (SearchShardTask) task, writer, new ChannelActionListener<>(channel));
+            } else {
+                // Normal path
+                searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
+            }
+        };
+
         transportService.registerRequestHandler(
             FETCH_ID_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,

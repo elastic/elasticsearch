@@ -474,7 +474,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             };
             CountDownLatch latch = new CountDownLatch(1);
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
-            FetchSearchPhase phase = new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase) {
+            FetchSearchPhase phase = new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase, null) {
                 @Override
                 protected SearchPhase nextPhase(
                     SearchResponseSections searchResponseSections,
@@ -635,7 +635,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         MockSearchPhaseContext mockSearchPhaseContext,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
-        return new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase) {
+        return new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase, null) {
             @Override
             protected SearchPhase nextPhase(
                 SearchResponseSections searchResponseSections,

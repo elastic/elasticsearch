@@ -2771,7 +2771,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         EmptySystemIndices.INSTANCE.getExecutorSelector(),
                         new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         client,
-                        usageService
+                        usageService,
+                        null
                     )
                 );
                 actions.put(

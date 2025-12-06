@@ -324,7 +324,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         for (int i = 0; i < shards; i++) {
             mockSearchPhaseContext.results.getAtomicArray().set(i, results.get(i));
         }
-        return new DfsQueryPhase(consumer, null, mockSearchPhaseContext) {
+        return new DfsQueryPhase(consumer, null, mockSearchPhaseContext, null) {
             @Override
             protected SearchPhase nextPhase(AggregatedDfs dfs) {
                 return new SearchPhase("test") {
@@ -347,7 +347,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         );
         MockSearchPhaseContext mspc = new MockSearchPhaseContext(2);
         mspc.searchTransport = new SearchTransportService(null, null, null);
-        DfsQueryPhase dqp = new DfsQueryPhase(mock(QueryPhaseResultConsumer.class), null, mspc);
+        DfsQueryPhase dqp = new DfsQueryPhase(mock(QueryPhaseResultConsumer.class), null, mspc, null);
 
         QueryBuilder bm25 = new TermQueryBuilder("field", "term");
         SearchSourceBuilder ssb = new SearchSourceBuilder().query(bm25)

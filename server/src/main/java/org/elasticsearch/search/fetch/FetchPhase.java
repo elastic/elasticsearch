@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -27,6 +28,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
+import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
@@ -72,6 +74,59 @@ public final class FetchPhase {
         execute(context, docIdsToLoad, rankDocs, null);
     }
 
+    public void execute(
+        SearchContext context,
+        int[] docIdsToLoad,
+        RankDocShardInfo rankDocs,
+        @Nullable IntConsumer memoryChecker,
+        @Nullable FetchPhaseResponseChunk.Writer writer
+    ) {
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("{}", new SearchContextSourcePrinter(context));
+        }
+
+        if (context.isCancelled()) {
+            throw new TaskCancelledException("cancelled");
+        }
+
+        if (docIdsToLoad == null || docIdsToLoad.length == 0) {
+            SearchHits emptyHits = SearchHits.empty(context.queryResult().getTotalHits(), context.queryResult().getMaxScore());
+            context.fetchResult().shardResult(emptyHits, null);
+
+            // If chunking, send START_RESPONSE to signal no hits
+            if (writer != null) {
+                FetchPhaseResponseChunk start = new FetchPhaseResponseChunk(
+                    System.currentTimeMillis(),
+                    FetchPhaseResponseChunk.Type.START_RESPONSE,
+                    context.shardTarget().getShardId().id(),
+                    null,
+                    0,
+                    0,
+                    0
+                );
+                writer.writeResponseChunk(start, ActionListener.running(() -> {}));
+            }
+            return;
+        }
+
+        final Profiler profiler = context.getProfilers() == null
+            || (context.request().source() != null && context.request().source().rankBuilder() != null)
+                ? Profiler.NOOP
+                : Profilers.startProfilingFetchPhase();
+
+        SearchHits hits = null;
+        try {
+            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker, writer);
+            ProfileResult profileResult = profiler.finish();
+            context.fetchResult().shardResult(hits, profileResult);
+            hits = null;
+        } finally {
+            if (hits != null) {
+                hits.decRef();
+            }
+        }
+    }
+
     /**
      *
      * @param context
@@ -101,7 +156,7 @@ public final class FetchPhase {
                 : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
         try {
-            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker);
+            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker, null);
         } finally {
             try {
                 // Always finish profiling
@@ -134,7 +189,8 @@ public final class FetchPhase {
         int[] docIdsToLoad,
         Profiler profiler,
         RankDocShardInfo rankDocs,
-        IntConsumer memoryChecker
+        IntConsumer memoryChecker,
+        FetchPhaseResponseChunk.Writer writer
     ) {
         var lookup = context.getSearchExecutionContext().getMappingLookup();
 
@@ -276,19 +332,32 @@ public final class FetchPhase {
                 context.searcher().getIndexReader(),
                 docIdsToLoad,
                 context.request().allowPartialSearchResults(),
-                context.queryResult()
+                context.queryResult(),
+                writer,
+                5 // TODO set a proper number
             );
 
             if (context.isCancelled()) {
                 for (SearchHit hit : hits) {
-                    // release all hits that would otherwise become owned and eventually released by SearchHits below
-                    hit.decRef();
+                    if (hit != null) {
+                        hit.decRef();
+                    }
                 }
                 throw new TaskCancelledException("cancelled");
             }
 
             TotalHits totalHits = context.getTotalHits();
-            return new SearchHits(hits, totalHits, context.getMaxScore());
+
+            if (writer == null) {
+                return new SearchHits(hits, totalHits, context.getMaxScore());
+            } else {
+                for (SearchHit hit : hits) {
+                    if (hit != null) {
+                        hit.decRef();
+                    }
+                }
+                return SearchHits.empty(totalHits, context.getMaxScore());
+            }
         } finally {
             long bytes = docsIterator.getRequestBreakerBytes();
             if (bytes > 0L) {

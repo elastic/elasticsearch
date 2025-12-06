@@ -53,6 +53,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -381,7 +382,7 @@ public class QueryRewriteContext {
      * Returns <code>true</code> if there are any registered async actions.
      */
     public boolean hasAsyncActions() {
-        return asyncActions.isEmpty() == false || remoteAsyncActions.isEmpty() == false;
+        return asyncActions.isEmpty() == false || uniqueRewriteActions.isEmpty() == false || remoteAsyncActions.isEmpty() == false;
     }
 
     /**
@@ -389,10 +390,10 @@ public class QueryRewriteContext {
      * <code>null</code>. The list of registered actions is cleared once this method returns.
      */
     public void executeAsyncActions(ActionListener<Void> listener) {
-        if (asyncActions.isEmpty() && remoteAsyncActions.isEmpty()) {
+        if (asyncActions.isEmpty() && uniqueRewriteActions.isEmpty() && remoteAsyncActions.isEmpty()) {
             listener.onResponse(null);
         } else {
-            int actionCount = asyncActions.size();
+            int actionCount = asyncActions.size() + uniqueRewriteActions.size();
             for (var actionList : remoteAsyncActions.values()) {
                 actionCount += actionList.size();
             }
@@ -419,6 +420,12 @@ public class QueryRewriteContext {
             asyncActions.clear();
             for (BiConsumer<Client, ActionListener<?>> action : biConsumers) {
                 action.accept(client, internalListener);
+            }
+
+            var copyUniqueRewriteActions = new HashMap<>(uniqueRewriteActions);
+            uniqueRewriteActions.clear();
+            for (var entry : copyUniqueRewriteActions.keySet()) {
+                entry.execute(client, internalListener, copyUniqueRewriteActions.get(entry));
             }
 
             var remoteAsyncActionsCopy = new HashMap<>(remoteAsyncActions);
@@ -617,5 +624,18 @@ public class QueryRewriteContext {
      */
     public void setTrackTimeRangeFilterFrom(boolean trackTimeRangeFilterFrom) {
         this.trackTimeRangeFilterFrom = trackTimeRangeFilterFrom;
+    }
+
+    private final Map<QueryRewriteAsyncAction<?>, List<Consumer<?>>> uniqueRewriteActions = new HashMap<>();
+
+    /**
+     * Registers an async action that must be executed only once before the next rewrite round.
+     * A {@link Consumer} argument is also required.
+     * When an async action is registered multiple times, we simply collect all the consumers associated with it.
+     * After the async action is executed, all consumers associated with it will be executed and receive as argument
+     * the result of the async action.
+     */
+    public <T> void registerUniqueRewriteAction(QueryRewriteAsyncAction<T> action, Consumer<T> consumer) {
+        uniqueRewriteActions.computeIfAbsent(action, k -> new ArrayList<>()).add(consumer);
     }
 }

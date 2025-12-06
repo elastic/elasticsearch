@@ -13,6 +13,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,6 +23,7 @@ import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteAsyncAction;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InferenceResults;
@@ -31,6 +33,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -271,59 +274,81 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             throw new IllegalArgumentException("inference_id required to perform vector search on query string");
         }
 
-        // TODO: Move this class to `server` and update to use InferenceAction.Request
-        CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
-            inferenceId,
-            List.of(query),
-            TextExpansionConfigUpdate.EMPTY_UPDATE,
-            false,
-            null
-        );
-        inferRequest.setHighPriority(true);
-        inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
-
         SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
-        queryRewriteContext.registerAsyncAction(
-            (client, listener) -> executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                CoordinatedInferenceAction.INSTANCE,
-                inferRequest,
-                ActionListener.wrap(inferenceResponse -> {
 
-                    List<InferenceResults> inferenceResults = inferenceResponse.getInferenceResults();
-                    if (inferenceResults.isEmpty()) {
-                        listener.onFailure(new IllegalStateException("inference response contain no results"));
-                        return;
-                    }
-                    if (inferenceResults.size() > 1) {
-                        listener.onFailure(new IllegalStateException("inference response should contain only one result"));
-                        return;
-                    }
+        queryRewriteContext.registerUniqueRewriteAction(
+            new SparseInferenceRewriteAction(queryRewriteContext, inferenceId, query),
+            inferenceResponse -> {
+                List<InferenceResults> inferenceResults = inferenceResponse.getInferenceResults();
+                if (inferenceResults.isEmpty()) {
+                    throw new IllegalStateException("inference response contain no results");
+                }
+                if (inferenceResults.size() > 1) {
+                    throw new IllegalStateException("inference response should contain only one result");
+                }
 
-                    if (inferenceResults.get(0) instanceof TextExpansionResults textExpansionResults) {
-                        textExpansionResultsSupplier.set(textExpansionResults);
-                        listener.onResponse(null);
-                    } else if (inferenceResults.get(0) instanceof WarningInferenceResults warning) {
-                        listener.onFailure(new IllegalStateException(warning.getWarning()));
-                    } else {
-                        listener.onFailure(
-                            new IllegalArgumentException(
-                                "expected a result of type ["
-                                    + TextExpansionResults.NAME
-                                    + "] received ["
-                                    + inferenceResults.get(0).getWriteableName()
-                                    + "]. Is ["
-                                    + inferenceId
-                                    + "] a compatible model?"
-                            )
-                        );
-                    }
-                }, listener::onFailure)
-            )
+                if (inferenceResults.get(0) instanceof TextExpansionResults textExpansionResults) {
+                    textExpansionResultsSupplier.set(textExpansionResults);
+                } else if (inferenceResults.get(0) instanceof WarningInferenceResults warning) {
+                    throw new IllegalStateException(warning.getWarning());
+                } else {
+                    throw new IllegalArgumentException(
+                        "expected a result of type ["
+                            + TextExpansionResults.NAME
+                            + "] received ["
+                            + inferenceResults.get(0).getWriteableName()
+                            + "]. Is ["
+                            + inferenceId
+                            + "] a compatible model?"
+                    );
+                }
+            }
         );
 
         return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
+    }
+
+    private static class SparseInferenceRewriteAction extends QueryRewriteAsyncAction<InferModelAction.Response> {
+
+        private final String inferenceId;
+        private final String query;
+
+        SparseInferenceRewriteAction(QueryRewriteContext queryRewriteContext, String inferenceId, String query) {
+            super(queryRewriteContext);
+            this.inferenceId = inferenceId;
+            this.query = query;
+        }
+
+        @Override
+        protected void execute(Client client, ActionListener<InferModelAction.Response> listener) {
+            // TODO: Move this class to `server` and update to use InferenceAction.Request
+            CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
+                inferenceId,
+                List.of(query),
+                TextExpansionConfigUpdate.EMPTY_UPDATE,
+                false,
+                null
+            );
+
+            inferRequest.setHighPriority(true);
+            inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
+
+            executeAsyncWithOrigin(client, ML_ORIGIN, CoordinatedInferenceAction.INSTANCE, inferRequest, listener);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(inferenceId, query);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj instanceof SparseInferenceRewriteAction == false) {
+                return false;
+            }
+            SparseInferenceRewriteAction other = (SparseInferenceRewriteAction) obj;
+            return Objects.equals(inferenceId, other.inferenceId) && Objects.equals(query, other.query);
+        }
     }
 
     @Override

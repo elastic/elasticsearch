@@ -90,7 +90,7 @@ class CachedDirectoryReader extends FilterDirectoryReader {
                 @Override
                 public TermsEnum iterator() throws IOException {
                     return new CachedTermsEnum((reuse) -> {
-                        return termEnums.compute(field, (k, curr) -> {
+                        SharedTermEnum terms = termEnums.compute(field, (k, curr) -> {
                             if (curr == null || reuse == false || curr.inUsed) {
                                 try {
                                     curr = new SharedTermEnum(in.iterator());
@@ -101,6 +101,7 @@ class CachedDirectoryReader extends FilterDirectoryReader {
                             curr.inUsed = true;
                             return curr;
                         });
+                        return terms.termEnum;
                     });
                 }
             };
@@ -117,11 +118,12 @@ class CachedDirectoryReader extends FilterDirectoryReader {
         }
     }
 
-    static final class SharedTermEnum extends FilterLeafReader.FilterTermsEnum {
+    static final class SharedTermEnum {
+        final TermsEnum termEnum;
         boolean inUsed = false;
 
-        SharedTermEnum(TermsEnum delegate) {
-            super(delegate);
+        SharedTermEnum(TermsEnum termEnum) {
+            this.termEnum = termEnum;
         }
     }
 

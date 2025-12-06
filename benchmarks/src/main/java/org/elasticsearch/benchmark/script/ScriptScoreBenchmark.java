@@ -108,7 +108,8 @@ public class ScriptScoreBenchmark {
     private final CircuitBreakerService breakerService = new NoneCircuitBreakerService();
     private final SearchLookup lookup = new SearchLookup(
         fieldTypes::get,
-        (mft, lookup, fdo) -> mft.fielddataBuilder(FieldDataContext.noRuntimeFields("benchmark")).build(fieldDataCache, breakerService),
+        (mft, lookup, fdo) -> mft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "benchmark"))
+            .build(fieldDataCache, breakerService),
         SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
     );
 

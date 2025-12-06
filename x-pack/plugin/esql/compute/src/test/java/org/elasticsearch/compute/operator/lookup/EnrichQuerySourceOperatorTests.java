@@ -279,7 +279,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             var indexSearcher = newSearcher(directoryReader);
             var searchExecutionContext = mock(SearchExecutionContext.class);
             var field = new KeywordFieldMapper.KeywordFieldType("uid");
-            var fieldDataContext = FieldDataContext.noRuntimeFields("test");
+            var fieldDataContext = FieldDataContext.noRuntimeFields("index", "test");
             var indexFieldData = field.fielddataBuilder(fieldDataContext)
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
 

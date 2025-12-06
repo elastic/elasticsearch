@@ -237,7 +237,10 @@ final class DefaultSearchContext extends SearchContext {
         }
         IndexFieldData<?> indexFieldData;
         try {
-            indexFieldData = indexService.loadFielddata(mappedFieldType, FieldDataContext.noRuntimeFields("field cardinality"));
+            indexFieldData = indexService.loadFielddata(
+                mappedFieldType,
+                FieldDataContext.noRuntimeFields(indexService.index().getName(), "field cardinality")
+            );
         } catch (Exception e) {
             // loading fielddata for runtime fields will fail, that's ok
             return -1;

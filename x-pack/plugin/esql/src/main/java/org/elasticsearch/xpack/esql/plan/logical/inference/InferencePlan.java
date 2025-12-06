@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 import org.elasticsearch.xpack.esql.plan.logical.Streaming;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -28,7 +29,8 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
         Streaming,
         SortAgnostic,
         GeneratingPlan<InferencePlan<PlanType>>,
-        ExecutesOn.Coordinator {
+        ExecutesOn.Coordinator,
+        PipelineBreaker {
 
     public static final String INFERENCE_ID_OPTION_NAME = "inference_id";
     public static final List<String> VALID_INFERENCE_OPTION_NAMES = List.of(INFERENCE_ID_OPTION_NAME);

@@ -1,0 +1,6 @@
+pr: 138586
+summary: Fix stats after `InferencePlan` (RERANK and COMPLETION)
+area: ES|QL
+type: bug
+issues:
+ - 138582

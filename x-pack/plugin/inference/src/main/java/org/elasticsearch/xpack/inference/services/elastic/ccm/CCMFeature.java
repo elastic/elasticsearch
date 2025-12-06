@@ -13,8 +13,13 @@ import org.elasticsearch.rest.RestStatus;
 
 public class CCMFeature {
     public static final ElasticsearchStatusException CCM_FORBIDDEN_EXCEPTION = new ElasticsearchStatusException(
-        "CCM configuration is not permitted for this environment",
+        "Cloud Connected Mode configuration is not permitted for this environment",
         RestStatus.FORBIDDEN
+    );
+
+    public static final ElasticsearchStatusException CCM_UNSUPPORTED_UNTIL_UPGRADED_EXCEPTION = new ElasticsearchStatusException(
+        "Cloud Connected Mode functionality is not supported until the cluster is fully upgraded, please try again later",
+        RestStatus.BAD_REQUEST
     );
 
     private final boolean isCcmSupportedEnvironment;

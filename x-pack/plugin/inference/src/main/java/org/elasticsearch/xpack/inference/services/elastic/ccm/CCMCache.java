@@ -162,9 +162,9 @@ public class CCMCache {
                 ClearCCMCacheAction.request(ClearCCMMessage.INSTANCE, null),
                 ActionListener.wrap(ack -> {
                     logger.debug("Successfully refreshed inference CCM cache for project {}.", projectResolver::getProjectId);
-                    listener.onResponse((Void) null);
+                    listener.onResponse(null);
                 }, e -> {
-                    logger.atDebug()
+                    logger.atWarn()
                         .withThrowable(e)
                         .log("Failed to refresh inference CCM cache for project {}.", projectResolver::getProjectId);
                     listener.onFailure(e);

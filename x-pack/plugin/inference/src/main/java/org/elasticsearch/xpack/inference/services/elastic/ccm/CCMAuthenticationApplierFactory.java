@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.inference.services.elastic.ccm;
 
 import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.settings.SecureString;
@@ -26,6 +29,7 @@ import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_CCM_PATH;
 public class CCMAuthenticationApplierFactory {
 
     public static final NoopApplier NOOP_APPLIER = new NoopApplier();
+    private static final Logger logger = LogManager.getLogger(CCMAuthenticationApplierFactory.class);
 
     private final CCMFeature ccmFeature;
     private final CCMService ccmService;
@@ -56,7 +60,27 @@ public class CCMAuthenticationApplierFactory {
                 return;
             }
 
-            ccmService.getConfiguration(ccmModelListener);
+            var consistencyListener = ccmModelListener.delegateResponse((delegate, e) -> {
+                if (e instanceof ResourceNotFoundException) {
+                    logger.atDebug()
+                        .withThrowable(e)
+                        .log("CCM cluster state indicates CCM is enabled but no configuration was found using the cache");
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Cloud connected mode configuration is in an inconsistent state. "
+                                + "Please try configuring it again using PUT {}",
+                            RestStatus.BAD_REQUEST,
+                            e,
+                            INFERENCE_CCM_PATH
+                        )
+                    );
+                    return;
+                }
+
+                delegate.onFailure(e);
+            });
+
+            ccmService.getConfiguration(consistencyListener);
         }).<AuthApplier>andThenApply(ccmModel -> new AuthenticationHeaderApplier(ccmModel.apiKey())).addListener(listener);
     }
 

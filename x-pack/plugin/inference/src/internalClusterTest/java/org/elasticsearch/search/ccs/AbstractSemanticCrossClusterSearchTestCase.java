@@ -35,6 +35,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -167,7 +168,7 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         Consumer<SearchRequest> searchRequestModifier
     ) throws Exception {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder).size(expectedSearchResults.size());
-        indices.forEach(i -> searchSourceBuilder.indexBoost(i.index(), i.boost()));
+        indices.forEach(i -> searchSourceBuilder.indexBoost(RemoteClusterAware.splitIndexName(i.index())[1], i.boost()));
 
         SearchRequest searchRequest = new SearchRequest(convertToArray(indices), searchSourceBuilder);
         searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
@@ -239,7 +240,7 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
     }
 
     protected static String fullyQualifiedIndexName(String clusterAlias, String indexName) {
-        return clusterAlias + ":" + indexName;
+        return RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexName);
     }
 
     protected static float[] generateDenseVectorFieldValue(int dimensions, DenseVectorFieldMapper.ElementType elementType, float value) {

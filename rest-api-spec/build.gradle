@@ -113,4 +113,5 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("search/140_pre_filter_search_shards/prefilter on non-indexed date fields", "prefiltering can now use skippers on dv-only fields")
   // Expected deprecation warning to compat yaml tests:
   task.addAllowedWarningRegex("Use of the \\[max_size\\] rollover condition has been deprecated in favour of the \\[max_primary_shard_size\\] condition and will be removed in a later version")
+  task.skipTest("search/40_indices_boost/Remote expressions not supported in indices boost", "Recent fix, old version do not support it")
 })

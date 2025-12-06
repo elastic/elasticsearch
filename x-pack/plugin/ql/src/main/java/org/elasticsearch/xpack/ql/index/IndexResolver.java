@@ -28,6 +28,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
@@ -742,22 +743,32 @@ public class IndexResolver {
             }
         }
         client.fieldCaps(fieldRequest, listener.delegateFailureAndWrap((delegate, response) -> {
-            client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases -> {
-                delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases()));
-            }, ex -> {
-                if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
-                    delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
-                } else {
-                    delegate.onFailure(ex);
-                }
-            }));
+            GetAliasesRequest request = createGetAliasesRequest(response, includeFrozen);
+            if (request.indices().length == 0) {
+                delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
+            } else {
+                client.admin().indices().getAliases(request, wrap(aliases -> {
+                    delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases()));
+                }, ex -> {
+                    if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
+                        delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
+                    } else {
+                        delegate.onFailure(ex);
+                    }
+                }));
+            }
         }));
 
     }
 
+    private static String[] onlyLocalIndices(String[] indices) {
+        // FIXME: this is not really a good solution, but will do for now
+        return Arrays.stream(indices).filter(i -> RemoteClusterAware.isRemoteIndexName(i) == false).toArray(String[]::new);
+    }
+
     private static GetAliasesRequest createGetAliasesRequest(FieldCapabilitiesResponse response, boolean includeFrozen) {
         return new GetAliasesRequest(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT).aliases("*")
-            .indices(response.getIndices())
+            .indices(onlyLocalIndices(response.getIndices()))
             .indicesOptions(includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS);
     }
 

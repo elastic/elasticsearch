@@ -24,7 +24,8 @@ import static org.apache.lucene.tests.util.LuceneTestCase.random;
 public class TransportVersionUtils {
 
     private static final NavigableSet<TransportVersion> RELEASED_VERSIONS = Collections.unmodifiableNavigableSet(
-        new TreeSet<>(TransportVersion.getAllVersions())
+        // Exclude patch versions since they break the semantics of methods like `randomVersionBetween`
+        TransportVersion.getAllVersions().stream().filter(v -> v.isPatchVersion() == false).collect(Collectors.toCollection(TreeSet::new))
     );
 
     /** Returns all released versions */
@@ -61,6 +62,8 @@ public class TransportVersionUtils {
         if (minVersion != null && maxVersion != null && maxVersion.before(minVersion)) {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");
         }
+        assertNotPatch(minVersion);
+        assertNotPatch(maxVersion);
 
         NavigableSet<TransportVersion> versions = allReleasedVersions();
         if (minVersion != null) {
@@ -86,6 +89,7 @@ public class TransportVersionUtils {
     }
 
     public static TransportVersion getPreviousVersion(TransportVersion version) {
+        assertNotPatch(version);
         TransportVersion lower = allReleasedVersions().lower(version);
         if (lower == null) {
             throw new IllegalArgumentException("couldn't find any released versions before [" + version + "]");
@@ -94,10 +98,12 @@ public class TransportVersionUtils {
     }
 
     public static TransportVersion getNextVersion(TransportVersion version) {
+        assertNotPatch(version);
         return getNextVersion(version, false);
     }
 
     public static TransportVersion getNextVersion(TransportVersion version, boolean createIfNecessary) {
+        assertNotPatch(version);
         TransportVersion higher = allReleasedVersions().higher(version);
         if (higher == null) {
             if (createIfNecessary) {
@@ -113,5 +119,11 @@ public class TransportVersionUtils {
     /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#current()} */
     public static TransportVersion randomCompatibleVersion(Random random) {
         return randomVersionBetween(random, TransportVersion.minimumCompatible(), TransportVersion.current());
+    }
+
+    private static void assertNotPatch(@Nullable TransportVersion version) {
+        if (version != null && version.isPatchVersion()) {
+            throw new IllegalArgumentException("Version [" + version + "] is a patch version");
+        }
     }
 }

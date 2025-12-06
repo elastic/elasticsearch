@@ -380,6 +380,18 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     }
 
     /**
+     * Returns {@code true} if this version is a patch version. Transport versions are generally monotoic, that is, when comparing
+     * transport versions via {@link #compareTo(VersionId)} a later version is also temporally "newer". This, however, is not the case
+     * for patch versions, as they can be introduced at any time. There may be cases where this distinction is important, in which case
+     * this method can be used to determine if a version is a patch, and therefore, may actually be temporally newer than "later" versions.
+     *
+     * @return whether this version is a patch version.
+     */
+    public boolean isPatchVersion() {
+        return id % 100 != 0;
+    }
+
+    /**
      * Supports is used to determine if a named transport version is supported
      * by a caller transport version. This will check both the latest id
      * and all of its patch ids for compatibility. This replaces the pattern

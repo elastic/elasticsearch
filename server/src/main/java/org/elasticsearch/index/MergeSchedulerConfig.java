@@ -57,9 +57,11 @@ public final class MergeSchedulerConfig {
         Property.Dynamic,
         Property.IndexScope
     );
+    private static final boolean isSnapshot = org.elasticsearch.Build.current().isSnapshot();
     public static final Setting<Boolean> AUTO_THROTTLE_SETTING = Setting.boolSetting(
         "index.merge.scheduler.auto_throttle",
-        true,
+        // default to false in snapshot for testing
+        isSnapshot == false,
         Property.Dynamic,
         Property.IndexScope
     );

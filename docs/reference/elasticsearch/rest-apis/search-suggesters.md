@@ -7,7 +7,7 @@ applies_to:
 ---
 # Suggester examples [search-suggesters]
 
-The suggest feature suggests similar looking terms based on a provided text by using a suggester. The suggest request part is defined alongside the query part in a `_search` request. If the query part is left out, only suggestions are returned.
+The [suggest parameter of the search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#operation-search-body-application-json-suggest) suggests similar looking terms based on a provided text by using a suggester. The suggest request part is defined alongside the query part in a `_search` request. If the query part is left out, only suggestions are returned.
 
 ::::{note}
 For the most up-to-date details, refer to [Search APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-search).

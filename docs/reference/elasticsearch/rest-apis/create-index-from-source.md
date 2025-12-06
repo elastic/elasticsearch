@@ -16,6 +16,8 @@ For the most up-to-date API details, refer to [Index APIs](https://www.elastic.c
 
 ::::
 
+The [create index from source API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create-from) copies mappings and settings from a source index or data stream to a destination index or data stream, with optional overrides.
+
 
 ## {{api-request-title}} [indices-create-index-from-source-api-request]
 

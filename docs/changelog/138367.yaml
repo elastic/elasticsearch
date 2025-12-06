@@ -1,0 +1,5 @@
+pr: 138367
+summary: Improve no-op check in PUT `_mapping` API
+area: Indices APIs
+type: enhancement
+issues: []

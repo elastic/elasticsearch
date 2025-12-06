@@ -211,9 +211,9 @@ public class RBACEngine implements AuthorizationEngine {
                 listener.onResponse(AuthorizationResult.granted());
             } else if (checkSameUserPermissions(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
                 listener.onResponse(AuthorizationResult.granted());
-            } else if (GetAsyncStatusAction.NAME.equals(requestInfo.getAction()) && role.checkIndicesAction(SubmitAsyncSearchAction.NAME)) {
-                // Users who are allowed to submit async searches are allowed to check the status of those searches
-                // Search ownership will be checked by AsyncSearchSecurity
+            } else if (GetAsyncStatusAction.NAME.equals(requestInfo.getAction()) && canSubmitAsyncSearch(role)) {
+                // Users who are allowed to submit async searches (via local or remote indices permissions)
+                // are allowed to check the status of those searches. Search ownership will be checked by AsyncSearchSecurity
                 listener.onResponse(AuthorizationResult.granted());
             } else {
                 listener.onResponse(AuthorizationResult.deny());
@@ -223,6 +223,33 @@ public class RBACEngine implements AuthorizationEngine {
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
             );
         }
+    }
+
+    /**
+     * Checks if a role allows submitting async searches, either through local indices permissions
+     * or remote indices permissions. This is used as a workaround to allow users to check async search
+     * status if they can submit async searches, even if they don't have explicit monitor permissions.
+     *
+     * @param role the role to check
+     * @return true if the role allows submitting async searches via local or remote indices
+     */
+    private static boolean canSubmitAsyncSearch(Role role) {
+        // Check local indices permissions
+        if (role.checkIndicesAction(SubmitAsyncSearchAction.NAME)) {
+            return true;
+        }
+        // Check remote indices permissions
+        RemoteIndicesPermission remoteIndices = role.remoteIndices();
+        if (remoteIndices != null && remoteIndices != RemoteIndicesPermission.NONE) {
+            for (RemoteIndicesPermission.RemoteIndicesGroup remoteGroup : remoteIndices.remoteIndicesGroups()) {
+                for (IndicesPermission.Group group : remoteGroup.indicesPermissionGroups()) {
+                    if (group.privilege().predicate().test(SubmitAsyncSearchAction.NAME)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     // pkg private for testing

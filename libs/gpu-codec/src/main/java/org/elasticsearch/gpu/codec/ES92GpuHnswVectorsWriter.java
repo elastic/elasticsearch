@@ -18,6 +18,7 @@ import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocsWithFieldSet;
@@ -37,13 +38,11 @@ import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph.NodesIterator;
-import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -512,6 +511,10 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         // apply mergeState.docMaps internally, so vectors are returned in the final sorted document order.
         // Unlike flush(), we don't need to explicitly handle sorting here.
         try (var scorerSupplier = flatVectorWriter.mergeOneFieldToIndex(fieldInfo, mergeState)) {
+            // retrieve directly after mergeOneFieldToIndex, so we get the most recent vector values
+            DelegatingFlatVectorsScorer scorer = (DelegatingFlatVectorsScorer) flatVectorWriter.getFlatVectorScorer();
+            var valuesOrNull = scorer.getLastVectorValuesOrNull();
+
             var started = System.nanoTime();
             int numVectors = scorerSupplier.totalVectorCount();
             if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
@@ -520,17 +523,13 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 generateMockGraphAndWriteMeta(fieldInfo, numVectors);
             } else {
                 if (dataType == CuVSMatrix.DataType.FLOAT) {
-                    var randomScorerSupplier = VectorsFormatReflectionUtils.getFlatRandomVectorScorerInnerSupplier(scorerSupplier);
-                    mergeFloatVectorField(fieldInfo, mergeState, randomScorerSupplier, numVectors);
+                    mergeFloatVectorField(fieldInfo, mergeState, valuesOrNull, numVectors);
                 } else {
                     // During merging, we use quantized data, so we need to support byte[] too.
                     // That's how our current formats work: use floats during indexing, and quantized data to build a graph
                     // during merging.
                     assert dataType == CuVSMatrix.DataType.BYTE;
-                    var randomScorerSupplier = VectorsFormatReflectionUtils.getScalarQuantizedRandomVectorScorerInnerSupplier(
-                        scorerSupplier
-                    );
-                    mergeByteVectorField(fieldInfo, mergeState, randomScorerSupplier, numVectors);
+                    mergeByteVectorField(fieldInfo, mergeState, valuesOrNull, numVectors);
                 }
             }
             var elapsed = System.nanoTime() - started;
@@ -543,20 +542,16 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     private void mergeByteVectorField(
         FieldInfo fieldInfo,
         MergeState mergeState,
-        RandomVectorScorerSupplier randomScorerSupplier,
+        KnnVectorValues values, // may be null
         int numVectors
     ) throws IOException, InterruptedException {
-        var vectorValues = randomScorerSupplier == null
-            ? null
-            : VectorsFormatReflectionUtils.getByteScoringSupplierVectorOrNull(randomScorerSupplier);
-
         CagraIndexParams cagraIndexParams = createCagraIndexParams(
             fieldInfo.getVectorSimilarityFunction(),
             numVectors,
             fieldInfo.getVectorDimension()
         );
 
-        if (vectorValues != null) {
+        if (values instanceof HasIndexSlice vectorValues) {
             IndexInput slice = vectorValues.getSlice();
             var input = FilterIndexInput.unwrapOnlyTest(slice);
             if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
@@ -645,19 +640,16 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     private void mergeFloatVectorField(
         FieldInfo fieldInfo,
         MergeState mergeState,
-        RandomVectorScorerSupplier randomScorerSupplier,
+        KnnVectorValues values, // may be null
         final int numVectors
     ) throws IOException, InterruptedException {
-        var vectorValues = randomScorerSupplier == null
-            ? null
-            : VectorsFormatReflectionUtils.getFloatScoringSupplierVectorOrNull(randomScorerSupplier);
         CagraIndexParams cagraIndexParams = createCagraIndexParams(
             fieldInfo.getVectorSimilarityFunction(),
             numVectors,
             fieldInfo.getVectorDimension()
         );
 
-        if (vectorValues != null) {
+        if (values instanceof HasIndexSlice vectorValues) {
             IndexInput slice = vectorValues.getSlice();
             var input = FilterIndexInput.unwrapOnlyTest(slice);
             if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {

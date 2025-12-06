@@ -23,6 +23,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat.LUCENE99_SQ_VECTORS_SCORER;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
 /**
@@ -59,7 +60,12 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
         }
         this.maxConn = maxConn;
         this.beamWidth = beamWidth;
-        this.flatVectorsFormat = new ES814ScalarQuantizedVectorsFormat(confidenceInterval, bits, compress);
+        this.flatVectorsFormat = new ES814ScalarQuantizedVectorsFormat(
+            confidenceInterval,
+            bits,
+            compress,
+            new DelegatingFlatVectorsScorer(LUCENE99_SQ_VECTORS_SCORER)
+        );
     }
 
     @Override

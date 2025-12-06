@@ -52,7 +52,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
-    static final FlatVectorsScorer flatVectorScorer = new ESFlatVectorsScorer(
+    public static final FlatVectorsScorer LUCENE99_SQ_VECTORS_SCORER = new ESFlatVectorsScorer(
         new ScalarQuantizedVectorScorer(FlatVectorScorerUtil.getLucene99FlatVectorsScorer())
     );
 
@@ -61,6 +61,8 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     /** The maximum confidence interval */
     private static final float MAXIMUM_CONFIDENCE_INTERVAL = 1f;
+
+    private final FlatVectorsScorer flatVectorScorer;
 
     /**
      * Controls the confidence interval used to scalar quantize the vectors the default value is
@@ -72,6 +74,10 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     private final boolean compress;
 
     public ES814ScalarQuantizedVectorsFormat(Float confidenceInterval, int bits, boolean compress) {
+        this(confidenceInterval, bits, compress, LUCENE99_SQ_VECTORS_SCORER);
+    }
+
+    public ES814ScalarQuantizedVectorsFormat(Float confidenceInterval, int bits, boolean compress, FlatVectorsScorer flatVectorsScorer) {
         super(NAME);
         if (confidenceInterval != null
             && confidenceInterval != DYNAMIC_CONFIDENCE_INTERVAL
@@ -91,6 +97,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         this.confidenceInterval = confidenceInterval;
         this.bits = (byte) bits;
         this.compress = compress;
+        this.flatVectorScorer = flatVectorsScorer;
     }
 
     @Override

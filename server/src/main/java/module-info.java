@@ -497,7 +497,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.codec.perfield;
     // TODO: revert to qualified exports when ModuleQualifiedExportsService supports libraries too
     exports org.elasticsearch.index.codec.vectors; // to org.elasticsearch.test.knn, org.elasticsearch.gpu;
-    exports org.elasticsearch.index.codec.vectors.reflect; // to org.elasticsearch.gpu;
     exports org.elasticsearch.index.codec.vectors.es818 to org.elasticsearch.test.knn;
     exports org.elasticsearch.inference.telemetry;
     exports org.elasticsearch.index.codec.vectors.diskbbq to org.elasticsearch.test.knn;

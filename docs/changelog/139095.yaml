@@ -1,0 +1,6 @@
+pr: 139095
+summary: "[JupiterOne] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"
+area: Authorization
+type: enhancement
+issues:
+  - 139095

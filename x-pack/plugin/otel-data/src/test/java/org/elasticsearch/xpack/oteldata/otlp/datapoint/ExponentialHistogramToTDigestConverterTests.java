@@ -24,13 +24,13 @@ import static io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.ne
  *     OpenTelemetry Collector Exponential Histogram Tests
  * </a>
  */
-public class ExponentialHistogramConverterTests extends ESTestCase {
+public class ExponentialHistogramToTDigestConverterTests extends ESTestCase {
 
     private final ExponentialHistogramDataPoint dataPoint;
     private final List<Long> expectedCounts;
     private final List<Double> expectedValues;
 
-    public ExponentialHistogramConverterTests(
+    public ExponentialHistogramToTDigestConverterTests(
         String name,
         ExponentialHistogramDataPoint.Builder builder,
         List<Long> expectedCounts,
@@ -43,11 +43,11 @@ public class ExponentialHistogramConverterTests extends ESTestCase {
 
     public void testExponentialHistograms() {
         List<Long> actualCounts = new ArrayList<>();
-        HistogramConverter.counts(dataPoint, actualCounts::add);
+        TDigestConverter.counts(dataPoint, actualCounts::add);
         assertEquals(expectedCounts, actualCounts);
 
         List<Double> actualValues = new ArrayList<>();
-        HistogramConverter.centroidValues(dataPoint, actualValues::add);
+        TDigestConverter.centroidValues(dataPoint, actualValues::add);
         assertEquals(expectedValues.size(), actualValues.size());
         for (int i = 0; i < expectedValues.size(); i++) {
             assertEquals(expectedValues.get(i), actualValues.get(i), 1e-10);

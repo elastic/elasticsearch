@@ -28,14 +28,26 @@ public class DataPointExponentialHistogramTests extends ESTestCase {
 
     private final HashSet<String> validationErrors = new HashSet<>();
 
-    public void testExponentialHistogram() {
+    public void testExponentialHistogramAsTDigest() {
         DataPoint.ExponentialHistogram doubleGauge = new DataPoint.ExponentialHistogram(
             ExponentialHistogramDataPoint.newBuilder().build(),
             Metric.newBuilder()
                 .setExponentialHistogram(ExponentialHistogram.newBuilder().setAggregationTemporality(AGGREGATION_TEMPORALITY_DELTA).build())
                 .build()
         );
-        assertThat(doubleGauge.getDynamicTemplate(MappingHints.empty()), equalTo("histogram"));
+        assertThat(doubleGauge.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("histogram"));
+        assertThat(doubleGauge.isValid(validationErrors), equalTo(true));
+        assertThat(validationErrors, empty());
+    }
+
+    public void testExponentialHistogramAsExponentialHistogram() {
+        DataPoint.ExponentialHistogram doubleGauge = new DataPoint.ExponentialHistogram(
+            ExponentialHistogramDataPoint.newBuilder().build(),
+            Metric.newBuilder()
+                .setExponentialHistogram(ExponentialHistogram.newBuilder().setAggregationTemporality(AGGREGATION_TEMPORALITY_DELTA).build())
+                .build()
+        );
+        assertThat(doubleGauge.getDynamicTemplate(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM), equalTo("exponential_histogram"));
         assertThat(doubleGauge.isValid(validationErrors), equalTo(true));
         assertThat(validationErrors, empty());
     }
@@ -48,7 +60,9 @@ public class DataPointExponentialHistogramTests extends ESTestCase {
                 .build()
         );
         assertThat(
-            doubleGauge.getDynamicTemplate(MappingHints.fromAttributes(mappingHints(MappingHints.AGGREGATE_METRIC_DOUBLE))),
+            doubleGauge.getDynamicTemplate(
+                MappingHints.DEFAULT_TDIGEST.withConfigFromAttributes(mappingHints(MappingHints.AGGREGATE_METRIC_DOUBLE))
+            ),
             equalTo("summary")
         );
         assertThat(doubleGauge.isValid(validationErrors), equalTo(true));
@@ -64,7 +78,7 @@ public class DataPointExponentialHistogramTests extends ESTestCase {
                 )
                 .build()
         );
-        assertThat(doubleGauge.getDynamicTemplate(MappingHints.empty()), equalTo("histogram"));
+        assertThat(doubleGauge.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("histogram"));
         assertThat(doubleGauge.isValid(validationErrors), equalTo(false));
         assertThat(validationErrors, contains(containsString("cumulative exponential histogram metrics are not supported")));
     }

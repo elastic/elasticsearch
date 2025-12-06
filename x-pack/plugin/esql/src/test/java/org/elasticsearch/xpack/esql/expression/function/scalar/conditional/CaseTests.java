@@ -66,7 +66,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         if (Build.current().isSnapshot()) {
             t.addAll(
                 DataType.UNDER_CONSTRUCTION.stream()
-                    .filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE && type != DataType.DENSE_VECTOR)
+                    .filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE && type != DataType.DENSE_VECTOR && type != DataType.TDIGEST)
                     .toList()
             );
         }

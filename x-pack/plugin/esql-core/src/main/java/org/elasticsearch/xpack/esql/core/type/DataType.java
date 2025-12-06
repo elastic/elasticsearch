@@ -381,15 +381,13 @@ public enum DataType implements Writeable {
             .underConstruction(DataTypesTransportVersions.RESOLVE_FIELDS_RESPONSE_USED_TV)
     ),
 
-    /*
     TDIGEST(
-        builder().esType("exponential_histogram")
+        builder().esType("tdigest")
             .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
             .docValues()
-            .underConstruction()
-    ),
+            .underConstruction(DataTypesTransportVersions.ESQL_SERIALIZEABLE_TDIGEST)
 
-     */
+    ),
 
     /**
      * Fields with this type are dense vectors, represented as an array of float values.
@@ -1057,5 +1055,8 @@ public enum DataType implements Writeable {
         public static final TransportVersion RESOLVE_FIELDS_RESPONSE_USED_TV = TransportVersion.fromName(
             "esql_resolve_fields_response_used"
         );
+
+        private static final TransportVersion ESQL_SERIALIZEABLE_TDIGEST = TransportVersion.fromName("esql_serializeable_tdigest");
+
     }
 }

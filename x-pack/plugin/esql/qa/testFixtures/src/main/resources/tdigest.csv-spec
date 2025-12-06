@@ -1,9 +1,8 @@
 Make sure we can even load tdigest data
-required_capability: tdigest_field_type_basic_functionality
+required_capability: tdigest_field_type_support_v1
 
-FROM tdigest_standard_index | KEEP @timestamp,instance;
+FROM tdigest_standard_index ;
 
-@timestamp:date      | instance:keyword 
-2025-01-01T00:00:00Z | hand-rolled      
-
+@timestamp:date      | instance:keyword  | responseTime:tdigest
+2025-01-01T00:00:00Z | hand-rolled       | "{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
 ;

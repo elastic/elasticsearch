@@ -30,6 +30,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class SubmitAsyncSearchRequest extends LegacyActionRequest {
     public static final long MIN_KEEP_ALIVE = TimeValue.timeValueSeconds(1).millis();
+    public static final long MAX_KEEP_ALIVE = TimeValue.timeValueDays(30).millis();
 
     private TimeValue waitForCompletionTimeout = TimeValue.timeValueSeconds(1);
     private boolean keepOnCompletion = false;
@@ -155,7 +156,13 @@ public class SubmitAsyncSearchRequest extends LegacyActionRequest {
         }
         if (keepAlive.getMillis() < MIN_KEEP_ALIVE) {
             validationException = addValidationError(
-                "[keep_alive] must be greater or equals than 1 second, got:" + keepAlive.toString(),
+                "[keep_alive] must be greater or equal to 1 second, got:" + keepAlive.toString(),
+                validationException
+            );
+        }
+        if (keepAlive.getMillis() > MAX_KEEP_ALIVE) {
+            validationException = addValidationError(
+                "[keep_alive] must be less or equal to 30 days, got:" + keepAlive.toString(),
                 validationException
             );
         }

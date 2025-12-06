@@ -509,8 +509,6 @@ public class DesiredBalanceReconciler {
                     final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
                     if (canRemainDecision.type() != Decision.Type.NO && canRemainDecision.type() != Decision.Type.NOT_PREFERRED) {
                         // If movement is throttled, a future reconciliation round will see a resolution. For now, leave it alone.
-                        // Reconciliation treats canRemain NOT_PREFERRED answers as YES because the DesiredBalance computation already
-                        // decided how to handle the situation.
                         continue;
                     }
 

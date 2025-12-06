@@ -14,15 +14,18 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <math.h>
-#include "vec.h"
 
-// AVX-512 code
+// Force the preprocessor to pick up AVX-512 intrinsics, and the compiler to emit AVX-512 code
 #ifdef __clang__
 #pragma clang attribute push(__attribute__((target("arch=skylake-avx512"))), apply_to=function)
 #elif __GNUC__
 #pragma GCC push_options
 #pragma GCC target ("arch=skylake-avx512")
 #endif
+
+#include "vec.h"
+#include "vec_common.h"
+#include "amd64/amd64_vec_common.h"
 
 // Includes for intrinsics
 #ifdef _MSC_VER
@@ -133,41 +136,69 @@ static inline void dot7u_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    if (dims > STRIDE_BYTES_LEN) {
-        const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
-        for (int32_t c = 0; c < count; c++) {
-            const int8_t* a0 = a + (mapper(c, offsets) * pitch);
-            int i = limit;
-            int32_t res = dot7u_inner_avx512(a0, b, i);
-            for (; i < dims; i++) {
-                res += a0[i] * b[i];
-            }
-            results[c] = (f32_t)res;
+    const int blk = dims & ~(STRIDE_BYTES_LEN - 1);
+    const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
+    int c = 0;
+
+    const int8_t* a0 = safe_mapper_offset<0, mapper>(a, pitch, offsets, count);
+    const int8_t* a1 = safe_mapper_offset<1, mapper>(a, pitch, offsets, count);
+    const int8_t* a2 = safe_mapper_offset<2, mapper>(a, pitch, offsets, count);
+    const int8_t* a3 = safe_mapper_offset<3, mapper>(a, pitch, offsets, count);
+
+    // Process a batch of 4 vectors at a time, after instructing the CPU to
+    // prefetch the next batch.
+    // Prefetching multiple memory locations while computing keeps the CPU
+    // execution units busy.
+    for (; c + 7 < count; c += 4) {
+        const int8_t* next_a0 = a + mapper(c + 4, offsets) * pitch;
+        const int8_t* next_a1 = a + mapper(c + 5, offsets) * pitch;
+        const int8_t* next_a2 = a + mapper(c + 6, offsets) * pitch;
+        const int8_t* next_a3 = a + mapper(c + 7, offsets) * pitch;
+
+        prefetch(next_a0, lines_to_fetch);
+        prefetch(next_a1, lines_to_fetch);
+        prefetch(next_a2, lines_to_fetch);
+        prefetch(next_a3, lines_to_fetch);
+
+        int32_t res0 = 0;
+        int32_t res1 = 0;
+        int32_t res2 = 0;
+        int32_t res3 = 0;
+        int i = 0;
+        if (dims > STRIDE_BYTES_LEN) {
+            i = blk;
+            res0 = dot7u_inner_avx512(a0, b, i);
+            res1 = dot7u_inner_avx512(a1, b, i);
+            res2 = dot7u_inner_avx512(a2, b, i);
+            res3 = dot7u_inner_avx512(a3, b, i);
         }
-    } else {
-        for (int32_t c = 0; c < count; c++) {
-            const int8_t* a0 = a + (mapper(c, offsets) * pitch);
-            int32_t res = 0;
-            for (int32_t i = 0; i < dims; i++) {
-                res += a0[i] * b[i];
-            }
-            results[c] = (f32_t)res;
+        for (; i < dims; i++) {
+            const int8_t bb = b[i];
+            res0 += a0[i] * bb;
+            res1 += a1[i] * bb;
+            res2 += a2[i] * bb;
+            res3 += a3[i] * bb;
         }
+        results[c + 0] = (f32_t)res0;
+        results[c + 1] = (f32_t)res1;
+        results[c + 2] = (f32_t)res2;
+        results[c + 3] = (f32_t)res3;
+        a0 = next_a0;
+        a1 = next_a1;
+        a2 = next_a2;
+        a3 = next_a3;
+    }
+
+    // Tail-handling: remaining vectors
+    for (; c < count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        results[c] = (f32_t)vec_dot7u_2(a0, b, dims);
     }
 }
 
-static inline int64_t identity(const int32_t i, const int32_t* offsets) {
-   return i;
-}
-
-static inline int64_t index(const int32_t i, const int32_t* offsets) {
-   return offsets[i];
-}
-
 EXPORT void vec_dot7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    dot7u_inner_bulk<identity>(a, b, dims, dims, NULL, count, results);
+    dot7u_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
 }
-
 
 EXPORT void vec_dot7u_bulk_offsets_2(
     const int8_t* a,
@@ -177,7 +208,7 @@ EXPORT void vec_dot7u_bulk_offsets_2(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    dot7u_inner_bulk<index>(a, b, dims, pitch, offsets, count, results);
+    dot7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 template<int offsetRegs>

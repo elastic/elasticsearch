@@ -18,7 +18,7 @@ import java.io.IOException;
 /**
  * Helper class to read custom binary doc values.
  */
-public class CustomBinaryDocValuesReader {
+public final class CustomBinaryDocValuesReader {
 
     private final BytesRef scratch = new BytesRef();
     private final ByteArrayStreamInput in = new ByteArrayStreamInput();

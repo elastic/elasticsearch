@@ -114,10 +114,10 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
 
     @Override
     public VectorsFormatProvider getVectorsFormatProvider() {
-        return (indexSettings, indexOptions, similarity) -> {
+        return (indexSettings, indexOptions, similarity, elementType) -> {
             if (GPU_FORMAT.isEnabled() && isGpuIndexingFeatureAllowed()) {
                 if ((gpuMode == GpuMode.TRUE || (gpuMode == GpuMode.AUTO && GPUSupport.isSupported()))
-                    && vectorIndexTypeSupported(indexOptions.getType())) {
+                    && vectorIndexAndElementTypeSupported(indexOptions.getType(), elementType)) {
                     return getVectorsFormat(indexOptions, similarity);
                 }
             }
@@ -125,7 +125,13 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         };
     }
 
-    private boolean vectorIndexTypeSupported(DenseVectorFieldMapper.VectorIndexType type) {
+    private boolean vectorIndexAndElementTypeSupported(
+        DenseVectorFieldMapper.VectorIndexType type,
+        DenseVectorFieldMapper.ElementType elementType
+    ) {
+        if (elementType != DenseVectorFieldMapper.ElementType.FLOAT) {
+            return false;
+        }
         return type == DenseVectorFieldMapper.VectorIndexType.HNSW || type == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW;
     }
 

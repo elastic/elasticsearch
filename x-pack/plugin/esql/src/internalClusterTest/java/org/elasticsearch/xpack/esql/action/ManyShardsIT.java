@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.MockSearchService;
@@ -30,6 +31,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matchers;
@@ -81,7 +83,8 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
     public void setupIndices() {
         int numIndices = between(10, 20);
         for (int i = 0; i < numIndices; i++) {
-            String index = "test-" + i;
+            String manyType = randomFrom("date", "date_nanos", "keyword", "long");
+            String index = "test-" + i + "__" + manyType;
             client().admin()
                 .indices()
                 .prepareCreate(index)
@@ -91,14 +94,18 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 )
-                .setMapping("user", "type=keyword", "tags", "type=keyword")
+                .setMapping("user", "type=keyword", "tags", "type=keyword", "many_type", "type=" + manyType, "single_type", "type=long")
                 .get();
             BulkRequestBuilder bulk = client().prepareBulk(index).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             int numDocs = between(10, 25); // every shard has at least 1 doc
+            long startInMillis = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-10-23T13:52:55.015Z");
             for (int d = 0; d < numDocs; d++) {
                 String user = randomFrom("u1", "u2", "u3");
                 String tag = randomFrom("java", "elasticsearch", "lucene");
-                bulk.add(client().prepareIndex().setSource(Map.of("user", user, "tags", tag)));
+                long millis = startInMillis + randomLongBetween(0, TimeValue.timeValueDays(1).millis());
+                String many = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(millis);
+                Map<String, Object> source = Map.of("user", user, "tags", tag, "single_type", millis, "many_type", many);
+                bulk.add(client().prepareIndex().setSource(source));
             }
             bulk.get();
         }
@@ -295,6 +302,55 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
             assertThat(exchanges.get(), lessThanOrEqualTo(2));
         } finally {
             coordinatorNodeTransport.clearAllRules();
+        }
+    }
+
+    public void testMultiTypes() {
+        String q0 = """
+            FROM test-* METADATA _index
+            | EVAL many_date = TO_DATETIME(many_type), many_str = TO_STRING(many_type), many_long = TO_LONG(many_type)
+            | KEEP _index, single_type, many_date, many_str, many_long
+            """;
+        String q1 = q0 + " | SORT _index";
+        String q2 = q0 + " | SORT single_type";
+        String q3 = q0 + " | SORT single_type, _index";
+        for (String q : List.of(q0, q1, q2, q3)) {
+            logger.debug("--> running query:\n{}", q);
+            try (var resp = run(q)) {
+                List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+                for (List<Object> row : rows) {
+                    String index = (String) row.get(0);
+                    String manyType = index.substring(index.indexOf("__") + 2);
+                    long singleValue = (long) row.get(1);
+                    String manyDate = (String) row.get(2);
+                    assertThat(manyDate, equalTo(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(singleValue)));
+                    switch (manyType) {
+                        case "keyword" -> {
+                            String manyKeyword = (String) row.get(3);
+                            assertThat(manyKeyword, equalTo(manyDate));
+                            assertNull(row.get(4));
+                        }
+                        case "long" -> {
+                            String manyKeyword = (String) row.get(3);
+                            assertThat(manyKeyword, equalTo(Long.toString(singleValue)));
+                            long manyLong = (long) row.get(4);
+                            assertThat(manyLong, equalTo(singleValue));
+                        }
+                        case "date" -> {
+                            String manyKeyword = (String) row.get(3);
+                            assertThat(manyKeyword, equalTo(manyDate));
+                            long manyLong = (long) row.get(4);
+                            assertThat(manyLong, equalTo(singleValue));
+                        }
+                        case "date_nanos" -> {
+                            String manyKeyword = (String) row.get(3);
+                            assertThat(manyKeyword, equalTo(manyDate));
+                            long manyLong = (long) row.get(4);
+                            assertThat(manyLong, equalTo(singleValue * 1000_000L));
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -464,7 +464,7 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
                 this.fieldInfo = fieldInfo;
                 this.bitsetSizeInBits = bitsetSizeInBits;
                 this.bitSetSizeInBytes = bitsetSizeInBits / Byte.SIZE;
-                this.buffer = bigArrays.newByteArray(bitSetSizeInBytes, false);
+                this.buffer = bigArrays.newByteArray(bitSetSizeInBytes);
                 this.hashes = new int[numHashFunctions];
                 this.bloomFilterDataOut = directory.createOutput(bloomFilterFileName(segmentInfo, segmentSuffix), context);
 

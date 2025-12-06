@@ -39,6 +39,7 @@ public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
         .feature(FeatureFlag.RANDOM_SAMPLING)
         .feature(FeatureFlag.GENERIC_VECTOR_FORMAT)
+        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
         .build();
 
     public ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

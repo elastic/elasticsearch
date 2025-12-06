@@ -21,6 +21,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexMode;
@@ -1408,6 +1409,8 @@ public abstract class FieldMapper extends Mapper {
     public static final class DocValuesParameter extends Parameter<DocValuesParameter.Values> {
         public static final String PARAMETER_NAME = "doc_values";
 
+        public static FeatureFlag EXTENDED_DOC_VALUES_PARAMS_FF = new FeatureFlag("extended_doc_values_options");
+
         public record Values(boolean enabled, Cardinality cardinality) {
             public enum Cardinality {
                 LOW,
@@ -1438,6 +1441,10 @@ public abstract class FieldMapper extends Mapper {
 
         @Override
         public void parse(String field, MappingParserContext context, Object value) {
+            final Supplier<IllegalArgumentException> parsingFailureExceptionProvider = () -> new IllegalArgumentException(
+                "Illegal value [" + value + "] for parameter [" + name + "]"
+            );
+
             if (value instanceof Boolean valueBool) {
                 if (valueBool) {
                     setValue(getDefaultValue());
@@ -1450,16 +1457,20 @@ public abstract class FieldMapper extends Mapper {
                 } else if (value.equals("false")) {
                     setValue(Values.DISABLED);
                 } else {
-                    throw new IllegalArgumentException("Illegal value [" + value + "] for parameter [" + name + "]");
+                    throw parsingFailureExceptionProvider.get();
                 }
             } else if (value instanceof Map) {
+                if (EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+                    throw parsingFailureExceptionProvider.get();
+                }
+
                 @SuppressWarnings("unchecked")
                 Map<String, Object> valueMap = (Map<String, Object>) value;
                 cardinalityParameter.parse(field, context, valueMap.get(cardinalityParameter.name));
 
                 setValue(new Values(true, cardinalityParameter.getValue()));
             } else {
-                throw new IllegalArgumentException("Illegal value [" + value + "] for parameter [" + name + "]");
+                throw parsingFailureExceptionProvider.get();
             }
         }
 

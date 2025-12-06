@@ -939,6 +939,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesLowCardinality() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("cardinality", "low").endObject())
         );
@@ -951,6 +952,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesHighCardinality() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("cardinality", "high").endObject())
         );

@@ -163,7 +163,11 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
                 if (block.areAllValuesNull()) {
                     return blockFactory.newConstantNullBlock(block.getPositionCount());
                 }
-                Block resultBlock = ((AggregateMetricDoubleBlock) block).getMetricBlock(subFieldIndex);
+                int actualSubfieldIndex = subFieldIndex;
+                if (subFieldIndex == AggregateMetricDoubleBlockBuilder.Metric.DEFAULT.getIndex()) {
+                    actualSubfieldIndex = AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex();
+                }
+                Block resultBlock = ((AggregateMetricDoubleBlock) block).getMetricBlock(actualSubfieldIndex);
                 resultBlock.incRef();
                 return resultBlock;
             } finally {
@@ -210,6 +214,7 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
                 case MAX -> BlockLoaderFunctionConfig.Function.AMD_MAX;
                 case SUM -> BlockLoaderFunctionConfig.Function.AMD_SUM;
                 case COUNT -> BlockLoaderFunctionConfig.Function.AMD_COUNT;
+                case DEFAULT -> BlockLoaderFunctionConfig.Function.AMD_DEFAULT;
                 case null -> throw new IllegalArgumentException("Received invalid subfield index [" + subfield + "].");
             };
             return new PushedBlockLoaderExpression(f, new BlockLoaderFunctionConfig.JustFunction(functionConfig));

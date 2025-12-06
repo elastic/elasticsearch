@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender.MAX_RETIES;
+import static org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender.MAX_RETRIES;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createApplierFactory;
@@ -176,7 +176,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
      * Queues the required number of responses to handle the retries of the internal sender.
      */
     private void queueWebServerResponsesForRetries(String responseJson) {
-        for (int i = 0; i < MAX_RETIES; i++) {
+        for (int i = 0; i < MAX_RETRIES; i++) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
         }
     }

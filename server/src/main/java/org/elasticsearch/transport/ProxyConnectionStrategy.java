@@ -120,14 +120,6 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     @Override
-    protected void addStrategySpecificConnectionErrorMetricAttributes(Map<String, Object> attributesMap) {
-        attributesMap.put("endpoint", configuredAddress);
-        if (configuredServerName != null) {
-            attributesMap.put("server_name", configuredServerName);
-        }
-    }
-
-    @Override
     protected void connectImpl(ActionListener<Void> listener) {
         performProxyConnectionProcess(listener);
     }
@@ -226,9 +218,14 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     private NoSeedNodeLeftException getNoSeedNodeLeftException(Collection<Exception> suppressedExceptions) {
-        final var e = new NoSeedNodeLeftException(
-            "Unable to open any proxy connections to cluster [" + clusterAlias + "] at address [" + address.get() + "]"
+        final var msg = Strings.format(
+            "Unable to open any proxy connections to cluster [%s] at address [%s], configuredAddress=[%s], configuredServerName=[%s]",
+            clusterAlias,
+            address.get(),
+            configuredAddress,
+            configuredServerName
         );
+        final var e = new NoSeedNodeLeftException(msg);
         suppressedExceptions.forEach(e::addSuppressed);
         return e;
     }

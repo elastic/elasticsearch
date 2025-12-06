@@ -25,7 +25,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
  * */
 public class ES91Int4VectorsScorer {
 
-    public static final int BULK_SIZE = 16;
+    public static final int BULK_SIZE = ES91OSQVectorsScorer.BULK_SIZE;
     protected static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
 
     /** The wrapper {@link IndexInput}. */

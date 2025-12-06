@@ -29,6 +29,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.time.Clock;
+import java.time.Duration;
+
 import static org.elasticsearch.cluster.metadata.Metadata.EMPTY_METADATA;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -86,7 +89,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Client.class),
                 createMockCCMFeature(false),
                 createMockCCMService(false)
-            )
+            ),
+            Clock.systemUTC()
         );
         executor.startAndImmediatelyCreateTask();
         executor.startAndImmediatelyCreateTask();
@@ -117,7 +121,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Client.class),
                 createMockCCMFeature(false),
                 createMockCCMService(false)
-            )
+            ),
+            Clock.systemUTC()
         );
         executor.startAndLazyCreateTask();
         executor.startAndLazyCreateTask();
@@ -154,7 +159,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Client.class),
                 createMockCCMFeature(false),
                 createMockCCMService(false)
-            )
+            ),
+            Clock.systemUTC()
         );
         executor.startAndImmediatelyCreateTask();
         executor.startAndImmediatelyCreateTask();
@@ -170,6 +176,17 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
     }
 
     public void testMultipleCallsToStart_AndStop() {
+        var now = Clock.systemUTC().instant();
+        var oneDayInFuture = now.plus(Duration.ofDays(1));
+        var clock = mock(Clock.class);
+        // The AuthorizationTaskExecutor does these calls:
+        // 1. Check if the last create task time is expired (first call to instant()),
+        // this will pass so a call to create the task will occur
+        // 2. Then it will update the last create task time (second call to instant())
+        // 3. On the next cluster state change, it will check if the last create task time is expired (third call to instant()),
+        // we'll return now + 1 day to ensure that it is expired and allows another call to create the task
+        when(clock.instant()).thenReturn(now).thenReturn(now).thenReturn(oneDayInFuture);
+
         var eisUrl = "abc";
         var mockClusterService = createMockEmptyClusterService();
         var executor = new AuthorizationTaskExecutor(
@@ -185,7 +202,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Client.class),
                 createMockCCMFeature(false),
                 createMockCCMService(false)
-            )
+            ),
+            clock
         );
         executor.startAndImmediatelyCreateTask();
         executor.startAndImmediatelyCreateTask();
@@ -216,6 +234,62 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         verify(persistentTasksService, times(2)).sendClusterRemoveRequest(eq(AuthorizationPoller.TASK_NAME), any(), any());
     }
 
+    public void testMultipleCallsToStart_OnlyCallsSendClusterStartRequestOnce_WhenRateLimited() {
+        var now = Clock.systemUTC().instant();
+        var clock = mock(Clock.class);
+        when(clock.instant()).thenReturn(now);
+
+        var eisUrl = "abc";
+        var mockClusterService = createMockEmptyClusterService();
+        var executor = new AuthorizationTaskExecutor(
+            mockClusterService,
+            persistentTasksService,
+            enabledFeatureServiceMock,
+            new AuthorizationPoller.Parameters(
+                createWithEmptySettings(threadPool),
+                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
+                mock(Sender.class),
+                ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                mock(ModelRegistry.class),
+                mock(Client.class),
+                createMockCCMFeature(false),
+                createMockCCMService(false)
+            ),
+            clock
+        );
+        executor.startAndImmediatelyCreateTask();
+        executor.startAndImmediatelyCreateTask();
+        executor.stop();
+        executor.stop();
+        verify(mockClusterService, times(1)).addListener(executor);
+        verify(persistentTasksService, times(1)).sendClusterStartRequest(
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationTaskParams.INSTANCE),
+            any(),
+            any()
+        );
+        verify(mockClusterService, times(1)).removeListener(executor);
+        verify(persistentTasksService, times(1)).sendClusterRemoveRequest(eq(AuthorizationPoller.TASK_NAME), any(), any());
+
+        Mockito.clearInvocations(persistentTasksService);
+        Mockito.clearInvocations(mockClusterService);
+
+        executor.startAndImmediatelyCreateTask();
+        executor.stop();
+        verify(mockClusterService, times(1)).addListener(executor);
+        // No additional calls because time hasn't advanced to allow another task creation call
+        verify(persistentTasksService, never()).sendClusterStartRequest(
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationTaskParams.INSTANCE),
+            any(),
+            any()
+        );
+        verify(mockClusterService, times(1)).removeListener(executor);
+        verify(persistentTasksService, times(1)).sendClusterRemoveRequest(eq(AuthorizationPoller.TASK_NAME), any(), any());
+    }
+
     public void testCallsSendClusterStartRequest_WhenStartIsCalled() {
         var eisUrl = "abc";
         var mockClusterService = createMockEmptyClusterService();
@@ -232,7 +306,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Client.class),
                 createMockCCMFeature(false),
                 createMockCCMService(false)
-            )
+            ),
+            Clock.systemUTC()
         );
         executor.startAndImmediatelyCreateTask();
 
@@ -282,7 +357,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Client.class),
                 createMockCCMFeature(false),
                 createMockCCMService(false)
-            )
+            ),
+            Clock.systemUTC()
         );
         executor.startAndImmediatelyCreateTask();
 
@@ -297,6 +373,17 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
     }
 
     public void testCreatesTask_WhenItDoesNotExistOnClusterStateChange() {
+        var now = Clock.systemUTC().instant();
+        var oneDayInFuture = now.plus(Duration.ofDays(1));
+        var clock = mock(Clock.class);
+        // The AuthorizationTaskExecutor does these calls:
+        // 1. Check if the last create task time is expired (first call to instant()),
+        // this will pass so a call to create the task will occur
+        // 2. Then it will update the last create task time (second call to instant())
+        // 3. On the next cluster state change, it will check if the last create task time is expired (third call to instant()),
+        // we'll return now + 1 day to ensure that it is expired and allows another call to create the task
+        when(clock.instant()).thenReturn(now).thenReturn(now).thenReturn(oneDayInFuture);
+
         var eisUrl = "abc";
 
         var executor = new AuthorizationTaskExecutor(
@@ -312,7 +399,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Client.class),
                 createMockCCMFeature(false),
                 createMockCCMService(false)
-            )
+            ),
+            clock
         );
         executor.startAndImmediatelyCreateTask();
 
@@ -329,6 +417,9 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         );
 
         Mockito.clearInvocations(persistentTasksService);
+        Mockito.clearInvocations(clock);
+        when(clock.instant()).thenReturn(oneDayInFuture.plus(Duration.ofDays(1)));
+
         // Ensure that if the task is gone, it will be recreated.
         var listener2 = new PlainActionFuture<Void>();
         clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener2);
@@ -369,7 +460,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Client.class),
                 createMockCCMFeature(false),
                 createMockCCMService(false)
-            )
+            ),
+            Clock.systemUTC()
         );
         executor.startAndImmediatelyCreateTask();
 
@@ -400,7 +492,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Client.class),
                 createMockCCMFeature(false),
                 createMockCCMService(false)
-            )
+            ),
+            Clock.systemUTC()
         );
         executor.startAndImmediatelyCreateTask();
 
@@ -430,7 +523,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Client.class),
                 createMockCCMFeature(false),
                 createMockCCMService(false)
-            )
+            ),
+            Clock.systemUTC()
         );
         executor.startAndImmediatelyCreateTask();
 
@@ -483,7 +577,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Client.class),
                 createMockCCMFeature(false),
                 createMockCCMService(false)
-            )
+            ),
+            Clock.systemUTC()
         );
         executor.startAndImmediatelyCreateTask();
 

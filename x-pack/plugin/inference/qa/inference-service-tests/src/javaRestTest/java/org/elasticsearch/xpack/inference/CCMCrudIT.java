@@ -20,9 +20,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
-import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureFlag;
 import org.junit.After;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -52,11 +50,6 @@ public class CCMCrudIT extends CCMRestBaseIT {
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("x_pack_rest_user", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
-    @BeforeClass
-    public static void classSetup() {
-        assumeTrue("CCM is behind a feature flag and snapshot only right now", CCMFeatureFlag.FEATURE_FLAG.isEnabled());
     }
 
     @After

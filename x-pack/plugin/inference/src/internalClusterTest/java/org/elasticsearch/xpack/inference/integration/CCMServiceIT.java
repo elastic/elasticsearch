@@ -19,7 +19,6 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
-import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureFlag;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMModel;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
@@ -75,8 +74,6 @@ public class CCMServiceIT extends CCMSingleNodeIT {
 
     @BeforeClass
     public static void initClass() throws IOException {
-        assumeTrue("CCM is behind a feature flag and snapshot only right now", CCMFeatureFlag.FEATURE_FLAG.isEnabled());
-
         webServer.start();
         gatewayUrl = getUrl(webServer);
         chatCompletionResponseBody = ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse(

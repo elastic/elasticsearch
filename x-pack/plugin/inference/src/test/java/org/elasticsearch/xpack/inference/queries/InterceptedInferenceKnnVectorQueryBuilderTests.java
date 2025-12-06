@@ -20,6 +20,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
@@ -306,6 +307,10 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
                 .get(2);
             assertInterceptedQueryHasValidResultsForSparseVector(filter);
         }
+    }
+
+    public void testCcsSerializationWithMinimizeRoundTripsFalse() throws Exception {
+        ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType.TEXT_EMBEDDING, KnnVectorQueryBuilder.NAME);
     }
 
     private static MlDenseEmbeddingResults assertQueryIsInterceptedKnnWithValidResults(QueryBuilder query) {

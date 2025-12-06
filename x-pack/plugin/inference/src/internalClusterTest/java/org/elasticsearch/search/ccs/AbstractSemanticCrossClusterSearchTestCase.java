@@ -48,6 +48,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -55,6 +56,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.createInferenceEndpoint;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -161,16 +164,18 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
 
     protected void assertSearchResponse(
         QueryBuilder queryBuilder,
-        List<IndexWithBoost> indices,
+        @Nullable List<IndexWithBoost> indices,
         List<SearchResult> expectedSearchResults,
-        ClusterFailure expectedRemoteFailure,
-        Consumer<SearchRequest> searchRequestModifier
+        @Nullable ClusterFailure expectedRemoteFailure,
+        @Nullable Consumer<SearchRequest> searchRequestModifier
     ) throws Exception {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder).size(expectedSearchResults.size());
-        indices.forEach(i -> searchSourceBuilder.indexBoost(i.index(), i.boost()));
-
-        SearchRequest searchRequest = new SearchRequest(convertToArray(indices), searchSourceBuilder);
-        searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        SearchRequest searchRequest = new SearchRequest().source(searchSourceBuilder);
+        if (indices != null) {
+            indices.forEach(i -> searchSourceBuilder.indexBoost(i.index(), i.boost()));
+            searchRequest.indices(convertToArray(indices));
+            searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        }
         if (searchRequestModifier != null) {
             searchRequestModifier.accept(searchRequest);
         }
@@ -190,24 +195,48 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
             }
 
             SearchResponse.Clusters clusters = response.getClusters();
-            assertThat(clusters.getCluster(LOCAL_CLUSTER).getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
-            assertThat(clusters.getCluster(LOCAL_CLUSTER).getFailures().isEmpty(), is(true));
+            Set<String> clusterAliases = clusters.getClusterAliases();
+            for (String clusterAlias : clusterAliases) {
+                SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
+                if (REMOTE_CLUSTER.equals(clusterAlias) && expectedRemoteFailure != null) {
+                    assertThat(cluster.getStatus(), equalTo(expectedRemoteFailure.status()));
 
-            SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
-            if (expectedRemoteFailure != null) {
-                assertThat(remoteCluster.getStatus(), equalTo(expectedRemoteFailure.status()));
-
-                Set<FailureCause> expectedFailures = expectedRemoteFailure.failures();
-                Set<FailureCause> actualFailures = remoteCluster.getFailures()
-                    .stream()
-                    .map(f -> new FailureCause(f.getCause().getClass(), f.getCause().getMessage()))
-                    .collect(Collectors.toSet());
-                assertThat(actualFailures, equalTo(expectedFailures));
-            } else {
-                assertThat(remoteCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
-                assertThat(remoteCluster.getFailures().isEmpty(), is(true));
+                    Set<FailureCause> expectedFailures = expectedRemoteFailure.failures();
+                    Set<FailureCause> actualFailures = cluster.getFailures()
+                        .stream()
+                        .map(f -> new FailureCause(f.getCause().getClass(), f.getCause().getMessage()))
+                        .collect(Collectors.toSet());
+                    assertThat(actualFailures, equalTo(expectedFailures));
+                } else {
+                    assertThat(cluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+                    assertThat(cluster.getFailures().isEmpty(), is(true));
+                }
             }
         });
+    }
+
+    protected <T extends Exception> void assertSearchFailure(
+        QueryBuilder queryBuilder,
+        @Nullable List<IndexWithBoost> indices,
+        Class<T> expectedExceptionClass,
+        String expectedMessage,
+        @Nullable Consumer<SearchRequest> searchRequestModifier
+    ) {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder);
+        SearchRequest searchRequest = new SearchRequest().source(searchSourceBuilder);
+        if (indices != null) {
+            searchRequest.indices(convertToArray(indices));
+        }
+        if (searchRequestModifier != null) {
+            searchRequestModifier.accept(searchRequest);
+        }
+
+        ExecutionException executionException = assertThrows(
+            ExecutionException.class,
+            () -> assertResponse(client().search(searchRequest), response -> {})
+        );
+        assertThat(executionException.getCause(), instanceOf(expectedExceptionClass));
+        assertThat(executionException.getCause().getMessage(), containsString(expectedMessage));
     }
 
     protected static MinimalServiceSettings sparseEmbeddingServiceSettings() {

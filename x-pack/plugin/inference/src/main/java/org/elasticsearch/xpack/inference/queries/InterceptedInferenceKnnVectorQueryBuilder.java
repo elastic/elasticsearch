@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ResolvedIndices;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -65,10 +65,10 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     private InterceptedInferenceKnnVectorQueryBuilder(
         InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
-        boolean ccsRequest
+        PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
+        boolean interceptedCcsRequest
     ) {
-        super(other, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
+        super(other, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
     }
 
     @Override
@@ -115,13 +115,13 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         }
         if (filtersChanged) {
             originalQuery.setFilterQueries(rewrittenFilters);
-            return copy(inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
+            return copy(inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
         }
         return this;
     }
 
     @Override
-    protected void coordinatorNodeValidate(ResolvedIndices resolvedIndices) {
+    protected boolean preInferenceCoordinatorNodeValidate(ResolvedIndices resolvedIndices) {
         if (originalQuery.queryVector() == null && originalQuery.queryVectorBuilder() instanceof TextEmbeddingQueryVectorBuilder == false) {
             // This should never happen because either query vector or query vector builder must be non-null, which is enforced by the
             // KnnVectorQueryBuilder constructor. The only query vector builder used in production is TextEmbeddingQueryVectorBuilder,
@@ -133,17 +133,30 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
             );
         }
 
-        // Check if we are querying any non-inference fields
+        // Check if we are querying any non-inference fields locally
+        int inferenceFieldsQueried = 0;
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(getField());
             if (inferenceFieldMetadata == null) {
-                QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
-                if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder
-                    && textEmbeddingQueryVectorBuilder.getModelId() == null) {
-                    throw new IllegalArgumentException("[model_id] must not be null.");
-                }
+                missingInferenceIdOverrideCheck();
+            } else {
+                inferenceFieldsQueried++;
             }
+        }
+
+        // We can skip remote cluster inference info gathering if:
+        // - Inference fields are queried locally, guaranteeing that the query will be intercepted
+        // - The inference ID override or query vector is set. In either case, remote cluster inference results are not required.
+        return inferenceFieldsQueried > 0 && (getInferenceIdOverride() != null || originalQuery.queryVector() != null);
+    }
+
+    @Override
+    protected void postInferenceCoordinatorNodeValidate(InferenceQueryUtils.InferenceInfo inferenceInfo) {
+        // Detect if we are querying any non-inference fields locally or remotely. We can do this by comparing the inference field count to
+        // the index count. Since the knn query is a single-field query, they should match if we are querying only inference fields.
+        if (inferenceInfo.inferenceFieldCount() < inferenceInfo.indexCount()) {
+            missingInferenceIdOverrideCheck();
         }
     }
 
@@ -160,10 +173,10 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     @Override
     protected InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> copy(
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
-        boolean ccsRequest
+        PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
+        boolean interceptedCcsRequest
     ) {
-        return new InterceptedInferenceKnnVectorQueryBuilder(this, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
+        return new InterceptedInferenceKnnVectorQueryBuilder(this, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
     }
 
     @Override
@@ -294,5 +307,13 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         }
 
         return (MlDenseEmbeddingResults) inferenceResults;
+    }
+
+    private void missingInferenceIdOverrideCheck() {
+        QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
+        if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder
+            && textEmbeddingQueryVectorBuilder.getModelId() == null) {
+            throw new IllegalArgumentException("[model_id] must not be null.");
+        }
     }
 }

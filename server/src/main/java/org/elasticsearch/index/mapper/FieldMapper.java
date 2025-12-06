@@ -1485,6 +1485,8 @@ public abstract class FieldMapper extends Mapper {
             if (includeDefaults || isConfigured()) {
                 if (value.enabled == false) {
                     builder.field(name, false);
+                } else if (value.equals(getDefaultValue())) {
+                    builder.field(name, true);
                 } else {
                     builder.startObject(name);
                     builder.field(cardinalityParameter.name, value.cardinality);

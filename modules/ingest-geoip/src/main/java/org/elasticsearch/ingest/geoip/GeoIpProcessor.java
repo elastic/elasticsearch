@@ -119,7 +119,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             if (ip instanceof String ipString) {
                 Map<String, Object> data = ipDataLookup.getData(ipDatabase, ipString);
                 if (data.isEmpty() == false) {
-                    document.setFieldValue(targetField, data);
+                    writeGeoIpData(document, targetField, data);
                 }
             } else if (ip instanceof List<?> ipList) {
                 boolean match = false;
@@ -134,7 +134,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                         continue;
                     }
                     if (firstOnly) {
-                        document.setFieldValue(targetField, data);
+                        writeGeoIpData(document, targetField, data);
                         return document;
                     }
                     match = true;
@@ -170,6 +170,31 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     Set<Property> getProperties() {
         return ipDataLookup.getProperties();
+    }
+
+    /**
+     * Writes GeoIP data to the document. In flexible field access mode, writes individual dotted fields
+     * (e.g., "my.field.city", "my.field.country") instead of a single nested object. Composite properties
+     * like "location" (containing lat/lon) are kept as objects since they represent a single logical field.
+     *
+     * @param document the ingest document
+     * @param targetField the base target field path
+     * @param data the GeoIP data to write
+     */
+    private void writeGeoIpData(IngestDocument document, String targetField, Map<String, Object> data) {
+        if (document.getCurrentAccessPattern().isPresent()
+            && document.getCurrentAccessPattern().get() == org.elasticsearch.ingest.IngestPipelineFieldAccessPattern.FLEXIBLE) {
+            // In flexible mode, write each property as a separate dotted field
+            for (Map.Entry<String, Object> entry : data.entrySet()) {
+                String key = entry.getKey();
+                Object value = entry.getValue();
+
+                document.setFieldValue(targetField + "." + key, value);
+            }
+        } else {
+            // In classic mode, write as a single nested object
+            document.setFieldValue(targetField, data);
+        }
     }
 
     /**

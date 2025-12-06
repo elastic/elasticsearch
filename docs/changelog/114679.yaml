@@ -1,0 +1,6 @@
+pr: 114679
+summary: Refactored CircuitBreaker log message
+area: Core/Infra
+type: enhancement
+issues:
+  - 47495

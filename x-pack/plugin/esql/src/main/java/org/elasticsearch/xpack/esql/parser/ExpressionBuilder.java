@@ -758,13 +758,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private Expression castToType(Source source, ParseTree parseTree, EsqlBaseParser.DataTypeContext dataTypeCtx) {
         DataType dataType = typedParsing(this, dataTypeCtx, DataType.class);
-        var converterToFactory = EsqlDataTypeConverter.converterFunctionFactory(dataType);
+        var converterToFactory = EsqlDataTypeConverter.converterFunctionFactoryForParser(dataType);
         if (converterToFactory == null) {
             throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
         }
         Expression expr = expression(parseTree);
         var convertFunction = converterToFactory.apply(source, expr);
-        context.telemetry().function(convertFunction.getClass());
+        context.telemetry().function(convertFunction);
         return convertFunction;
     }
 

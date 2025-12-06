@@ -503,3 +503,87 @@ ROW x = 55555
 x:integer | agg_metric:aggregate_metric_double
 55555     | {"min":55555,"max":55555,"sum":55555,"value_count":1}
 ;
+
+convertStringToDatetimeTimezoneRow
+required_capability: type_conversion_timezone_support
+SET time_zone="Europe/Paris"\;
+ROW
+  date="2021-01-01"::date,
+  datetime=TO_DATETIME("2021-01-02T00:00:00"),
+  diff_implicit_cast = DATE_DIFF("hours", "2021-01-02T00:00:00", "2021-01-02T00:00:00Z")
+;
+
+date:datetime                 | datetime:datetime             | diff_implicit_cast:integer
+2021-01-01T00:00:00.000+01:00 | 2021-01-02T00:00:00.000+01:00 | 1
+;
+
+convertFromAndToDatetimeTimezoneRow
+required_capability: type_conversion_timezone_support
+SET time_zone="Europe/Paris"\;
+ROW
+  date="2021-01-02"::date,
+  datetime="2021-01-02T00:00:00"::datetime
+| EVAL
+  date_string=date::string,
+  datetime_string=to_string(datetime)
+;
+
+date:datetime                 | datetime:datetime             | date_string:keyword           | datetime_string:keyword
+2021-01-02T00:00:00.000+01:00 | 2021-01-02T00:00:00.000+01:00 | 2021-01-02T00:00:00.000+01:00 | 2021-01-02T00:00:00.000+01:00
+;
+
+convertFromAndToDatetimeTimezoneFrom
+required_capability: type_conversion_timezone_support
+SET time_zone="Europe/Paris"\;
+FROM employees
+| WHERE emp_no == 10016
+| EVAL raw_date_string = hire_date::string
+| EVAL date_string = SUBSTRING(raw_date_string, 0, LENGTH("yyyy-MM-ddT00:00:00")) // Remove the timezone part
+| EVAL date = date_string::datetime
+| KEEP hire_date, raw_date_string, date_string, date;
+
+hire_date:datetime   | raw_date_string:keyword       | date_string:keyword  | date:datetime
+1995-01-27T00:00:00Z | 1995-01-27T01:00:00.000+01:00 | 1995-01-27T01:00:00  | 1995-01-27T01:00:00+01:00
+;
+
+convertStringToDateNanosTimezoneRow
+required_capability: type_conversion_timezone_support
+SET time_zone="Europe/Paris"\;
+ROW
+  date="2021-01-02"::date_nanos,
+  datetime="2021-01-02T00:00:00"::date_nanos,
+  diff_implicit_cast = DATE_DIFF("hours", "2021-01-02T00:00:00", "2021-01-02T00:00:00Z"::date_nanos)
+;
+
+date:date_nanos          | datetime:date_nanos      | diff_implicit_cast:integer
+2021-01-01T23:00:00.000Z | 2021-01-01T23:00:00.000Z | 1
+;
+
+convertFromAndToDateNanosTimezoneRow
+required_capability: type_conversion_timezone_support
+SET time_zone="Europe/Paris"\;
+ROW
+  date="2021-01-02"::date_nanos,
+  datetime=TO_DATE_NANOS("2021-01-02T00:00:00")
+| EVAL
+  date_string=date::string,
+  datetime_string=to_string(datetime)
+;
+
+date:date_nanos               | datetime:date_nanos           | date_string:keyword           | datetime_string:keyword
+2021-01-02T00:00:00.000+01:00 | 2021-01-02T00:00:00.000+01:00 | 2021-01-02T00:00:00.000+01:00 | 2021-01-02T00:00:00.000+01:00
+;
+
+convertFromAndToDateNanosTimezoneFrom
+required_capability: type_conversion_timezone_support
+SET time_zone="Europe/Paris"\;
+FROM employees
+| WHERE emp_no == 10016
+| EVAL raw_date_string = hire_date::string
+| EVAL date_string = SUBSTRING(raw_date_string, 0, LENGTH("yyyy-MM-ddT00:00:00")) // Remove the timezone part
+| EVAL date = date_string::date_nanos
+| KEEP hire_date, raw_date_string, date_string, date;
+
+hire_date:datetime | raw_date_string:keyword       | date_string:keyword  | date:date_nanos
+1995-01-27T00:00:00Z | 1995-01-27T01:00:00.000+01:00 | 1995-01-27T01:00:00  | 1995-01-27T01:00:00+01:00
+;

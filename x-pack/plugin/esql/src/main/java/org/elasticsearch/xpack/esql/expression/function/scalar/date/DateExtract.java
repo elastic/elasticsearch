@@ -34,9 +34,9 @@ import java.time.temporal.ChronoField;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.EsqlConverter.STRING_TO_CHRONO_FIELD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLongNanos;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToChrono;
 
 public class DateExtract extends EsqlConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -158,7 +158,10 @@ public class DateExtract extends EsqlConfigurationFunction {
             Expression field = children().get(0);
             try {
                 if (field.foldable() && DataType.isString(field.dataType())) {
-                    chronoField = (ChronoField) STRING_TO_CHRONO_FIELD.convert(field.fold(ctx));
+                    var foldedValue = field.fold(ctx);
+                    if (foldedValue != null) {
+                        chronoField = stringToChrono(field.fold(ctx));
+                    }
                 }
             } catch (Exception e) {
                 return null;

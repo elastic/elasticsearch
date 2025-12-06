@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -28,10 +29,13 @@ public final class ToDateNanosFromStringEvaluator extends AbstractConvertFunctio
 
   private final EvalOperator.ExpressionEvaluator in;
 
+  private final DateFormatter formatter;
+
   public ToDateNanosFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator in,
-      DriverContext driverContext) {
+      DateFormatter formatter, DriverContext driverContext) {
     super(driverContext, source);
     this.in = in;
+    this.formatter = formatter;
   }
 
   @Override
@@ -67,7 +71,7 @@ public final class ToDateNanosFromStringEvaluator extends AbstractConvertFunctio
 
   private long evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToDateNanos.fromKeyword(value);
+    return ToDateNanos.fromKeyword(value, this.formatter);
   }
 
   @Override
@@ -107,12 +111,12 @@ public final class ToDateNanosFromStringEvaluator extends AbstractConvertFunctio
 
   private long evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToDateNanos.fromKeyword(value);
+    return ToDateNanos.fromKeyword(value, this.formatter);
   }
 
   @Override
   public String toString() {
-    return "ToDateNanosFromStringEvaluator[" + "in=" + in + "]";
+    return "ToDateNanosFromStringEvaluator[" + "in=" + in + ", formatter=" + formatter + "]";
   }
 
   @Override
@@ -132,19 +136,23 @@ public final class ToDateNanosFromStringEvaluator extends AbstractConvertFunctio
 
     private final EvalOperator.ExpressionEvaluator.Factory in;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in) {
+    private final DateFormatter formatter;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in,
+        DateFormatter formatter) {
       this.source = source;
       this.in = in;
+      this.formatter = formatter;
     }
 
     @Override
     public ToDateNanosFromStringEvaluator get(DriverContext context) {
-      return new ToDateNanosFromStringEvaluator(source, in.get(context), context);
+      return new ToDateNanosFromStringEvaluator(source, in.get(context), formatter, context);
     }
 
     @Override
     public String toString() {
-      return "ToDateNanosFromStringEvaluator[" + "in=" + in + "]";
+      return "ToDateNanosFromStringEvaluator[" + "in=" + in + ", formatter=" + formatter + "]";
     }
   }
 }

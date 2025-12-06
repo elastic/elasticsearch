@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -44,6 +45,15 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     }
 
     public static FieldMapper.DocValuesParameter.Values randomDocValuesParams(boolean allowIgnoredSource) {
+        // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
+        if (Build.current().isSnapshot() == false) {
+            if (allowIgnoredSource && ESTestCase.randomBoolean()) {
+                return FieldMapper.DocValuesParameter.Values.DISABLED;
+            } else {
+                return new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW);
+            }
+        }
+
         return switch (ESTestCase.randomInt(allowIgnoredSource ? 2 : 1)) {
             case 0 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW);
             case 1 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
@@ -132,9 +142,14 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         if (docValues.enabled() == false) {
             b.field("doc_values", false);
         } else {
-            b.startObject("doc_values");
-            b.field("cardinality", docValues.cardinality().toString());
-            b.endObject();
+            // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
+            if (Build.current().isSnapshot() == false) {
+                b.field("doc_values", true);
+            } else {
+                b.startObject("doc_values");
+                b.field("cardinality", docValues.cardinality().toString());
+                b.endObject();
+            }
         }
     }
 

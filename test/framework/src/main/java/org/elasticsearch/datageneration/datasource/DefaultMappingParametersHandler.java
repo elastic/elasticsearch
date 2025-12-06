@@ -9,6 +9,7 @@
 
 package org.elasticsearch.datageneration.datasource;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -280,6 +281,11 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
     }
 
     public static Object extendedDocValuesParams() {
+        // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
+        if (Build.current().isSnapshot() == false) {
+            return ESTestCase.randomBoolean();
+        }
+
         return switch (ESTestCase.randomInt(3)) {
             case 0 -> false;
             case 1 -> Map.of("cardinality", "low");

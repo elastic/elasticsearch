@@ -48,11 +48,6 @@ import static org.mockito.ArgumentMatchers.any;
 
 public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
-    public void testCanAlwaysAllocateDuringReplace() {
-        var wld = new WriteLoadConstraintDecider(ClusterSettings.createBuiltInClusterSettings());
-        assertEquals(Decision.YES, wld.canForceAllocateDuringReplace(any(), any(), any()));
-    }
-
     /**
      * Test the write load decider behavior when disabled
      */
@@ -117,6 +112,21 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
      * Test the {@link WriteLoadConstraintDecider#canAllocate} implementation.
      */
     public void testWriteLoadDeciderCanAllocate() {
+        internalDeciderAllocationCheck((decider, shardRouting, node, allocation) -> decider.canAllocate(shardRouting, node, allocation));
+    }
+
+    /**
+     * Test the {@link WriteLoadConstraintDecider#canForceAllocateDuringReplace} implementation.
+     */
+    public void testWriteLoadDeciderCanForceAllocateDuringReplace() {
+        internalDeciderAllocationCheck((decider, shardRouting, node, allocation) -> decider.canForceAllocateDuringReplace(shardRouting, node, allocation));
+    }
+
+    interface DeciderAllocation {
+        Decision canAllocate(WriteLoadConstraintDecider decider, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation);
+    }
+
+    void internalDeciderAllocationCheck(DeciderAllocation decider) {
         String indexName = "test-index";
         var testHarness = createClusterStateAndRoutingAllocation(indexName);
         testHarness.routingAllocation.debugDecision(true);
@@ -133,7 +143,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
         assertDecisionMatches(
             "Assigning a new shard to a node that is above the threshold should fail",
-            writeLoadDecider.canAllocate(
+            decider.canAllocate(
+                writeLoadDecider,
                 testHarness.shardRoutingOnNodeBelowUtilThreshold,
                 testHarness.exceedingThresholdRoutingNode,
                 testHarness.routingAllocation
@@ -144,7 +155,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
         assertDecisionMatches(
             "Unassigned shard should always be accepted",
-            writeLoadDecider.canAllocate(
+            decider.canAllocate(
+                writeLoadDecider,
                 testHarness.unassignedShardRouting,
                 randomFrom(testHarness.exceedingThresholdRoutingNode, testHarness.belowThresholdRoutingNode),
                 testHarness.routingAllocation
@@ -154,7 +166,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
         assertDecisionMatches(
             "Assigning a new shard to a node that has capacity should succeed",
-            writeLoadDecider.canAllocate(
+            decider.canAllocate(
+                writeLoadDecider,
                 testHarness.shardRoutingOnNodeExceedingUtilThreshold,
                 testHarness.belowThresholdRoutingNode,
                 testHarness.routingAllocation
@@ -164,7 +177,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
         assertDecisionMatches(
             "Assigning a new shard without a write load estimate to an over-threshold node should be blocked",
-            writeLoadDecider.canAllocate(
+            decider.canAllocate(
+                writeLoadDecider,
                 testHarness.shardRoutingNoWriteLoad,
                 testHarness.exceedingThresholdRoutingNode,
                 testHarness.routingAllocation
@@ -175,7 +189,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
         assertDecisionMatches(
             "Assigning a new shard without a write load estimate to an under-threshold node should be allowed",
-            writeLoadDecider.canAllocate(
+            decider.canAllocate(
+                writeLoadDecider,
                 testHarness.shardRoutingNoWriteLoad,
                 testHarness.belowThresholdRoutingNode,
                 testHarness.routingAllocation
@@ -185,7 +200,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
         assertDecisionMatches(
             "Assigning a new shard that would cause the node to exceed capacity should fail",
-            writeLoadDecider.canAllocate(
+            decider.canAllocate(
+                writeLoadDecider,
                 testHarness.shardRoutingOnNodeExceedingUtilThreshold,
                 testHarness.nearThresholdRoutingNode,
                 testHarness.routingAllocation

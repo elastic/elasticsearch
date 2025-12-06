@@ -131,6 +131,11 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
     }
 
     @Override
+    public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return this.canAllocate(shardRouting, node, allocation);
+    }
+
+    @Override
     public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled().notFullyEnabled()) {
             return allocation.decision(Decision.YES, NAME, "canRemain() is not enabled");

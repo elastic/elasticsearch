@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.admin.indices.forcemerge;
 
+import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -20,6 +22,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -31,6 +34,15 @@ public class ForceMergeIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         final String index = "test-index";
         createIndex(index, 1, 1);
+        // Index some documents to ensure more than 1 segment.
+        int docs = between(10, 100);
+        for (int i = 0; i < docs; i++) {
+            prepareIndex(index).setId("" + i).setSource("test", "init").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+            if (i % 10 == 0) {
+                // occasionally flush to create more segments
+                flush(index);
+            }
+        }
         ensureGreen(index);
         final ClusterState state = clusterService().state();
         final IndexRoutingTable indexShardRoutingTables = state.routingTable().getIndicesRouting().get(index);
@@ -68,6 +80,91 @@ public class ForceMergeIT extends ESIntegTestCase {
         final String replicaForceMergeUUID = getForceMergeUUID(replica);
         assertThat(replicaForceMergeUUID, notNullValue());
         assertThat(primaryForceMergeUUID, is(replicaForceMergeUUID));
+
+        // Assert that we have only 1 segment now
+        final List<ShardSegments> shardSegments = getShardSegments(index);
+        shardSegments.forEach(ss -> assertThat(ss.getNumberOfSearch(), is(1)));
+    }
+
+    public void testForceMergeNoOpEmptyIndex() throws IOException {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        final String index = "test-index-no-op-empty";
+        createIndex(index, 1, 1);
+        ensureGreen(index);
+        final ClusterState state = clusterService().state();
+        final IndexRoutingTable indexShardRoutingTables = state.routingTable().getIndicesRouting().get(index);
+        final IndexShardRoutingTable shardRouting = indexShardRoutingTables.shard(0);
+        final String primaryNodeId = shardRouting.primaryShard().currentNodeId();
+        final String replicaNodeId = shardRouting.replicaShards().get(0).currentNodeId();
+        final Index idx = shardRouting.primaryShard().index();
+        final IndicesService primaryIndicesService = internalCluster().getInstance(
+            IndicesService.class,
+            state.nodes().get(primaryNodeId).getName()
+        );
+        final IndicesService replicaIndicesService = internalCluster().getInstance(
+            IndicesService.class,
+            state.nodes().get(replicaNodeId).getName()
+        );
+        final IndexShard primary = primaryIndicesService.indexService(idx).getShard(0);
+        final IndexShard replica = replicaIndicesService.indexService(idx).getShard(0);
+
+        assertThat(getForceMergeUUID(primary), nullValue());
+        assertThat(getForceMergeUUID(replica), nullValue());
+
+        final BroadcastResponse forceMergeResponse = indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
+
+        assertThat(forceMergeResponse.getFailedShards(), is(0));
+        assertThat(forceMergeResponse.getSuccessfulShards(), is(2));
+
+        // Force flush to force a new commit that would contain the force flush UUID before the no-op existed
+        final BroadcastResponse flushResponse = indicesAdmin().prepareFlush(index).setForce(true).get();
+        assertThat(flushResponse.getFailedShards(), is(0));
+        assertThat(flushResponse.getSuccessfulShards(), is(2));
+
+        // Assert that no force-merge occurred.
+        assertThat(getForceMergeUUID(primary), nullValue());
+        assertThat(getForceMergeUUID(replica), nullValue());
+    }
+
+    public void testForceMergeNoOpOneSegment() throws IOException {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        final String index = "test-index-no-op-one-segment";
+        createIndex(index, 1, 1);
+        prepareIndex(index).setId("0").setSource("test", "init").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        ensureGreen(index);
+        final ClusterState state = clusterService().state();
+        final IndexRoutingTable indexShardRoutingTables = state.routingTable().getIndicesRouting().get(index);
+        final IndexShardRoutingTable shardRouting = indexShardRoutingTables.shard(0);
+        final String primaryNodeId = shardRouting.primaryShard().currentNodeId();
+        final String replicaNodeId = shardRouting.replicaShards().get(0).currentNodeId();
+        final Index idx = shardRouting.primaryShard().index();
+        final IndicesService primaryIndicesService = internalCluster().getInstance(
+            IndicesService.class,
+            state.nodes().get(primaryNodeId).getName()
+        );
+        final IndicesService replicaIndicesService = internalCluster().getInstance(
+            IndicesService.class,
+            state.nodes().get(replicaNodeId).getName()
+        );
+        final IndexShard primary = primaryIndicesService.indexService(idx).getShard(0);
+        final IndexShard replica = replicaIndicesService.indexService(idx).getShard(0);
+
+        assertThat(getForceMergeUUID(primary), nullValue());
+        assertThat(getForceMergeUUID(replica), nullValue());
+
+        final BroadcastResponse forceMergeResponse = indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
+
+        assertThat(forceMergeResponse.getFailedShards(), is(0));
+        assertThat(forceMergeResponse.getSuccessfulShards(), is(2));
+
+        // Force flush to force a new commit that would contain the force flush UUID before the no-op existed
+        final BroadcastResponse flushResponse = indicesAdmin().prepareFlush(index).setForce(true).get();
+        assertThat(flushResponse.getFailedShards(), is(0));
+        assertThat(flushResponse.getSuccessfulShards(), is(2));
+
+        // Assert that no force-merge occurred.
+        assertThat(getForceMergeUUID(primary), nullValue());
+        assertThat(getForceMergeUUID(replica), nullValue());
     }
 
     private static String getForceMergeUUID(IndexShard indexShard) throws IOException {

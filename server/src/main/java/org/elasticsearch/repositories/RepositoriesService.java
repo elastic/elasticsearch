@@ -208,16 +208,24 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         Repository repository = repositoryOrNull(ProjectId.DEFAULT, repositoryName);
         if (repository == null) {
-            throw new IllegalArgumentException(
-                "Repository ["
-                    + repositoryName
-                    + "] is not registered. "
-                    + "Cannot set as default repository. Please register the repository first using PUT /_snapshot/"
-                    + repositoryName
-            );
+            // If not in DEFAULT, check all other projects
+            boolean found = repositories.values().stream().anyMatch(projectRepos -> projectRepos.containsKey(repositoryName));
+            if (found == false) {
+                // Check internal repositories
+                found = internalRepositories.values().stream().anyMatch(projectRepos -> projectRepos.containsKey(repositoryName));
+            }
+
+            if (found == false) {
+                throw new IllegalArgumentException(
+                    "Repository ["
+                        + repositoryName
+                        + "] is not registered. "
+                        + "Cannot set as default repository. Please register the repository first using PUT /_snapshot/"
+                        + repositoryName
+                );
+            }
         }
 
-        // Repository exists, validation passed
         logger.info("Default repository set to [{}]", repositoryName);
     }
 

@@ -654,7 +654,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     ) {
         if (force == false && freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
             // no free page available and no old enough unused region to be evicted
-            logger.info("No free regions, skipping loading region [{}]", region);
+            logger.debug("No free regions, skipping loading region [{}]", region);
             listener.onResponse(false);
             return;
         }

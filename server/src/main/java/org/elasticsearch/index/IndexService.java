@@ -240,7 +240,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 idFieldMapper,
                 scriptService,
                 bitsetFilterCache::getBitSetProducer,
-                mapperMetrics
+                mapperMetrics,
+                null
             );
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService);
             boolean sourceOnly = indexSettings.getSettings().getAsBoolean("index.source_only", false);

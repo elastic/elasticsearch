@@ -1239,7 +1239,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     // Randomize start doc, starting from a docid that is part of later blocks triggers:
                     // https://github.com/elastic/elasticsearch/issues/138750
                     var docs = TestBlock.docs(IntStream.range(between(0, maxDoc - 1), maxDoc).toArray());
-                    var block = (TestBlock) binaryFixedDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
+                    var block = (TestBlock) binaryFixedDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false);
                     assertNotNull(block);
                     assertTrue(block.size() > 0);
                     for (int j = 0; j < block.size(); j++) {

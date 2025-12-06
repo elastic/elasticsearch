@@ -31,9 +31,20 @@ public class ReadableMatchers {
     }
 
     /**
+     * Test matcher for millis dates that expects longs, but describes the errors as dates, for better readability.
+     * <p>
+     *     See {@link #matchesDateNanos} for the nanos counterpart.
+     * </p>
+     */
+    public static DateMillisMatcher matchesDateMillis(long dateMillis) {
+        String date = dateFormatter.formatMillis(dateMillis);
+        return new DateMillisMatcher(date);
+    }
+
+    /**
      * Test matcher for nanos dates that expects longs, but describes the errors as dates, for better readability.
      * <p>
-     *     See {@link DateMillisMatcher} for the millis counterpart.
+     *     See {@link #matchesDateMillis(String)} for the millis counterpart.
      * </p>
      */
     public static DateNanosMatcher matchesDateNanos(String date) {

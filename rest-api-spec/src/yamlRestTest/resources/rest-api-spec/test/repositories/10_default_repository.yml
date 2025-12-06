@@ -1,5 +1,9 @@
 ---
 setup:
+  - requires:
+      cluster_features: ["repositories.default_repository_setting"]
+      reason: "Default repository setting was introduced in 9.2.0"
+
   # Create two test repositories without verification
   - do:
       snapshot.create_repository:

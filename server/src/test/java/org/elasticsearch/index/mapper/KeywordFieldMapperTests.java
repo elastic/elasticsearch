@@ -859,7 +859,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             randomBoolean() ? null : between(10, 100),
             randomBoolean(),
             usually() ? null : randomAlphaOfLength(2),
-            true
+            true,
+            KeywordFieldSyntheticSourceSupport.randomDocValuesParams(true)
         );
     }
 

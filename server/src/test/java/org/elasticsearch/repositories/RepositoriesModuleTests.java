@@ -11,6 +11,7 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.env.Environment;
@@ -54,6 +55,9 @@ public class RepositoriesModuleTests extends ESTestCase {
         transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
         clusterService = mock(ClusterService.class);
+        // ClusterSettings is a final class, so we need to create a real instance instead of mocking
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         recoverySettings = mock(RecoverySettings.class);
         plugin1 = mock(RepositoryPlugin.class);
         plugin2 = mock(RepositoryPlugin.class);
@@ -94,7 +98,7 @@ public class RepositoriesModuleTests extends ESTestCase {
             repoPlugins,
             nodeClient,
             threadPool,
-            mock(ClusterService.class),
+            clusterService,
             MockBigArrays.NON_RECYCLING_INSTANCE,
             contentRegistry,
             recoverySettings,

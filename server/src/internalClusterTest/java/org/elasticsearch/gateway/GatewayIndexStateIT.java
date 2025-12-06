@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
@@ -415,10 +416,23 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertEquals(IndexMetadata.State.CLOSE, state.getMetadata().getProject().index(metadata.getIndex()).getState());
-        assertEquals(
-            "boolean",
-            state.getMetadata().getProject().index(metadata.getIndex()).getSettings().get("archived.index.similarity.BM25.type")
-        );
+
+        // Verify archived settings are synchronized across all nodes
+        String archivedSettingKey = "archived.index.similarity.BM25.type";
+        assertTrue(state.getMetadata().getProject().index(metadata.getIndex()).getSettings().hasValue(archivedSettingKey));
+        IndexMetadata masterIndexMetadata = state.getMetadata().getProject().index(metadata.getIndex());
+        String masterArchivedValue = masterIndexMetadata.getSettings().get(archivedSettingKey);
+        for (String nodeName : internalCluster().getNodeNames()) {
+            ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
+            IndexMetadata nodeIndexMetadata = clusterService.state().metadata().getProject().index(metadata.getIndex());
+            String nodeArchivedValue = nodeIndexMetadata.getSettings().get(archivedSettingKey);
+            assertEquals(
+                "Archived setting " + archivedSettingKey + " should be synchronized on node " + nodeName,
+                masterArchivedValue,
+                nodeArchivedValue
+            );
+        }
+
         // try to open it with the broken setting - fail again!
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, indicesAdmin().prepareOpen("test"));
         assertEquals(ex.getMessage(), "Failed to verify index " + metadata.getIndex());

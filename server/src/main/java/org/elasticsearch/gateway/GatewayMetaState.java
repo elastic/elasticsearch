@@ -186,12 +186,17 @@ public class GatewayMetaState implements Closeable {
         PersistedState persistedState = null;
         boolean success = false;
         try {
+            // Skip index metadata verification on non-master nodes since they will receive
+            // verified metadata from the master via cluster state updates
+            final Metadata upgradedMetadata = DiscoveryNode.isMasterNode(settings)
+                ? upgradeMetadataForNode(metadata, indexMetadataVerifier, metadataUpgrader)
+                : metadata;
             final ClusterState clusterState = prepareInitialClusterState(
                 transportService,
                 clusterService,
                 ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                     .version(lastAcceptedVersion)
-                    .metadata(upgradeMetadataForNode(metadata, indexMetadataVerifier, metadataUpgrader))
+                    .metadata(upgradedMetadata)
                     .build(),
                 compatibilityVersions
             );

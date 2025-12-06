@@ -427,6 +427,7 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.action.bulk.BulkFeatures,
             org.elasticsearch.features.InfrastructureFeatures,
+            org.elasticsearch.repositories.RepositoriesFeatures,
             org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures,
             org.elasticsearch.rest.action.admin.cluster.GetSnapshotsFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,

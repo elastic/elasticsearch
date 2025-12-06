@@ -359,10 +359,6 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.capabilityName())
             );
             assumeFalse(
-                "CSV tests cannot currently handle CHUNK function",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.CHUNK_FUNCTION_V2.capabilityName())
-            );
-            assumeFalse(
                 "can't use PromQL in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V7.capabilityName())
             );

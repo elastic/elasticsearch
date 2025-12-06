@@ -62,6 +62,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -87,6 +88,8 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
 
     /** The raw settings from the full key to raw string value. */
     private final NavigableMap<String, Object> settings;
+
+    private final Map<String, String> defaultCache = new ConcurrentHashMap<>();
 
     /** The secure settings storage associated with these settings. */
     private final SecureSettings secureSettings;
@@ -289,6 +292,14 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     public String get(String setting, String defaultValue) {
         String retVal = get(setting);
         return retVal == null ? defaultValue : retVal;
+    }
+
+    public String getWithDefaultProvider(String setting, Function<Settings, String> defaultProvider) {
+        String retVal = get(setting);
+        if (retVal == null) {
+            return defaultCache.computeIfAbsent(setting, (key) -> defaultProvider.apply(this));
+        }
+        return retVal;
     }
 
     /**

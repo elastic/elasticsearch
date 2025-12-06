@@ -650,11 +650,7 @@ public class Setting<T> implements ToXContentObject {
                     + " and must be stored inside elasticsearch.yml, but was found inside the Elasticsearch keystore"
             );
         }
-        final String found = settings.get(key);
-        if (found != null) {
-            return found;
-        }
-        return defaultValue.apply(settings);
+        return settings.getWithDefaultProvider(key, defaultValue);
     }
 
     /**

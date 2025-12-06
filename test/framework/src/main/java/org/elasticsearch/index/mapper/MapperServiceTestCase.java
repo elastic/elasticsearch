@@ -537,7 +537,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return builder.endObject();
     }
 
-    protected static XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
+    public static XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
         return mapping(b -> {
             b.startObject("field");
             buildField.accept(b);

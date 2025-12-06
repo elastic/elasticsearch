@@ -34,7 +34,7 @@ public class DockerAvailability {
     private static final String DOCKER_ON_LINUX_EXCLUSIONS_FILE = ".ci/dockerOnLinuxExclusions";
 
     static void assumeDockerIsAvailable() {
-        org.junit.Assume.assumeTrue("The current OS is excluded from Docker-based tests", EXCLUDED_OS);
+        org.junit.Assume.assumeFalse("The current OS is excluded from Docker-based tests", EXCLUDED_OS);
         org.junit.Assume.assumeTrue("The current OS is excluded from Docker-based tests", DOCKER_PROBING_SUCCESSFUL);
     }
 

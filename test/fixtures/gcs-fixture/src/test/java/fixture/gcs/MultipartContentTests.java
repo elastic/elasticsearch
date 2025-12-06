@@ -12,58 +12,85 @@ package fixture.gcs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.stream.IntStream;
 
+import static fixture.gcs.MultipartContent.Reader.readUntilDelimiter;
+import static fixture.gcs.MultipartContent.Reader.skipUntilDelimiter;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 
-public class MultipartUploadTests extends ESTestCase {
+public class MultipartContentTests extends ESTestCase {
 
     // produces content that does not contain boundary
-    static String randomPartContent(int len, String boundary) {
+    static BytesReference randomPartContent(int len, String boundary) {
         assert len > 0 && boundary.isEmpty() == false;
         var content = randomAlphanumericOfLength(len);
         var replacement = boundary.getBytes(UTF_8);
         replacement[0]++; // change single char to make it different from original
-        return content.replace(boundary, Arrays.toString(replacement));
+        content = content.replace(boundary, Arrays.toString(replacement));
+        return new BytesArray(content);
     }
 
-    public void testGenericMultipart() throws IOException {
-        var boundary = randomAlphanumericOfLength(between(1, 70));
-        var part1 = "plain text\nwith line break";
-        var part2 = "";
-        var part3 = randomPartContent(between(1, 1024), boundary);
-        var strInput = """
-            --$boundary\r
-            \r
-            \r
-            $part1\r
-            --$boundary\r
-            X-Header: x-man\r
-            \r
-            $part2\r
-            --$boundary\r
-            Content-Type: application/octet-stream\r
-            \r
-            $part3\r
-            --$boundary--""".replace("$boundary", boundary).replace("$part1", part1).replace("$part2", part2).replace("$part3", part3);
+    static Map<String, String> randomHeaders() {
+        final var headers = new HashMap<String, String>();
+        final var numberOfHeaders = between(0, 10);
+        for (var headerNum = 0; headerNum < numberOfHeaders; headerNum++) {
+            headers.put("x-" + randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT), randomAlphanumericOfLength(between(1, 100)));
+        }
+        return headers;
+    }
 
-        var reader = new MultipartUpload.MultipartContentReader(boundary, new ByteArrayStreamInput(strInput.getBytes()));
-        assertEquals(part1, reader.next().utf8ToString());
-        assertEquals(part2, reader.next().utf8ToString());
-        assertEquals(part3, reader.next().utf8ToString());
-        assertFalse(reader.hasNext());
+    static MultipartContent.Part randomPart(String boundary) {
+        return new MultipartContent.Part(randomHeaders(), randomPartContent(between(1, 1024), boundary));
+    }
+
+    public void testEmptyPart() throws IOException {
+        final var boundary = randomAlphanumericOfLength(between(1, 70));
+        final var output = new ByteArrayOutputStream();
+        final var writer = new MultipartContent.Writer(boundary, output);
+        final var emptyPart = new MultipartContent.Part(Map.of(), BytesArray.EMPTY);
+        writer.write(emptyPart);
+        writer.end();
+        final var reader = MultipartContent.Reader.readStream(boundary, new ByteArrayInputStream(output.toByteArray()));
+        assertEquals(emptyPart, reader.next());
+    }
+
+    public void testWriteAndReadParts() throws IOException {
+        final var boundary = randomAlphanumericOfLength(between(1, 70));
+        final var output = new ByteArrayOutputStream();
+        final var writer = new MultipartContent.Writer(boundary, output);
+        final var writeParts = IntStream.range(0, 100).mapToObj(i -> randomPart(boundary)).toList();
+        for (var part : writeParts) {
+            writer.write(part);
+        }
+        writer.end();
+
+        final var input = new ByteArrayInputStream(output.toByteArray());
+        final var reader = MultipartContent.Reader.readStream(boundary, input);
+        final var readParts = new ArrayList<MultipartContent.Part>();
+        while (reader.hasNext()) {
+            readParts.add(reader.next());
+        }
+        for (int i = 0; i < writeParts.size(); i++) {
+            assertEquals(writeParts.get(i), readParts.get(i));
+        }
     }
 
     public void testReadUntilDelimiter() throws IOException {
         for (int run = 0; run < 100; run++) {
             var delimitedContent = DelimitedContent.randomContent();
             var inputStream = delimitedContent.toBytesReference().streamInput();
-            var readBytes = MultipartUpload.readUntilDelimiter(inputStream, delimitedContent.delimiter);
+            var readBytes = readUntilDelimiter(inputStream, delimitedContent.delimiter);
             assertThat(readBytes, equalBytes(new BytesArray(delimitedContent.before)));
             var readRemaining = inputStream.readAllBytes();
             assertArrayEquals(delimitedContent.after, readRemaining);
@@ -74,7 +101,7 @@ public class MultipartUploadTests extends ESTestCase {
         for (int run = 0; run < 100; run++) {
             var delimitedContent = DelimitedContent.randomContent();
             var inputStream = delimitedContent.toBytesReference().streamInput();
-            MultipartUpload.skipUntilDelimiter(inputStream, delimitedContent.delimiter);
+            skipUntilDelimiter(inputStream, delimitedContent.delimiter);
             var readRemaining = inputStream.readAllBytes();
             assertArrayEquals(delimitedContent.after, readRemaining);
         }
